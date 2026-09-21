@@ -230,11 +230,9 @@ var identifierToken = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
 var camelHump = regexp.MustCompile(`([a-z0-9])([A-Z])`)
 
 // identifierWords is every word a file's identifiers spell, split at the camel humps, lowercased and
-// deduplicated. The humps are what a comment's nouns are compared against: a reader meets
-// `entryType` in prose as "entry type", so the audit needs the parts as well as the whole.
-//
-// Comment lines are left out. A word this file takes from the comments would audit as the code's own
-// word, and the comments are what the writer is replacing.
+// deduplicated. A reader meets `entryType` in prose as "entry type", so the audit needs the humps
+// beside the whole. Comment lines stay out, since a word taken from them would audit as the code's
+// own and the comments are what the writer replaces.
 func identifierWords(lines []string) []string {
 	inComment := map[int]bool{}
 	for _, u := range readerjudge.CommentBlocks(lines) {
