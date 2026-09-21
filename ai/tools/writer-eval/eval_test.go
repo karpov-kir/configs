@@ -32,6 +32,9 @@ const writerRow = "comment-writer"
 // bill a full sweep on every push.
 const evalEnv = "WRITER_EVAL"
 
+// caseEnv narrows a run to the cases whose name starts with it.
+const caseEnv = "WRITER_EVAL_CASE"
+
 const callDeadline = 4 * time.Minute
 
 // evalRolls is how many times each case is put to the writer. The writer is a model, so one roll per
@@ -121,8 +124,11 @@ func prompt(t *testing.T, c Case) string {
 		}
 		fmt.Fprintf(&out, "=== %s ===\n%s\n\n", filepath.Base(path), body)
 	}
-	fmt.Fprintf(&out, "=== the site ===\nThe file holds this code, with every comment block already removed:\n\n"+
-		"```ts\n%s\n```\n\nThe facts file for the site holds:\n\n%s\n\n", c.Code, c.Facts)
+	// The site is named, because a return quoting one invented `writer-eval:1` from the run's own
+	// working directory when the prompt left it unsaid.
+	fmt.Fprintf(&out, "=== the site ===\nThe site is `%s.ts:1`. The file holds this code, with every "+
+		"comment block already removed:\n\n"+
+		"```ts\n%s\n```\n\nThe facts file for the site holds:\n\n%s\n\n", c.Name, c.Code, c.Facts)
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
 	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
@@ -167,6 +173,19 @@ func TestWriterEval(t *testing.T) {
 	cases, err := LoadCases(casesDir)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// One case at a time, for reading a single case's returns without spending the whole set.
+	if only := os.Getenv(caseEnv); only != "" {
+		var kept []Case
+		for _, c := range cases {
+			if strings.HasPrefix(c.Name, only) {
+				kept = append(kept, c)
+			}
+		}
+		if len(kept) == 0 {
+			t.Fatalf("%s is %q, and no case name starts with it", caseEnv, only)
+		}
+		cases = kept
 	}
 	settings := writerSettings(t)
 	at := 4
@@ -277,6 +296,8 @@ func TestWriterEval(t *testing.T) {
 	fmt.Fprintf(&out, "k05 is a judgement case: the coined-identifier check reads prose, and that "+
 		"compound sits only in the identifier.\n")
 	fmt.Fprintf(&out, "Watch: k01 has come back as a rename, on a site carrying no compound at all.\n")
+	fmt.Fprintf(&out, "Earlier tables understated every carried-by case: the score read a return's "+
+		"`carried by` line as block prose until 2026-09-21.\n")
 	t.Log(out.String())
 	if passed != len(cases) {
 		t.Errorf("%d of %d labelled case(s) cleared their floor", passed, len(cases))

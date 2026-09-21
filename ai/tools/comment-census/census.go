@@ -143,6 +143,14 @@ func Shapes() []Shape {
 			`(?i)\b(as|than|like|so)\s+(the|a|an|its|their)\s+\w+\s+(does|do|did)\b`))},
 		{"negated-case", "summary", firstMatch(mustAll(
 			`(?i)\bor\s+[\w']+\s+(unless|except)\b`))},
+		// The positional words a reviewer read as unplaceable, where no backticked name sits in the
+		// sentence to place them. The proposal of 2026-09-20 waited a day for this count.
+		{"positional-here", "either", func(s string) string {
+			if strings.Contains(s, "`") {
+				return ""
+			}
+			return firstMatch(mustAll(`(?i)\bhere\b`, `(?i)\bthis (question|cell)\b`))(s)
+		}},
 		{"long-sentence-15", "either", func(s string) string {
 			if WordCount(s) > 15 {
 				return s
@@ -360,6 +368,8 @@ type Report struct {
 	BareFact   Tally
 	Unanchored Tally
 	BareIdent  Tally
+	OnAnEntry  Tally
+	Paraphrase Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -390,6 +400,8 @@ func Measure(files [][]string) Report {
 	bareFact := &Tally{Name: "note-with-no-second-sentence"}
 	unanchored := &Tally{Name: "note-opening-on-another-actor"}
 	bareIdent := &Tally{Name: "bare-identifier-in-a-note"}
+	onAnEntry := &Tally{Name: "note-on-a-data-entry"}
+	paraphrase := &Tally{Name: "paraphrased-identifier"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
@@ -423,6 +435,11 @@ func Measure(files [][]string) Report {
 					unanchored.add(notes[0])
 				}
 			}
+			// The provenance route's population: a block standing on data, where the declaration under it
+			// holds values alone. A fact there is about the row, and a note is the wrong home.
+			if len(notes) > 0 && standsOnData(lines, b) {
+				onAnEntry.add(notes[0])
+			}
 			for _, note := range notes {
 				if survived, hadContent := Restates(note, words); hadContent && len(survived) == 0 {
 					shownBy.add(note)
@@ -432,6 +449,9 @@ func Measure(files [][]string) Report {
 				}
 				for _, bare := range BareIdentifiers(note, words) {
 					bareIdent.add(bare + " || " + note)
+				}
+				for _, said := range ParaphrasedIdentifiers(note, lines) {
+					paraphrase.add(said)
 				}
 			}
 		}
@@ -507,6 +527,8 @@ func Measure(files [][]string) Report {
 	rep.BareFact = *bareFact
 	rep.Unanchored = *unanchored
 	rep.BareIdent = *bareIdent
+	rep.OnAnEntry = *onAnEntry
+	rep.Paraphrase = *paraphrase
 	rep.SoUnnamed = *soUnnamed
 	return rep
 }
@@ -712,4 +734,64 @@ func opensOnASummaryVerb(sentence string) bool {
 		return openingVerbs[word]
 	}
 	return false
+}
+
+var reDataDeclaration = regexp.MustCompile(`^\s*(export\s+)?(const|readonly|static)\s+[A-Z][A-Z0-9_]*\s*[:=]`)
+var reEntryRow = regexp.MustCompile(`^\s*[\[{]|^\s*['"\x60]?[\w.-]+['"\x60]?\s*:`)
+
+// standsOnData says whether a block sits on a declaration holding values alone. A screaming-case
+// constant or a row inside one is data, and a fact about it belongs to the row.
+func standsOnData(lines []string, b Block) bool {
+	at := b.Line + b.Span
+	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
+		at++
+	}
+	if at > len(lines) {
+		return false
+	}
+	line := lines[at-1]
+	if reDataDeclaration.MatchString(line) {
+		return true
+	}
+	// A row inside a table: the block sits on an entry, and the table's own declaration opens it.
+	if !reEntryRow.MatchString(line) {
+		return false
+	}
+	for up := b.Line - 1; up > 0 && up > b.Line-40; up-- {
+		if reDataDeclaration.MatchString(lines[up-1]) {
+			return true
+		}
+	}
+	return false
+}
+
+// paraphraseWords is the fewest camel humps an identifier needs before its split words in prose read
+// as that identifier. The census measured two, three and four humps: 41 of 304 notes, then 1, then
+// none. It reports and never fires, since an identifier's humps are usually the domain's own phrase.
+// The README holds the samples.
+var paraphraseWords = 3
+
+// ParaphrasedIdentifiers returns the identifiers a note spells out in English instead of naming. A
+// reader given "the preferred key systems setting" is left short of both. The remedy is the name
+// with an appositive, as for a bare one.
+func ParaphrasedIdentifiers(note string, lines []string) []string {
+	low := strings.ToLower(note)
+	var out []string
+	seen := map[string]bool{}
+	for _, token := range identifierWord.FindAllString(strings.Join(lines, " "), -1) {
+		if seen[token] || strings.Contains(note, token) {
+			continue
+		}
+		humps := strings.Fields(camelBreak.ReplaceAllString(token, "$1 $2"))
+		if len(humps) < paraphraseWords {
+			continue
+		}
+		said := strings.ToLower(strings.Join(humps, " "))
+		if !strings.Contains(low, said) {
+			continue
+		}
+		seen[token] = true
+		out = append(out, token+" as \""+said+"\" || "+note)
+	}
+	return out
 }

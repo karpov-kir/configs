@@ -231,3 +231,24 @@ func TestTheDeclarationUnderTheBlockIsNoSentence(t *testing.T) {
 		t.Errorf("two note sentences reached the ceiling: %+v", got)
 	}
 }
+
+// A return carries its own bookkeeping beside the block: what it dropped and where that went. A score
+// reading one of those lines as prose counted a correct `carried by` as a written block. Three of
+// l07's five rolls answered correctly and one of them was counted.
+func TestAVerdictLineIsNotPartOfTheBlock(t *testing.T) {
+	r := ParseReturn("summary: none\nnote: none\nnone\n" +
+		"carried by SettlementClaim.test.ts 'asks the legacy interface for escrow': A ledger " +
+		"exposing the legacy interface answers about escrow only there.\n")
+	if !r.None {
+		t.Fatalf("a declined site with a carried-by line read as written: %q", r.Block)
+	}
+	if got := Judge("carried", ExpectNone, r); !got.Passed() {
+		t.Errorf("a correct carried-by did not pass: %+v", got)
+	}
+	for _, line := range []string{"shown by the body: Lists the rows.", "stale: The table moved.",
+		"for the PR body: A fleet fact.", "invariant diverged: f.ts:1: The table copies the map."} {
+		if !ParseReturn("summary: none\nnote: none\nnone\n" + line + "\n").None {
+			t.Errorf("a declined site read as written beside %q", line)
+		}
+	}
+}

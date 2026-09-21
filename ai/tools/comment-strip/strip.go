@@ -25,11 +25,12 @@ import (
 )
 
 const factsOption = "--facts="
+const archiveOption = "--archive="
 
 // The grammar. It carries the stub's name where argv[0] would carry the binary's. A caller then
 // reads a usage line they can retype. A refusal states it: an argument this tool refuses comes from
 // a caller who needs the form, and the refusal alone gives them half of it.
-const usage = "usage: comment-strip.sh --facts=<dir> [--changed[=<revisions>]] <path>"
+const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--changed[=<revisions>]] <path>"
 
 const (
 	exitClean     = 0
@@ -93,6 +94,14 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		return refuse("%s", "--facts needs a directory")
 	}
 	args = args[1:]
+	archive := ""
+	if len(args) > 0 && strings.HasPrefix(args[0], archiveOption) {
+		archive = strings.TrimPrefix(args[0], archiveOption)
+		if archive == "" {
+			return refuse("%s", "--archive needs a directory")
+		}
+		args = args[1:]
+	}
 	changed := false
 	var revisions []string
 	switch {
@@ -119,6 +128,9 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	raw, err := os.ReadFile(readPath)
 	if err != nil {
 		return refuse("cannot read %s", echoable(path))
+	}
+	if archive != "" && !filepath.IsAbs(archive) {
+		archive = filepath.Join(cwd, archive)
 	}
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(cwd, dir)
@@ -207,8 +219,26 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// source file as the run read it.
 	for _, s := range sites {
 		record := fmt.Sprintf("%s:%d\n%s", path, s.line, s.record)
+		// Every claim ever made at this site, beside the block standing now. A writer drops a fact by
+		// its own rules on one run. The strip reads the block as it stands, so the dropped text lives
+		// in that run's facts directory alone and a later run never weighs it.
+		if archive != "" {
+			carried, err := earlierFacts(archive, path, s.record)
+			if err != nil {
+				return refuse("%s", err.Error())
+			}
+			record += carried
+		}
 		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(record), 0o644); err != nil {
 			return refuse("cannot write %s", echoable(filepath.Join(dir, s.facts)))
+		}
+		if archive != "" {
+			// What is kept is the claims alone, with the site line left off: a later run writes its
+			// own site, and the line a block sits on moves between runs.
+			_, claims, _ := strings.Cut(record, "\n")
+			if err := keepForLater(archive, path, s.line, claims); err != nil {
+				return refuse("%s", err.Error())
+			}
 		}
 	}
 	if err := os.WriteFile(readPath, []byte(stripped), info.Mode().Perm()); err != nil {
@@ -266,4 +296,75 @@ func identifierWords(lines []string) []string {
 	}
 	sort.Strings(words)
 	return words
+}
+
+// archiveName is where a site's history lives: one file per file and line, under the archive a caller
+// keys by the change set's base revision.
+func archiveName(path string, line int) string {
+	safe := strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' || r == ':' {
+			return '_'
+		}
+		return r
+	}, path)
+	return fmt.Sprintf("%s@%d.facts", safe, line)
+}
+
+// earlierFacts is every claim an earlier run recorded at this site, with the block standing now left
+// out. A block byte-identical to one already held is dropped. A site stripped twice with one block
+// between hands the writer that block once.
+func earlierFacts(archive, path, standing string) (string, error) {
+	entries, err := os.ReadDir(archive)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("cannot read the archive at %s", echoable(archive))
+	}
+	head := archiveName(path, 0)
+	head = strings.TrimSuffix(head, "@0.facts") + "@"
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasPrefix(entry.Name(), head) {
+			names = append(names, entry.Name())
+		}
+	}
+	sort.Strings(names)
+	seen := map[string]bool{strings.TrimSpace(standing): true}
+	var out strings.Builder
+	for _, name := range names {
+		body, err := os.ReadFile(filepath.Join(archive, name))
+		if err != nil {
+			return "", fmt.Errorf("cannot read %s", echoable(filepath.Join(archive, name)))
+		}
+		claims := string(body)
+		// An archived record holds one claim block per section. A site stripped three times hands over
+		// three claims, each on its own.
+		for _, block := range strings.Split(claims, earlierMarker) {
+			block = strings.TrimSpace(block)
+			if block == "" || seen[block] {
+				continue
+			}
+			seen[block] = true
+			fmt.Fprintf(&out, "\n%s\n%s\n", earlierMarker, block)
+		}
+	}
+	return out.String(), nil
+}
+
+// earlierMarker tells the writer which claims came from a run before this one. Question 3 weighs
+// them the way it weighs a standing claim, and a reader of the facts file can see which of them the
+// block standing now leaves out.
+const earlierMarker = "# claimed at this site by an earlier run:"
+
+// keepForLater records this run's facts for the runs after it.
+func keepForLater(archive, path string, line int, record string) error {
+	if err := os.MkdirAll(archive, 0o755); err != nil {
+		return fmt.Errorf("cannot create the archive at %s", echoable(archive))
+	}
+	name := filepath.Join(archive, archiveName(path, line))
+	if err := os.WriteFile(name, []byte(record), 0o644); err != nil {
+		return fmt.Errorf("cannot write %s", echoable(name))
+	}
+	return nil
 }

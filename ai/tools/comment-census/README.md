@@ -135,3 +135,26 @@ in the comment naming that phrase. Then `anthropomorphism` found "saying no more
 So the first thing a new check is asked is its own comment. A finding there is one of two things: a
 comment that should take the plain wording, or a false positive announcing itself before it reaches
 anybody's diff. Both are worth having before the check lands.
+
+## Why a fourth mechanism failed the same way
+
+`paraphrased-identifier` was proposed for prose that spells an identifier out instead of naming it:
+"the preferred key systems setting" where `preferredKeySystems` was meant. Measured by the fewest
+camel humps an identifier needs before the check fires:
+
+| minimum humps | hits | of |
+|---|---|---|
+| two | 41 | 304 notes |
+| three | 1 | 304 notes |
+| four | 0 | 304 notes |
+
+At two humps every hit is a domain phrase: `DeviceClaim` as "device claim", `contentType` as "content
+type", `adaptationSet` as "adaptation set". The identifier is named after the phrase, so the prose is
+right and the identifier is the derivative. At three humps the single hit is a specification's term.
+
+That is the same fact that defeated `restates-code`, the subject test and the mechanical rename: **an
+identifier's words are the domain's words**, because that is where an identifier's words come from. A
+test over the code's vocabulary cannot tell prose using the domain from prose copying the code.
+
+Four mechanisms have now failed on it. The class is settled by the writer's judgement and held by the
+fixture.

@@ -1,5 +1,6 @@
-expect: none
-why: a note naming which branch takes which case, carried by a test per branch; the fact is about the outside world and its only consequence here is the branch, so the test naming that branch's behaviour is its home, and run 2 removed this block that way without a reviewer flagging it while the written forms drew a flag twice
+expect: written
+note: written
+why: the claim is a fact about the world this code relies on, and it stays at the site; Kirill on 2026-09-21, on a fate table reading carried by a named test: "This sounds weird. No one needs to read a test a understand the code."; the expected form is the platform fact plus a consequence naming this function, and the routing test is enforcement rather than the reader's route to it
 labelled: 2026-09-17
 --- code
 export async function getSettlementClaim(
