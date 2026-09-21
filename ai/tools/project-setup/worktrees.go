@@ -183,7 +183,13 @@ func (run *invocation) writeHook(paths gitPaths) {
 	}
 	if err := os.WriteFile(paths.hook, []byte(hookBody()), 0o755); err != nil {
 		run.mounting.Refuse("could not enable " + paths.hook)
+		return
 	}
+	// Said on the way out, and naming the file. This is the one step that leaves executable code in
+	// somebody else's repository to run on every checkout they make, and a run that wrote it silently
+	// left them to find it. The dry run has always promised this line; withholding it from the real
+	// run is what made the promise a lie.
+	run.mounting.Say("  enabled  " + run.agent + " skill links for future worktrees: " + paths.hook)
 }
 
 func (run *invocation) disableWorktrees() {

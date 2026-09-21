@@ -71,6 +71,10 @@ func TestAnInstallEnablesFutureWorktreesAndRecordsTheTier(t *testing.T) {
 	f.expectFileBody(paths.hook, projectsetup.HookBody())
 	f.expectFileBody(paths.state+"/claude", "true\n")
 	f.expectFileContains(paths.common+"/info/exclude", ".claude/skills/kk-*")
+	// The write is executable code left in somebody else's repository, running on every checkout they
+	// make. A run that placed it without a word left them to discover it, while --dry-run had always
+	// promised the line — so the two runs disagreed about what an install does.
+	f.expectSaid("enabled  claude skill links for future worktrees: " + paths.hook)
 }
 
 // Every worktree that exists gets the same links, because git cannot carry them itself.
