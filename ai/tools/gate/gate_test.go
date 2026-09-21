@@ -34,19 +34,15 @@ type fixture struct {
 	// budget is zero for every case but the three about the bound, where spending a hundred seconds to
 	// reach a refusal is not a thing a suite may do.
 	budget int
-	// lockDir keeps every case off the machine-wide lock a real gate takes. Cases here run at once, and
-	// that lock exists to stop exactly that. They would queue one behind another, and behind whatever
-	// gate the human running this suite has going.
-	lockDir string
-	out     strings.Builder
-	errOut  strings.Builder
-	code    int
+	out    strings.Builder
+	errOut strings.Builder
+	code   int
 }
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	base := t.TempDir()
-	return &fixture{t: t, root: base, checks: filepath.Join(base, "checks"), lockDir: t.TempDir()}
+	return &fixture{t: t, root: base, checks: filepath.Join(base, "checks")}
 }
 
 // The table the run loop reads. Tab-separated, id then command, exactly as GATE_CHECKS_FILE takes it.
@@ -69,8 +65,7 @@ func (f *fixture) run(args ...string) {
 	f.t.Helper()
 	f.out.Reset()
 	f.errOut.Reset()
-	f.code = Run(args, Env{Root: f.root, Checks: f.checks, Budget: f.budget, LockDir: f.lockDir},
-		&f.out, &f.errOut)
+	f.code = Run(args, Env{Root: f.root, Checks: f.checks, Budget: f.budget}, &f.out, &f.errOut)
 }
 
 func (f *fixture) expectCode(want int) {

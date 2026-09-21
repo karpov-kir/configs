@@ -107,6 +107,94 @@ func TestStripKeepsTheLinesThisRepositorysChecksRead(t *testing.T) {
 	}
 }
 
+// The archive held every record for the file under one prefix, and each site read the lot. A writer
+// at one site was handed another site's claims, under a marker saying they were made at this one. A
+// run over a two-site file reported the whole file's history twice.
+func TestASitesHistoryIsItsOwn(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "x.go")
+	archive := filepath.Join(dir, "archive")
+	first := "package a\n\n// Note about alpha.\nfunc alpha() {}\n\n// Note about beta.\nfunc beta() {}\n"
+	stripOnce(t, dir, path, archive, first, "facts1")
+	second := "package a\n\n// Fresh alpha.\nfunc alpha() {}\n\n// Fresh beta.\nfunc beta() {}\n"
+	facts := stripOnce(t, dir, path, archive, second, "facts2")
+	if got := read(t, facts, "1.facts"); !strings.Contains(got, "Note about alpha") {
+		t.Errorf("alpha lost its own history:\n%s", got)
+	} else if strings.Contains(got, "Note about beta") {
+		t.Errorf("alpha was handed beta's history as its own:\n%s", got)
+	}
+	if got := read(t, facts, "2.facts"); !strings.Contains(got, "Note about beta") {
+		t.Errorf("beta lost its own history:\n%s", got)
+	} else if strings.Contains(got, "Note about alpha") {
+		t.Errorf("beta was handed alpha's history as its own:\n%s", got)
+	}
+}
+
+// Sites are numbered in the stripped file. A block's own height leaves them where they are, and code
+// over them moves them. The declaration carries a site's history across that move. A run matching on
+// the line hands beta an empty history and offers its old claims as a site of their own.
+func TestASiteKeepsItsHistoryWhenCodeAboveMovesIt(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "w.go")
+	archive := filepath.Join(dir, "archive")
+	stripOnce(t, dir, path, archive, "package d\n\n// Alpha note.\nfunc alpha() {}\n\n// Beta note, the original.\nfunc beta() {}\n", "facts1")
+	moved := "package d\n\n// Alpha note.\nfunc alpha() {}\n\nfunc inserted() {\n\treturn\n}\n\n// Beta note, rewritten.\nfunc beta() {}\n"
+	facts := stripOnce(t, dir, path, archive, moved, "facts2")
+	if got := read(t, facts, "2.facts"); !strings.Contains(got, "Beta note, the original") {
+		t.Errorf("beta's history did not follow its site:\n%s", got)
+	}
+	// The directory also holds identifiers.txt, so the count is of facts files alone.
+	written, _ := filepath.Glob(filepath.Join(facts, "*.facts"))
+	if len(written) != 2 {
+		t.Errorf("%d facts file(s), want 2 — a third is beta's old claims offered as a site of their own", len(written))
+	}
+}
+
+// A run that removed a block and left the site empty kept the claims in the archive. No unit found
+// that site afterwards, so the strip exited clean and the claims sat unread. A site stands on its
+// declaration, and a block standing there is no part of it.
+func TestAnArchivedSiteWithNoBlockIsStillASite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "y.go")
+	archive := filepath.Join(dir, "archive")
+	stripOnce(t, dir, path, archive, "package b\n\n// A fact about the vendor export.\nfunc gamma() {}\n", "facts1")
+	var out, errOut strings.Builder
+	code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts2"), "--archive=" + archive, path},
+		dir, noRepository, &out, &errOut)
+	if code != exitCut {
+		t.Fatalf("exit %d, want %d — the archived site was not offered: %s", code, exitCut, errOut.String())
+	}
+	got := read(t, filepath.Join(dir, "facts2"), "1.facts")
+	if !strings.Contains(got, "A fact about the vendor export") {
+		t.Errorf("the archived claim did not reach the writer:\n%s", got)
+	}
+}
+
+// stripOnce writes `body` to `path`, strips it into a fresh facts directory beside it, and returns
+// that directory.
+func stripOnce(t *testing.T, dir, path, archive, body, facts string) string {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	into := filepath.Join(dir, facts)
+	if code := Strip("comment-strip.sh", []string{"--facts=" + into, "--archive=" + archive, path},
+		dir, noRepository, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
+	}
+	return into
+}
+
+func read(t *testing.T, dir, name string) string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatalf("reading %s: %v", name, err)
+	}
+	return string(body)
+}
+
 func TestStripWithNothingToRemoveLeavesTheFileAndExitsClean(t *testing.T) {
 	source := "function a() {}\n"
 	dir := t.TempDir()

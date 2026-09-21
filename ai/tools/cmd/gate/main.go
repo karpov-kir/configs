@@ -20,8 +20,6 @@ func main() {
 		Root:   os.Getenv("GATE_ROOT"),
 		Budget: budget,
 		Checks: os.Getenv("GATE_CHECKS_FILE"),
-		// The lock's home, so a case can keep off the machine's real one.
-		LockDir: os.Getenv("GATE_LOCK_DIR"),
 	}
 	if env.Root == "" {
 		// argv[0] as the stub was invoked by, which `exec -a` preserved. The repository is the parent of

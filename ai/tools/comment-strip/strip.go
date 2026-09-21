@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	readerjudge "configs/ai/tools/reader-judge"
@@ -203,7 +204,16 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		}
 		units = append(units, u)
 	}
-	if len(units) == 0 {
+	var records []archived
+	if archive != "" {
+		var err error
+		if records, err = readArchive(archive, path); err != nil {
+			return refuse("%s", err.Error())
+		}
+	}
+	// A file with no block left standing still has sites, where an earlier run removed one and the
+	// archive kept its claims. A clean return here is what stranded them.
+	if len(units) == 0 && len(records) == 0 {
 		return exitClean
 	}
 
@@ -214,6 +224,9 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		line   int
 		facts  string
 		record string
+		// The declaration this site sits on, which is how a later run finds the site again once an edit
+		// over it has moved its line.
+		decl string
 	}
 	sites := make([]site, 0, len(units))
 	for n, u := range units {
@@ -231,7 +244,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			record.WriteString(lines[u.Line-1+offset])
 			record.WriteByte('\n')
 		}
-		sites = append(sites, site{line: at, facts: fmt.Sprintf("%d.facts", n+1), record: record.String()})
+		decl := ""
+		if next <= len(lines) {
+			decl = strings.TrimSpace(lines[next-1])
+		}
+		sites = append(sites, site{line: at, facts: fmt.Sprintf("%d.facts", n+1), record: record.String(), decl: decl})
 	}
 	gone := make([]int, len(units))
 	for i := range units {
@@ -255,6 +272,42 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	if !strings.HasSuffix(content, "\n") {
 		stripped = strings.TrimSuffix(stripped, "\n")
 	}
+	// A declaration two sites in one file share names neither of them, so both fall back to their line.
+	shared := map[string]bool{}
+	{
+		count := map[string]int{}
+		for _, s := range sites {
+			count[s.decl]++
+		}
+		for decl, n := range count {
+			shared[decl] = n > 1
+		}
+	}
+
+	// A site whose block an earlier run removed stands in the archive alone. The unit loop above walks
+	// comment blocks, so an empty site is invisible to it and its claims sit unread. The run that
+	// deleted the block decided under the rules of its day. This offers the site again, with the
+	// claims and an empty block, so the writer decides it under the rules standing now.
+	if archive != "" {
+		claimed := map[string]bool{}
+		for _, s := range sites {
+			for _, record := range records {
+				if record.isSite(s.line, s.decl, shared[s.decl]) {
+					claimed[record.name] = true
+				}
+			}
+		}
+		height := len(shell.SplitLines(stripped))
+		for _, record := range records {
+			if claimed[record.name] {
+				continue
+			}
+			claimed[record.name] = true
+			at := min(max(record.line, 1), max(height, 1))
+			sites = append(sites, site{line: at, facts: fmt.Sprintf("%d.facts", len(sites)+1), decl: record.decl})
+		}
+	}
+
 	// A facts file carries its site, so it is written once the site is final. A refusal here leaves the
 	// source file as the run read it.
 	for _, s := range sites {
@@ -263,11 +316,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		// its own rules on one run. The strip reads the block as it stands, so the dropped text lives
 		// in that run's facts directory alone and a later run never weighs it.
 		if archive != "" {
-			carried, err := earlierFacts(archive, path, s.record)
-			if err != nil {
-				return refuse("%s", err.Error())
-			}
-			record += carried
+			record += earlierFacts(records, s.record, s.line, s.decl, shared[s.decl])
 		}
 		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(record), 0o644); err != nil {
 			return refuse("cannot write %s", echoable(filepath.Join(dir, s.facts)))
@@ -276,7 +325,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			// What is kept is the claims alone, with the site line left off: a later run writes its
 			// own site, and the line a block sits on moves between runs.
 			_, claims, _ := strings.Cut(record, "\n")
-			if err := keepForLater(archive, path, s.line, claims); err != nil {
+			if err := keepForLater(archive, path, s.line, s.decl, claims); err != nil {
 				return refuse("%s", err.Error())
 			}
 		}
@@ -350,19 +399,29 @@ func archiveName(path string, line int) string {
 	return fmt.Sprintf("%s@%d.facts", safe, line)
 }
 
-// earlierFacts is every claim an earlier run recorded at this site, with the block standing now left
-// out. A block byte-identical to one already held is dropped. A site stripped twice with one block
-// between hands the writer that block once.
-func earlierFacts(archive, path, standing string) (string, error) {
+// archived is one record an earlier run left: the site it was taken from, and the claims made there.
+type archived struct {
+	name   string
+	line   int
+	decl   string
+	claims string
+}
+
+// declMarker names the declaration a record's site sat on. A block that has since moved is read as
+// the same site by it. A record written before this line existed carries no declaration, and matches
+// on its line alone.
+const declMarker = "# the site's declaration:"
+
+// readArchive is every record an earlier run left for this file, newest line last.
+func readArchive(archive, path string) ([]archived, error) {
 	entries, err := os.ReadDir(archive)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", nil
+			return nil, nil
 		}
-		return "", fmt.Errorf("cannot read the archive at %s", echoable(archive))
+		return nil, fmt.Errorf("cannot read the archive at %s", echoable(archive))
 	}
-	head := archiveName(path, 0)
-	head = strings.TrimSuffix(head, "@0.facts") + "@"
+	head := strings.TrimSuffix(archiveName(path, 0), "@0.facts") + "@"
 	var names []string
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasPrefix(entry.Name(), head) {
@@ -370,17 +429,51 @@ func earlierFacts(archive, path, standing string) (string, error) {
 		}
 	}
 	sort.Strings(names)
-	seen := map[string]bool{strings.TrimSpace(standing): true}
-	var out strings.Builder
+	var out []archived
 	for _, name := range names {
 		body, err := os.ReadFile(filepath.Join(archive, name))
 		if err != nil {
-			return "", fmt.Errorf("cannot read %s", echoable(filepath.Join(archive, name)))
+			return nil, fmt.Errorf("cannot read %s", echoable(filepath.Join(archive, name)))
 		}
-		claims := string(body)
+		line, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(name, head), ".facts"))
+		if err != nil {
+			continue
+		}
+		record := archived{name: name, line: line, claims: string(body)}
+		if rest, found := strings.CutPrefix(record.claims, declMarker); found {
+			head, claims, _ := strings.Cut(rest, "\n")
+			record.decl, record.claims = strings.TrimSpace(head), claims
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
+// isSite says this record was taken from the site now standing at `line` over `decl`. The
+// declaration decides it wherever the record carries one, because an edit over a site moves it.
+//
+// A match on the line alone read the whole file's history into every site, which is what this
+// replaces. Where two sites share a declaration it decides neither, and both fall back to the line.
+func (a archived) isSite(line int, decl string, shared bool) bool {
+	if a.decl != "" && decl != "" && !shared {
+		return a.decl == decl
+	}
+	return a.line == line
+}
+
+// earlierFacts is every claim an earlier run recorded at this site, with the block standing now left
+// out. A block byte-identical to one already held is dropped. A site stripped twice with one block
+// between hands the writer that block once.
+func earlierFacts(records []archived, standing string, line int, decl string, shared bool) string {
+	seen := map[string]bool{strings.TrimSpace(standing): true}
+	var out strings.Builder
+	for _, record := range records {
+		if !record.isSite(line, decl, shared) {
+			continue
+		}
 		// An archived record holds one claim block per section. A site stripped three times hands over
 		// three claims, each on its own.
-		for _, block := range strings.Split(claims, earlierMarker) {
+		for _, block := range strings.Split(record.claims, earlierMarker) {
 			block = strings.TrimSpace(block)
 			if block == "" || seen[block] {
 				continue
@@ -389,7 +482,7 @@ func earlierFacts(archive, path, standing string) (string, error) {
 			fmt.Fprintf(&out, "\n%s\n%s\n", earlierMarker, block)
 		}
 	}
-	return out.String(), nil
+	return out.String()
 }
 
 // earlierMarker tells the writer which claims came from a run before this one. Question 3 weighs
@@ -397,10 +490,14 @@ func earlierFacts(archive, path, standing string) (string, error) {
 // block standing now leaves out.
 const earlierMarker = "# claimed at this site by an earlier run:"
 
-// keepForLater records this run's facts for the runs after it.
-func keepForLater(archive, path string, line int, record string) error {
+// keepForLater records this run's facts for the runs after it, under the declaration its site sits
+// on. A later run finds the site by that declaration once an edit has moved its line.
+func keepForLater(archive, path string, line int, decl, record string) error {
 	if err := os.MkdirAll(archive, 0o755); err != nil {
 		return fmt.Errorf("cannot create the archive at %s", echoable(archive))
+	}
+	if decl != "" {
+		record = declMarker + " " + decl + "\n" + record
 	}
 	name := filepath.Join(archive, archiveName(path, line))
 	if err := os.WriteFile(name, []byte(record), 0o644); err != nil {

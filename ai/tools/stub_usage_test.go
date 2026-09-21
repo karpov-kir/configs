@@ -153,8 +153,6 @@ var refusals = []refusal{
 	{stub: "ai/gate.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		// The repository is the parent of the directory holding the stub, which is how the command
 		// resolves it with GATE_ROOT unset.
-		// No LockDir. An unknown flag is refused in argument parsing. The gate takes its machine-wide lock
-		// below that point, and this case never reaches it.
 		return gate.Run(i.args, gate.Env{Root: filepath.Dir(i.stubDir)}, i.out, i.out)
 	}},
 	{stub: "ai/guide.sh", args: []string{"--nope"}, call: func(i invocation) int {

@@ -27,6 +27,11 @@ type Case struct {
 	// leaves the case scored on the site alone.
 	WantSummary string
 	WantNote    string
+	// Keeps is the wording the block has to carry, as alternatives of which one must appear. It serves
+	// the claims whose worth is an obligation. A note saying a table copies another states what is. A
+	// note saying it must match another states what is owed, and only that one tells a reader who
+	// changes one side that they owe the other.
+	Keeps []string
 	// Floor overrides how many rolls this case has to clear. A case no step decides is the writer
 	// judging, and three mechanisms have now failed to reach the two that carry this field.
 	Floor int
@@ -91,6 +96,15 @@ func ParseCase(name, raw string) (Case, error) {
 			c.WantSummary = strings.ToLower(value)
 		case "note":
 			c.WantNote = strings.ToLower(value)
+		case "keeps":
+			for _, wording := range strings.Split(value, "|") {
+				if trimmed := strings.TrimSpace(wording); trimmed != "" {
+					c.Keeps = append(c.Keeps, strings.ToLower(trimmed))
+				}
+			}
+			if len(c.Keeps) == 0 {
+				return c, fmt.Errorf("%s names no wording to keep", name)
+			}
 		case "floor":
 			count, err := strconv.Atoi(value)
 			if err != nil || count < 1 {
@@ -174,5 +188,18 @@ func JudgeCase(c Case, r Return) Verdict {
 	}
 	want(c.WantSummary, "summary", r.Summary)
 	want(c.WantNote, "note", r.Note)
+	// A block the writer never wrote fails on its part already, and reporting the wording too would
+	// count one miss twice.
+	if len(c.Keeps) > 0 && r.Block != "" {
+		text := strings.ToLower(r.Text())
+		kept := false
+		for _, wording := range c.Keeps {
+			kept = kept || strings.Contains(text, wording)
+		}
+		if !kept {
+			v.Failures = append(v.Failures, Failure{"dropped-the-obligation",
+				"the block keeps none of: " + strings.Join(c.Keeps, ", ")})
+		}
+	}
 	return v
 }

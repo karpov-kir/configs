@@ -50,10 +50,6 @@ type Env struct {
 	// tab-separated. GATE_CHECKS_FILE. The suite uses it to reach the run loop, the report and every
 	// refusal in milliseconds, so it never pays for the real checks a second time.
 	Checks string
-	// LockDir holds the machine-wide lock that keeps two gates off one machine. GATE_LOCK_DIR. Empty
-	// means the user's cache directory, which is what a real run takes. The suite names its own, or
-	// every case here would queue behind whatever gate the human is running.
-	LockDir string
 }
 
 // The whole suite, cold, on the slowest machine that gates on it. `ai/kk-flavor/standards/testing.md`
@@ -61,10 +57,6 @@ type Env struct {
 // thing enforcing it, and suiteTimeoutSeconds, the backstop const, says why `go test` must not be
 // handed this number.
 const budgetSeconds = 100
-
-// How often a queued gate looks again. A gate runs for tens of seconds. A finer poll spends wakeups
-// to learn the same thing.
-const lockPoll = 200 * time.Millisecond
 
 // What `go test` carries as its own -timeout, above budgetSeconds, the gate's own bound, on purpose.
 // Handed the budget itself, Go killed the package first and printed a goroutine dump. The
@@ -118,6 +110,8 @@ func (g *gate) fail(format string, a ...any) int {
 }
 
 func (g *gate) run(args []string, env Env) int {
+	started := time.Now()
+
 	full := false
 	for _, arg := range args {
 		switch arg {
@@ -131,22 +125,6 @@ func (g *gate) run(args []string, env Env) int {
 			return refuse(g.errOut, usageLine)
 		}
 	}
-
-	// The lock, and then the clock. A gate that queued behind another gate has not spent that time on
-	// this tree. A budget that counted it turned a busy machine into a finding about the suite.
-	// lock.go carries the rest.
-	held, waited, err := takeLock(lockHome(env.LockDir), lockPoll, func(said string) {
-		fmt.Fprintf(g.errOut, "gate.sh: %s\n", said)
-	})
-	if err != nil {
-		return g.fail("%v, so the gate did NOT run", err)
-	}
-	defer held.release()
-	if waited > time.Second {
-		fmt.Fprintf(g.errOut, "gate.sh: waited %s for the gate already running on this machine — "+
-			"the budget below is measured from here.\n", waited.Round(time.Second))
-	}
-	started := time.Now()
 
 	if code := g.resolveRoot(env.Root); code != 0 {
 		return code
