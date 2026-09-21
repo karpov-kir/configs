@@ -582,7 +582,7 @@ func IdentifierWords(lines []string) []string {
 			continue
 		}
 		// Both spellings, as comment-strip writes them, so the eval hands the writer the list the lane
-		// hands it. The lowercased form alone left a writer looking up a name as prose spells it.
+		// hands it.
 		for _, token := range identifierWord.FindAllString(line, -1) {
 			seen[token] = true
 			seen[strings.ToLower(token)] = true
