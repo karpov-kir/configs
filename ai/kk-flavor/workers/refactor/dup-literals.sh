@@ -25,8 +25,8 @@
 # `ai/tools/diffscan/`: which arguments are refused, the git flags that pin the diff's shape, and the
 # anchor that stops a file's own content forging a header.
 #
-# tested by: the Go suite in ai/tools/dup-literals/; the shared stub region below by
-# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/dup-literals/. The shared stub region and the resolver it calls
+# are covered by the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 

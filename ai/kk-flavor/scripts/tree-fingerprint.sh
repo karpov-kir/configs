@@ -19,8 +19,8 @@
 # because `add -A` records it as its HEAD — a hash that moves when a session working in there commits,
 # and not when anything here does.
 #
-# tested by: the Go suite in ai/tools/tree-fingerprint/; the shared stub region below
-# by the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/tree-fingerprint/. The shared stub region and the resolver it calls
+# are covered by the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 

@@ -14,8 +14,8 @@
 # differently. The filter is on ignored and never on untracked, so a skill just written and not yet
 # staged is still judged.
 #
-# tested by: the Go suite in ai/tools/eco-check/; the shared stub region below by
-# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/eco-check/. The shared stub region and the resolver it calls
+# are covered by the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 

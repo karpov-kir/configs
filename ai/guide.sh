@@ -25,8 +25,8 @@
 #
 # The tool is Go, in `ai/tools/eco-guide/`.
 #
-# tested by: the Go suite in ai/tools/eco-guide/; the shared stub region below by
-# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/eco-guide/. The shared stub region and the resolver it calls
+# are covered by the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 

@@ -249,12 +249,12 @@ func (c *checker) reportTestPosition(script string, lines []string, carriers map
 // scriptDeclaresNoTestPosition would ask the reader for a reason, and the script already states where
 // its cases are.
 
+// Every suite a header names is held, and for a while only the first one was. Eleven headers read "the
+// Go suite beside the tool, X" and then "the shared stub region by the Go suite in reach". Only the
+// second clause carried the phrase this matches, so all eleven declared reach. The package each script
+// was really tested by went unchecked, and the scan stayed quiet about it.
+
 // A script whose cases live in the Go module and in no `-test.sh` beside it.
-//
-// Every suite the header names is held, not the first. Stopping at the first read eleven headers of the
-// form "the Go suite beside the tool, X; the shared stub region by the Go suite in reach" as declaring
-// reach and nothing else, because only the second clause carried the phrase this matches. Each of those
-// scripts named a package it was never held against, and the scan reported nothing.
 func (c *checker) namesGoSuite(script string, header []string) bool {
 	named := false
 	for _, line := range header {

@@ -20,8 +20,8 @@
 # dirty. Exits 1 with findings, 0 when clean, and 2 when it could not run and said why on stderr. A 2
 # prints no findings, so never read it as a clean draft.
 #
-# tested by: the Go suite in ai/tools/handoff-check/; the shared stub region below by
-# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/handoff-check/. The shared stub region and the resolver it calls
+# are covered by the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 

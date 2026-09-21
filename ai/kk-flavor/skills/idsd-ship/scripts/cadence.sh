@@ -12,8 +12,8 @@
 # Exit 2 is "nothing was determined" and is never a "not due": both end in "no offer made", so a
 # caller that reads one as the other suppresses the pass for as long as the bad record sits there.
 #
-# tested by: the Go suite in ai/tools/cadence/; the shared stub region below by
-# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/cadence/. The shared stub region and the resolver it calls
+# are covered by the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 

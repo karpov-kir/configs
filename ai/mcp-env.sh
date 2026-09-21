@@ -15,9 +15,11 @@
 # Adding a name here widens what an unreviewed release can read, so add one only when a server fails
 # without it, and say which server in the same edit.
 #
-# tested by: the Go suite in ai/tools/, which execs this script once per case. Its root package rather
-# than one of its own: this file is outside that Go module, and Go keys a test cache on the module, so
-# a package under it would answer `ok (cached)` over a wrapper that had changed.
+# tested by: the Go suite in ai/tools/, which execs this script once per case.
+#
+# The root package holds those cases, and no package of its own. This file sits outside that Go module,
+# and Go keys a test cache on the module. A package under it would answer `ok (cached)` over a wrapper
+# that had changed.
 set -euo pipefail
 
 # PATH/HOME: find mise and node at all, and locate mise's data dir, the npm cache and the browser

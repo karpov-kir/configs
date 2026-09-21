@@ -10,8 +10,8 @@
 # ../templates/qualify-report-template.md. `~/.kk-flavor/scripts/tree-fingerprint.sh` is found from
 # $HOME. Both installs symlink into the same repo, so they ship together or not at all.
 #
-# tested by: the Go suite in ai/tools/eco-report/; the shared stub region below by
-# the Go suite in ai/tools/reach/, which covers the resolver it calls too.
+# tested by: the Go suite in ai/tools/eco-report/. The shared stub region and the resolver it calls
+# are covered by the Go suite in ai/tools/reach/.
 
 set -euo pipefail
 
