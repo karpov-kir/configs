@@ -211,8 +211,8 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 		return refuse("cannot write %s", echoable(path))
 	}
 	// The writer's audit classifies a noun phrase as the code's word by looking it up here, so the
-	// list has to sit beside the facts. Absent, every noun audits as none of the three and the writer
-	// rewrites until it declines the site. The fixture measured that shift.
+	// list sits beside the facts. Absent, every noun audits as none of the three and the writer
+	// rewrites until it declines the site.
 	if err := os.WriteFile(filepath.Join(dir, identifiersFile),
 		[]byte(strings.Join(identifierWords(lines), "\n")+"\n"), 0o644); err != nil {
 		return refuse("cannot write %s", echoable(filepath.Join(dir, identifiersFile)))

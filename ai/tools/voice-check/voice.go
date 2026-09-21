@@ -624,7 +624,7 @@ var (
 
 	// A boolean written as a person answering, at 3 of 711 sentences. The first form takes modifiers
 	// between the article and the word: the sentence that prompted this rule put two there. The
-	// second stays adjacent, because that word is a determiner in "no row" and in "no longer".
+	// second form stays adjacent, because that word is a determiner in the phrase "no row".
 	reAnthropomorphic = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\b(a|an|the|its|their|his|her|our|your)\s+(?:[a-z][a-z-]*\s+){0,2}yes\b`),
 		regexp.MustCompile(`(?i)\b(a|an|the|its|their|his|her|our|your)\s+no\b`),
@@ -670,7 +670,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		return strings.Repeat(" ", len(span))
 	})
 	// The three sentence shapes read comments alone, since their counts were taken over comment
-	// blocks and a rule file writes about them rather than in them.
+	// blocks. A rule file writes about them, and writing about one is not writing in it.
 	if s.profile == ProfileComment {
 		for _, name := range []string{checkCounterfact, checkAnthropo, checkElidedVerb} {
 			for _, pattern := range SentenceShapes()[name] {
