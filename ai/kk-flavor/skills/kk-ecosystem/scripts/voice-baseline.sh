@@ -35,12 +35,45 @@ done < <(find ai/kk-flavor/standards ai/kk-flavor/workers ai/kk-flavor/skills ai
 [ "${#files[@]}" -gt 0 ] || { echo "voice-baseline: no instruction file was found — exit 2" >&2; exit 2; }
 
 # Measured one file at a time, reading each run's own summary line. The report truncates its findings
-# at a display cap, so counting printed lines undercounts any file that runs past it.
+# at a display cap, so counting printed lines undercounts any file that runs past it, and one run over
+# every file at once would hit that cap long before the last file.
+#
+# The runs go concurrently, in batches. Sequentially this was the slowest thing in the gate at 102
+# seconds over 72 files, which is most of the whole budget spent on startup — each run reads one file
+# and shares nothing with the others, so there is nothing here to serialize. Batched with `wait` rather
+# than `wait -n`, and with an indexed array rather than an associative one, because macOS ships bash
+# 3.2 and has neither.
+#
+# Exit 2 from a run is fatal here. It means that run did not measure, and its empty summary would
+# otherwise read as a file with no findings — which is a count under its baseline, and the regenerate
+# path would then write that zero in as the new floor.
 measured=()
-for f in "${files[@]}"; do
-  summary="$("$check" --profile=instruction "$f" 2>&1 >/dev/null | grep -o 'instruction profile: [0-9]* finding' || true)"
-  n="${summary//[!0-9]/}"
-  measured+=("${n:-0}")
+work="$(mktemp -d "${TMPDIR:-/tmp}/voice-baseline.XXXXXX")" || {
+  echo "voice-baseline: no temp directory, so nothing was measured — exit 2" >&2; exit 2; }
+trap 'rm -rf "$work"' EXIT
+batch="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 8)"
+i=0
+while [ "$i" -lt "${#files[@]}" ]; do
+  j=0
+  while [ "$j" -lt "$batch" ] && [ "$i" -lt "${#files[@]}" ]; do
+    (
+      summary="$("$check" --profile=instruction "${files[$i]}" 2>&1 >/dev/null | grep -o 'instruction profile: [0-9]* finding' || true)"
+      status="${PIPESTATUS[0]}"
+      [ "$status" = 2 ] && { printf 'refused\n' >"$work/$i"; exit 0; }
+      n="${summary//[!0-9]/}"
+      printf '%s\n' "${n:-0}" >"$work/$i"
+    ) &
+    i=$((i + 1)); j=$((j + 1))
+  done
+  wait
+done
+i=0
+while [ "$i" -lt "${#files[@]}" ]; do
+  n="$(cat "$work/$i" 2>/dev/null || true)"
+  [ "$n" = refused ] || [ -z "$n" ] && {
+    echo "voice-baseline: $check did not measure ${files[$i]}, so this is not a clean run — exit 2" >&2; exit 2; }
+  measured+=("$n")
+  i=$((i + 1))
 done
 
 # Rewritten from what the tree measures now, which belongs in the same change that lowered a count.
