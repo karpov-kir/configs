@@ -135,7 +135,9 @@ func (g *gate) run(args []string, env Env) int {
 	// The lock, and then the clock. A gate that queued behind another gate has not spent that time on
 	// this tree. A budget that counted it turned a busy machine into a finding about the suite.
 	// lock.go carries the rest.
-	held, waited, err := takeLock(lockHome(env.LockDir), lockPoll)
+	held, waited, err := takeLock(lockHome(env.LockDir), lockPoll, func(said string) {
+		fmt.Fprintf(g.errOut, "gate.sh: %s\n", said)
+	})
 	if err != nil {
 		return g.fail("%v, so the gate did NOT run", err)
 	}

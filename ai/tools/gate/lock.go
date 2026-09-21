@@ -97,11 +97,16 @@ func abandoned(dir string) bool {
 // printed, because what a caller does with it is the caller's: the gate reports it and leaves it out
 // of the budget.
 //
+// announce is called once, when this run finds the lock held, and names who holds it. A silent queue
+// is a gate that looks hung. The pid is what tells a running gate from a wedged one, and the deadline
+// states the wait's own end before it begins.
+//
 // A lock that will not come away is a refusal. os.Remove takes an empty directory alone, so a lock
 // holding a file this package never put there would otherwise spin here for the life of the process.
-func takeLock(home string, poll time.Duration) (*heldLock, time.Duration, error) {
+func takeLock(home string, poll time.Duration, announce func(string)) (*heldLock, time.Duration, error) {
 	dir := filepath.Join(home, lockName)
 	began := time.Now()
+	said := false
 	for {
 		err := os.Mkdir(dir, 0o755)
 		if err == nil {
@@ -114,6 +119,13 @@ func takeLock(home string, poll time.Duration) (*heldLock, time.Duration, error)
 		if !errors.Is(err, fs.ErrExist) {
 			return nil, time.Since(began), fmt.Errorf("cannot create %s: %v", dir, err)
 		}
+		if !said {
+			said = true
+			if announce != nil {
+				announce(fmt.Sprintf("waiting for the gate already running on this machine (%s), "+
+					"and giving up after %s", holderOf(dir), lockWaitLimit))
+			}
+		}
 		if abandoned(dir) {
 			_ = os.Remove(filepath.Join(dir, "pid"))
 			if err := os.Remove(dir); err != nil {
@@ -124,9 +136,24 @@ func takeLock(home string, poll time.Duration) (*heldLock, time.Duration, error)
 		}
 		if time.Since(began) > lockWaitLimit {
 			return nil, time.Since(began), fmt.Errorf(
-				"waited %s for the gate running under %s and it has not finished",
-				time.Since(began).Round(time.Second), dir)
+				"waited %s for the gate running under %s (%s) and it has not finished",
+				time.Since(began).Round(time.Second), dir, holderOf(dir))
 		}
 		time.Sleep(poll)
 	}
+}
+
+// holderOf names who a reader would have to go and look at: the pid inside the lock, and how long the
+// lock has been there. A lock carrying neither says so in those words. An empty phrase in a refusal
+// sends the reader to this source file to find out what was meant.
+func holderOf(dir string) string {
+	pid := "no pid written yet"
+	if held, err := os.ReadFile(filepath.Join(dir, "pid")); err == nil {
+		pid = "pid " + strings.TrimSpace(string(held))
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return pid
+	}
+	return fmt.Sprintf("%s, held for %s", pid, time.Since(info.ModTime()).Round(time.Second))
 }

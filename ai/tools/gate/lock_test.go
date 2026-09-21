@@ -22,7 +22,7 @@ const testPoll = 5 * time.Millisecond
 func TestASecondGateWaitsForTheFirstRatherThanRacingIt(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	first, waited, err := takeLock(home, testPoll)
+	first, waited, err := takeLock(home, testPoll, nil)
 	if err != nil {
 		t.Fatalf("the first gate could not take the lock: %v — nothing was measured", err)
 	}
@@ -32,7 +32,7 @@ func TestASecondGateWaitsForTheFirstRatherThanRacingIt(t *testing.T) {
 
 	queued := make(chan time.Duration, 1)
 	go func() {
-		second, waitedFor, err := takeLock(home, testPoll)
+		second, waitedFor, err := takeLock(home, testPoll, nil)
 		if err != nil {
 			queued <- -1
 			return
@@ -72,7 +72,7 @@ func TestALockNoLiveGateHoldsIsTakenRatherThanWaitedOut(t *testing.T) {
 		t.Fatalf("writing the dead holder's pid: %v — nothing was measured", err)
 	}
 
-	held, waited, err := takeLock(home, testPoll)
+	held, waited, err := takeLock(home, testPoll, nil)
 	if err != nil {
 		t.Fatalf("a lock held by a dead gate was not taken: %v — every gate on this machine now queues "+
 			"behind it", err)
@@ -126,7 +126,7 @@ func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, _, err := takeLock(home, testPoll)
+		_, _, err := takeLock(home, testPoll, nil)
 		done <- err
 	}()
 	select {
@@ -146,7 +146,7 @@ func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
 func TestOnlyTheHolderGivesUpTheLock(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
-	held, _, err := takeLock(home, testPoll)
+	held, _, err := takeLock(home, testPoll, nil)
 	if err != nil {
 		t.Fatalf("taking the lock: %v — nothing was measured", err)
 	}
@@ -164,6 +164,51 @@ func TestOnlyTheHolderGivesUpTheLock(t *testing.T) {
 	if err != nil || strings.TrimSpace(string(after)) != strconv.Itoa(stranger) {
 		t.Errorf("release removed a lock this process no longer held (%v, %q), so the gate that took it "+
 			"next has nothing keeping a third off the machine", err, after)
+	}
+}
+
+// A silent queue is a gate that looks hung. The line goes out as the wait begins, and names the pid a
+// reader would go and look at. The pid is what tells a running gate from a wedged one.
+func TestAQueuedGateSaysWhoItIsWaitingForBeforeItWaits(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	dir := filepath.Join(home, lockName)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", dir, err)
+	}
+	holder := os.Getpid()
+	if err := os.WriteFile(filepath.Join(dir, "pid"),
+		[]byte(strconv.Itoa(holder)+"\n"), 0o644); err != nil {
+		t.Fatalf("writing the holder's pid: %v — nothing was measured", err)
+	}
+
+	said := make(chan string, 4)
+	go func() {
+		held, _, err := takeLock(home, testPoll, func(line string) { said <- line })
+		if err == nil {
+			held.release()
+		}
+	}()
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_ = os.Remove(filepath.Join(dir, "pid"))
+		_ = os.Remove(dir)
+	}()
+
+	var announced string
+	select {
+	case announced = <-said:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a gate queued behind another and announced nothing, so a human watching it sees a " +
+			"process that has stopped")
+	}
+	if !strings.Contains(announced, strconv.Itoa(holder)) {
+		t.Errorf("the line does not name the holding pid, so a reader cannot go and look at it: %q",
+			announced)
+	}
+	if !strings.Contains(announced, "giving up after") {
+		t.Errorf("the line does not carry the deadline, so the wait does not state its own end: %q",
+			announced)
 	}
 }
 
