@@ -250,8 +250,12 @@ func identifierWords(lines []string) []string {
 			continue
 		}
 		for _, token := range identifierToken.FindAllString(line, -1) {
+			// Both spellings. The list held the lowercased form alone, so a writer looking a name up as
+			// prose spells it missed one the file imports.
+			seen[token] = true
 			seen[strings.ToLower(token)] = true
 			for _, hump := range strings.Fields(camelHump.ReplaceAllString(token, "$1 $2")) {
+				seen[hump] = true
 				seen[strings.ToLower(hump)] = true
 			}
 		}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -22,6 +23,13 @@ type Case struct {
 	// before it keeps a claim. A `carried by <test>` label needs them. Without them the writer greps
 	// an empty set and keeps the claim, which the text in front of it asks for.
 	Tests string
+	// WantSummary and WantNote are what a case expects of each part, where it cares. An empty field
+	// leaves the case scored on the site alone.
+	WantSummary string
+	WantNote    string
+	// Floor overrides how many rolls this case has to clear. A case no step decides is the writer
+	// judging, and three mechanisms have now failed to reach the two that carry this field.
+	Floor int
 }
 
 // ExpectRename is a site whose own identifier carries a coined compound. The writer returns the
@@ -73,6 +81,16 @@ func ParseCase(name, raw string) (Case, error) {
 			c.Why = value
 		case "labelled":
 			c.Label = value
+		case "summary":
+			c.WantSummary = strings.ToLower(value)
+		case "note":
+			c.WantNote = strings.ToLower(value)
+		case "floor":
+			count, err := strconv.Atoi(value)
+			if err != nil || count < 1 {
+				return c, fmt.Errorf("%s names a floor of %q, which is not a positive count", name, value)
+			}
+			c.Floor = count
 		default:
 			return c, fmt.Errorf("%s names an unknown field %q", name, key)
 		}
@@ -131,4 +149,21 @@ func ClassOf(r Return) Expected {
 		return ExpectNone
 	}
 	return ExpectWritten
+}
+
+// JudgeCase scores a return against a case, including what the case expects of each part. Where a
+// case sets neither part expectation, it is scored on the site alone, as it was before the split.
+func JudgeCase(c Case, r Return) Verdict {
+	v := Judge(c.Name, c.Expect, r)
+	want := func(field, label string, got Part) {
+		if field == "" {
+			return
+		}
+		if PartName(got) != field {
+			v.Failures = append(v.Failures, Failure{label + "-part", "wanted " + field + ", got " + PartName(got)})
+		}
+	}
+	want(c.WantSummary, "summary", r.Summary)
+	want(c.WantNote, "note", r.Note)
+	return v
 }

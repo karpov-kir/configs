@@ -1,4 +1,6 @@
 expect: none
+summary: none
+note: none
 why: every clause of the fact is a clause of the body, and the rest defends a decision no reader questions
 labelled: 2026-09-17
 --- code

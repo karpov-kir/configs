@@ -355,6 +355,8 @@ type Report struct {
 	SoBoth    Tally
 	Restating Tally
 	Spelled   Tally
+	ShownBy   Tally
+	AboutCode Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -380,18 +382,29 @@ func Measure(files [][]string) Report {
 	soBoth := &Tally{Name: "of those, also counterfactual"}
 	restating := &Tally{Name: "restates-code"}
 	spelled := &Tally{Name: "compound-the-code-spells"}
+	shownBy := &Tally{Name: "note-shown-by-the-body"}
+	aboutCode := &Tally{Name: "note-about-this-code"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
 		blocks := Blocks(lines)
 		identifiers := Identifiers(lines, blocks)
 		for _, b := range blocks {
-			summary, ok := b.Summary()
-			if !ok {
-				continue
+			words := DeclarationWords(lines, b)
+			if summary, ok := b.Summary(); ok {
+				if survived, hadContent := Restates(summary, words); hadContent && len(survived) == 0 {
+					restating.add(summary)
+				}
 			}
-			if survived, hadContent := Restates(summary, DeclarationWords(lines, b)); hadContent && len(survived) == 0 {
-				restating.add(summary)
+			// The keep test's first drop, as a step: a claim whose every content word the declaration
+			// already spells is shown by the body. The census counts it before it lands, like every rule here.
+			for _, note := range b.Notes() {
+				if survived, hadContent := Restates(note, words); hadContent && len(survived) == 0 {
+					shownBy.add(note)
+				}
+				if subject, ok := AboutThisCode(note, identifiers); ok {
+					aboutCode.add(subject + " || " + note)
+				}
 			}
 		}
 		rep.Blocks += len(blocks)
@@ -461,6 +474,8 @@ func Measure(files [][]string) Report {
 	rep.SoBoth = *soBoth
 	rep.Restating = *restating
 	rep.Spelled = *spelled
+	rep.ShownBy = *shownBy
+	rep.AboutCode = *aboutCode
 	rep.SoUnnamed = *soUnnamed
 	return rep
 }
@@ -555,11 +570,26 @@ func Restates(summary string, declWords map[string]bool) (survived []string, had
 // same list to the writer, so the fixture and the lane audit against one thing.
 func IdentifierWords(lines []string) []string {
 	blocks := Blocks(lines)
+	inComment := map[int]bool{}
+	for _, b := range blocks {
+		for offset := 0; offset < b.Span; offset++ {
+			inComment[b.Line+offset] = true
+		}
+	}
 	seen := map[string]bool{}
-	for word := range Identifiers(lines, blocks) {
-		seen[word] = true
-		for _, hump := range strings.Fields(camelBreak.ReplaceAllString(word, "$1 $2")) {
-			seen[strings.ToLower(hump)] = true
+	for at, line := range lines {
+		if inComment[at+1] {
+			continue
+		}
+		// Both spellings, as comment-strip writes them, so the eval hands the writer the list the lane
+		// hands it.
+		for _, token := range identifierWord.FindAllString(line, -1) {
+			seen[token] = true
+			seen[strings.ToLower(token)] = true
+			for _, hump := range strings.Fields(camelBreak.ReplaceAllString(token, "$1 $2")) {
+				seen[hump] = true
+				seen[strings.ToLower(hump)] = true
+			}
 		}
 	}
 	words := make([]string, 0, len(seen))
@@ -569,3 +599,46 @@ func IdentifierWords(lines []string) []string {
 	sort.Strings(words)
 	return words
 }
+
+// codeSubjects are the subjects that name this code whatever the file spells. A claim opening on one
+// of these is about the code in front of the reader.
+var codeSubjects = map[string]bool{"this": true, "these": true, "it": true, "they": true,
+	"call": true, "function": true, "method": true, "block": true, "line": true, "check": true}
+
+// subjectWords is how many words of the main clause are read as its subject.
+const subjectWords = 3
+
+// AboutThisCode says whether a claim's subject names this code. It reports and never drops: 158 of
+// 304 notes on the reviewed set, because a domain noun is an identifier. The consequence clause is
+// exempt, since the note pattern gives it this code's element as its subject by design.
+func AboutThisCode(note string, identifiers map[string]bool) (subject string, about bool) {
+	main := note
+	if at := reSoClauseHead.FindStringIndex(main); at != nil {
+		main = main[:at[0]]
+	}
+	var read []string
+	for at, raw := range strings.Fields(camelBreak.ReplaceAllString(main, "$1 $2")) {
+		word := stemOf(raw)
+		if word == "" || stopWords[word] {
+			continue
+		}
+		// A sentence opening on one of the summary's verbs has no subject to read: it is a summary
+		// shape, and its first word is the verb. Taking that word as the subject reported "Reads which
+		// colour space the frames were in" as a claim about this code.
+		if at == 0 && openingVerbs[word] {
+			return "", false
+		}
+		read = append(read, word)
+		if len(read) >= subjectWords {
+			break
+		}
+	}
+	for _, word := range read {
+		if codeSubjects[word] || identifiers[word] {
+			return word, true
+		}
+	}
+	return "", false
+}
+
+var reSoClauseHead = regexp.MustCompile(`(?i),\s+so\b`)

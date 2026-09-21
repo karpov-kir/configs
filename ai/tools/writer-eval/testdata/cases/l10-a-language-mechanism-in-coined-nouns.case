@@ -1,5 +1,6 @@
 expect: none
-why: a language mechanism described in coined nouns, and a test carries it
+floor: 2
+why: a language mechanism described in coined nouns; no step reaches it, since the test's name holds one of the claim's five content nouns, so the writer's judgement decides it and the floor is 2 of 5
 labelled: 2026-09-17
 --- code
 function getClaimThroughLegacyApi(clearing: Clearing, settlementApi: LegacySettlementApi): LedgerClaim {

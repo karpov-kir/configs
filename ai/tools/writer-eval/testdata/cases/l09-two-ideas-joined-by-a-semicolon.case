@@ -1,5 +1,7 @@
-expect: none
-why: two ideas joined by a semicolon, and the estate fact needs more room than a note
+expect: written
+summary: none
+note: written
+why: the original joined two ideas with a semicolon; the fact itself is a plain one about ledgers that the code cannot show, so question 3 keeps it and question 1 wants no summary; decided on the five rolls of 2026-09-21, where every one wrote a plain world fact
 labelled: 2026-09-17
 --- code
 async function readsSettlementScheme(house: string, entryType: string): Promise<boolean> {

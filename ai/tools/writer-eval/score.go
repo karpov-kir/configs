@@ -23,13 +23,26 @@ type Return struct {
 	Block string
 	Terms []Audit
 	Verbs []Audit
-	// Answered and Needed carry what question 1 said, and Attempts counts the rewrites the writer
-	// showed. A none on a site question 1 called needed has to show two attempts. The gate the writer
-	// runs over its own block otherwise reads as permission to skip the site.
-	Answered bool
-	Needed   bool
+	// Summary and Note are the two part lines. Question 1 decides the summary. Question 3 runs
+	// whatever it answered, and a site is none only where both parts are. One answer for the whole
+	// site declined every block a reviewer had kept. Of those declines, 37 of 37 and 15 of 15 stopped
+	// at question 1, and the facts file stayed shut.
+	Summary  Part
+	Note     Part
 	Attempts int
 }
+
+// Part is what one half of a block came back as.
+type Part int
+
+const (
+	// PartUnsaid is a return that named no part line.
+	PartUnsaid Part = iota
+	// PartNone is a part the writer decided against.
+	PartNone
+	// PartWritten is a part the writer wrote.
+	PartWritten
+)
 
 // Audit is one classified word or phrase from the writer's return.
 type Audit struct {
@@ -38,7 +51,8 @@ type Audit struct {
 }
 
 var auditLine = regexp.MustCompile(`(?i)^\s*(term|verb):\s*(.+?)\s+[—-]\s+(\w+)\s*$`)
-var questionLine = regexp.MustCompile(`(?i)^\s*question 1:\s*(needed|none)\s*$`)
+var summaryLine = regexp.MustCompile(`(?i)^\s*summary:\s*(needed|none)\s*$`)
+var noteLine = regexp.MustCompile(`(?i)^\s*note:\s*(written|none)\s*$`)
 var attemptLine = regexp.MustCompile(`(?i)^\s*attempt \d+:`)
 var blockMarker = regexp.MustCompile(`^\s*(///|//|/\*\*|/\*|\*/|\*|#)\s?`)
 
@@ -48,9 +62,18 @@ func ParseReturn(raw string) Return {
 	var out Return
 	var body []string
 	for _, line := range strings.Split(raw, "\n") {
-		if m := questionLine.FindStringSubmatch(line); m != nil {
-			out.Answered = true
-			out.Needed = strings.EqualFold(m[1], "needed")
+		if m := summaryLine.FindStringSubmatch(line); m != nil {
+			out.Summary = PartNone
+			if strings.EqualFold(m[1], "needed") {
+				out.Summary = PartWritten
+			}
+			continue
+		}
+		if m := noteLine.FindStringSubmatch(line); m != nil {
+			out.Note = PartNone
+			if strings.EqualFold(m[1], "written") {
+				out.Note = PartWritten
+			}
 			continue
 		}
 		if attemptLine.MatchString(line) {
@@ -176,11 +199,31 @@ func Judge(name string, want Expected, r Return) Verdict {
 	if got == ExpectWritten {
 		v.Failures = Score(r)
 	}
-	// A none on a site question 1 called needed is a skipped rewrite unless the attempts are there to
-	// read. The writer names that site itself, so this reads presence.
-	if got == ExpectNone && r.Answered && r.Needed && r.Attempts < 2 {
-		v.Failures = append(v.Failures, Failure{"none-without-two-attempts",
+	// A part the writer set out to write and then answered none for is a skipped rewrite unless the
+	// attempts are there to read. The gate applies per part, and the writer names the parts itself,
+	// so this reads presence.
+	if got == ExpectNone && r.Summary == PartWritten && r.Attempts < 2 {
+		v.Failures = append(v.Failures, Failure{"summary-dropped-without-two-attempts",
+			fmt.Sprintf("%d attempt(s) shown", r.Attempts)})
+	}
+	if got == ExpectNone && r.Note == PartWritten && r.Attempts < 2 {
+		v.Failures = append(v.Failures, Failure{"note-dropped-without-two-attempts",
 			fmt.Sprintf("%d attempt(s) shown", r.Attempts)})
 	}
 	return v
+}
+
+// Parts is what the two part lines said, for a table that counts them. A run that reports the site
+// alone cannot see a note lost to the summary's verdict, which is the defect the parts exist for.
+func (r Return) Parts() (summary, note Part) { return r.Summary, r.Note }
+
+// PartName is how a part reads in a table.
+func PartName(p Part) string {
+	switch p {
+	case PartNone:
+		return "none"
+	case PartWritten:
+		return "written"
+	}
+	return "unsaid"
 }

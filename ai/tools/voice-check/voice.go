@@ -670,9 +670,10 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	prose := reInlineCode.ReplaceAllStringFunc(text, func(span string) string {
 		return strings.Repeat(" ", len(span))
 	})
-	// The three sentence shapes read comments alone, since their counts were taken over comment
-	// blocks. A rule file writes about them, and writing about one is not writing in it.
-	if s.profile == ProfileComment {
+	// The three sentence shapes read a comment and a body, since a PR body carries the same shapes a
+	// comment does. They stay out of the instruction profile: a rule file writes about them, and
+	// writing about one is not writing in it.
+	if s.profile == ProfileComment || s.profile == ProfileProse {
 		for _, name := range []string{checkCounterfact, checkAnthropo, checkElidedVerb} {
 			for _, pattern := range SentenceShapes()[name] {
 				if at := pattern.FindStringIndex(prose); at != nil {
