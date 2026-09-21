@@ -57,7 +57,7 @@ Anything else is `none of the three` and a rewrite. Classify by presence in thos
 
 Then list every verb and classify each as `literal` or `figure`. These four are a `figure` wherever they appear, because a set of reviewed code was counted for them: cover, settle, sit in, load-bearing. Read them off that list, the way the noun phrases are read off theirs, and leave the judgement out. Any other verb is `literal` where it is an action its named subject performs: uses, returns, removes, reads, copies, throws. A `figure` is a rewrite. A verb the sentence borrows from an earlier clause is elided, and it is written again: `as soon as the document removes it`, never `as soon as the document does`.
 
-Then count the block's sentences. A summary and at most two notes is the ceiling. At three notes the facts need more room than a block, so the block is `none` and the facts go back as `for the PR body`.
+Then count the note's sentences, and leave the summary out of that count. Two is the ceiling, and a fact may share one sentence with its consequence. At three the facts need more room than a note, so the note is `none` and they go back as `for the PR body`. The block's own bound is four prose lines.
 
 Return the audit lines beside the block, one per line, as `term: <phrase> — identifier|domain|plain` and `verb: <word> — literal|figure`.
 

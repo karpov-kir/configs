@@ -133,13 +133,24 @@ func TestADeclinedSiteFailsNoTextCheck(t *testing.T) {
 	}
 }
 
-func TestTheSentenceCeilingCountsTheBlocksSentences(t *testing.T) {
-	long := "/** One. Two. Three. Four. */"
-	if !checkedBy(Score(ParseReturn(long)), "over-the-sentence-ceiling") {
-		t.Errorf("four sentences did not reach the ceiling")
-	}
-	if checkedBy(Score(ParseReturn("/** A summary. One note. Two notes. */")), "over-the-sentence-ceiling") {
+// The ceiling is the note's two sentences, and the summary sits outside it. Counting the block put a
+// summary and a two-sentence note over a limit neither of them breaks.
+func TestTheSentenceCeilingCountsTheNoteAndNotTheSummary(t *testing.T) {
+	allowed := ParseReturn("summary: needed\nnote: written\n/** A summary. One note. Two notes. */")
+	if checkedBy(Score(allowed), "over-the-sentence-ceiling") {
 		t.Errorf("a summary and two notes reached the ceiling, and that is the shape the rule allows")
+	}
+	overLong := ParseReturn("summary: needed\nnote: written\n/** A summary. One. Two. Three. */")
+	if !checkedBy(Score(overLong), "over-the-sentence-ceiling") {
+		t.Errorf("three note sentences did not reach the ceiling")
+	}
+	noSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. Three. */")
+	if !checkedBy(Score(noSummary), "over-the-sentence-ceiling") {
+		t.Errorf("three note sentences with no summary did not reach the ceiling")
+	}
+	twoNoSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. */")
+	if checkedBy(Score(twoNoSummary), "over-the-sentence-ceiling") {
+		t.Errorf("two note sentences reached the ceiling")
 	}
 }
 

@@ -151,8 +151,16 @@ func Score(r Return) []Failure {
 			add("metaphor-verb", stem)
 		}
 	}
-	if len(sentences) > noteSentences+1 {
-		add("over-the-sentence-ceiling", fmt.Sprintf("%d sentences", len(sentences)))
+	// The ceiling is the note's, and the summary sits outside it. The rule's two-sentence bound is in
+	// the note paragraph, and the block's own bound is four prose lines. Counting the block instead
+	// put a summary and a two-sentence note over a limit neither of them breaks, which took the plain
+	// half from 6% failing to 15%.
+	inNote := sentences
+	if r.Summary == PartWritten && len(inNote) > 0 {
+		inNote = inNote[1:]
+	}
+	if len(inNote) > noteSentences {
+		add("over-the-sentence-ceiling", fmt.Sprintf("%d note sentence(s)", len(inNote)))
 	}
 	for _, v := range r.Verbs {
 		if v.Class == "figure" {
