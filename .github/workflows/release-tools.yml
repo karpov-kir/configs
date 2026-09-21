@@ -34,7 +34,7 @@ jobs:
     env:
       # The tools that ship. ai/tools/shipped_test.go fails if this list and the module's main
       # packages drift apart.
-      SHIPPED: eco-check eco-stats eco-report eco-guide rule-echo cite-graph handoff-check cadence comment-density tree-fingerprint gate dup-literals bloat-judge model-policy model-check repo-key wait-reap mcp-sync project-mcp env-bootstrap ai-bootstrap install-project project-skills
+      SHIPPED: eco-check eco-stats eco-report eco-guide rule-echo cite-graph handoff-check cadence voice-check comment-strip tree-fingerprint gate dup-literals reader-judge model-policy model-check repo-key wait-reap mcp-sync project-mcp env-bootstrap ai-bootstrap install-project project-skills
     steps:
       - uses: actions/checkout@v7
 

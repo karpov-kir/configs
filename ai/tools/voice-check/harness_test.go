@@ -1,0 +1,230 @@
+package voicecheck
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+var seedRepo string
+
+// What this machine would have handed a case, had the pins below not been set.
+var machineHome, machineConfigHome string
+
+func TestMain(m *testing.M) {
+	// Kept before anything below overrides them, so the isolation case can name what a leak would have
+	// reached rather than guess at it.
+	machineHome, machineConfigHome = os.Getenv("HOME"), os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	// NOSYSTEM covers /etc/gitconfig and the HOME override below covers ~/.gitconfig, but git
+	// reads $XDG_CONFIG_HOME/git/config as a global source too. A core.excludesFile there empties
+	// `ls-files --others --exclude-standard` and reddens every untracked case on a machine that is
+	// working perfectly. GIT_CONFIG_GLOBAL supersedes both files at once.
+	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
+	base, err := os.MkdirTemp("", "density-seed")
+	if err != nil {
+		panic("density tests: no temp dir, so nothing was tested: " + err.Error())
+	}
+	defer os.RemoveAll(base)
+	os.Setenv("HOME", filepath.Join(base, "home"))
+	os.MkdirAll(os.Getenv("HOME"), 0o755)
+	// XDG_CONFIG_HOME as well as HOME, because the tool reads its own machine override from
+	// $XDG_CONFIG_HOME/kk-flavor/ and falls back to $HOME/.config only when that is unset. Pinning HOME
+	// alone left every case that does not set it reading the config of whoever runs the suite: three
+	// cases went red on this laptop over a keyword a newer build of this tool had written there. A unit
+	// test must not be able to see that file at all, let alone fail over it.
+	os.Setenv("XDG_CONFIG_HOME", filepath.Join(base, "config"))
+	os.MkdirAll(os.Getenv("XDG_CONFIG_HOME"), 0o755)
+
+	seedRepo = filepath.Join(base, "seed")
+	if err := buildSeed(seedRepo); err != nil {
+		panic("density tests: could not build the seed repository, so nothing was tested: " + err.Error())
+	}
+	// Removed explicitly rather than left to the defer above: os.Exit runs no deferred call, so the
+	// defer covers only the panic path, and without this line every run leaves a seed repository
+	// behind in the temp directory.
+	code := m.Run()
+	os.RemoveAll(base)
+	os.Exit(code)
+}
+
+func buildSeed(dir string) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	for _, args := range [][]string{
+		{"init", "-q"},
+		{"config", "user.email", "t@t"},
+		{"config", "user.name", "t"},
+		{"config", "commit.gpgsign", "false"},
+	} {
+		if err := git(dir, args...); err != nil {
+			return err
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "seed.txt"), []byte("seed\n"), 0o644); err != nil {
+		return err
+	}
+	if err := git(dir, "add", "seed.txt"); err != nil {
+		return err
+	}
+	return git(dir, "commit", "-qm", "base")
+}
+
+func git(dir string, args ...string) error {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	return cmd.Run()
+}
+
+type repo struct {
+	t      *testing.T
+	dir    string
+	stdout strings.Builder
+	stderr strings.Builder
+	code   int
+}
+
+func newRepo(t *testing.T) *repo {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), "repo")
+	if err := copyTree(seedRepo, dir); err != nil {
+		t.Fatalf("could not build a fixture repo: %v — stopping, since every case reads one", err)
+	}
+	return &repo{t: t, dir: dir}
+}
+
+func copyTree(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode().Perm()|0o700)
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, body, info.Mode().Perm())
+	})
+}
+
+func (r *repo) write(name, body string) {
+	r.t.Helper()
+	full := filepath.Join(r.dir, name)
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		r.t.Fatalf("could not create the parent for %s: %v", name, err)
+	}
+	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+		r.t.Fatalf("could not write the fixture %s: %v", name, err)
+	}
+}
+
+func (r *repo) commit(message string) {
+	r.t.Helper()
+	if err := git(r.dir, "add", "-A"); err != nil {
+		r.t.Fatalf("could not stage the fixture: %v", err)
+	}
+	if err := git(r.dir, "commit", "-qm", message); err != nil {
+		r.t.Fatalf("could not commit the fixture: %v", err)
+	}
+}
+
+func baseConfig() Config {
+	return Config{MaxFileBytes: defaultMaxFileBytes}
+}
+
+func (r *repo) run(args ...string) {
+	r.runWith(baseConfig(), args...)
+}
+
+func (r *repo) runWith(cfg Config, args ...string) {
+	r.stdout.Reset()
+	r.stderr.Reset()
+	r.code = Run("voice-check.sh", args, r.dir, cfg, &r.stdout, &r.stderr)
+}
+
+func (r *repo) expectCode(want int) {
+	r.t.Helper()
+	if r.code != want {
+		r.t.Errorf("exit %d, wanted %d\nstdout: %s\nstderr: %s", r.code, want, r.stdout.String(), r.stderr.String())
+	}
+}
+
+func (r *repo) expectStdoutHas(want string) {
+	r.t.Helper()
+	if !strings.Contains(r.stdout.String(), want) {
+		r.t.Errorf("wanted %q on stdout, got: %s", want, r.stdout.String())
+	}
+}
+
+func (r *repo) expectStdoutLacks(unwanted string) {
+	r.t.Helper()
+	if strings.Contains(r.stdout.String(), unwanted) {
+		r.t.Errorf("%q appears on stdout: %s", unwanted, r.stdout.String())
+	}
+}
+
+// A refused run must leave nothing on stdout: anything there is what a caller capturing the report
+// reads as a finding.
+func (r *repo) expectNoStdout() {
+	r.t.Helper()
+	if r.stdout.Len() != 0 {
+		r.t.Errorf("expected nothing on stdout, got: %s", r.stdout.String())
+	}
+}
+
+func (r *repo) expectStderrHas(want string) {
+	r.t.Helper()
+	if !strings.Contains(r.stderr.String(), want) {
+		r.t.Errorf("wanted %q on stderr, got: %s", want, r.stderr.String())
+	}
+}
+
+func (r *repo) expectStderrLacks(unwanted string) {
+	r.t.Helper()
+	if strings.Contains(r.stderr.String(), unwanted) {
+		r.t.Errorf("%q appears on stderr: %s", unwanted, r.stderr.String())
+	}
+}
+
+func heavy(comments, code int) string {
+	var b strings.Builder
+	for i := 0; i < comments; i++ {
+		fmt.Fprintf(&b, "// comment %d\n", i)
+	}
+	for i := 0; i < code; i++ {
+		fmt.Fprintf(&b, "x := %d\n", i)
+	}
+	return b.String()
+}
+
+// density runs the figure mode. The tests below assert what the scan counted, which is that mode's
+// report now that the bare arguments are the register check.
+func (r *repo) density(args ...string) {
+	r.runWith(baseConfig(), append([]string{"--density"}, args...)...)
+}
+
+func (r *repo) densityWith(cfg Config, args ...string) {
+	r.runWith(cfg, append([]string{"--density"}, args...)...)
+}
+
+// housey is a file the register scan reports. A test about which FILE was reached can then observe
+// the scan through its findings. The spine it carries is `rather than`, caught since the first check.
+func housey(lines int) string {
+	var b strings.Builder
+	for i := 0; i < lines; i++ {
+		fmt.Fprintf(&b, "// The reader climbs to entry %d rather than the entry asked for.\n", i)
+	}
+	b.WriteString("x := 1\n")
+	return b.String()
+}

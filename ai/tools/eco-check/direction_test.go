@@ -150,7 +150,7 @@ func TestDirectionScan(t *testing.T) {
 	t.Run("and reads a lane basename past one too", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
-		f.write(f.root+"/kk-flavor/standards/x.md", "# Rule\n\x00\nrun `comment-density.sh` before any lens reads it\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "# Rule\n\x00\nrun `voice-check.sh` before any lens reads it\n")
 		f.reports(basenames)
 	})
 
@@ -200,14 +200,14 @@ func TestDirectionScan(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
 		f.write(f.root+"/kk-flavor/standards/x.md", "read `"+laneScriptRef+"`\n")
-		f.reports("kk-humanize/scripts/comment-density.sh — move the rule")
+		f.reports("kk-humanize/scripts/voice-check.sh — move the rule")
 	})
 
 	// The third shape: a lane's file named by basename alone, carrying neither a lane name nor a path.
 	t.Run("fires on a lane's file named by its basename alone", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
-		f.write(f.root+"/kk-flavor/standards/x.md", "run `comment-density.sh` before any lens reads it\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "run `voice-check.sh` before any lens reads it\n")
 		f.reports(basenames)
 	})
 
@@ -227,7 +227,7 @@ func TestDirectionScan(t *testing.T) {
 
 	t.Run("while firing on this same tree's unique lane basename (control for the case above)", func(t *testing.T) {
 		f := newTwoLaneTree(t)
-		f.write(f.root+"/kk-flavor/standards/x.md", "the density gate is `comment-density.sh`\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "the density gate is `voice-check.sh`\n")
 		f.reports(basenames)
 	})
 
@@ -254,15 +254,15 @@ func TestDirectionScan(t *testing.T) {
 	t.Run("reports a lane's basename (control for the case below)", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
-		f.write(f.root+"/kk-flavor/standards/x.md", "run `comment-density.sh` before any lens reads it\n")
+		f.write(f.root+"/kk-flavor/standards/x.md", "run `voice-check.sh` before any lens reads it\n")
 		f.reports(basenames)
 	})
 
 	t.Run("a newline in a committed filename cannot mute a real basename finding", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
-		f.write(f.root+"/kk-flavor/standards/x.md", "run `comment-density.sh` before any lens reads it\n")
-		f.newFileWithNewlineName(f.root+"/kk-flavor/skills/kk-humanize/scripts/x\ncomment-density.sh",
+		f.write(f.root+"/kk-flavor/standards/x.md", "run `voice-check.sh` before any lens reads it\n")
+		f.newFileWithNewlineName(f.root+"/kk-flavor/skills/kk-humanize/scripts/x\nvoice-check.sh",
 			"not a script", "the basename forgery cases")
 		f.reports(basenames)
 	})
@@ -313,7 +313,7 @@ func TestDirectionScan(t *testing.T) {
 	t.Run("bounds what the basename half of the scan emits", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
-		f.floodWithLine(f.root+"/kk-flavor/standards/x.md", 45, "run `comment-density.sh` now")
+		f.floodWithLine(f.root+"/kk-flavor/standards/x.md", 45, "run `voice-check.sh` now")
 		f.reports(basenames + ": " + f.root + "/kk-flavor/standards/x.md — 40 already shown")
 	})
 

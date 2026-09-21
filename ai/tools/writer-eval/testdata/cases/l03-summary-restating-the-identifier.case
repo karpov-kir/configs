@@ -1,0 +1,17 @@
+expect: none
+why: the name and the return type say it, and the pairing is what the body shows
+labelled: 2026-09-17
+--- code
+export function listPostingCells(): PostingCell[] {
+  const cells: PostingCell[] = [];
+
+  Object.values(Account).forEach(account => {
+    Object.values(Settlement).forEach(settlement => {
+      cells.push({ account, settlement });
+    });
+  });
+
+  return cells;
+}
+--- facts
+Lists every combination of account and settlement, account-major.

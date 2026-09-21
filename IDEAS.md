@@ -290,7 +290,7 @@ Nothing here identifies the stall. What the number can do is survive it, which a
 
 **A managed policy setting still reaches a judge roll, and nothing here can refuse it.** The client's
 setting sources and the roll's environment are both allow-lists now, and `runBounded` is the single
-seam both `bloat-judge` and `model-check` shell out through, so one list covers every provider call
+seam both `reader-judge` and `model-check` shell out through, so one list covers every provider call
 this repo makes. A managed setting is merged above all of them by the client itself. Nothing in the
 tree can close that; what it can do is stop claiming isolation, which
 [model-policy.md](ai/kk-flavor/standards/model-policy.md) now does.
@@ -332,7 +332,7 @@ naming the elapsed time and the bound; the rule that a long wait must say it is 
 stated nowhere, and no other tool here follows it.
 
 **A scanner now names the build that answered it, and the rest of the tree does not.**
-`comment-density --bar` leads with `measured by: comment-density build <id>`, after two opposite
+`voice-check --bar` leads with `measured by: voice-check build <id>`, after two opposite
 verdicts an hour apart on identical inputs with nothing saying the tool had been rebuilt between
 them. That is [quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md)'s "names the commit
 you measured" one level up — there the unnamed thing is the tree, here the instrument — and the rule

@@ -1,0 +1,9 @@
+expect: none
+why: the summary restates the name plus its parameter names
+labelled: 2026-09-17
+--- code
+export function listEntriesDeclaring(ledger: Document, entryType: string): EntryInBook[] {
+  return listPricedEntries(ledger).filter(inBook => declaresEntryType(inBook, entryType));
+}
+--- facts
+Lists every priced entry in the ledger that declares the given entry type.

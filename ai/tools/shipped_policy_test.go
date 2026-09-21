@@ -39,7 +39,7 @@ func TestShippedPolicyKeepsTheJudgeCheapAndVoting(t *testing.T) {
 		"claude": {Model: "haiku"},
 		"codex":  {Model: "gpt-5.6-luna", Effort: "low"},
 	} {
-		decision, err := policy.Resolve(modelpolicy.Request{Client: client, Task: "bloat-judge"})
+		decision, err := policy.Resolve(modelpolicy.Request{Client: client, Task: "reader-judge"})
 		if err != nil || decision.Requested != want {
 			t.Fatalf("judge %s = %+v, %v; want %+v", client, decision.Requested, err, want)
 		}

@@ -1,0 +1,36 @@
+expect: none
+why: a note naming which branch takes which case, carried by a test per branch; the fact is about the outside world and its only consequence here is the branch, so the test naming that branch's behaviour is its home, and run 2 removed this block that way without a reviewer flagging it while the written forms drew a flag twice
+labelled: 2026-09-17
+--- code
+export async function getSettlementClaim(
+  requirement: SettlementRequirement,
+  entryType: string,
+): Promise<LedgerClaim> {
+  if (registry.legacySettlementApi && requirement.clearing === Clearing.Escrow) {
+    return getClaimThroughLegacyApi(requirement.clearing, registry.legacySettlementApi);
+  }
+
+  if (typeof registry.requestSettlementAccess === 'function') {
+    return getClaimThroughStandardApi(requirement, entryType);
+  }
+
+  return getClaimThroughEntryQuestion(requirement.clearing, entryType);
+}
+--- facts
+Asks whether the ledger claims the clearing house under the settlement scheme, through whichever interface is
+present. The interface present decides how to ask, because a registry list only knows the registries someone
+already enumerated. A ledger exposing the legacy interface answers about escrow only there, so an escrow question
+goes to it first; the standard interface would record `Unsupported` for a clearing house the ledger has.
+--- tests
+// SettlementClaim.test.ts in the change set
+it('asks the legacy interface for escrow when the legacy interface is present', async () => {
+  registry.legacySettlementApi = fakeLegacyApi();
+  await getSettlementClaim({ clearing: Clearing.Escrow }, entryType);
+  expect(fakeLegacyApi().asked).toBe(true);
+});
+
+it('asks the standard interface for a clearing house the legacy interface does not hold', async () => {
+  registry.legacySettlementApi = fakeLegacyApi();
+  await getSettlementClaim({ clearing: Clearing.Direct }, entryType);
+  expect(standardApi.asked).toBe(true);
+});

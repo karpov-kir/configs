@@ -168,7 +168,7 @@ func IsMaintainerAudience(lines []string) bool {
 // Returned rather than passed over. `audience: maintainr` matches no marker, so a reader that only
 // asks "is this the marker" answers no and the skill installs for everyone — a declaration the human
 // wrote, silently ignored, leaving them with a skill they believe is marked and is not. That is the
-// same failure `ai/tools/bloat-judge/deadline.go` refuses an unrecognised override line for, and it
+// same failure `ai/tools/reader-judge/deadline.go` refuses an unrecognised override line for, and it
 // is worse here: the mistake is invisible on a machine where the install looks correct.
 //
 // `maintainer` is the only value there is. Adding a second one means teaching both readers, which is

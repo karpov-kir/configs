@@ -98,10 +98,10 @@ The judge needs `JUDGE_PROVIDER` set to `codex` or `claude`, and the matching CL
 you. Missing, invalid or unavailable providers fail with exit 2. There is no `auto` mode or fallback.
 The skills that call it supply `codex` as the default, so only a machine overriding that has to set
 the variable by hand. [Model policy](kk-flavor/standards/model-policy.md) → **What the policy can
-and cannot reach** says why codex. `ai/tools/bloat-judge/eval_test.go` is the corpus that decided it.
+and cannot reach** says why codex. `ai/tools/reader-judge/eval_test.go` is the corpus that decided it.
 
 ```sh
-JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/bloat-judge.sh instruction instructions.md
+JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/reader-judge.sh instruction instructions.md
 ```
 
 Every dispatch site's model lives in [models.json](kk-flavor/models.json), which is the one place to
@@ -110,7 +110,7 @@ tier a session should be started at, which nothing can enforce once it is runnin
 does not name is refused rather than run at the caller's tier. Read [model policy](kk-flavor/standards/model-policy.md) before changing an assignment: it says
 which rows a tool enforces, which are a convention an agent keeps, and which three cost levers no
 row can reach. The resolver prints requested settings only; dispatch still verifies what it selected.
-`JUDGE_PROVIDER` selects the client, not a fallback provider. Change the `bloat-judge` task to tune
+`JUDGE_PROVIDER` selects the client, not a fallback provider. Change the `reader-judge` task to tune
 the judge's model, effort or vote count; a legacy `JUDGE_MODEL` setting is refused.
 
 Reply editing and structured stage returns do not call the judge. Durable deletion disputes can use

@@ -117,7 +117,7 @@ func TestASkillsPathWithAWorkerRowIsADispatchAndNotARead(t *testing.T) {
 		"skills/kk-qualify/SKILL.md": skillBody("orchestrator", strings.Join([]string{
 			"| Lane | What fills it | Scanner to run |",
 			"|---|---|---|",
-			"| edit | `kk-edit` | `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh` |",
+			"| edit | `kk-edit` | `~/.kk-flavor/skills/kk-edit/scripts/voice-check.sh` |",
 			"| code-review | `~/.kk-flavor/workers/code-review.md` | — |",
 		}, "\n")),
 		"skills/kk-pr/SKILL.md": skillBody("holds — landing", "The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`."),
@@ -149,7 +149,7 @@ func TestASkillsPathWithAWorkerRowIsADispatchAndNotARead(t *testing.T) {
 func TestASkillsScriptPathIsNoEdge(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
 		"skills/kk-pr/SKILL.md": skillBody("holds — landing",
-			"Run `~/.kk-flavor/skills/kk-edit/scripts/comment-density.sh` over the diff."),
+			"Run `~/.kk-flavor/skills/kk-edit/scripts/voice-check.sh` over the diff."),
 	})
 
 	status, output := run(t, "--graph", root)

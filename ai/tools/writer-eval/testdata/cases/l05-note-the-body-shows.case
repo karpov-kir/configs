@@ -1,0 +1,12 @@
+expect: none
+why: every clause of the fact is a clause of the body, and the rest defends a decision no reader questions
+labelled: 2026-09-17
+--- code
+export function isPriced(book: Element): boolean {
+  return (
+    hasCurrency(book.getAttribute('currency')) ||
+    entriesOf(book).some(entry => hasCurrency(entry.getAttribute('currency')))
+  );
+}
+--- facts
+Checks whether a book is priced. The ledger allows `currency` on the book or on each entry, so both are read.

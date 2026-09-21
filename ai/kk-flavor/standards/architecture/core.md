@@ -56,7 +56,7 @@ backend  : entrypoint(host)  → controller → use case → core / domain  (→
 frontend : entrypoint(mount) → page       → feature  → core / domain  (→ ports)
 ```
 
-**Backend.** Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates); otherwise skip it. Put a read behind a port only where a fake adds value.
+**Backend.** Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates), and skip it below that. Put a read behind a port only where a fake adds value.
 
 **Frontend.** Server cache — data mirrored from the API — goes to a data-fetching library (TanStack Query, a Solid resource) behind a port, never hand-rolled in components; UI state (open/closed, selection, draft) stays in component-local signals. A server semantic rejection (409/422) maps onto the offending field, not a generic toast.
 
@@ -68,7 +68,7 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
 
 ## Logging & events
 
-**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per slice/feature so each line carries its source, and the logger filters by level; level set once from config. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
+**Logging — the one ambient exception to injection.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per slice/feature so each line carries its source, and the logger filters by level. Config sets that level once. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
 
 **Events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget.
 

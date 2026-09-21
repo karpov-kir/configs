@@ -1,8 +1,8 @@
-// The judge configured from the shipped policy. `bloat-judge` is the one task a tool resolves on its
+// The judge configured from the shipped policy. `reader-judge` is the one task a tool resolves on its
 // own, so what the central file assigns it is the whole of its cost control, and these are the cases
 // that read that file rather than a fixture.
 //
-// Here rather than in `ai/tools/bloat-judge/` for the reason shipped_tree_test.go's cases are.
+// Here rather than in `ai/tools/reader-judge/` for the reason shipped_tree_test.go's cases are.
 // Everything the judge does with a decision once it has one is that package's own suite's, against a
 // fixture.
 package tools_test
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	bloatjudge "configs/ai/tools/bloat-judge"
+	readerjudge "configs/ai/tools/reader-judge"
 )
 
 func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {
@@ -21,7 +21,7 @@ func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {
 	t.Setenv("JUDGE_PROVIDER", "codex")
 	t.Setenv("JUDGE_MODEL", "")
 	os.Unsetenv("JUDGE_MODEL")
-	configured, err := bloatjudge.Configure(bloatjudge.Configuration{Deadline: time.Second, PolicyPath: shippedPolicyPath})
+	configured, err := readerjudge.Configure(readerjudge.Configuration{Deadline: time.Second, PolicyPath: shippedPolicyPath})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestJudgeCacheSeparatesClientSelections(t *testing.T) {
 	identities := map[string]bool{}
 	for _, client := range []string{"codex", "claude"} {
 		t.Setenv("JUDGE_PROVIDER", client)
-		configured, err := bloatjudge.Configure(bloatjudge.Configuration{Deadline: time.Second, PolicyPath: shippedPolicyPath})
+		configured, err := readerjudge.Configure(readerjudge.Configuration{Deadline: time.Second, PolicyPath: shippedPolicyPath})
 		if err != nil {
 			t.Fatal(err)
 		}

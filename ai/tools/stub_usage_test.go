@@ -44,9 +44,8 @@ import (
 	"time"
 
 	aibootstrap "configs/ai/tools/ai-bootstrap"
-	bloatjudge "configs/ai/tools/bloat-judge"
 	"configs/ai/tools/cadence"
-	density "configs/ai/tools/comment-density"
+	commentstrip "configs/ai/tools/comment-strip"
 	duplicates "configs/ai/tools/dup-literals"
 	ecocheck "configs/ai/tools/eco-check"
 	ecoguide "configs/ai/tools/eco-guide"
@@ -60,10 +59,12 @@ import (
 	modelcheck "configs/ai/tools/model-check"
 	modelpolicy "configs/ai/tools/model-policy"
 	projectmcp "configs/ai/tools/project-mcp"
+	readerjudge "configs/ai/tools/reader-judge"
 	"configs/ai/tools/repo"
 	repokey "configs/ai/tools/repo-key"
 	"configs/ai/tools/shell"
 	treefingerprint "configs/ai/tools/tree-fingerprint"
+	voicecheck "configs/ai/tools/voice-check"
 	waitreap "configs/ai/tools/wait-reap"
 )
 
@@ -159,8 +160,8 @@ var refusals = []refusal{
 	// Its main names a provider and loads a policy before the argument count is looked at, and refuses
 	// without one — so this row reaches the usage line only with a provider named. No provider is
 	// called: what refuses is the missing argument.
-	{stub: "ai/kk-flavor/scripts/bloat-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}, call: func(i invocation) int {
-		return bloatjudge.Main(i.stub, i.args, strings.NewReader(""), i.out, i.out)
+	{stub: "ai/kk-flavor/scripts/reader-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}, call: func(i invocation) int {
+		return readerjudge.Main(i.stub, i.args, strings.NewReader(""), i.out, i.out)
 	}},
 	// An unknown argument, refused before the client is looked for and long before a registry is
 	// written. Not a bare invocation: that one is also refused, but only after this machine has been
@@ -214,13 +215,18 @@ var refusals = []refusal{
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh"},
 	// An unknown option, refused in argument parsing before either scanner asks git anything. Not a
 	// revision git cannot resolve, which is git's complaint about the tree and carries no grammar.
-	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-density.sh", args: []string{"--nope"}, call: func(i invocation) int {
-		cfg, err := density.ConfigFromEnv(os.LookupEnv)
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh", args: []string{"--nope"}, call: func(i invocation) int {
+		cfg, err := voicecheck.ConfigFromEnv(os.LookupEnv)
 		if err != nil {
 			fmt.Fprintf(i.out, "%s: %s\n", i.self(), err)
 			return 2
 		}
-		return density.Run(i.self(), i.args, i.cwd, repo.Exec{}, cfg, i.out, i.out)
+		return voicecheck.Run(i.self(), i.args, i.cwd, cfg, i.out, i.out)
+	}},
+	// No facts directory. The tool takes it first and refuses when it is absent, before it reads a
+	// path or reaches git. The refusal states the grammar, and it makes no claim about the tree.
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-strip.sh", call: func(i invocation) int {
+		return commentstrip.Strip(i.self(), i.args, i.cwd, i.out, i.out)
 	}},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh", call: func(i invocation) int {
 		// An environment no GIT_DIR can redirect, which is what the command hands it: a session drafting
@@ -454,7 +460,7 @@ func drive(t *testing.T, row refusal, binary, cwd string) (string, int) {
 		return asAProcess(t, row, binary, stub, cwd, home)
 	}
 
-	// The environment a process was given, set for this case alone. bloat-judge reads $HOME and
+	// The environment a process was given, set for this case alone. reader-judge reads $HOME and
 	// $XDG_CONFIG_HOME for a roll-deadline override before it looks at the arguments at all.
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	bloatjudge "configs/ai/tools/bloat-judge"
 	modelpolicy "configs/ai/tools/model-policy"
+	readerjudge "configs/ai/tools/reader-judge"
 )
 
 // Two rows and one model per client that the order ranks and no row names, so a case can refuse
@@ -71,7 +71,7 @@ func TestARefusedNameFailsAndNamesTheConfig(t *testing.T) {
 	path := policyFile(t)
 	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {
 		if selection.Model == "cheap-codex" {
-			return &bloatjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
+			return &readerjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
 		}
 		return nil
 	}, path)

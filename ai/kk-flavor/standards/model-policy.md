@@ -5,7 +5,7 @@
 `~/.kk-flavor/models.json` assigns a model to every skill and every dispatch site, and is the only
 place to change one. Skills name a task; they never embed a model.
 
-Every model name this file holds *can* be asked of its provider, by `~/.kk-flavor/scripts/model-check.sh`, and a name no account can run then fails at this file rather than at the next judge run. **Run it by hand after an edit to this file.** It is a network call to a CLI only a developer's machine has, so no gate and no schedule can run it. **Nor does one run cover the file.** A client whose CLI that machine lacks leaves its names unresolved and the check still exits 0, so a run that reached one provider says what a run that reached both says. **Read a clean run as no provider reachable from one developer's machine having refused a name, never as every name running** — and a `model` pin in that developer's client can even carry a probe for a name nothing would select (**What the policy can and cannot reach** below). With neither CLI it exits 2, which is a check that did not run.
+Every model name this file holds *can* be asked of its provider, by `ai/gate.sh`'s `models` unit, and a name no account can run then fails at this file rather than at the next judge run. **Only a human running `ai/gate.sh` asks** — CI never runs the plain gate, and the `--mutants` run it does leaves every check unit `not asked`. **Nor does one run cover the file.** A client whose CLI that machine lacks leaves its names unresolved, and a passing unit's output is held back, so a run that reached one provider prints the same `ran ok  models` as one that reached both. **Read a green as no provider reachable from one developer's machine having refused a name, never as every name running** — and a `model` pin in that developer's client can even carry a probe for a name nothing would select (**What the policy can and cannot reach** below). With neither CLI the unit exits 2, which the gate does read as a check that did not run.
 
 **Two of its maps assign models, because there are two kinds of assignment.** `workers` is the model a dispatch
 actually sets. `sessions` is the tier a human should start that session at, since nothing can change
@@ -45,7 +45,7 @@ differs, since a site that bills separately is a site the cost surface has to sh
 name a row owning a prompt, one hop and never a chain, so every site still resolves to exactly one
 file. The second is a worker **that is still a mounted skill**, running from its own `SKILL.md` until
 that move finishes. The third is one **whose prompt a Go tool assembles** rather than reading it from
-the tree; `bloat-judge` is the only one, and its row is a required input rather than a declaration
+the tree; `reader-judge` is the only one, and its row is a required input rather than a declaration
 (**What the policy can and cannot reach** below).
 
 **A site is never declared in a skill's prose.** A line beside the prose can forget to mention itself,
@@ -142,11 +142,11 @@ set, not a row's (**What the policy can and cannot reach** below).
 Two kinds of control, and the difference decides where effort is worth spending:
 
 - **Required input** — a Go tool under `ai/tools/` loads the policy and cannot run without it. Two do,
-  and they read it for different things. `bloat-judge` takes its model, its effort and its roll count
-  from the `bloat-judge` task, and refuses to vote when the roll count is missing. `model-check` owns
-  no row: it reads every selection the file holds and asks each provider whether it will run one.
-  **That the policy is required does not make the model it names the one that runs** — see the
-  paragraph below.
+  and they read it for different things. `reader-judge` takes its model, its effort and its roll count
+  from the `reader-judge` task, and refuses to vote when the roll count is missing. `model-check` owns
+  no row: it reads every selection the file holds and asks each provider whether it will run one,
+  which is the `models` unit above. **That the policy is required does not make the model it names the
+  one that runs** — see the paragraph below.
 - **Declared** — an agent reads the assignment and dispatches accordingly: the leaf skills the quality
   pass dispatches, and every declared dispatch site. Nothing verifies the model that actually ran, so
   these rows are a convention the agent keeps rather than a gate — but a model *is* selected.
@@ -177,7 +177,7 @@ sources plus that list and not as isolation: a managed policy setting is merged 
 **Three levers sit outside the file, and no row can move them.** The session an orchestrator runs in
 takes the model the human chose before the skill loaded, so a cheap reactor or patrol loop is bought
 with that choice and not with an assignment. The judge's roll deadline stays machine-local in
-`bloat-judge.conf` on purpose (`ai/tools/bloat-judge/deadline.go`) — a timeout tuned in the tree would
+`reader-judge.conf` on purpose (`ai/tools/reader-judge/deadline.go`) — a timeout tuned in the tree would
 travel to everyone on the next commit.
 
 **The third is which client judges, and it is `JUDGE_PROVIDER`'s.** Every row names a model for both
@@ -186,7 +186,7 @@ codex, and still fails rather than falls back when it is absent** — an unconfi
 before this default too, and now says which CLI to install. A labelled corpus settled that default
 rather than a preference: `claude` at haiku deleted a load-bearing paragraph of a real commit message
 that `codex` at `gpt-5.6-luna` effort low kept, and sonnet scored as haiku did, so it is the provider
-and not the tier. Re-run the eval before moving it; `ai/tools/bloat-judge/eval_test.go` holds what it
+and not the tier. Re-run the eval before moving it; `ai/tools/reader-judge/eval_test.go` holds what it
 measures and why its two counts are not symmetric.
 
 ## Resolving

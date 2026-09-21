@@ -1,0 +1,17 @@
+expect: none
+why: two ideas joined by a semicolon, and the estate fact needs more room than a note
+labelled: 2026-09-17
+--- code
+async function readsSettlementScheme(house: string, entryType: string): Promise<boolean> {
+  const claim = await askClearing({
+    house,
+    entryType,
+    settlementScheme: NONEXISTENT_SETTLEMENT_SCHEME,
+  });
+
+  return claim === LedgerClaim.Unsupported;
+}
+--- facts
+Checks whether the ledger reads the settlement scheme field, by asking about a scheme no ledger supports. A ledger
+that reads the field says no, and one too old to know it accepts anyway; much of a branch estate is that old, and
+there a yes for one scheme is only a yes for the clearing house.

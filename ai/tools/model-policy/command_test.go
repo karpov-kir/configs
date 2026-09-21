@@ -10,7 +10,7 @@ import (
 
 func TestCommandEmitsRequestedSettingsAndNothingObserved(t *testing.T) {
 	var out, errors strings.Builder
-	args := []string{"--config", fixtureConfig(t), "--client", "claude", "--task", "bloat-judge"}
+	args := []string{"--config", fixtureConfig(t), "--client", "claude", "--task", "reader-judge"}
 	if code := Run(Command{Args: args, Stdout: &out, Stderr: &errors}); code != 0 {
 		t.Fatalf("command=%d: %s", code, errors.String())
 	}

@@ -108,17 +108,17 @@ serve() {
 
 # Written by whoever puts the binary there — this script after a build, install.sh after a download.
 #
-# It is also the build identity a tool reports, so a measurement can name what produced it. `992662a`
-# settled the other half — a scanner number names the commit it was read off — and a reading whose
-# instrument is unnamed cannot be compared with one taken later: a rebuild here moved comment-density's
-# attribution figures on an unchanged tree with nothing in the output saying so. The stamp rather than
-# the binary's own bytes, because it moves exactly when the build does and costs one file read where
-# hashing the binary on every invocation would not. Never the stub: that file barely changes and would
-# name nothing.
+# It is also the build identity every stub exports as ECO_TOOL_BUILD, so a tool that reports a
+# measurement can name what produced it. `992662a` settled the other half — a scanner number names the
+# commit it was read off — and a reading whose instrument is unnamed cannot be compared with one taken
+# later: a rebuild here moved voice-check's attribution figures on an unchanged tree, with the output
+# silent about it. The stamp carries this. It moves exactly when the build does, and costs one file
+# read. A hash of the binary on every invocation would cost more. Never the stub: that file barely
+# changes, so its identity would say little about the build.
 #
 # Read by the tool that reports it, off its own `os.Executable()`, and never handed down from here: the
 # stub used to export it beside a `git rev-parse`, which cost every one of the 23 tools two processes
-# per invocation to carry a line one of them prints. comment-density/bar.go is that one, and it reads
+# per invocation to carry a line one of them prints. voice-check/bar.go is that one, and it reads
 # the checkout's own commit there too — a different fact from this one, because a tree can hold a stamp
 # that matches its own source perfectly and still be a commit nobody else has. The mount resolves to one
 # checkout's working tree, so a session reading source, running a binary or loading a skill through it

@@ -525,7 +525,7 @@
 
 <section>
   <div class="sec-head">
-    <h2>Underneath: the 22 dispatch sites</h2>
+    <h2>Underneath: the 23 dispatch sites</h2>
     <p class="sec-note">Nobody types these. Generated from the model policy and the prompts it prices, so neither the list nor the tiers can drift.</p>
   </div>
   <p class="lede" style="margin:0 0 26px">This is where the tree's cost lives: one card per dispatch the policy prices, with the tier it buys and where the contract it runs is written. Most name a worker file of their own. A few run another row's prompt under their own accounting name, and a few still point at a skill that has kept its door — those are the ones part-way through moving.</p>
@@ -543,11 +543,6 @@
     </div>
     <div class="group-label"><span>kk workers</span><i></i></div>
     <div class="lane">
-      <div class="lane-top"><code class="k">bloat-judge</code><span class="tag">dispatched</span></div>
-      <p>No prompt in the tree holds this row's contract.</p>
-      <p class="hint">tier: claude haiku &middot; codex gpt-5.6-luna low &middot; prompt: not in the tree</p>
-    </div>
-    <div class="lane">
       <div class="lane-top"><code class="k">build/explore</code><span class="tag">dispatched</span></div>
       <p>You are one bounded exploration for <code>kk-build</code>.</p>
       <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: workers/build/explore.md</p>
@@ -556,6 +551,11 @@
       <div class="lane-top"><code class="k">code-review</code><span class="tag">dispatched</span></div>
       <p>You are one correctness review.</p>
       <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/code-review.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">comment-writer</code><span class="tag">dispatched</span></div>
+      <p>You write comment blocks from the code beneath them.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-6-astra high &middot; prompt: workers/comment-writer.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">conform</code><span class="tag">dispatched</span></div>
@@ -596,6 +596,11 @@
       <div class="lane-top"><code class="k">patrol/scout</code><span class="tag">dispatched</span></div>
       <p>You are one round's scout for <code>kk-patrol</code>.</p>
       <p class="hint">tier: claude sonnet &middot; codex gpt-5.6-terra low &middot; prompt: workers/patrol/scout.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">reader-judge</code><span class="tag">dispatched</span></div>
+      <p>No prompt in the tree holds this row's contract.</p>
+      <p class="hint">tier: claude haiku &middot; codex gpt-5.6-luna low &middot; prompt: not in the tree</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">reduce/arbitrate</code><span class="tag">dispatched</span></div>

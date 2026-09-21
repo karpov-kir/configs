@@ -1,0 +1,10 @@
+expect: none
+why: the two fields say what the type is
+labelled: 2026-09-17
+--- code
+export interface EntryInBook {
+  entry: Element;
+  book: Element;
+}
+--- facts
+Pairs an entry with the book it inherits attributes from.

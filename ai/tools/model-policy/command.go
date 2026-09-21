@@ -29,11 +29,11 @@ func InstalledPath(invocation string) (string, error) {
 	}
 	dir := filepath.Dir(real)
 	switch filepath.Base(real) {
-	case "model-policy.sh", "bloat-judge.sh", "model-check.sh":
+	case "model-policy.sh", "reader-judge.sh", "model-check.sh":
 		if filepath.Base(dir) == "scripts" {
 			return filepath.Join(dir, "..", "models.json"), nil
 		}
-	case "model-policy", "bloat-judge", "model-check":
+	case "model-policy", "reader-judge", "model-check":
 		if filepath.Base(dir) == "bin" {
 			return filepath.Join(dir, "..", "..", "kk-flavor", "models.json"), nil
 		}

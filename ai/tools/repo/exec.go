@@ -209,11 +209,16 @@ func parseRawDiff(out string) ([]Change, error) {
 // `run` already supplies against a non-ASCII path arriving C-quoted — each is a parser's anchor that
 // the reader's own config would otherwise move.
 //
+// `--find-renames` is the one flag here that is not a parser anchor: it asks git to report a moved
+// file as the rename it is, so a scan counting added lines is not handed the whole file as new work
+// somebody wrote. Without it a rename reads as a delete and an add, and every line of the moved file
+// lands in whatever the caller is measuring.
+//
 // No default revision here. "What HEAD means when the caller named nothing" is the caller's policy,
 // and a port that decided it would be answering a question nobody asked.
 func (e Exec) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
 	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-relative",
-		"--text", "--src-prefix=a/", "--dst-prefix=b/"}
+		"--text", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames"}
 	args = append(args, revisions...)
 	return e.run(dir, append(args, pathspecArgs(pathspec)...)...)
 }

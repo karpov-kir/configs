@@ -57,7 +57,7 @@ If independent review cannot run, report the missing independence. Standalone pa
 
 **Both review stages are local**: neither posts to GitHub nor runs `gh`. And **a pre-existing defect outside the change is neither fixed nor blocked on** — a serious one is surfaced once, as a separate non-blocking note for the human to route, never folded into the change's findings and never dropped silently. One the change makes reachable or worse is in scope.
 
-1. **Code-review** — the code-review lane on the change set. Ask live for blocking findings; record the others.
+1. **Code-review** — the code-review lane on the change set. Ask live for blocking findings. Record the others.
 2. **Security-review** — *only if* the change touches a security surface (input handling, filesystem/network/exec, auth or session, secrets, deserialization, or an invariant the project's own standards mark security-critical).
 3. **Edit** — only if the change adds or changes prose or comments. Scope it to those artifacts, including prose outside the repository that the pass itself produces. The audience determines the wording guidance in this one lane; do not send the same prose through separate concision and humanization passes. False comments remain correctness findings, and misplaced comments remain refactor findings. Apply comment edits after changes to the code they describe settle.
 4. **Refactor** — required over changed code. Run the scanner, apply actionable repairs, then obtain the final compliance check. A changed candidate reopens affected files and dependencies, not the whole passed queue. Stop when compliant; an unresolved warning or safety cap is reported rather than stamped clean. A scanner hit by itself does not justify repeatedly spawning a fresh full-scope agent.

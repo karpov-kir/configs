@@ -15,7 +15,7 @@ itself:
 codebase-memory-mcp cli trace_path --project <name> --function-name <name> --direction inbound
 ```
 
-`list_projects` names what is indexed; `index_repository --repo-path <path> --mode full` adds one. An
+`list_projects` names what is indexed. `index_repository --repo-path <path> --mode full` adds one. An
 unindexed repo is not a reason to fall back — adding it costs less than the rounds it replaces.
 
 ## The graph is not always evidence

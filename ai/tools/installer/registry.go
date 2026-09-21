@@ -18,7 +18,7 @@ import (
 // its own install put there.
 
 // RegistryFile is where the record lives: the path ecosystem.md → Conventions a new file joins sets
-// for a machine-local file, and the one ai/tools/bloat-judge/deadline.go already reads.
+// for a machine-local file, and the one ai/tools/reader-judge/deadline.go already reads.
 func (r *Run) RegistryFile() string {
 	return r.configHome + "/kk-flavor/installs"
 }

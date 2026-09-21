@@ -1,0 +1,23 @@
+expect: written
+why: the return needs a plain summary, and the budget fact needs more room than a note
+labelled: 2026-09-17
+--- code
+export async function claimsClearingThroughStandardApi(clearing: Clearing, entryType: string): Promise<boolean> {
+  if (typeof registry.requestSettlementAccess !== 'function') {
+    return false;
+  }
+
+  for (const house of getClearingIdentifiers(clearing)) {
+    if ((await askClearing({ house, entryType })) === LedgerClaim.Supported) {
+      return true;
+    }
+  }
+
+  return false;
+}
+--- facts
+Asks whether a clearing house is worth preparing for, which is a different question from
+{@link getSettlementClaim}'s. A ledger that ignores the settlement scheme leaves the combination unestablished
+while still having the clearing house, and those are the ledgers whose first credit posting stalls. A legacy-only
+interface answers no, because preparing there would spend a full posting budget on a clearing house the modern
+pipeline does not use.

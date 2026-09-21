@@ -118,3 +118,49 @@ jobs:
         run: |
           ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate
           ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate
+
+  # The register of a change set's OWN added comments. The tool that measures the register is written
+  # by sessions that also write the comments it judges, and a seventeen-finding diff shipped from this
+  # repository before this job existed. This job runs the scan, so no session has to remember it.
+  register:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The scan reads `origin/main...HEAD`, so the merge base has to be in the clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ai/tools/go.mod
+          cache: false
+
+      - name: Read this change set's own added comments
+        run: |
+          git fetch --quiet origin main
+          report=$(ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh origin/main...HEAD 2>&1) || status=$?
+          echo "$report"
+          case "${status:-0}" in
+            0) ;;
+            1) echo "::error::The comments this change adds are written in the register the rule forbids. Each finding is an edit." ; exit 1 ;;
+            *) echo "::error::The register scan did not run, which is not a pass." ; exit 2 ;;
+          esac
+          # An empty scan exits 0, which passes: a change set that leaves comments alone gives the scan no input.
+          case "$report" in
+            *"nothing reached the scan"*) echo "No added comments reached the scan, which passes." ;;
+          esac
+
+  # The instruction tree's baseline, which until this job had one reader: a sentence in a skill telling
+  # an agent to look at it. A ratchet without a reader is a document.
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: ai/tools/go.mod
+          cache: false
+
+      - name: Hold every instruction file to its baseline
+        run: ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh
