@@ -155,6 +155,7 @@ func TestCensusOverThePlainSet(t *testing.T) {
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.SoBoth.Name, rep.SoBoth.Count, rep.SoUnnamed.Count)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.Restating.Name, rep.Restating.Count, rep.Summaries)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.ShownBy.Name, rep.ShownBy.Count, rep.Notes)
+	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.AboutCode.Name, rep.AboutCode.Count, rep.Notes)
 	fmt.Fprintf(&out, "%-30s %6d  %d\n", rep.Spelled.Name, rep.Spelled.Count,
 		rep.Spelled.Count+rep.Coined.Count)
 	fmt.Fprintf(&out, "\n%-30s %6d  %d\n", "coined-compound", rep.Coined.Count, rep.Blocks)
@@ -178,6 +179,13 @@ func TestCensusOverThePlainSet(t *testing.T) {
 		}
 		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", v.Name, len(v.Samples), v.Count)
 		for _, sample := range v.Samples {
+			fmt.Fprintf(&out, "  %s\n", sample)
+		}
+	}
+	if len(rep.AboutCode.Samples) > 0 {
+		fmt.Fprintf(&out, "\n%s — %d sample(s) of %d:\n", rep.AboutCode.Name,
+			len(rep.AboutCode.Samples), rep.AboutCode.Count)
+		for _, sample := range rep.AboutCode.Samples {
 			fmt.Fprintf(&out, "  %s\n", sample)
 		}
 	}
