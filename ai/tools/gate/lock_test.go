@@ -1,0 +1,272 @@
+// Cases for the machine-wide lock. Three things must hold. One gate runs at a time. A lock whose
+// holder is gone leaves the machine reachable. The time a gate spends queued stays out of its budget.
+
+// The third is why the other two exist. Two gates at once measured 102s against a budget of 100s, on
+// a tree whose own runs read 51s. A bound that reddens over another session's build is one every
+// session learns to re-run without reading.
+package gate
+
+import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+// A poll far below any real wait, so a case measuring the queue is measuring the queue.
+const testPoll = 5 * time.Millisecond
+
+func TestASecondGateWaitsForTheFirstRatherThanRacingIt(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	first, waited, err := takeLock(home, testPoll, nil)
+	if err != nil {
+		t.Fatalf("the first gate could not take the lock: %v — nothing was measured", err)
+	}
+	if waited > time.Second {
+		t.Fatalf("an unheld lock made the first gate wait %s, so the queue below proves nothing", waited)
+	}
+
+	queued := make(chan time.Duration, 1)
+	go func() {
+		second, waitedFor, err := takeLock(home, testPoll, nil)
+		if err != nil {
+			queued <- -1
+			return
+		}
+		second.release()
+		queued <- waitedFor
+	}()
+
+	// Long enough that a second gate which ignored the lock would be well past taking it.
+	held := 150 * time.Millisecond
+	time.Sleep(held)
+	select {
+	case got := <-queued:
+		t.Fatalf("a second gate took the lock after %s while the first still held it, so both would "+
+			"run at once and each would charge the other's work to its own budget", got)
+	default:
+	}
+
+	first.release()
+	got := <-queued
+	if got < held {
+		t.Errorf("the second gate reports a wait of %s, under the %s the first held the lock — the "+
+			"figure the gate subtracts from its budget is smaller than the time it actually queued",
+			got, held)
+	}
+}
+
+func TestALockNoLiveGateHoldsIsTakenRatherThanWaitedOut(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	dir := filepath.Join(home, lockName)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", dir, err)
+	}
+	// A pid no process holds. Every reaped pid reads this way, and a gate killed outright leaves one.
+	if err := os.WriteFile(filepath.Join(dir, "pid"), []byte("999999\n"), 0o644); err != nil {
+		t.Fatalf("writing the dead holder's pid: %v — nothing was measured", err)
+	}
+
+	held, waited, err := takeLock(home, testPoll, nil)
+	if err != nil {
+		t.Fatalf("a lock held by a dead gate was not taken: %v — every gate on this machine now queues "+
+			"behind it", err)
+	}
+	defer held.release()
+	// The pid alone settles this. A waiter that sat out the abandoned bound would hold the machine for
+	// five minutes over a gate that has already gone.
+	if waited > time.Second {
+		t.Errorf("breaking a dead gate's lock took %s, so the bound was waited out rather than the pid "+
+			"being read", waited)
+	}
+}
+
+func TestALockALiveGateHoldsIsNotBrokenOnAge(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	dir := filepath.Join(home, lockName)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pid"),
+		[]byte(strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		t.Fatalf("writing this process's pid: %v — nothing was measured", err)
+	}
+	// Older than the abandoned bound. A gate that waits on a cold module fetch reaches this state
+	// honestly, and breaking its lock puts two gates back on the machine.
+	old := time.Now().Add(-2 * lockAbandonedAfter)
+	if err := os.Chtimes(dir, old, old); err != nil {
+		t.Fatalf("ageing %s: %v — nothing was measured", dir, err)
+	}
+
+	if abandoned(dir) {
+		t.Error("a lock held by this very process reads as abandoned once it is past the bound, so a " +
+			"gate that runs long has its lock taken from under it")
+	}
+}
+
+func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	dir := filepath.Join(home, lockName)
+	// A lock directory holding a stray file. os.Remove refuses that, and the age past the bound makes a
+	// waiter try to break it. The refusal is what stops the loop retrying that removal forever.
+	if err := os.MkdirAll(filepath.Join(dir, "leftover"), 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", dir, err)
+	}
+	old := time.Now().Add(-2 * lockAbandonedAfter)
+	if err := os.Chtimes(dir, old, old); err != nil {
+		t.Fatalf("ageing %s: %v — nothing was measured", dir, err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := takeLock(home, testPoll, nil)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a lock holding a stray file was reported as taken")
+		}
+		if !strings.Contains(err.Error(), "will not come away") {
+			t.Errorf("the refusal says %q, which does not name the cause a reader has to act on", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Error("taking a lock that cannot be removed has not returned, so the gate spins here rather " +
+			"than refusing")
+	}
+}
+
+func TestOnlyTheHolderGivesUpTheLock(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	held, _, err := takeLock(home, testPoll, nil)
+	if err != nil {
+		t.Fatalf("taking the lock: %v — nothing was measured", err)
+	}
+	// The lock as it stands after a break: the path holds a directory this process no longer owns.
+	// release must leave it, or the gate that broke it would be running beside a third.
+	stranger := 999999
+	if err := os.WriteFile(filepath.Join(held.dir, "pid"),
+		[]byte(strconv.Itoa(stranger)+"\n"), 0o644); err != nil {
+		t.Fatalf("writing the new holder's pid: %v — nothing was measured", err)
+	}
+
+	held.release()
+
+	after, err := os.ReadFile(filepath.Join(held.dir, "pid"))
+	if err != nil || strings.TrimSpace(string(after)) != strconv.Itoa(stranger) {
+		t.Errorf("release removed a lock this process no longer held (%v, %q), so the gate that took it "+
+			"next has nothing keeping a third off the machine", err, after)
+	}
+}
+
+// A silent queue is a gate that looks hung. The line goes out as the wait begins, and names the pid a
+// reader would go and look at. The pid is what tells a running gate from a wedged one.
+func TestAQueuedGateSaysWhoItIsWaitingForBeforeItWaits(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	dir := filepath.Join(home, lockName)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", dir, err)
+	}
+	holder := os.Getpid()
+	if err := os.WriteFile(filepath.Join(dir, "pid"),
+		[]byte(strconv.Itoa(holder)+"\n"), 0o644); err != nil {
+		t.Fatalf("writing the holder's pid: %v — nothing was measured", err)
+	}
+
+	said := make(chan string, 4)
+	go func() {
+		held, _, err := takeLock(home, testPoll, func(line string) { said <- line })
+		if err == nil {
+			held.release()
+		}
+	}()
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		_ = os.Remove(filepath.Join(dir, "pid"))
+		_ = os.Remove(dir)
+	}()
+
+	var announced string
+	select {
+	case announced = <-said:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a gate queued behind another and announced nothing, so a human watching it sees a " +
+			"process that has stopped")
+	}
+	if !strings.Contains(announced, strconv.Itoa(holder)) {
+		t.Errorf("the line does not name the holding pid, so a reader cannot go and look at it: %q",
+			announced)
+	}
+	if !strings.Contains(announced, "giving up after") {
+		t.Errorf("the line does not carry the deadline, so the wait does not state its own end: %q",
+			announced)
+	}
+}
+
+// The budget is a claim about a cold run with the machine to itself. A gate that queued spent that
+// time elsewhere. The report says the wait happened, and the bound leaves it out.
+
+// The claim is read off the reported wall clock. A budget set between the two figures races the
+// machine. The first shape of this case gave a trivial check one second, and it went red under a
+// second gate. The case meant to prove the defect fixed had the defect in it.
+func TestTheWaitForTheLockIsReportedAndLeftOutOfTheBudget(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	f.table("quick\ttrue")
+	// Well above anything this check can take, so the result here holds at any load.
+	f.budget = 600
+
+	queued := 3 * time.Second
+	dir := filepath.Join(f.lockDir, lockName)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", dir, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pid"),
+		[]byte(strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		t.Fatalf("writing the holder's pid: %v — nothing was measured", err)
+	}
+	go func() {
+		time.Sleep(queued)
+		_ = os.Remove(filepath.Join(dir, "pid"))
+		_ = os.Remove(dir)
+	}()
+
+	f.run()
+
+	f.expectCode(0)
+	if said := f.errOut.String(); !strings.Contains(said, "waited") {
+		t.Errorf("the run queued behind another gate and never said so, so a reader reading the wall "+
+			"clock cannot tell a slow suite from a busy machine\nstderr: %s", said)
+	}
+	reported := reportedWallClock(t, f.out.String())
+	if reported >= queued {
+		t.Errorf("the gate reports %s of wall clock after queueing %s, so the time it spent waiting for "+
+			"another gate is being charged to this tree's budget", reported, queued)
+	}
+}
+
+// The wall clock out of the summary line, which is the figure the budget is checked against and the
+// figure a reader takes the run's cost from.
+func reportedWallClock(t *testing.T, report string) time.Duration {
+	t.Helper()
+	found := wallClock.FindStringSubmatch(report)
+	if found == nil {
+		t.Fatalf("no wall clock in the report, so there is no figure to read\n%s", report)
+	}
+	seconds, err := strconv.Atoi(found[1])
+	if err != nil {
+		t.Fatalf("the report says %q seconds, which is not a number\n%s", found[1], report)
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+var wallClock = regexp.MustCompile(`(\d+)s wall clock`)
