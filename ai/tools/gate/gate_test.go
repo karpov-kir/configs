@@ -1,16 +1,19 @@
-// Cases for the pre-commit gate. Three must not be weakened, and each is the gate reporting a pass it
-// did not earn:
-//
-//   - a check that FAILED must exit 1, because a gate whose only signal is its own exit status is
-//     read by a hook that reads nothing else;
-//   - a check that exited 2 must exit 2 and not 0, because "it did not run" is not "it passed";
-//   - a run over the time budget must exit 1, because the budget is the one check that forces every
-//     other one to stay fast, and a gate that reports it as a warning has no budget.
-//
-// No case here runs a real check. The cases about the run loop, the report and the refusals drive the
-// gate through its checks-file seam, which reaches all three in milliseconds; the cases about the six
-// themselves read the commands `plan` builds and never execute them. Running the real ones means
-// running the suite this file is part of.
+// Cases for the pre-commit gate. Three of them must hold, and each guards against the gate reporting
+// a pass it did not earn.
+
+// A check that FAILED must exit 1. A gate's only signal is its own exit status, and the hook reads
+// no other.
+
+// A check that exited 2 must exit 2, because "it did not run" is a different answer from "it
+// passed". Exit 0 there would be a pass the gate never measured.
+
+// A run over the time budget must exit 1. The budget is what forces every other check to stay fast,
+// and a gate that reports it as a warning has no budget.
+
+// No case here runs a real check. The cases about the run loop, the report and the refusals drive
+// the gate through its checks-file seam, which reaches all three in milliseconds. The cases about
+// the six themselves read the commands `plan` builds and never execute them, because running the
+// real ones means running the suite this file is part of.
 package gate
 
 import (
@@ -50,7 +53,7 @@ func (f *fixture) table(lines ...string) {
 	}
 }
 
-// A file a check can print back, written into the fixture root, which is where every command runs.
+// Writes a file a check can print back. It goes into the fixture root, where every command runs.
 func (f *fixture) file(name, body string) {
 	f.t.Helper()
 	if err := os.WriteFile(filepath.Join(f.root, name), []byte(body), 0o644); err != nil {
@@ -87,7 +90,7 @@ func (f *fixture) expectSilentAbout(what string) {
 }
 
 // A command that records it ran, so a case can tell a check that was executed from one that was
-// merely reported. Written into the fixture root, which is where every command runs.
+// merely reported. It goes into the fixture root, where every command runs.
 func marker(name string, status int) string {
 	return "printf x >> " + name + "; exit " + strconv.Itoa(status)
 }
@@ -101,8 +104,8 @@ func (f *fixture) runCount(name string) int {
 	return len(body)
 }
 
-// The real six, as plan builds them for this machine. The cases below read a command out of these and
-// never run one.
+// The real six, as plan builds them for this machine. A case reads a command out of these and never
+// runs one.
 func (f *fixture) planned(full bool) []check {
 	f.t.Helper()
 	g := &gate{root: f.root, budget: time.Duration(budgetSeconds) * time.Second, out: &f.out, errOut: &f.errOut}
@@ -125,9 +128,9 @@ func (f *fixture) plannedCheck(id string) check {
 	return check{}
 }
 
-// A PATH holding the named tools and nothing else, so a case can take one binary away from the plan
-// without taking the rest. Symlinked rather than copied, and to the real binary this machine resolves,
-// so `go` still finds its own toolchain through GOROOT.
+// A PATH holding only the named tools. A case can then take one binary away from the plan
+// without taking the rest. The entries are symlinks to the real binary this machine resolves, so `go`
+// still finds its own toolchain through GOROOT.
 func (f *fixture) onlyOnPath(tools ...string) {
 	f.t.Helper()
 	dir := f.t.TempDir()
@@ -143,11 +146,12 @@ func (f *fixture) onlyOnPath(tools ...string) {
 	f.t.Setenv("PATH", dir)
 }
 
-// gofmt missing is a gate that did not run, and no shape of the check itself says so: the listing one
-// this started as, `test -z "$(gofmt -l .)"`, came back green, because the shell's complaint goes to
-// stderr and the substitution comes back empty, and the pipeline it carries now comes back with a
-// format finding against a machine that measured nothing. The pair is the control — the same plan with
-// gofmt on PATH builds its checks.
+// A missing gofmt is a gate that did not run. No shape of the check itself reports that. The listing
+// shape this started as, `test -z "$(gofmt -l .)"`, came back green: the shell's complaint goes to
+// stderr and the substitution comes back empty. The pipeline the check carries now comes back with a
+// format finding against a machine that measured none of the tree.
+
+// The pair is the control, and the same plan with gofmt on PATH builds its checks.
 func TestThePlanRefusesWhereGofmtIsMissing(t *testing.T) {
 	f := newFixture(t)
 	f.onlyOnPath("go")
@@ -170,12 +174,15 @@ func TestThePlanBuildsItsChecksWhereGofmtIsThere(t *testing.T) {
 	}
 }
 
-// Two things about the bound every `go test` in the plan carries, and each has cost this repository a
-// red gate that was not one. It has to be there at all, or that run hangs for Go's ten-minute default.
-// And it has to sit ABOVE the budget, or no gotest check can ever reach the gate's own over-budget
-// report: Go kills the package at the budget and prints a goroutine dump, so the run is reported as a
-// failure rather than as a suite that has to get faster. Driven at GATE_BUDGET_SECONDS=5, the gotest
-// check died that way and the slowest-first report never ran.
+// Two things about the bound every `go test` in the plan carries, and each has cost this repository
+// a red gate it had not earned.
+
+// The bound has to be there at all, or that run hangs for Go's ten-minute default.
+
+// It also has to sit above the budget, or the gotest check can never reach the report a run over
+// budget gets. Go otherwise kills the package at the budget and prints a goroutine dump. The run is
+// then reported as a failure, when the truth is a suite that has to get faster. Driven at
+// GATE_BUDGET_SECONDS=5, the gotest check died that way and the slowest-first report never ran.
 func TestEveryGoCommandIsBoundedAboveTheBudget(t *testing.T) {
 	for _, full := range []bool{false, true} {
 		t.Run(map[bool]string{false: "an ordinary run", true: "--full"}[full], func(t *testing.T) {
@@ -203,8 +210,8 @@ func TestEveryGoCommandIsBoundedAboveTheBudget(t *testing.T) {
 }
 
 // One entry per `go test` in a command, holding the seconds its own -timeout names and zero where it
-// carries none. Per invocation and not per flag: a command running `go test` twice with a bound on only
-// one of them would otherwise be vouched for by the half that carries it.
+// carries none. A flag count would miss this: a command running `go test` twice with a bound on only
+// one of them is vouched for by the half that carries it.
 func goTestBounds(cmd string) []int {
 	var bounds []int
 	fields := strings.Fields(cmd)
@@ -216,8 +223,8 @@ func goTestBounds(cmd string) []int {
 	return bounds
 }
 
-// The seconds one invocation's own flags name, or zero. Reading stops at the shell operator that ends
-// the invocation, so a later command's bound cannot stand in for this one's.
+// The seconds one invocation's own flags name, or zero. The scan stops at the shell operator that
+// ends the invocation, so a later command's bound cannot stand in for this one's.
 func boundIn(flags []string) int {
 	for i, field := range flags {
 		switch field {
@@ -237,10 +244,10 @@ func boundIn(flags []string) int {
 	return 0
 }
 
-// The format check reads the files git holds, and a walk is the one thing it may not do: this machine
-// keeps whole checkouts inside this one, and `gofmt -l .` hands gofmt every .go file in all of them.
-// `--others` is half of it — a .go file written and not staged yet is work the gate has to read, and a
-// check narrowed to `--cached` passes work it never looked at.
+// The format check reads the files git holds, and a walk of the tree is what it may not do. This
+// machine keeps whole checkouts inside this one, and `gofmt -l .` hands gofmt every .go file in all
+// of them. `--others` is half of it: a .go file that is written but unstaged is work the gate has to
+// read. A check narrowed to `--cached` passes work it never looked at.
 func TestTheFormatCheckReadsTheFilesGitHolds(t *testing.T) {
 	f := newFixture(t)
 	cmd := f.plannedCheck("gofmt").cmd
@@ -258,8 +265,8 @@ func TestTheFormatCheckReadsTheFilesGitHolds(t *testing.T) {
 
 // The wiring check is one binary run twice, once per agent, and it builds that binary once. Each run
 // carrying ECO_TOOLS_BUILD=1 rebuilt and re-stamped the same source for itself, which is the floor
-// under every warm gate. The flag itself stays: without it what gets measured can be a downloaded
-// release binary rather than this tree.
+// under every warm gate. The flag itself stays, because without it the measured binary can be a
+// downloaded release when this tree is what has to be measured.
 func TestTheWiringCheckBuildsItsBinaryOnce(t *testing.T) {
 	f := newFixture(t)
 	cmd := f.plannedCheck("wiring").cmd
@@ -287,8 +294,8 @@ func TestACleanRunExitsZeroAndRunsEveryCheck(t *testing.T) {
 	}
 }
 
-// A failing check fails the gate, and its output reaches the report. Held back on a pass, because a
-// report read on every commit that carries every passing command's chatter stops being read.
+// A failing check fails the gate, and its output reaches the report. Output is held back on a pass,
+// because a report read on every commit that carries every passing command's chatter stops being read.
 func TestAFailingCheckExitsOneAndShowsItsOutput(t *testing.T) {
 	f := newFixture(t)
 	f.table(
@@ -303,11 +310,12 @@ func TestAFailingCheckExitsOneAndShowsItsOutput(t *testing.T) {
 	f.expectSilentAbout("nothing-to-see")
 }
 
-// A failure under the successes that follow it, which is what one `go test ./...` prints: an `ok` line
-// per package, so a break in an early package is pushed out of any positional tail by the packages
-// after it and the report shows forty lines of passes and nothing to act on. What a reader needs is
-// the package, the case and the reason, and the report says what it dropped rather than quietly
-// cutting it.
+// A failure under the successes that follow it, which is what `go test ./...` prints: an `ok` line
+// per package. A break in an early package is pushed out of any positional tail by the packages
+// after it. The report then shows forty lines of passes with no line to act on.
+
+// What a reader needs is the package, the case and the reason. The report says what it dropped, and
+// never cuts silently.
 func TestAFailureUnderTheSuccessesAfterItIsStillShown(t *testing.T) {
 	f := newFixture(t)
 	var output strings.Builder
@@ -330,8 +338,8 @@ func TestAFailureUnderTheSuccessesAfterItIsStillShown(t *testing.T) {
 	f.expectSilentAbout("configs/ai/tools/after199")
 }
 
-// Exit 2 is "it did not run", which a caller may never read as a pass. The gate's own exit status is
-// the only thing a hook looks at.
+// Exit 2 says the check did not run. A caller may never read it as a pass, because the gate's own
+// exit status is the only thing a hook looks at.
 func TestACheckThatDidNotRunExitsTwo(t *testing.T) {
 	f := newFixture(t)
 	f.table("clean\texit 0", "absent\techo the-tool-is-missing; exit 2")
@@ -342,9 +350,9 @@ func TestACheckThatDidNotRunExitsTwo(t *testing.T) {
 	f.expectSaid("the-tool-is-missing")
 }
 
-// A finding outranks a machine that could not answer: exit 2 alone means nothing was found wrong and
-// something never ran, and a caller that read the pair as 2 would go looking at its own toolchain for
-// a broken test.
+// A finding outranks a machine that could not answer. Exit 2 alone means one check never ran, and
+// every check that did run came back clean. A caller that read the pair as 2 would go looking at its
+// own toolchain for a broken test.
 func TestAFailureOutranksACheckThatDidNotRun(t *testing.T) {
 	f := newFixture(t)
 	f.table("absent\texit 2", "broken\texit 1")
@@ -353,8 +361,9 @@ func TestAFailureOutranksACheckThatDidNotRun(t *testing.T) {
 	f.expectCode(1)
 }
 
-// The budget, which is the point of the whole file. testing.md rule 6 says the suite runs cold under
-// 100 seconds and the gate fails a run over that; without this case that sentence is a wish.
+// The budget, which is the point of the whole file. `ai/kk-flavor/standards/testing.md` says the
+// suite runs cold under 100 seconds and the gate fails a run over that. This case is what holds the
+// gate to that sentence.
 func TestARunOverTheBudgetFailsAndNamesTheSlowest(t *testing.T) {
 	f := newFixture(t)
 	f.budget = 1
@@ -363,8 +372,8 @@ func TestARunOverTheBudgetFailsAndNamesTheSlowest(t *testing.T) {
 	f.run()
 	f.expectCode(1)
 	f.expectSaid("the budget is 1s")
-	// Named, not merely counted. A wall clock on its own tells nobody what to fix, and the bound
-	// exists to point at the thing that has to get faster.
+	// The report names the slowest check and does not merely count seconds. A wall clock on its own
+	// does not say what to fix, and the bound exists to point at the thing that has to get faster.
 	f.expectSaid("slowest first:")
 	if said := f.errOut.String(); strings.Index(said, "slow") > strings.Index(said, "quick") {
 		t.Errorf("the over-budget report lists the quick check before the slow one:\n%s", said)
@@ -384,7 +393,7 @@ func TestAFailingRunOverBudgetStillReportsTheFailure(t *testing.T) {
 	f.expectSilentAbout("slowest first:")
 }
 
-// A clean run inside the budget says nothing about the budget at all.
+// A clean run inside the budget stays silent about the budget.
 func TestACleanRunInsideTheBudgetSaysNothingAboutIt(t *testing.T) {
 	f := newFixture(t)
 	f.budget = 60
@@ -395,9 +404,10 @@ func TestACleanRunInsideTheBudgetSaysNothingAboutIt(t *testing.T) {
 	f.expectSilentAbout("budget")
 }
 
-// A table naming nothing is the gate broken, never a clean sweep. It is the same refusal discovery
-// used to make when it found no suites: a gate that narrowed itself to nothing looks exactly like one
-// that found nothing wrong.
+// A table with no check in it means the gate is broken. This case exists to stop a reader taking it
+// for a clean sweep. It is the same refusal discovery used to make over a tree with no
+// suites. A gate that narrowed itself to zero checks looks exactly like one that found everything
+// clean.
 func TestAnEmptyTableRefuses(t *testing.T) {
 	f := newFixture(t)
 	f.table("")
@@ -433,8 +443,8 @@ func TestTheArgumentTable(t *testing.T) {
 }
 
 // Every command runs at the repository root, whatever directory the caller stood in. Half the real
-// checks cd from there, and a root taken from the process's own cwd would scope them to a
-// subdirectory and report a pass over the rest of the tree.
+// checks cd from there. A root taken from the process's own cwd would scope them to a subdirectory,
+// and report a pass over the rest of the tree.
 func TestEveryCommandRunsAtTheRoot(t *testing.T) {
 	f := newFixture(t)
 	f.table("where\tpwd > where.log")

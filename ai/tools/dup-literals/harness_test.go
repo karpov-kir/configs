@@ -1,11 +1,12 @@
-// The fixture every case below drives: a `repotest.Fake` for the questions this scan asks a
-// repository, and a real directory for the untracked files it then OPENS. Nothing forks git.
-//
-// The two halves are not interchangeable. A diff is answered verbatim by the fake, because which
-// lines a change added is git's answer and deriving one here would make every finding a property of
-// this fixture. An untracked file is listed by the fake and then read off disk by `bodyToScan`, so
-// the symlink, binary and byte-cap cases need a real file or they measure the open failing instead of
-// the guard. File I/O is not what these suites pay for; process spawns are.
+// The fixture every case in this file drives: a `repotest.Fake` for the questions this scan asks a
+// repository, and a real directory for the untracked files it then opens. No case forks git.
+
+// The two halves are not interchangeable. The fake answers a diff verbatim. Git is what says which
+// lines a change added, and deriving one here would make every finding a property of this fixture.
+
+// An untracked file is listed by the fake and then read off disk by `bodyToScan`. The symlink,
+// binary and byte-cap cases need a real file, or they measure the open failing in place of the
+// guard. File I/O is not what these suites pay for, and process spawns are.
 package duplicates
 
 import (
@@ -35,9 +36,9 @@ func newFixture(t *testing.T) *fixture {
 }
 
 // added says what git would print for these lines arriving in one file, and appends it to the patch
-// this fixture's runs will be answered with. Spelt out rather than derived from a before and an
-// after: a fixture that built the diff itself would be asserting against its own diff implementation
-// rather than against the one a reviewer reads.
+// this fixture's runs will be answered with. It is spelt out here. A fixture that built the diff
+// from a before and an after would be asserting against its own diff implementation, and never
+// against the diff a reviewer reads.
 func (f *fixture) added(name string, lines ...string) {
 	f.t.Helper()
 	fmt.Fprintf(&f.patch, "diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n@@ -0,0 +1,%d @@\n",

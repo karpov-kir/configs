@@ -175,15 +175,18 @@ func ResolveAbbrev(git repo.Git, root string) (string, error) {
 	return abbrevFromSharedGitDir(shared)
 }
 
-// Where git says the shared git dir of `root` is. The port answers absolute, which matters: git's own
-// answer in an ordinary repository is a bare `.git`, and a relative one would resolve against whatever
-// directory the next caller happened to stand in.
-//
-// What the port must be given, and what CommandGit below hands it, is an environment with GIT_DIR and
-// GIT_COMMON_DIR taken out. A directory does NOT select the repository on its own: git reads its
-// location from the environment first, so a run from a hook in a linked worktree — which is given
-// those — would key its own clone, and a consumer would create, write and later remove directories
-// under that name.
+// The port answers absolute, which matters. git's own answer in an ordinary repository is a bare
+// `.git`, and a relative one would resolve against whatever directory the next caller happened to
+// stand in.
+
+// What the port must be given, and what CommandGit hands it, is an environment with GIT_DIR and
+// GIT_COMMON_DIR taken out. A directory does not select the repository on its own, because git reads
+// its location from the environment first.
+
+// A run from a hook in a linked worktree is given those variables. It would key its own clone, and a
+// consumer would then create, write and later remove directories under that name.
+
+// Where git says the shared git dir of `root` is.
 func sharedGitDir(git repo.Git, root string) (string, error) {
 	shared, err := git.CommonDir(root)
 	if err != nil {
@@ -192,10 +195,13 @@ func sharedGitDir(git repo.Git, root string) (string, error) {
 	return shared, nil
 }
 
-// CommandGit is the port every command here runs with. GIT_CEILING_DIRECTORIES stays in the
-// environment on purpose: set on the repository's own root it stops discovery rather than redirecting
-// it, so honouring it costs a refusal and never a wrong key, and a refusal is what this tool is for.
+// GIT_CEILING_DIRECTORIES stays in the environment on purpose. Set on the repository's own root it
+// stops discovery, and it never redirects discovery somewhere else. It therefore costs a refusal and
+// never a wrong key, and a refusal is what this tool is for.
+
 // `eco-report/layout.go` reads it the same way.
+
+// CommandGit is the port every command here runs with.
 func CommandGit() repo.Git {
 	return repo.Exec{Env: repo.WithoutGitLocation(os.Environ())}
 }

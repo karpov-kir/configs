@@ -1,26 +1,32 @@
-// Cases for the tree fingerprint. Three must not be weakened, and each one's own comment says what it
+// Cases for the tree fingerprint. Three of them must hold, and each one's own comment says what it
 // rests on.
-//
+
 // "an untracked file's content never reaches the repository's object store" is the security property
-// the throwaway object store exists for. Weakened, fingerprinting a tree leaves the caller's working
-// files, a live credential among them, recoverable from `.git/objects` for good.
-//
-// "a tracked file matching an ignore rule still changes the fingerprint" is the seed. Weakened, it
-// lets a stale ledger pass as a valid resume point, which is the failure this whole recipe exists to
+// the throwaway object store exists for. Weaken it and fingerprinting a tree leaves the caller's
+// working files, a live credential among them, recoverable from `.git/objects` for good.
+
+// "a tracked file matching an ignore rule still changes the fingerprint" is the seed. Weaken it and
+// a stale ledger passes as a valid resume point, which is the failure this whole recipe exists to
 // prevent.
-//
-// "commits in a nested repository do not move the fingerprint" is determinism. Weakened, the hash
-// moves while nothing here changes, and a stamp can no longer tell a tree that was rewritten under a
-// stage from one that was not — so a whole round's staleness reading says nothing.
-//
-// These cases run real git and are meant to. This package's whole body of work is a recipe written in
-// git's own commands — a scratch index seeded from HEAD, a throwaway object store, `add -A` with an
-// exclusion, `write-tree` — so a fake index would assert against a walk git never did, which is a
-// suite agreeing with itself (`ai/kk-flavor/standards/testing.md` rules 2 and 5). What they must not
-// do is build a repository per case. One is built here holding every shape they need at once, and each
-// case takes a SINGLE fingerprint of it and compares that against the reading the case before it left.
-// A fingerprint is five git processes and a process costs about 100ms on the machine these are written
-// on, so a `before` of its own per case doubles the suite for nothing.
+
+// "commits in a nested repository do not move the fingerprint" is determinism. Weaken it and the
+// hash moves while no file here changes. A stamp can then no longer tell a tree rewritten under a
+// stage from one left alone, and a whole round's staleness reading is worthless.
+
+// These cases run real git and are meant to. This package's whole body of work is a recipe in git's
+// own commands: a scratch index seeded from HEAD, a throwaway object store, `add -A` with an
+// exclusion, `write-tree`.
+
+// A fake index would assert against a walk git never did, which is a suite agreeing with itself.
+// `ai/kk-flavor/standards/testing.md` asks for the real thing driven, and for test code held to the
+// same bar as production code.
+
+// What they must not do is build a repository per case. One is built here holding every shape they
+// need at once. Each case takes a single fingerprint of it and compares that against the reading the
+// case before it left.
+
+// A fingerprint is five git processes, and a process costs about 100ms on the machine these are
+// written on. A `before` of its own per case would double the suite for no gain.
 package treefingerprint
 
 import (
@@ -32,21 +38,21 @@ import (
 	"testing"
 )
 
-// The untracked content the object-store case hunts for afterwards. Written into the tree by the case
-// that asserts an untracked file moves the fingerprint, because that case needs an untracked file and
-// this one needs a fingerprint to have been taken over it.
+// The untracked content the object-store case looks for afterwards. The case that asserts an
+// untracked file moves the fingerprint writes it into the tree. That case needs an untracked file,
+// and this one needs a fingerprint to have been taken over it.
 const untrackedSecret = "a-credential-no-ref-would-ever-point-at\n"
 
 func TestMain(m *testing.M) {
 	// The developer's own git config must not reach these fixtures. Both variables, because NOSYSTEM
-	// blocks /etc/gitconfig alone: a global core.excludesFile is what actually reaches in here, and
-	// one holding *.txt turns every case below red on correct code.
+	// blocks /etc/gitconfig alone. A global core.excludesFile is what actually reaches in here, and
+	// one holding *.txt turns every case in this file red on correct code.
 	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
-	// The identity the commits below need, in the environment rather than in each repository's config.
-	// Five repositories are built across this suite and `git config` three times in each is fifteen
-	// processes for something git reads from here just as well. Neutralising both config files above is
-	// also what lets commit.gpgsign go unset rather than off: nothing is left that could turn it on.
+	// The identity the commits in this file need, set in the environment instead of in each
+	// repository's config. Six repositories are built across this suite, and `git config` three times
+	// in each is eighteen processes for something git reads from here just as well. The two blanked
+	// config files leave commit.gpgsign unset, and no setting is left that could turn it on.
 	os.Setenv("GIT_AUTHOR_NAME", "t")
 	os.Setenv("GIT_AUTHOR_EMAIL", "t@t")
 	os.Setenv("GIT_COMMITTER_NAME", "t")
@@ -54,8 +60,8 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// One git call against a fixture, which must work: these build the tree the cases read, so a failure
-// here is the suite losing its subject rather than the tool being wrong.
+// One git call against a fixture, which must work. These build the tree the cases read. A failure
+// here is the suite losing its subject, and carries no verdict on the tool.
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
@@ -76,8 +82,7 @@ func write(t *testing.T, path, body string) {
 }
 
 // A repository with one commit at path inside dir. It is what an agent session's worktree is to the
-// checkout it was opened inside — another repository, sharing nothing with this tree but the directory
-// it sits in.
+// checkout it was opened inside: another repository, sharing only the directory it sits in.
 func newNested(t *testing.T, dir, path string) string {
 	t.Helper()
 	nested := filepath.Join(dir, path)
@@ -91,33 +96,35 @@ func newNested(t *testing.T, dir, path string) string {
 	return nested
 }
 
-// fixture is the one repository the cases read, and the last fingerprint taken of it.
+// fixture is the single repository the cases read, and the last fingerprint taken of it.
 type fixture struct {
 	dir    string
 	linked string
-	// bare is a directory inside no repository. The refusal cases need one and it cannot be a corner of
-	// the repository above, which is the only fixture here a second one is genuinely needed beside.
+	// bare is a directory inside no repository. The refusal cases need one, and it cannot be a corner
+	// of the repository the dir field names. That is the only fixture here a second one is genuinely
+	// needed beside.
 	bare string
 	last string
 }
 
-// The repository every case reads, holding every shape they need at once: a tracked file, a tracked
-// file that matches an ignore rule, a subdirectory, a repository nested inside this one, a nested one
-// with no commit, a gitlink this repository declares, and a linked worktree.
-//
-// Built rather than copied: this package IS the thing that reads a repository's layout, so a fixture
+// git builds it, because this package IS the thing that reads a repository's layout. A fixture
 // assembled by hand would be asserting against a shape git did not make.
-//
-// The untracked nested repository is named `wt*` because one case is about a nested repository whose
-// name globs over its siblings, and every other case that needs a nested repository needs nothing else
-// of it. A second one would be four more processes to prove the same exclusion twice. `wtKEEP` is the
+
+// The untracked nested repository is named `wt*` for the case about a nested repository whose name
+// globs over its siblings. Every other case that needs a nested repository needs no more of it, and
+// a second one would be four more processes to prove the same exclusion twice. `wtKEEP` is the
 // sibling directory that name globs over.
+
+// The repository every case reads, holding every shape they need at once. It carries a tracked file,
+// a tracked file that matches an ignore rule, and a subdirectory. It also carries a repository
+// nested inside this one, a nested one with no commit, a gitlink this repository declares, and a
+// linked worktree.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	f := &fixture{dir: t.TempDir(), linked: filepath.Join(t.TempDir(), "linked"), bare: t.TempDir()}
 
-	// Asserted rather than assumed: built inside a checkout, every refusal case below would pass for
-	// the wrong reason.
+	// Asserted here, because a bare directory sitting inside a checkout would let every refusal case
+	// in this file pass for the wrong reason.
 	if _, err := exec.Command("git", "-C", f.bare, "rev-parse", "--show-toplevel").Output(); err == nil {
 		t.Fatalf("%s resolves to a repository, so the refusal cases below would prove nothing", f.bare)
 	}
@@ -131,8 +138,8 @@ func newFixture(t *testing.T) *fixture {
 	write(t, filepath.Join(f.dir, ".gitignore"), "kept.txt\nignored.txt\n")
 	git(t, f.dir, "add", "-f", "tracked.txt", "sub/deep.txt", "kept.txt", ".gitignore")
 
-	// The gitlink this repository declares. Written into the index directly rather than through
-	// `git submodule add`, which wants a URL it can clone and a protocol allowance to clone it over.
+	// The gitlink this repository declares. It goes into the index directly, because `git submodule
+	// add` wants a URL it can clone and a protocol allowance to clone it over.
 	declared := newNested(t, f.dir, "declared")
 	git(t, f.dir, "update-index", "--add", "--cacheinfo", "160000,"+git(t, declared, "rev-parse", "HEAD")+",declared")
 	git(t, f.dir, "commit", "-qm", "base")
@@ -143,9 +150,10 @@ func newFixture(t *testing.T) *fixture {
 	newNested(t, f.dir, "wt*")
 	write(t, filepath.Join(f.dir, "wtKEEP", "sibling.txt"), "one\n")
 
-	// A nested repository with no commit yet aborts `add -A` outright ("does not have a commit checked
-	// out"), and that is the state a sibling worktree is in while it is being set up. It sits in the
-	// fixture from the start, so every reading below is also a reading taken past one.
+	// A nested repository with no commit yet aborts `add -A` outright. git says "does not have a
+	// commit checked out". That is the state a sibling worktree is in while it is being set up. It
+	// sits in the fixture from the start, so every reading in this file is also a reading taken past
+	// one.
 	halfBuilt := filepath.Join(f.dir, "half-built-worktree")
 	if err := os.MkdirAll(halfBuilt, 0o755); err != nil {
 		t.Fatalf("mkdir half-built-worktree: %v", err)
@@ -154,13 +162,13 @@ func newFixture(t *testing.T) *fixture {
 
 	git(t, f.dir, "worktree", "add", "-q", f.linked, "-b", "other")
 
-	// The reading the first case compares against, taken here rather than by that case so that every
-	// case below still has a baseline when it is the only one `-run` selected.
+	// The reading the first case compares against. Taken here, because every case in this file then
+	// still has a baseline when `-run` selects it alone.
 	f.reading(t)
 	return f
 }
 
-// One fingerprint of the tree, adopted as the reading the next case compares against.
+// Takes one fingerprint of the tree, and adopts it as the reading the next case compares against.
 func (f *fixture) reading(t *testing.T) (before, now string) {
 	t.Helper()
 	before = f.last
@@ -177,8 +185,8 @@ func (f *fixture) write(t *testing.T, name, body string) {
 	write(t, filepath.Join(f.dir, name), body)
 }
 
-// The blob id git WOULD give this content, computed without writing it: the thing the object-store
-// cases look for afterwards.
+// The blob id git would give this content. The content itself stays unwritten, and this id is what
+// the object-store cases look for afterwards.
 func (f *fixture) blobIDOf(t *testing.T, body string) string {
 	t.Helper()
 	cmd := exec.Command("git", "-C", f.dir, "hash-object", "--stdin")
@@ -195,18 +203,18 @@ func (f *fixture) storeHolds(blob string) bool {
 	return exec.Command("git", "-C", f.dir, "cat-file", "-e", blob).Run() == nil
 }
 
-// One repository, read in order.
-//
-// The order is load-bearing twice over, so moving a case is not a refactor. Each case compares against
-// the reading the case before it left, and the cases are grouped by what they disturb — reads first,
-// then writes into the repositories nested inside this one, then writes into this tree itself. A case
-// that mutates out of turn changes what every case below it is comparing against.
-//
-// One case selected with `-run` still stands up: the fixture takes the baseline reading itself, so a
-// case run alone compares against a tree it has seen rather than against nothing.
-//
-// t.Chdir in the last case bars this test from running in parallel, so no case in this package may
-// take t.Parallel while it stands.
+// The order matters twice over, so moving a case is not a refactor. Each case compares against the
+// reading the case before it left. The cases are also grouped by what they disturb: reads first,
+// then writes into the repositories nested inside this one, then writes into this tree itself. A
+// case that mutates out of turn changes what every later case is comparing against.
+
+// One case selected with `-run` still stands up, because the fixture takes the baseline reading
+// itself. A case run alone then compares against a tree it has seen.
+
+// t.Chdir in the last case bars this test from running in parallel. No case in this package may take
+// t.Parallel while it stands.
+
+// Reads one repository, in order.
 func TestTheFingerprintOfOneTree(t *testing.T) {
 	f := newFixture(t)
 
@@ -253,14 +261,15 @@ func (f *fixture) sameTwice(t *testing.T) {
 
 // --- what the repositories nested inside this one may not do ----------------------------------------
 
-// The determinism this whole recipe is stamped for. `add -A` records a nested repository as a gitlink
-// holding that repository's HEAD, so every commit made in there moved this fingerprint while no file
-// here changed — and a ledger stamped with it could not tell that apart from the tree it named having
-// actually been rewritten.
-//
+// `add -A` records a nested repository as a gitlink holding that repository's HEAD. Every commit made
+// in there moved this fingerprint while no file here changed. A ledger stamped with it could not tell
+// that apart from the tree it named having actually been rewritten.
+
 // Two commits before one reading. A hash cannot move and move back to the value it had, so a reading
-// taken after both catches either of them; what it gives up is saying which, and that is the trade for
-// not paying five processes twice.
+// taken after both catches either of them. What it gives up is saying which, and that is the trade
+// for paying five processes once instead of twice.
+
+// The determinism this whole recipe is stamped for.
 func (f *fixture) nestedCommits(t *testing.T) {
 	nested := filepath.Join(f.dir, "wt*")
 	git(t, nested, "commit", "-q", "--allow-empty", "-m", "a session next door commits")
@@ -271,9 +280,9 @@ func (f *fixture) nestedCommits(t *testing.T) {
 	}
 }
 
-// A nested repository's own files are no more part of this tree than its HEAD is. Asserted separately
-// from the case above, which a recipe recording those files instead of the gitlink would otherwise
-// satisfy — and that recipe hands every path in a sibling session's worktree to this ledger.
+// A nested repository's own files are no more part of this tree than its HEAD is. This is asserted
+// apart from nestedCommits, which a recipe recording those files in place of the gitlink would
+// otherwise satisfy. That recipe hands every path in a sibling session's worktree to this ledger.
 func (f *fixture) nestedFiles(t *testing.T) {
 	nested := filepath.Join(f.dir, "wt*")
 	write(t, filepath.Join(nested, "inside.txt"), "rewritten\n")
@@ -284,8 +293,8 @@ func (f *fixture) nestedFiles(t *testing.T) {
 }
 
 // The other half: a gitlink HEAD already holds is a declared submodule, and its pointer is part of
-// what this repository tracks. A recipe that dropped every gitlink would pass the two cases above and
-// go blind on a submodule bump.
+// what this repository tracks. A recipe that dropped every gitlink would pass nestedCommits and
+// nestedFiles, and go blind on a submodule bump.
 func (f *fixture) declaredSubmodule(t *testing.T) {
 	git(t, filepath.Join(f.dir, "declared"), "commit", "-q", "--allow-empty", "-m", "the submodule moves on")
 	if before, after := f.reading(t); after == before {
@@ -294,10 +303,12 @@ func (f *fixture) declaredSubmodule(t *testing.T) {
 	}
 }
 
-// A root inside the repository still names the whole repository, and a nested repository elsewhere in
-// it is still held out. The scope is what the exclusion is written against: pathspecs read from the
-// caller's own directory rather than the repository root would hold out a path that is not there, and
-// the nested repository's HEAD is back in the hash with nothing saying so.
+// The scope is what the exclusion is written against, and its pathspecs are read from the repository
+// root. Pathspecs read from the caller's own directory instead would hold out a path that is absent
+// there, and the nested repository's HEAD would be back in the hash in silence.
+
+// A root inside the repository still names the whole repository, and a nested repository elsewhere
+// in it is still held out.
 func (f *fixture) subdirectoryRoot(t *testing.T) {
 	fromSub := func() string {
 		t.Helper()
@@ -334,7 +345,7 @@ func (f *fixture) whatMoves(t *testing.T) {
 		what string
 		act  func(t *testing.T)
 	}{
-		// This row doubles as the untracked content the object-store case hunts for afterwards.
+		// This row doubles as the untracked content the object-store case looks for afterwards.
 		{"an untracked file", func(t *testing.T) { f.write(t, "secret.txt", untrackedSecret) }},
 		{"an unstaged edit to a tracked file", func(t *testing.T) { f.write(t, "tracked.txt", "edited\n") }},
 		{"a new file in a new directory", func(t *testing.T) { f.write(t, "fresh/deep.txt", "deep\n") }},
@@ -348,11 +359,12 @@ func (f *fixture) whatMoves(t *testing.T) {
 	}
 }
 
-// The security property. Without the throwaway object store, `add -A` writes every untracked file's
-// content into the repository's own store, where no ref points at it and nothing collects it.
+// The security property. `add -A` writes every untracked file's content into whatever object store
+// it is pointed at. The throwaway store is what keeps that content out of the repository's own.
+// Content written there has no ref pointing at it, and gc leaves it in place for good.
 func (f *fixture) untrackedStaysOutOfTheStore(t *testing.T) {
-	// The fingerprint that would have written it was taken by the case above. Without the file this
-	// asks about nothing, and a store that does not hold it proves only that it was never offered one.
+	// whatMoves took the fingerprint that would have written it. With the file gone this case asks
+	// about a blob the store was never offered, and its absence would prove only that.
 	if _, err := os.Stat(filepath.Join(f.dir, "secret.txt")); err != nil {
 		t.Fatalf("the untracked credential is not in the tree, so this case would prove nothing: %v", err)
 	}
@@ -375,9 +387,9 @@ func (f *fixture) ignoredPaths(t *testing.T) {
 	}
 }
 
-// The seed's whole reason. Git applies ignore rules only to paths the index does not already hold, so
-// an index built from nothing drops a TRACKED file matching an ignore rule out of the walk — and it
-// could then be rewritten between two runs with the fingerprint unmoved.
+// The seed's whole reason. Git applies ignore rules only to paths the index does not already hold.
+// An index built from an empty tree therefore drops a tracked file matching an ignore rule out of
+// the walk. That file can then be rewritten between two runs with the fingerprint unmoved.
 func (f *fixture) trackedAndIgnored(t *testing.T) {
 	f.write(t, "kept.txt", "two\n")
 	if before, after := f.reading(t); after == before {
@@ -386,13 +398,13 @@ func (f *fixture) trackedAndIgnored(t *testing.T) {
 	}
 }
 
-// A nested repository is held out by its name and not by a pattern read out of it. The `*` in the
-// fixture's nested repository is a wildcard to git unless the exclusion says otherwise, and `wt*` then
-// covers the sibling directory too — untracked content dropped out of the hash by a name that only
-// looked like its own.
-//
-// That the nested repository itself stays held out is what every case above asserts, since `wt*` is
-// the one they all use. This is the other half: the sibling its name globs over must still be in.
+// A nested repository is held out by its literal name, and a pattern read out of that name would be
+// something else. The `*` in the fixture's nested repository is a wildcard to git unless the
+// exclusion says otherwise, and `wt*` then covers the sibling directory too. Untracked content would
+// drop out of the hash under a name that only looked like its own.
+
+// Every case before this one asserts that the nested repository itself stays held out, since `wt*`
+// is the name they all use. This is the other half: the sibling its name globs over must still be in.
 func (f *fixture) globNamedNested(t *testing.T) {
 	f.write(t, "wtKEEP/sibling.txt", "two\n")
 	if before, after := f.reading(t); after == before {
@@ -425,8 +437,8 @@ func (f *fixture) linkedWorktree(t *testing.T) {
 }
 
 // The caller's own index must come back exactly as it was: this reads a tree, it does not stage one.
-// Staged here is content the working tree already holds, so the reading between the two questions
-// below is of the same tree as the reading before it.
+// What gets staged here is content the working tree already holds, so the reading taken between the
+// two checks is of the same tree as the reading before it.
 func (f *fixture) callersIndex(t *testing.T) {
 	git(t, f.dir, "add", "tracked.txt")
 	before := git(t, f.dir, "diff", "--name-only", "--cached")
@@ -441,10 +453,10 @@ func (f *fixture) callersIndex(t *testing.T) {
 
 // --- the command ----------------------------------------------------------------------------------
 
+// Only the first row reaches git, and every refusal is settled before a fingerprint is attempted.
+
 // The grammar the stub's header documents, driven through Run. `stub_usage_test.go` holds the two
-// against each other; this says what each shape does once the line is what it should be.
-//
-// Only the first row reaches git: every refusal below is settled before a fingerprint is attempted.
+// against each other, and this says what each shape does once the line is what it should be.
 func (f *fixture) argumentTable(t *testing.T) {
 	for _, c := range []struct {
 		what   string
@@ -453,8 +465,8 @@ func (f *fixture) argumentTable(t *testing.T) {
 		want   string
 	}{
 		{"a path alone prints the hash", []string{f.dir}, 0, f.last},
-		// A second root is a caller who does not know which tree they are asking about, and the hash of
-		// the first one reads exactly like an answer about the pair.
+		// A second root is a caller who does not know which tree they are asking about. The hash of the
+		// first one reads exactly like an answer about the pair.
 		{"two paths are refused with the grammar", []string{f.dir, f.dir}, 2, usage},
 		{"a flag after the path is refused with the grammar", []string{f.dir, "--nope"}, 2, usage},
 		// A directory may legitimately be named `-rf`, so a lone dash-leading argument is a path and its
@@ -490,8 +502,8 @@ func (f *fixture) argumentTable(t *testing.T) {
 	}
 }
 
-// The invocation with no path at all — the default every caller of the stub takes, and the one branch
-// the table above cannot reach, since every row of it supplies a path.
+// The invocation with no path at all: the default every caller of the stub takes, and the single
+// branch argumentTable cannot reach, since every row of it supplies a path.
 func (f *fixture) noPath(t *testing.T) {
 	t.Chdir(f.dir)
 	var out, errOut bytes.Buffer
@@ -503,11 +515,11 @@ func (f *fixture) noPath(t *testing.T) {
 	}
 }
 
-// --- the refusals, and the trees the fixture above cannot be -----------------------------------------
+// --- the refusals, and the trees the shared fixture cannot be ----------------------------------------
 
 func TestADirectoryOutsideAnyRepositoryRefuses(t *testing.T) {
-	// A directory inside no repository, asserted to be one: built inside a checkout, both cases here
-	// would pass for the wrong reason.
+	// A directory inside no repository. This asserts that, because a directory sitting inside a
+	// checkout would let both cases here pass for the wrong reason.
 	dir := t.TempDir()
 	if _, err := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel").Output(); err == nil {
 		t.Fatalf("%s resolves to a repository, so these cases would prove nothing", dir)
@@ -520,7 +532,8 @@ func TestADirectoryOutsideAnyRepositoryRefuses(t *testing.T) {
 	if !strings.Contains(err.Error(), "not a git repository") {
 		t.Errorf("the refusal does not say what was wrong: %v", err)
 	}
-	// A refusal must carry no hash: a caller reading both would write a ledger head naming nothing.
+	// A refusal must carry no hash. A caller reading both would write a ledger head over a tree it
+	// never read.
 	if tree != "" {
 		t.Errorf("a refusal came back with %q as well", tree)
 	}
@@ -532,8 +545,8 @@ func TestADirectoryOutsideAnyRepositoryRefuses(t *testing.T) {
 	}
 }
 
-// A repository with no commit at all, which the shared fixture cannot also be: it is built around a
-// commit that every case above reads through.
+// A repository with no commit at all, which the shared fixture cannot also be: that fixture is built
+// around a commit every case in TestTheFingerprintOfOneTree reads through.
 func TestARepositoryWithNoCommitStillFingerprints(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init", "-q")
@@ -552,9 +565,9 @@ func TestARepositoryWithNoCommitStillFingerprints(t *testing.T) {
 	}
 }
 
-// A HEAD that resolves and cannot be read. Its own repository because the fixture is destroyed to
-// build it, and one refusal serves both cases below: they are two readings of a single failure, and
-// corrupting a second repository to ask the second question costs four processes for nothing.
+// A HEAD that resolves and cannot be read. It gets a repository of its own, because building it
+// destroys the fixture. One refusal serves both subtests: they are two readings of a single failure,
+// and corrupting a second repository to ask the second question costs four processes for no gain.
 func TestAnUnreadableHeadRefusesAndCarriesGitsOwnReason(t *testing.T) {
 	dir := t.TempDir()
 	git(t, dir, "init", "-q")
@@ -567,8 +580,8 @@ func TestAnUnreadableHeadRefusesAndCarriesGitsOwnReason(t *testing.T) {
 	if _, err := os.Stat(object); err != nil {
 		t.Skipf("this repository packs its objects, so the unreadable-HEAD case cannot be built: %v", err)
 	}
-	// Removed first: git writes its loose objects read-only, so an in-place overwrite is refused and
-	// the case would fail on its own fixture rather than on the tool.
+	// Removed first, because git writes its loose objects read-only. An in-place overwrite is refused,
+	// and the case would then fail on its own fixture, with no verdict left about the tool.
 	if err := os.Remove(object); err != nil {
 		t.Fatalf("removing HEAD's object: %v", err)
 	}
@@ -578,16 +591,16 @@ func TestAnUnreadableHeadRefusesAndCarriesGitsOwnReason(t *testing.T) {
 
 	tree, err := Fingerprint(dir)
 
-	// Seeded from nothing, the walk silently misses everything committed, and the hash it would return
-	// is of a smaller tree than the one the caller asked about.
+	// An index seeded from an empty tree makes the walk silently miss everything committed. The hash
+	// it would return is of a smaller tree than the caller asked about.
 	t.Run("an unreadable HEAD refuses", func(t *testing.T) {
 		if err == nil {
 			t.Fatalf("an unreadable HEAD produced %q instead of refusing", tree)
 		}
 	})
 
-	// git's own account of a failure reaches the caller, rather than being replaced by this package's
-	// summary of it. A refusal naming only "could not fingerprint" sends a reader looking in the wrong
+	// git's own account of a failure reaches the caller, and this package's summary of it does not
+	// stand in. A refusal naming only "could not fingerprint" sends a reader looking in the wrong
 	// place.
 	t.Run("a failure carries git's own reason", func(t *testing.T) {
 		if err == nil {

@@ -13,15 +13,15 @@ import (
 	"configs/ai/tools/repo/repotest"
 )
 
-// Nothing here forks git. What this package does with a shared git dir is the whole of it, and where
-// that path comes from is `repo.Exec`'s answer, held to a real repository in `repo/exec_test.go` —
-// including the property every case below used to build a linked worktree for, that a worktree's
+// No case here forks git. What this package does with a shared git dir is the whole of it, and where
+// that path comes from is `repo.Exec`'s answer. `repo/exec_test.go` holds that answer to a real
+// repository, including the property these cases used to build a linked worktree for: a worktree's
 // common dir is its clone's.
-//
-// A fixture is therefore a directory holding `.git/HEAD`, which is the one file FromSharedGitDir
-// probes for, and a `repotest.Fake` pointed at it where the entry point asks git.
 
-// A fixture that is a git directory and nothing more.
+// A fixture is therefore a directory holding `.git/HEAD`. That is the single file FromSharedGitDir
+// probes for, and a `repotest.Fake` pointed at it is what answers where the entry point asks git.
+
+// A fixture that is only a git directory.
 func newBareRepo(t *testing.T, name string) string {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), name)
@@ -62,10 +62,12 @@ func key(t *testing.T, dir string) string {
 	return k
 }
 
-// A worktree's own directory is NOT the clone, and `--show-toplevel` cannot tell the difference; only
+// `repo/exec_test.go` shows a real linked worktree answering its clone's common dir, and the pair
+// covers what one real-repository case used to.
+
+// A worktree's own directory is not the clone, and `--show-toplevel` cannot tell the difference. Only
 // the shared git dir can. Held here as: whatever directory this is asked about, the key comes off the
-// common dir alone. `repo/exec_test.go` is where a real linked worktree is shown to answer its
-// clone's common dir, so the pair covers what one real-repository case used to.
+// common dir alone.
 func TestEveryWorktreeOfOneCloneKeysTheSame(t *testing.T) {
 	t.Parallel()
 	clone := newBareRepo(t, "project")
@@ -134,7 +136,7 @@ func TestAnUnresolvablePathRefusesRatherThanFallingBack(t *testing.T) {
 	}
 }
 
-// A directory git cannot answer for refuses, rather than keying whatever came back on the way out.
+// A directory git cannot answer for refuses, and never keys whatever came back on the way out.
 func TestOutsideARepositoryItRefuses(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
@@ -145,9 +147,9 @@ func TestOutsideARepositoryItRefuses(t *testing.T) {
 	}
 }
 
-// The two entry points are one algorithm: the command asks git where the shared dir is, a Go caller
-// hands over the path it already holds. A drift between them is a clone with two names no single
-// consumer can see.
+// The two entry points are one algorithm: the command asks git where the shared dir is, and a Go
+// caller hands over the path it already holds. Where they diverge, one clone gets two keys, and no
+// single consumer can see both.
 func TestBothEntryPointsAgree(t *testing.T) {
 	t.Parallel()
 	dir := newBareRepo(t, "project")
@@ -369,9 +371,9 @@ func TestTheCommandsArgumentTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("keying %s: %v", dir, err)
 	}
-	// The one row that has to refuse on resolution rather than on its arguments. The fake answers the
-	// clone's git dir whatever it is asked about, so a row naming an unreadable path would still key;
-	// a port that cannot answer at all is what that row needs.
+	// The single row that has to refuse on resolution, and not on its arguments. The fake answers the
+	// clone's git dir whatever it is asked about, and a row naming an unreadable path would still key.
+	// A port that cannot answer at all is what that row needs.
 	refusing := gitAt(dir)
 	refusing.Fail["CommonDir"] = errors.New("not a git repository")
 

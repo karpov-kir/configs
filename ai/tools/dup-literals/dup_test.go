@@ -51,10 +51,10 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		f.expectNoStdout()
 	})
 
-	// The refusal is git's, so the case arranges git's refusal rather than a name it happens to reject.
-	// That real git turns `no-such-rev` down is git's own behaviour, held against a real repository in
-	// `repo/exec_test.go`; what belongs here is that this tool answers a refused diff with exit 2, with
-	// git's words, and without the grammar.
+	// The refusal is git's, so the case arranges git's refusal and never a name it happens to reject.
+	// That real git turns `no-such-rev` down is git's own behaviour, and `repo/exec_test.go` holds it
+	// against a real repository. What belongs here is that this tool answers a refused diff with exit
+	// 2, with git's words, and without the grammar.
 	t.Run("a revision git cannot resolve exits 2 as git's rejection", func(t *testing.T) {
 		f := newFixture(t)
 		f.git.Fail["Patch"] = errors.New("fatal: bad revision 'no-such-rev'")
@@ -155,17 +155,22 @@ func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
 	f.expectNoStdout()
 }
 
-// The load-bearing one. This tool echoes 60 bytes of every duplicate, so a file whose NAME marks it
-// as secret-bearing is never read, and the skip is announced and counted rather than silent. The
-// uppercase and modern-key rows are cases, not tidiness: on a case-insensitive filesystem `.ENV` IS
-// `.env`, and a list stopping at `id_rsa` misses the `id_ed25519` ssh-keygen writes by default.
-//
-// Two guards stand on this path and no row here says which one fired: `diffscan.Options`'
-// SkipSecretNamed declines the file before it is opened, and `count` below declines its lines after.
-// Measured — either one alone keeps all 31 rows green, and only both off reddens them. That is
-// deliberate for a path that would otherwise put a credential in a report, so do not read a green row
-// as either guard working and do not delete one for being redundant. The untracked guard has its own
-// case, against the code that owns it, in `diffscan/diffscan_test.go`.
+// This tool echoes 60 bytes of every duplicate, so a file marked by NAME as secret-bearing is never
+// read. The skip is announced and counted, which keeps it visible to a reader.
+
+// The uppercase and modern-key rows each cover a real failure. On a case-insensitive filesystem
+// `.ENV` IS `.env`, and a list stopping at `id_rsa` misses the `id_ed25519` ssh-keygen writes by
+// default.
+
+// Two guards stand on this path, and no row here says which of them fired. `diffscan.Options`'
+// SkipSecretNamed declines the file before it is opened, and `count` declines its lines after.
+// Measured: either guard alone keeps all 27 rows green, and only both off reddens them.
+
+// That is deliberate for a path that would otherwise put a credential in a report. Do not read a
+// green row as either guard working. Keep both, even where one looks redundant. The untracked guard
+// has its own case, against the code that owns it, in `diffscan/diffscan_test.go`.
+
+// The case this file exists for.
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	secret := repeated('S', 130)
 	for _, name := range []string{

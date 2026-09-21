@@ -1,27 +1,26 @@
 // The pre-commit gate: every check this repository gates on, run from cold, every time.
 //
 //	usage: gate.sh [--full]
-//	       (no flag)  run every check, letting Go's own test cache answer where it can
-//	       --full     defeat that cache too, which is what the time budget is measured against
-//
+//	       (no flag)  every check, with Go's own test cache answering what it can.
+//	       --full     defeats that cache, and the time budget is measured on that run.
+
 // It used to be a content-keyed skip machine: 60-odd units, each keyed on a declared set of input
-// files, with verdict records in the clone's git dir and a list of paths outside the Go module that
-// Go's test cache could not see. That existed because the suite it guarded took about thirty minutes,
-// and skipping was the only way to make a pre-commit hook bearable.
-//
-// The suite does not take thirty minutes any more, so none of it is needed. What replaced it is
-// `ai/kk-flavor/standards/testing.md` rule 6: the whole suite runs cold in under 100 seconds, and the
-// gate fails a run over that. A cache that exists to hide a slow suite hides a slow suite from the
-// one check that would have forced it to be fixed.
-//
-// Five checks, in this order, because each is cheaper than the one after it and a failure in an
-// earlier one makes a later one's output hard to read. They run concurrently all the same — the
-// ordering is what gets PRINTED, and the machine has cores to spare while `go test` waits on I/O.
-//
-// What it may never do:
-//   - Report a pass for a check it did not run. There is no cache to answer out of.
-//   - Finish over budget and exit 0. A run past budgetSeconds fails and names what took the time.
-//   - Skip something quietly. Every run prints one line per check.
+// files. Verdict records went in the clone's git dir, with a list of paths outside the Go module
+// that Go's test cache could not see. The suite it guarded took about thirty minutes, and skipping
+// was the only way to make a pre-commit hook bearable.
+
+// The suite is no longer that slow, so all of that went. `ai/kk-flavor/standards/testing.md` sets
+// what replaced it: the whole suite runs cold in under 100 seconds, and the gate fails a run over
+// that. A cache that hides a slow suite hides it from the check that would have forced the fix.
+
+// Six checks. They print in this order because each costs less than the check after it, and a
+// failure in an earlier one makes a later one's output hard to read. They run concurrently all the
+// same: the order is what gets printed, and the machine has cores to spare while `go test` waits
+// on I/O.
+
+// A pass is only ever reported for a check this run executed, because there is no cache to answer
+// out of. A run past budgetSeconds fails and names what took the time, so going over budget can
+// never end in exit 0. Every run prints one line per check, so no check is skipped quietly.
 package gate
 
 import (
@@ -43,29 +42,29 @@ import (
 type Env struct {
 	// Root is the repository the gate runs over. GATE_ROOT.
 	Root string
-	// Budget replaces budgetSeconds, so the suite can drive the over-budget refusal without spending
-	// a hundred seconds to reach it. GATE_BUDGET_SECONDS.
+	// Budget replaces budgetSeconds, so the suite can drive the refusal a slow run gets without
+	// spending a hundred seconds to reach it. GATE_BUDGET_SECONDS.
 	Budget int
-	// Checks replaces the six real ones with a table read from a file — id, command, one per line,
-	// tab-separated. GATE_CHECKS_FILE. It is how the suite reaches the run loop, the report and every
-	// refusal in milliseconds rather than by running the real checks, which is the work this exists
-	// not to do twice.
+	// Checks replaces the six real ones with a table read from a file: id, command, one per line,
+	// tab-separated. GATE_CHECKS_FILE. The suite uses it to reach the run loop, the report and every
+	// refusal in milliseconds, so it never pays for the real checks a second time.
 	Checks string
 }
 
-// The whole suite, cold, on the slowest machine that gates on it. testing.md rule 6 states the number
-// and this enforces it; the two have to move together. This gate's own wall clock is the only thing
-// enforcing it — see suiteTimeoutSeconds for why `go test` must not be handed this number.
+// The whole suite, cold, on the slowest machine that gates on it. `ai/kk-flavor/standards/testing.md`
+// states the same number, so the two have to move together. This gate's own wall clock is the only
+// thing enforcing it, and suiteTimeoutSeconds says why `go test` must not be handed this number.
 const budgetSeconds = 100
 
-// What `go test` carries as its own -timeout, ABOVE the budget on purpose. Handed the budget itself,
-// Go killed the package first and printed a goroutine dump, so the gate's slowest-first report — the
-// thing that names what has to get faster — could never run for the check that would earn it. Above
-// the budget, a merely slow suite finishes and is reported as slow, and this number is left as the
-// backstop against a genuine hang, which is where Go's ten-minute default is the thing worth escaping.
-//
-// Both workflows spell this number into their own `go test`, and ai/tools/workflows_test.go holds them
-// to it.
+// What `go test` carries as its own -timeout, above budgetSeconds on purpose. Handed the budget
+// itself, Go killed the package first and printed a goroutine dump. The slowest-first report then
+// never ran for the check that would earn it, and that report is what names the thing to speed up.
+
+// Above the budget, a merely slow suite finishes and gets reported as slow. The number is left as
+// the backstop against a genuine hang, and Go's ten-minute default is what it escapes.
+
+// Both workflows spell this number into their own `go test`, and ai/tools/workflows_test.go holds
+// them to it.
 const suiteTimeoutSeconds = 300
 
 // A check the gate runs, and what it cost.
@@ -85,8 +84,9 @@ type gate struct {
 	out, errOut io.Writer
 }
 
-// Run executes one invocation and returns its exit code. 0 is a clean gate, 1 is a finding, and 2 is
-// "this did not run" — never a result.
+// Run executes one invocation and returns its exit code. 0 is a clean gate, 1 is a finding, and 2
+// says the gate did not run. Exit 2 is a state of the machine, and a reader must never read it as a
+// result.
 func Run(args []string, env Env, out, errOut io.Writer) int {
 	g := &gate{out: out, errOut: errOut, budget: time.Duration(budgetSeconds) * time.Second}
 	if env.Budget > 0 {
@@ -142,8 +142,8 @@ func (g *gate) resolveRoot(root string) int {
 	if err != nil {
 		return g.fail("could not resolve the root '%s' — nothing ran", root)
 	}
-	// Physically, because /var is a symlink to /private/var on macOS and a command that cd's would
-	// otherwise be handed a path spelt differently from the one every child reports back.
+	// Physically, because /var is a symlink to /private/var on macOS. A command that cd's would
+	// otherwise be handed a path spelt differently from what every child reports back.
 	physical, err := filepath.EvalSymlinks(abs)
 	if err != nil {
 		return g.fail("could not resolve the root '%s' — nothing ran", root)
@@ -152,29 +152,31 @@ func (g *gate) resolveRoot(root string) int {
 	return 0
 }
 
-// The six, or a table a suite handed over.
-//
-// `--full` is `-count=1` over everything, and the budget is a claim about a COLD run, so the run that
+// `--full` is `-count=1` over everything. The budget is a claim about a cold run, so the run that
 // measures it must not answer out of Go's cache at all.
-//
-// An ordinary run lets that cache answer, and nothing is forced past it. Go keys the test cache on the
-// MODULE and hashes every file a case opens inside that root, skipping only what lies above it — so
-// the module file sits at the repository root, where nothing a case reads is above it. Break
-// `ai/kk-flavor/standards/records.md` or `.github/workflows/gates.yml` and the package reading it goes
-// red on the next plain `go test`. Measured both ways before and after the module moved. `testing.md`
-// rule 11.
-//
-// `go test ./...` is one check and not two. It was split while the root package was forced with
-// `-count=1` and `./...` paid for that package a second time out of the cache; with nothing forced
-// there is one run and one duration for the slowest-first report to name.
+
+// An ordinary run lets that cache answer, and no check is forced past it. Go keys the test cache on
+// the module and hashes every file a case opens inside that root, skipping only what lies outside.
+// The module file sits at the repository root, so every file a case reads lies inside the module.
+
+// Break `ai/kk-flavor/standards/records.md` or `.github/workflows/gates.yml` and the package reading
+// it goes red on the next plain `go test`. Both ways were measured before and after the module
+// moved. `ai/kk-flavor/standards/testing.md` asks for exactly this: a suite reads only what its
+// runner's cache keys on.
+
+// `go test ./...` is one check, not two. It was split while the root package was forced with
+// `-count=1`, and `./...` then paid for that package a second time out of the cache. With no package
+// forced there is one run and one duration for the slowest-first report to name.
+
+// The six, or a table a suite handed over.
 func (g *gate) plan(env Env, full bool) ([]check, int) {
 	if env.Checks != "" {
 		return g.checksFromFile(env.Checks)
 	}
-	// gofmt as well as go, because a check that cannot find its binary is not a check. A machine with
-	// no gofmt has measured nothing, and both shapes this check has carried report that as something
-	// else: the listing one, `test -z "$(gofmt -l .)"`, as a clean tree, and the pipeline below as a
-	// format finding.
+	// gofmt as well as go, because a check that cannot find its binary is no check at all. A machine
+	// with no gofmt has measured none of the tree, and both shapes this check has carried report that
+	// as something else. The listing shape, `test -z "$(gofmt -l .)"`, reports a clean tree, and
+	// formatCmd reports a format finding.
 	for _, tool := range []string{"go", "gofmt"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			return nil, g.fail("no %s on this machine, so the Go checks cannot run — nothing ran", tool)
@@ -192,37 +194,46 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 		{id: "wiring", cmd: wiringCmd},
 		{id: "guide", cmd: "ECO_TOOLS_BUILD=1 ai/guide.sh --check"},
 		// The instruction tree's baseline, which is a ratchet and only goes down. It had one reader
-		// before it had a job: a sentence in a skill telling an agent to look at it, which is a document
-		// rather than a gate.
+		// before it had a job: a sentence in a skill telling an agent to look at it, which is a
+		// document and never a gate.
 		{id: "baseline", cmd: "ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh"},
 	}, 0
 }
 
-// The files git holds and never a walk: this machine keeps whole checkouts inside this one, and
-// `gofmt -l .` hands gofmt every .go file in all of them. `--others` as much as `--cached`, because a
-// .go file written and not staged yet is work the gate has to read; it does not descend into a nested
-// repository either, so those are dropped by git rather than by an ignore rule someone can delete.
-//
-// gofmt's own exit status and not just its listing: handed a file it cannot parse it prints to stderr
-// and lists nothing, and a check reading the listing alone calls that formatted. xargs ends the
-// pipeline and reports a non-zero gofmt as 123, so the substitution carries it without pipefail, which
-// `sh` on a Linux runner does not have.
-//
-// A tree holding no .go file at all lists nothing, and neither xargs then runs a gofmt that can fail:
-// the macOS one runs no command at all, and the GNU one runs gofmt with no file against /dev/null,
-// which is formatted. Measured on both, because macOS xargs carries no `-r` to say it in the command.
+// This machine keeps whole checkouts inside this one, and a walk of the tree hands gofmt every .go
+// file in all of them.
+
+// `--others` as much as `--cached`, because a .go file that is written but unstaged is work the gate
+// has to read. git also skips a nested repository, so those are dropped by git and stay dropped when
+// someone deletes an ignore rule.
+
+// The check reads gofmt's exit status as well as its listing. Handed a file it cannot parse, gofmt
+// prints to stderr and lists no file, and a check reading the listing alone calls that formatted.
+
+// xargs ends the pipeline and reports a non-zero gofmt as 123, so the substitution carries that
+// status without pipefail. `sh` on a Linux runner has no pipefail.
+
+// A tree with no .go file in it produces an empty listing, and the xargs that follows still cannot
+// fail. macOS xargs runs the command zero times, and GNU xargs runs gofmt against /dev/null with no
+// file, which gofmt reports as formatted. Both were measured, because the macOS xargs carries no
+// `-r` flag to say this in the command.
+
+// Lists every .go file git holds, and reports the unformatted ones.
 const formatCmd = "unformatted=$(git ls-files --cached --others --exclude-standard -z -- '*.go' | xargs -0 gofmt -l) && " +
 	"test -z \"$unformatted\" || { printf '%s\\n' \"$unformatted\" >&2; exit 1; }"
 
-// One build, then both agents against it at once. Each run used to carry ECO_TOOLS_BUILD=1 and so
-// rebuilt and re-stamped the same binary for itself, which was the floor under a warm gate. The flag
-// stays where the build is — without it the thing measured can be a downloaded release binary rather
-// than this tree — and the runs after it reach those bytes through resolve.sh, which rebuilds any
-// binary whose stamp no longer matches the source beside it.
-//
+// Each run used to carry ECO_TOOLS_BUILD=1 and rebuild and re-stamp the same binary for itself,
+// which was the floor under a warm gate.
+
+// The flag stays where the build is. Without it the binary measured can be a downloaded release,
+// when the whole point is to measure this tree. The runs after the build reach those bytes through
+// resolve.sh, which rebuilds any binary with a stamp that no longer matches the source beside it.
+
 // Each run's output goes to a file of its own, because two reports interleaved line by line name
-// neither agent. Both statuses are read, claude's first where both are non-zero, as the `&&` that used
-// to chain them reported them.
+// neither agent. Both statuses are read, claude's first where both are non-zero, matching what the
+// `&&` that used to chain them reported.
+
+// One build, then both agents against those bytes at once.
 const wiringCmd = `
 ECO_TOOLS_BUILD=1 ai/tools/resolve.sh eco-check >/dev/null || exit 2
 work=$(mktemp -d "${TMPDIR:-/tmp}/gate-wiring.XXXXXX") || exit 2
@@ -258,8 +269,8 @@ func (g *gate) checksFromFile(path string) ([]check, int) {
 	return checks, 0
 }
 
-// Every check at once, printed in declared order. The printer blocks on each in turn, so the report
-// reads the same whatever order they finish in.
+// Runs every check at once and prints them in declared order. The printer blocks on each in turn, so
+// the report reads the same whatever order they finish in.
 func (g *gate) runChecks(checks []check, started time.Time) int {
 	fmt.Fprintf(g.out, "%d check(s)\n\n", len(checks))
 
@@ -282,8 +293,9 @@ func (g *gate) runChecks(checks []check, started time.Time) int {
 		case 0:
 			g.line("ran ok", c.id, took)
 		case 2:
-			// "It did not run" — a fixture that could not be built, a tool this machine does not have.
-			// Held apart from a failure: calling it one names the code for something the machine did.
+			// Exit 2 means the check did not run: a fixture that failed to build, a tool this machine
+			// lacks. The gate keeps this apart from a failure, because calling it a failure blames the
+			// code for something the machine did.
 			g.line("NO MEASURE", c.id, took+"  it exited 2 — it did not run, so nothing is known")
 			g.tail(c.out, 10)
 			unmeasured++
@@ -308,7 +320,7 @@ func (g *gate) report(checks []check, started time.Time, failed, unmeasured int)
 		fmt.Fprintf(g.errOut, "%d check(s) exited 2 without measuring — nothing is known about them, and this is not a pass.\n", unmeasured)
 		return 2
 	}
-	// The budget is checked last and only over a clean run: a red gate already has a reason, and
+	// The budget is checked last, and only over a clean run. A red gate already has a reason, and
 	// adding "and it was slow" on top of it buries the reason under the symptom.
 	if wall > g.budget {
 		g.overBudget(checks, wall)
@@ -317,8 +329,8 @@ func (g *gate) report(checks []check, started time.Time, failed, unmeasured int)
 	return 0
 }
 
-// What a run over budget says. The wall clock alone tells nobody what to do, so the checks come out
-// slowest-first: the whole point of the bound is that it names the thing to fix.
+// What a run over budget says. The wall clock alone does not say what to fix, so the checks come out
+// slowest-first. Naming the thing to speed up is the whole point of the bound.
 func (g *gate) overBudget(checks []check, wall time.Duration) {
 	slowest := append([]check(nil), checks...)
 	sort.SliceStable(slowest, func(i, j int) bool { return slowest[i].took > slowest[j].took })
@@ -332,8 +344,8 @@ func (g *gate) overBudget(checks []check, wall time.Duration) {
 }
 
 // One check's command. Through a shell, because the commands are written as shell and several of them
-// cd. Both streams into one buffer: a check that refuses on stderr with an empty stdout would
-// otherwise print FAILED and not one word about why.
+// cd. Both streams go into one buffer: a check that refuses on stderr with an empty stdout would
+// otherwise print FAILED and stay silent about why.
 func (g *gate) execute(cmd string) (string, int) {
 	run := exec.Command("sh", "-c", cmd)
 	run.Dir = g.root
@@ -345,8 +357,8 @@ func (g *gate) execute(cmd string) (string, int) {
 	if errors.As(err, &exit) {
 		return string(out), exit.ExitCode()
 	}
-	// 127 is what a shell reports for a command it could not find, and that is what this is: the
-	// command did not run, so its exit status is not a verdict about anything.
+	// 127 is what a shell reports for a command it could not find, and that is what this is. The
+	// command never ran. Its exit status is therefore no verdict about anything.
 	return string(out), 127
 }
 
@@ -365,12 +377,12 @@ func (g *gate) tail(output string, n int) {
 }
 
 // The most lines one failed check prints. A run that panics in every package carries thousands, and a
-// report read on every commit that prints those is one nobody reads.
+// report read on every commit that prints all of them goes unread.
 const failureLineBudget = 40
 
-// What a FAILED check shows. Never the last n lines: one `go test ./...` prints an `ok` line per
-// package after the one that broke, so a positional tail of a failure in an early package is forty
-// lines of successes and not one word about what a reader has to fix.
+// What a FAILED check shows. The last n lines will not do: `go test ./...` prints an `ok` line per
+// package after the package that broke. A positional tail of a failure in an early package is forty
+// lines of successes, and carries no word about what a reader has to fix.
 func (g *gate) failure(c check) {
 	all := outputLines(c.out)
 	if len(all) == 0 {
@@ -379,22 +391,22 @@ func (g *gate) failure(c check) {
 	shown := failureLines(all)
 	switch {
 	case len(shown) == 0:
-		// Nothing in it is shaped like a `go test` failure — gofmt's listing, a wiring finding — and
-		// those print what they found and stop, so the end of the output is the report.
+		// This output has no `go test` failure in it: gofmt's listing, a wiring finding. Those print
+		// what they found and stop, so the end of the output is the report.
 		shown = all
 		if len(shown) > failureLineBudget {
 			shown = shown[len(shown)-failureLineBudget:]
 		}
 	case len(shown) > failureLineBudget:
-		// The first of them rather than the last: where a run breaks in several places the earliest
-		// is the one to read, and the ones after it are often that one again.
+		// The first of them, with the tail dropped. Where a run breaks in several places the earliest
+		// failure is what a reader needs, and the ones after it are often that failure again.
 		shown = shown[:failureLineBudget]
 	}
 	for _, line := range shown {
 		g.quote(line)
 	}
-	// What was dropped, and what prints all of it. A reader told nothing about the gap cannot tell a
-	// report that held everything from one that cut the part they needed.
+	// What was dropped, and what prints all of it. A reader who is not told about the gap cannot tell
+	// a whole report from one that cut the part they needed.
 	if dropped := len(all) - len(shown); dropped > 0 {
 		g.quote(fmt.Sprintf("... %d of %d line(s) not shown, and `%s` is what prints all of them",
 			dropped, len(all), shell.Oneline(c.cmd)))
@@ -402,8 +414,8 @@ func (g *gate) failure(c check) {
 }
 
 // The lines of a check's output that carry its failure: each `--- FAIL`, each line a failing package
-// or a panic opens with, and the output belonging to them. Empty where nothing in the output is
-// shaped that way, which is every check that is not `go test`.
+// or a panic opens with, and the output belonging to them. Empty for a check with no such lines in
+// its output. That is every check apart from `go test`.
 func failureLines(all []string) []string {
 	var kept []string
 	carrying := false
@@ -429,8 +441,8 @@ func opensFailure(line string) bool {
 		hasAnyPrefix(strings.TrimLeft(line, " \t"), "--- FAIL")
 }
 
-// Checks whether a line ends the failure above it. Everything here is `go test` reporting a case or a
-// package that came back fine, and none of that belongs to the failure it follows.
+// Checks whether a line ends the failure it follows. Everything here is `go test` reporting a case or
+// a package that came back fine, and none of that belongs to a failure.
 func closesFailure(line string) bool {
 	return hasAnyPrefix(line, "ok ", "ok\t", "? ", "?\t", "PASS") ||
 		hasAnyPrefix(strings.TrimLeft(line, " \t"), "--- PASS", "--- SKIP", "=== ")
@@ -445,7 +457,7 @@ func hasAnyPrefix(line string, prefixes ...string) bool {
 	return false
 }
 
-// A check's output as lines, and none where it printed nothing at all.
+// A check's output as lines. Empty output gives no lines at all.
 func outputLines(output string) []string {
 	lines := strings.Split(strings.TrimRight(output, "\n"), "\n")
 	if len(lines) == 1 && lines[0] == "" {
@@ -454,7 +466,7 @@ func outputLines(output string) []string {
 	return lines
 }
 
-// One line of a check's own output, indented under the line that named the check.
+// Prints one line of a check's own output, indented under the line that named the check.
 func (g *gate) quote(line string) {
 	fmt.Fprintf(g.out, "              %s\n", line)
 }
