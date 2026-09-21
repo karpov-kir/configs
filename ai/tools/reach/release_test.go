@@ -8,6 +8,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,7 +97,7 @@ func newGhPath(t *testing.T, sandbox string) string {
 	if err != nil {
 		t.Fatalf("building the gh fixture under %s: %v — nothing was measured", sandbox, err)
 	}
-	writeFile(t, filepath.Join(sandboxed(t, sandbox, dir), "gh"), fakeGh, 0o755)
+	runtest.WriteFile(t, filepath.Join(runtest.Sandboxed(t, sandbox, dir), "gh"), fakeGh, 0o755)
 	return dir
 }
 
@@ -108,30 +109,30 @@ func newCheckout(t *testing.T, sandbox, origin string) string {
 	if err != nil {
 		t.Fatalf("building the checkout fixture under %s: %v — nothing was measured", sandbox, err)
 	}
-	sandboxed(t, sandbox, checkout)
+	runtest.Sandboxed(t, sandbox, checkout)
 
-	writeFile(t, filepath.Join(checkout, "ai", "tools", "install.sh"), read(t, runnable(t, installScript)), 0o755)
-	writeFile(t, filepath.Join(checkout, ".github", "workflows", "release-tools.yml"),
+	runtest.WriteFile(t, filepath.Join(checkout, "ai", "tools", "install.sh"), runtest.ReadFile(t, runtest.Runnable(t, installScript)), 0o755)
+	runtest.WriteFile(t, filepath.Join(checkout, ".github", "workflows", "release-tools.yml"),
 		"jobs:\n  build:\n    env:\n      SHIPPED: "+strings.Join(fixtureTools, " ")+"\n", 0o644)
 	newRepository(t, checkout, origin)
 	return checkout
 }
 
-// A git repository at this path, written out file by file rather than by running `git init`. What these
-// scripts ask git for is one remote url and one file listing, and four files answer both. A fixture that
-// shells out to build itself is the cost this whole port is about.
-//
-// The remote is declared only where the caller names one, and nothing is added to the repository:
+// Builds a git repository at this path file by file, with no `git init` run. These scripts ask git
+// for one remote url and one file listing, and four files answer both. A fixture that shells out to
+// build itself is the cost this whole port is about.
+
+// The remote is declared only where the caller names one, and no file is added to the repository:
 // source-stamp.sh lists untracked files as well as tracked ones.
 func newRepository(t *testing.T, root, origin string) {
 	t.Helper()
 	git := filepath.Join(root, ".git")
-	writeFile(t, filepath.Join(git, "HEAD"), "ref: refs/heads/main\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(git, "HEAD"), "ref: refs/heads/main\n", 0o644)
 	config := "[core]\n\trepositoryformatversion = 0\n"
 	if origin != "" {
 		config += "[remote \"origin\"]\n\turl = " + origin + "\n"
 	}
-	writeFile(t, filepath.Join(git, "config"), config, 0o644)
+	runtest.WriteFile(t, filepath.Join(git, "config"), config, 0o644)
 	for _, inside := range []string{"objects", "refs"} {
 		if err := os.MkdirAll(filepath.Join(git, inside), 0o755); err != nil {
 			t.Fatalf("building the fixture git directory: %v — nothing was measured", err)

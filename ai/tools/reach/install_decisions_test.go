@@ -11,6 +11,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
@@ -34,7 +35,7 @@ type probe struct {
 
 func TestInstallReadsEveryAnswerTheWayTheReleaseWroteIt(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	probes := probeTable(t, sandbox)
 	answered := ask(t, sandbox, probes)
 	// A row the driver never reached is one whose absence reads exactly like a pass.
@@ -47,15 +48,15 @@ func TestInstallReadsEveryAnswerTheWayTheReleaseWroteIt(t *testing.T) {
 		t.Run(asked.name, func(t *testing.T) {
 			got := answered[asked.name]
 			if asked.refuses {
-				if got.code == 0 || got.stdout != "" {
+				if got.Code == 0 || got.Stdout != "" {
 					t.Errorf("%s %v was accepted, and what it resolves to reaches gh as an argument\n%v",
 						asked.call, asked.args, got)
 				}
 				return
 			}
-			if got.code != 0 || got.stdout != asked.want {
-				t.Errorf("%s %v answered %q at exit %d, wanted %q", asked.call, asked.args, got.stdout,
-					got.code, asked.want)
+			if got.Code != 0 || got.Stdout != asked.want {
+				t.Errorf("%s %v answered %q at exit %d, wanted %q", asked.call, asked.args, got.Stdout,
+					got.Code, asked.want)
 			}
 		})
 	}
@@ -66,14 +67,14 @@ func probeTable(t *testing.T, sandbox string) []probe {
 	// SHA256SUMS is written with `sha256sum ./*`, so the recorded names carry a ./ prefix. install.sh
 	// strips that prefix, because the basename match is what lets an asset verify wherever it landed.
 	manifest := filepath.Join(sandbox, "SHA256SUMS")
-	writeFile(t, manifest, "aaaa1111  ./eco-check-darwin-arm64\nbbbb2222  ./eco-stats-linux-amd64\ncccc3333  SHA256SUMS\n", 0o644)
+	runtest.WriteFile(t, manifest, "aaaa1111  ./eco-check-darwin-arm64\nbbbb2222  ./eco-stats-linux-amd64\ncccc3333  SHA256SUMS\n", 0o644)
 	hashed := filepath.Join(sandbox, "one-byte")
-	writeFile(t, hashed, "x", 0o644)
+	runtest.WriteFile(t, hashed, "x", 0o644)
 	digest := sha256.Sum256([]byte("x"))
 	// A workflow with no SHIPPED list has to yield an empty result. A single empty name would reach the
 	// caller as a tool called "".
 	noList := filepath.Join(sandbox, "no-list.yml")
-	writeFile(t, noList, "jobs:\n  build:\n    runs-on: ubuntu-latest\n", 0o644)
+	runtest.WriteFile(t, noList, "jobs:\n  build:\n    runs-on: ubuntu-latest\n", 0o644)
 
 	probes := []probe{
 		// Every platform the release workflow builds, named the way uname names it there.
@@ -175,7 +176,7 @@ while IFS=$'\t' read -r name arity call first second; do
 done <"$2"
 `
 
-func ask(t *testing.T, sandbox string, probes []probe) map[string]outcome {
+func ask(t *testing.T, sandbox string, probes []probe) map[string]runtest.Run {
 	t.Helper()
 	var table strings.Builder
 	for _, asked := range probes {
@@ -183,20 +184,20 @@ func ask(t *testing.T, sandbox string, probes []probe) map[string]outcome {
 		table.WriteString(strings.Join(fields, "\t") + "\n")
 	}
 	rows := filepath.Join(sandbox, "probes")
-	writeFile(t, rows, table.String(), 0o644)
+	runtest.WriteFile(t, rows, table.String(), 0o644)
 
 	driver := filepath.Join(sandbox, "probe-driver.sh")
-	writeFile(t, driver, probeDriver, 0o755)
+	runtest.WriteFile(t, driver, probeDriver, 0o755)
 	command := newLaunch(t, driver, newGhPath(t, sandbox)+":"+os.Getenv("PATH"),
-		runnable(t, installScript), rows)
+		runtest.Runnable(t, installScript), rows)
 	command.Env = append(command.Env, "GH_FAKE_LOG="+filepath.Join(sandbox, "gh-argv"))
-	ran := launch(t, command)
-	if ran.code != 0 {
-		t.Fatalf("the driver that sources install.sh exited %d, so no row was answered\n%v", ran.code, ran)
+	ran := runtest.Launch(t, command)
+	if ran.Code != 0 {
+		t.Fatalf("the driver that sources install.sh exited %d, so no row was answered\n%v", ran.Code, ran)
 	}
 
-	answered := map[string]outcome{}
-	for _, line := range strings.Split(strings.TrimSuffix(ran.stdout, "\n"), "\n") {
+	answered := map[string]runtest.Run{}
+	for _, line := range strings.Split(strings.TrimSuffix(ran.Stdout, "\n"), "\n") {
 		name, rest, held := strings.Cut(line, "\t")
 		if !held {
 			continue
@@ -206,7 +207,7 @@ func ask(t *testing.T, sandbox string, probes []probe) map[string]outcome {
 		if err != nil {
 			t.Fatalf("the driver answered %q for %s, which is not a status", status, name)
 		}
-		answered[name] = outcome{stdout: said, code: code}
+		answered[name] = runtest.Run{Stdout: said, Code: code}
 	}
 	return answered
 }

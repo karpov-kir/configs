@@ -11,6 +11,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -38,11 +39,11 @@ const signerWorkflow = "--signer-workflow karpov-kir/configs/.github/workflows/r
 // SHA256SUMS they wrote to match, after which resolve.sh prefers those binaries for every stub exec.
 func TestTheDownloadIsPinnedToTheOriginOfTheCheckoutInstallLivesIn(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	checkout := newCheckout(t, sandbox, "https://github.com/unreachable/target.git")
 	refused, log := install(t, checkout, nil)
 
-	expectRefusal(t, refused, "could not download")
+	runtest.ExpectRefusal(t, refused, "could not download")
 	// The control this case's assertion needs: a gh that never ran leaves an empty log. A search over an
 	// empty log finds no match, which reads exactly like a search that found the wrong thing.
 	if len(log) == 0 {
@@ -56,7 +57,7 @@ func TestTheDownloadIsPinnedToTheOriginOfTheCheckoutInstallLivesIn(t *testing.T)
 	// different fact from having no release, and the two must be reported apart. The third state, a
 	// listing that does hold a release, is install_decisions_test.go's `releases_state` rows, and the
 	// install that exits 0 below runs on it.
-	if refused.said("has cut no release") {
+	if refused.Said("has cut no release") {
 		t.Errorf("a listing gh could not answer was reported as a repository with no release, which tells "+
 			"an offline machine there is nothing to download\n%v", refused)
 	}
@@ -67,20 +68,20 @@ func TestTheDownloadIsPinnedToTheOriginOfTheCheckoutInstallLivesIn(t *testing.T)
 // separates them.
 func TestARepositoryThatHasCutNoReleaseExitsThreeRatherThanTwo(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	checkout := newCheckout(t, sandbox, "https://github.com/no-release/target.git")
 	refused, _ := install(t, checkout, nil)
 
-	if refused.code != 3 {
-		t.Errorf("wanted exit 3, which is the one outcome that is neither an install nor a refusal\n%v", refused)
+	if refused.Code != 3 {
+		t.Errorf("wanted exit 3, which is the one runtest.Run that is neither an install nor a refusal\n%v", refused)
 	}
 	for _, wording := range []string{"has cut no release", "from source on first use", "Go toolchain"} {
-		if !refused.said(wording) {
+		if !refused.Said(wording) {
 			t.Errorf("the message does not say %q, so a reader is not told what happens instead or what it "+
 				"needs\n%v", wording, refused)
 		}
 	}
-	if refused.said("could not download") {
+	if refused.Said("could not download") {
 		t.Errorf("a repository with no release was reported as a failed download, which sends a reader to "+
 			"this machine's network rather than to the repository's releases\n%v", refused)
 	}
@@ -92,11 +93,11 @@ func TestARepositoryThatHasCutNoReleaseExitsThreeRatherThanTwo(t *testing.T) {
 // end to end, because what matters is that the refusal happens before the download.
 func TestATagThatIsReallyAnOptionIsRefusedBeforeGhIsReached(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	checkout := newCheckout(t, sandbox, "https://github.com/pinned/target.git")
 	refused, log := install(t, checkout, []string{"--repo=evil/pwn"})
 
-	expectRefusal(t, refused, "is not a release tag")
+	runtest.ExpectRefusal(t, refused, "is not a release tag")
 	if len(log) != 0 {
 		t.Errorf("gh ran anyway:\n%s", strings.Join(log, "\n"))
 	}
@@ -107,11 +108,11 @@ func TestATagThatIsReallyAnOptionIsRefusedBeforeGhIsReached(t *testing.T) {
 // this pinning replaced.
 func TestACheckoutWithNoOriginRemoteRefusesRatherThanLettingGhGuess(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	checkout := newCheckout(t, sandbox, "")
 	refused, log := install(t, checkout, nil)
 
-	expectRefusal(t, refused, "not a checkout with an 'origin' remote")
+	runtest.ExpectRefusal(t, refused, "not a checkout with an 'origin' remote")
 	if len(log) != 0 {
 		t.Errorf("gh ran anyway:\n%s", strings.Join(log, "\n"))
 	}
@@ -121,14 +122,14 @@ func TestACheckoutWithNoOriginRemoteRefusesRatherThanLettingGhGuess(t *testing.T
 // Go toolchain or a release is enough.
 func TestAMachineWithoutGhIsToldTheWayOutThatNeedsNoGh(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	checkout := newCheckout(t, sandbox, "https://github.com/pinned/target.git")
 	// A PATH holding only what install.sh needs to reach its gh check. Without `dirname` it dies at
 	// self-resolution, which exits 2 as well, and the assertion is on the wording for that reason.
-	refused := launch(t, newLaunch(t, filepath.Join(checkout, "ai", "tools", "install.sh"),
+	refused := runtest.Launch(t, newLaunch(t, filepath.Join(checkout, "ai", "tools", "install.sh"),
 		newPathDir(t, sandbox, "no-gh", "bash", "dirname")))
 
-	expectRefusal(t, refused, "gh is not installed")
+	runtest.ExpectRefusal(t, refused, "gh is not installed")
 	// One line carrying both halves. `resolve.sh` is in the refusal for an unsupported platform too. An
 	// assertion on it alone passes on that one and claims a way out this refusal may not carry.
 	if !strings.Contains(refusalLine(refused, "gh is not installed"), "resolve.sh") {
@@ -146,11 +147,11 @@ func TestAMachineWithoutGhIsToldTheWayOutThatNeedsNoGh(t *testing.T) {
 // workflow's identity, and it alone says the binary came from here.
 func TestAReleaseWhoseAssetsAllCarryAnAttestationInstallsWithTheirStamps(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	checkout := newCheckout(t, sandbox, "https://github.com/pinned/target.git")
 	installed, log := install(t, checkout, nil, "GH_FAKE_DOWNLOAD=serve")
 
-	if installed.code != 0 {
+	if installed.Code != 0 {
 		t.Fatalf("the install refused a release whose assets all carry an attestation\n%v", installed)
 	}
 	bin := filepath.Join(checkout, "ai", "tools", "bin")
@@ -162,7 +163,7 @@ func TestAReleaseWhoseAssetsAllCarryAnAttestationInstallsWithTheirStamps(t *test
 		// The stamp the release recorded, beside the binary it belongs to. A release install missing it has
 		// no stamp to hold its binaries against, and resolve.sh reports every one of them as unknown for as
 		// long as it is installed.
-		if stamp := strings.TrimSpace(read(t, filepath.Join(bin, name+".stamp"))); stamp != "stamp-for-"+name {
+		if stamp := strings.TrimSpace(runtest.ReadFile(t, filepath.Join(bin, name+".stamp"))); stamp != "stamp-for-"+name {
 			t.Errorf("%s was installed with the stamp %q rather than the one the release recorded", name, stamp)
 		}
 	}
@@ -230,18 +231,18 @@ func TestAReleaseThatCannotBeTrustedInstallsNothingAtAll(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			sandbox := newSandbox(t)
+			sandbox := runtest.Sandbox(t)
 			checkout := newCheckout(t, sandbox, "https://github.com/pinned/target.git")
 			refused, _ := install(t, checkout, nil, append([]string{"GH_FAKE_DOWNLOAD=serve"}, scenario.fake...)...)
 
-			expectRefusal(t, refused, scenario.says)
-			if scenario.alsoSays != "" && !refused.said(scenario.alsoSays) {
+			runtest.ExpectRefusal(t, refused, scenario.says)
+			if scenario.alsoSays != "" && !refused.Said(scenario.alsoSays) {
 				// gh's own reason is carried into the refusal. The asset sits in a staging directory the EXIT
 				// trap deletes, so running the command again reports a missing file. gh's reason is the only
 				// thing telling an unattested binary from an offline machine.
 				t.Errorf("the refusal does not carry %q\n%v", scenario.alsoSays, refused)
 			}
-			if scenario.neverSays != "" && refused.said(scenario.neverSays) {
+			if scenario.neverSays != "" && refused.Said(scenario.neverSays) {
 				t.Errorf("the refusal says %q, so something other than the check this case names refused "+
 					"it\n%v", scenario.neverSays, refused)
 			}
@@ -252,7 +253,7 @@ func TestAReleaseThatCannotBeTrustedInstallsNothingAtAll(t *testing.T) {
 
 // One run of install.sh in a fixture checkout, with the fake gh on PATH, and every line of argv that
 // fake was called with.
-func install(t *testing.T, checkout string, arguments []string, fake ...string) (outcome, []string) {
+func install(t *testing.T, checkout string, arguments []string, fake ...string) (runtest.Run, []string) {
 	t.Helper()
 	sandbox := filepath.Dir(checkout)
 	log := filepath.Join(checkout, "gh-argv")
@@ -263,7 +264,7 @@ func install(t *testing.T, checkout string, arguments []string, fake ...string) 
 		"GH_FAKE_TOOLS="+strings.Join(fixtureTools, " "),
 		"GH_FAKE_SUFFIX="+thisSuffix)
 	command.Env = append(command.Env, fake...)
-	ran := launch(t, command)
+	ran := runtest.Launch(t, command)
 
 	body, err := os.ReadFile(log)
 	if err != nil {
@@ -300,8 +301,8 @@ func calledWith(log []string, argument string) bool {
 }
 
 // The single line of a refusal carrying the wording, so a case can ask what else that line says.
-func refusalLine(refused outcome, wording string) string {
-	for _, line := range strings.Split(refused.stdout+"\n"+refused.stderr, "\n") {
+func refusalLine(refused runtest.Run, wording string) string {
+	for _, line := range strings.Split(refused.Stdout+"\n"+refused.Stderr, "\n") {
 		if strings.Contains(line, wording) {
 			return line
 		}

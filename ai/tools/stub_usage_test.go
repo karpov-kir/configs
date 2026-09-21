@@ -62,6 +62,7 @@ import (
 	readerjudge "configs/ai/tools/reader-judge"
 	"configs/ai/tools/repo"
 	repokey "configs/ai/tools/repo-key"
+	"configs/ai/tools/runtest"
 	"configs/ai/tools/shell"
 	treefingerprint "configs/ai/tools/tree-fingerprint"
 	voicecheck "configs/ai/tools/voice-check"
@@ -297,7 +298,7 @@ func declaredTools(t *testing.T, stubs []string) map[string]string {
 
 func declaredTool(t *testing.T, stub string) string {
 	t.Helper()
-	for _, line := range strings.Split(readFile(t, filepath.Join(repoRoot, stub)), "\n") {
+	for _, line := range strings.Split(runtest.ReadFile(t, filepath.Join(repoRoot, stub)), "\n") {
 		if after, found := strings.CutPrefix(line, toolDeclaration); found {
 			if name, _, ok := strings.Cut(after, `"`); ok && name != "" {
 				return name
@@ -471,7 +472,7 @@ func asAProcess(t *testing.T, row refusal, binary, stub, cwd, home string) (stri
 // the binary's line against an explanation.
 func documentedUsage(t *testing.T, stub string) string {
 	t.Helper()
-	for _, line := range strings.Split(readFile(t, filepath.Join(repoRoot, stub)), "\n") {
+	for _, line := range strings.Split(runtest.ReadFile(t, filepath.Join(repoRoot, stub)), "\n") {
 		trimmed := strings.TrimLeft(strings.TrimPrefix(strings.TrimSpace(line), "#"), " ")
 		if !strings.HasPrefix(trimmed, "usage: ") {
 			continue

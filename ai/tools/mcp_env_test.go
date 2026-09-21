@@ -16,6 +16,7 @@
 package tools_test
 
 import (
+	"configs/ai/tools/runtest"
 	"errors"
 	"fmt"
 	"os"
@@ -64,12 +65,12 @@ func launchingEnv(assignments ...string) []string {
 	return append(os.Environ(), assignments...)
 }
 
-// One launch, with the wrapper started in exactly the environment it is given. runnableScript is
-// stub_reach_test.go's: a script the suite cannot execute makes every case here fail for a reason
-// unrelated to the guard it names.
+// One launch, with the wrapper started in exactly the environment it is given. runnableScript, the
+// helper this calls, lives in stub_reach_test.go: a script the suite cannot execute makes every case
+// here fail for a reason unrelated to the guard it names.
 func launch(t *testing.T, environment []string, args ...string) (output string, code int) {
 	t.Helper()
-	command := exec.Command(runnableScript(t, wrapper), args...)
+	command := exec.Command(runtest.Runnable(t, wrapper), args...)
 	command.Env = environment
 	said, err := command.CombinedOutput()
 	if err == nil {
@@ -104,12 +105,11 @@ func childEnv(t *testing.T, assignments ...string) string {
 
 // "No secret reached the child" passes just as well over a child that printed silence, so the control
 // is on the same run: the child has to have printed something.
-//
-// That the sentinels reach the launching environment at all was proved once, by hand, with a bare `env`
-// run over the same slice. os/exec hands that slice to the child verbatim, so re-running it every time
-// measures the standard library.
 func TestNoSecretInTheLaunchingEnvironmentReachesTheChild(t *testing.T) {
 	t.Parallel()
+	// That the sentinels reach the launching environment at all was proved once, by hand, with a bare
+	// `env` run over the same slice. os/exec hands that slice to the child verbatim, so re-running it
+	// every time measures the standard library.
 	through := childEnv(t, sentinels...)
 	if found := strings.Count(through, sentinelMark); found != 0 {
 		t.Errorf("%d sentinel value(s) reached the child. Every credential exported in the shell that "+
@@ -208,8 +208,8 @@ func TestAnUnsetVariableStaysUnsetRatherThanArrivingEmpty(t *testing.T) {
 		t.Errorf("an unset LC_CTYPE arrived as %q. Forwarded as an empty value, a variable npx reads for "+
 			"a path makes it write to the empty string rather than fall back.", got)
 	}
-	// That this is not the child dropping every LC_CTYPE it is given is the row above, "a set variable
-	// arrives with its value", which hands it one and reads it back.
+	// The row "a set variable arrives with its value" hands the child an LC_CTYPE and reads it back.
+	// That row is what rules out a child dropping every LC_CTYPE it is given.
 }
 
 // --- the exec ---
@@ -225,8 +225,8 @@ func TestTheArgumentsReachTheCommandIntact(t *testing.T) {
 	}
 }
 
-// That a command which succeeds is not reported as a failure is every other case here: childEnvIn
-// fails the case on any status but 0.
+// That a command which succeeds is not reported as a failure is every other case here: childEnvIn,
+// the helper they call, fails the case on any status but 0.
 func TestTheCommandsExitStatusIsTheWrappers(t *testing.T) {
 	t.Parallel()
 	const want = 7
@@ -328,7 +328,7 @@ var headerLine = regexp.MustCompile(`^# ?(.+)$`)
 func headerProse(t *testing.T, nth int) string {
 	t.Helper()
 	seen := 0
-	for _, text := range strings.Split(readFile(t, wrapper), "\n")[1:] {
+	for _, text := range strings.Split(runtest.ReadFile(t, wrapper), "\n")[1:] {
 		match := headerLine.FindStringSubmatch(text)
 		if match == nil {
 			continue

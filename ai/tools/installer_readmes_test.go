@@ -14,6 +14,7 @@ import (
 
 	aibootstrap "configs/ai/tools/ai-bootstrap"
 	envbootstrap "configs/ai/tools/env-bootstrap"
+	"configs/ai/tools/runtest"
 )
 
 const (
@@ -30,7 +31,7 @@ var (
 )
 
 func TestTheAiReadmeAndItsInstallerNameTheSameFormulae(t *testing.T) {
-	body := readFile(t, aiReadme)
+	body := runtest.ReadFile(t, aiReadme)
 	documented := named(readmeFormula, body)
 
 	// The control half of the case. This needle comes out of a regexp, and one that stopped matching
@@ -50,7 +51,7 @@ func TestTheAiReadmeAndItsInstallerNameTheSameFormulae(t *testing.T) {
 }
 
 func TestTheEnvReadmeAndItsInstallerNameTheSamePackages(t *testing.T) {
-	body := readFile(t, envReadme)
+	body := runtest.ReadFile(t, envReadme)
 	documentedFormulae := named(readmeFormula, body)
 	documentedCasks := named(readmeCask, body)
 

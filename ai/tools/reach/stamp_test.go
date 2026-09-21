@@ -11,6 +11,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -30,7 +31,7 @@ const stampLength = 64
 
 func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	baseline := stampOf(t, newModule(t, sandbox, "baseline"), ownMain)
 	if len(baseline) != stampLength {
 		t.Fatalf("the fixture stamps to %q, which is not a digest — every comparison below would be "+
@@ -75,7 +76,7 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 			// A digest over file contents alone would miss this, so the stamp folds in the names too.
 			name: "a source file added to the tool moves it",
 			edit: func(t *testing.T, module string) {
-				writeFile(t, filepath.Join(toolsIn(module), ownMain, "added.go"), "package main\n\nvar Added = 1\n", 0o644)
+				runtest.WriteFile(t, filepath.Join(toolsIn(module), ownMain, "added.go"), "package main\n\nvar Added = 1\n", 0o644)
 			},
 			moves: true,
 		},
@@ -97,7 +98,7 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			module := newModule(t, newSandbox(t), "edited")
+			module := newModule(t, runtest.Sandbox(t), "edited")
 			scenario.edit(t, module)
 			stamped := stampOf(t, module, ownMain)
 			if moved := stamped != baseline; moved != scenario.moves {
@@ -119,13 +120,13 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 // The same stray file written into the module itself has to move it.
 func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	module := newModule(t, sandbox, "nesting")
 	newRepository(t, module, "")
 	alone := stampOf(t, module, ownMain)
 
 	nested := filepath.Join(module, "worktrees", "inner")
-	writeFile(t, filepath.Join(toolsIn(nested), ownMain, "main.go"), straySource, 0o644)
+	runtest.WriteFile(t, filepath.Join(toolsIn(nested), ownMain, "main.go"), straySource, 0o644)
 	newRepository(t, nested, "")
 	if nesting := stampOf(t, module, ownMain); nesting != alone {
 		t.Errorf("a checkout kept inside this one moved its stamp, so the source of every worktree a "+
@@ -133,7 +134,7 @@ func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
 			alone, nesting)
 	}
 
-	writeFile(t, filepath.Join(toolsIn(module), ownMain, "stray.go"), straySource, 0o644)
+	runtest.WriteFile(t, filepath.Join(toolsIn(module), ownMain, "stray.go"), straySource, 0o644)
 	if stray := stampOf(t, module, ownMain); stray == alone {
 		t.Errorf("a source file added to the module left the stamp where it was, so the assertion above "+
 			"holds against a stamp that reads nothing\nalone %q\n  now %q", alone, stray)
@@ -158,18 +159,18 @@ func TestAnIgnoredSourceFileStillMovesTheStamp(t *testing.T) {
 	} {
 		t.Run(rule.name, func(t *testing.T) {
 			t.Parallel()
-			module := newModule(t, newSandbox(t), "ignored")
+			module := newModule(t, runtest.Sandbox(t), "ignored")
 			newRepository(t, module, "")
 			before := stampOf(t, module, ownMain)
 
 			// The rule on its own first. It names a file this module does not hold yet. A stamp that moves on
 			// the rule alone leaves the second half of this case passing on the wrong cause.
-			writeFile(t, filepath.Join(module, rule.file), "hidden.go\n", 0o644)
+			runtest.WriteFile(t, filepath.Join(module, rule.file), "hidden.go\n", 0o644)
 			if ruled := stampOf(t, module, ownMain); ruled != before {
 				t.Fatalf("writing the rule moved the stamp on its own\nbefore %q\n   now %q", before, ruled)
 			}
 
-			writeFile(t, filepath.Join(toolsIn(module), ownMain, "hidden.go"), straySource, 0o644)
+			runtest.WriteFile(t, filepath.Join(toolsIn(module), ownMain, "hidden.go"), straySource, 0o644)
 			if hidden := stampOf(t, module, ownMain); hidden == before {
 				t.Errorf("a `.go` file the compiler reads and this rule hides left the stamp where it was, "+
 					"so the binary built from it reads as current\nbefore %q\n   now %q", before, hidden)
@@ -188,7 +189,7 @@ const straySource = "package main\n\nvar Stray = 1\n"
 // tool says the same about every other.
 func TestEveryToolInTheModuleStampsTheSameSourceAlike(t *testing.T) {
 	t.Parallel()
-	module := newModule(t, newSandbox(t), "shared")
+	module := newModule(t, runtest.Sandbox(t), "shared")
 	if own, other := stampOf(t, module, ownMain), stampOf(t, module, cmdMain); own != other {
 		t.Errorf("%s stamps %q and %s stamps %q, so the stamp is a guess at which files one tool compiles "+
 			"— and a guess that drops a directory goes blind in silence", ownMain, own, cmdMain, other)
@@ -206,18 +207,18 @@ func TestShasumAndSha256sumStampTheSameSourceAlike(t *testing.T) {
 			t.Skipf("this machine has no %s, so the two cannot be compared here", name)
 		}
 	}
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	module := newModule(t, sandbox, "hashers")
 
 	withShasum := stampOn(t, module, newPathDir(t, sandbox, "only-shasum", append(stampCommands, "shasum")...))
 	withSha256sum := stampOn(t, module, newPathDir(t, sandbox, "only-sha256sum", append(stampCommands, "sha256sum")...))
-	if len(withShasum.stdout) == 0 || withShasum.code != 0 {
+	if len(withShasum.Stdout) == 0 || withShasum.Code != 0 {
 		t.Fatalf("shasum alone did not stamp, so the comparison below is against nothing\n%v", withShasum)
 	}
-	if withShasum.stdout != withSha256sum.stdout {
+	if withShasum.Stdout != withSha256sum.Stdout {
 		t.Errorf("shasum stamped %q and sha256sum stamped %q over one source. A release stamped on the "+
 			"machine that built it is read on the machine that installs it, so every install would warn "+
-			"about binaries that are current", withShasum.stdout, withSha256sum.stdout)
+			"about binaries that are current", withShasum.Stdout, withSha256sum.Stdout)
 	}
 }
 
@@ -267,17 +268,17 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			sandbox := newSandbox(t)
+			sandbox := runtest.Sandbox(t)
 			module := newModule(t, sandbox, "refused")
 			path := newStampPath(t, sandbox)
 			if scenario.path != nil {
 				path = scenario.path(t, sandbox)
 			}
-			refused := launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), path, scenario.asked...))
-			expectRefusal(t, refused, scenario.refusal)
-			if refused.stdout != "" {
+			refused := runtest.Launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), path, scenario.asked...))
+			runtest.ExpectRefusal(t, refused, scenario.refusal)
+			if refused.Stdout != "" {
 				t.Errorf("the refusal printed %q on stdout, which resolve.sh would compare against a stamp",
-					refused.stdout)
+					refused.Stdout)
 			}
 		})
 	}
@@ -288,15 +289,15 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 // because one row turns on its absence from the stamp.
 func newModule(t *testing.T, sandbox, name string) string {
 	t.Helper()
-	module := sandboxed(t, sandbox, filepath.Join(sandbox, name))
+	module := runtest.Sandboxed(t, sandbox, filepath.Join(sandbox, name))
 	tools := toolsIn(module)
-	writeFile(t, filepath.Join(module, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
-	writeFile(t, filepath.Join(tools, ownMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
-	writeFile(t, filepath.Join(tools, ownMain, ownMain+"_test.go"), "package main\n", 0o644)
-	writeFile(t, filepath.Join(tools, "cmd", cmdMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
-	writeFile(t, filepath.Join(tools, cmdMain, cmdMain+".go"), "package "+cmdMain+"\n\nvar Value = 1\n", 0o644)
-	writeFile(t, filepath.Join(tools, sharedPkg, sharedPkg+".go"), "package "+sharedPkg+"\n\nvar Value = 1\n", 0o644)
-	writeFile(t, filepath.Join(tools, "source-stamp.sh"), read(t, runnable(t, stampScript)), 0o755)
+	runtest.WriteFile(t, filepath.Join(module, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, ownMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, ownMain, ownMain+"_test.go"), "package main\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, "cmd", cmdMain, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, cmdMain, cmdMain+".go"), "package "+cmdMain+"\n\nvar Value = 1\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, sharedPkg, sharedPkg+".go"), "package "+sharedPkg+"\n\nvar Value = 1\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, "source-stamp.sh"), runtest.ReadFile(t, runtest.Runnable(t, stampScript)), 0o755)
 	return module
 }
 
@@ -305,20 +306,20 @@ func newModule(t *testing.T, sandbox, name string) string {
 func stampOf(t *testing.T, module, name string) string {
 	t.Helper()
 	sandbox := filepath.Dir(module)
-	stamped := launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), newStampPath(t, sandbox), name))
-	if stamped.code != 0 {
-		t.Fatalf("stamping %s exited %d, so nothing this case compares is a stamp\n%v", name, stamped.code, stamped)
+	stamped := runtest.Launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), newStampPath(t, sandbox), name))
+	if stamped.Code != 0 {
+		t.Fatalf("stamping %s exited %d, so nothing this case compares is a stamp\n%v", name, stamped.Code, stamped)
 	}
 	// Exactly one line, or resolve.sh compares a hash with a log line stuck to it.
-	if strings.Count(stamped.stdout, "\n") != 1 || !strings.HasSuffix(stamped.stdout, "\n") {
-		t.Fatalf("stdout carried %q rather than one line of stamp", stamped.stdout)
+	if strings.Count(stamped.Stdout, "\n") != 1 || !strings.HasSuffix(stamped.Stdout, "\n") {
+		t.Fatalf("stdout carried %q rather than one line of stamp", stamped.Stdout)
 	}
-	return strings.TrimSpace(stamped.stdout)
+	return strings.TrimSpace(stamped.Stdout)
 }
 
-func stampOn(t *testing.T, module, path string) outcome {
+func stampOn(t *testing.T, module, path string) runtest.Run {
 	t.Helper()
-	return launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), path, ownMain))
+	return runtest.Launch(t, newLaunch(t, filepath.Join(toolsIn(module), "source-stamp.sh"), path, ownMain))
 }
 
 func newStampPath(t *testing.T, sandbox string) string {
@@ -328,7 +329,7 @@ func newStampPath(t *testing.T, sandbox string) string {
 
 func appendLine(t *testing.T, path string) {
 	t.Helper()
-	writeFile(t, path, read(t, path)+"\nvar scratch = 2\n", 0o644)
+	runtest.WriteFile(t, path, runtest.ReadFile(t, path)+"\nvar scratch = 2\n", 0o644)
 }
 
 func movement(moved bool) string {
