@@ -412,6 +412,10 @@ func (r stubRun) String() string {
 // The working directory is an empty one, and no part of the fixture knows it. Every stub finds its own
 // directory from `BASH_SOURCE`, and reaching one from cwd is the defect the region exists to stop. No
 // case here is given a cwd that might hide it.
+// The script is bash's argument, and bash is what this execs. Linux refuses to exec a file any process
+// holds open for writing, with ETXTBSY. These cases write their fixture scripts and run them, and one
+// case's open descriptor reaches another case's fork. That failed the go job on a push to main, and
+// macOS has no such rule, so it passed here. bash opens the script to read.
 func newStubLaunch(t *testing.T, script string, arguments ...string) *exec.Cmd {
 	t.Helper()
 	cache, err := os.UserCacheDir()
@@ -419,7 +423,7 @@ func newStubLaunch(t *testing.T, script string, arguments ...string) *exec.Cmd {
 		t.Fatalf("finding this machine's cache directory: %v — nothing was measured", err)
 	}
 	home := t.TempDir()
-	command := exec.Command(runnableScript(t, script), arguments...)
+	command := exec.Command(bashOnThisMachine(t), append([]string{runnableScript(t, script)}, arguments...)...)
 	command.Dir = t.TempDir()
 	command.Env = []string{
 		"HOME=" + home,
@@ -538,4 +542,14 @@ func readFixture(t *testing.T, path string) string {
 		t.Fatalf("reading %s: %v — nothing was measured", path, err)
 	}
 	return string(body)
+}
+
+// bash itself, found on the PATH this process was started with.
+func bashOnThisMachine(t *testing.T) string {
+	t.Helper()
+	found, err := exec.LookPath("bash")
+	if err != nil {
+		t.Fatalf("no bash on this machine (%v) — every script here is one, so nothing was measured", err)
+	}
+	return found
 }
