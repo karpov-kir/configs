@@ -100,10 +100,24 @@ func ParseReturn(raw string) Return {
 	return out
 }
 
-// Text is the block with its comment markers removed, which is what every check below reads.
+// Text is the block's comment lines with their markers removed, which is what every check below
+// reads. A writer returns the declaration under the block as often as not, and a declaration counted
+// as a sentence put seven of twenty-one plain blocks over the note's two-sentence ceiling.
 func (r Return) Text() string {
 	var out []string
+	inSpan := false
 	for _, line := range strings.Split(r.Block, "\n") {
+		trimmed := strings.TrimSpace(line)
+		opens := strings.HasPrefix(trimmed, "/*")
+		marked := inSpan || opens || blockMarker.MatchString(line)
+		if strings.Contains(trimmed, "*/") {
+			inSpan = false
+		} else if opens {
+			inSpan = true
+		}
+		if !marked {
+			continue
+		}
 		cut := blockMarker.ReplaceAllString(line, "")
 		cut = strings.TrimSuffix(strings.TrimSpace(cut), "*/")
 		out = append(out, strings.TrimSpace(cut))

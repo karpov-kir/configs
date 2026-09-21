@@ -211,3 +211,23 @@ func TestThePartAndAttemptLinesAreNotPartOfTheBlock(t *testing.T) {
 		t.Errorf("block text %q", got)
 	}
 }
+
+// A writer returns the declaration under the block as often as not. Counting that line as a sentence
+// put seven of twenty-one plain blocks over the note's ceiling, which is a parser reading code as
+// prose rather than a writer breaking a rule.
+func TestTheDeclarationUnderTheBlockIsNoSentence(t *testing.T) {
+	r := ParseReturn("summary: none\nnote: written\n" +
+		"```ts\n" +
+		"/**\n" +
+		" * HAVE_CURRENT_DATA is undefined on some ledgers.\n" +
+		" * This file spells the number out instead.\n" +
+		" */\n" +
+		"const HAVE_CURRENT_DATA = 2;\n" +
+		"```\n")
+	if strings.Contains(r.Text(), "const HAVE_CURRENT_DATA") {
+		t.Fatalf("the declaration is in the block's text: %q", r.Text())
+	}
+	if got := Score(r); checkedBy(got, "over-the-sentence-ceiling") {
+		t.Errorf("two note sentences reached the ceiling: %+v", got)
+	}
+}
