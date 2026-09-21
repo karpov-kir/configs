@@ -1,6 +1,6 @@
 // The fixture the cases beside this file drive. A `repotest.Fake` answers the questions this tool puts
 // to a repository, and a real directory holds the files it then OPENS. Git itself runs for two things
-// only: building the seed repository in TestMain, and the four cases newRealRepo serves.
+// only: building the seed repository in TestMain, and the four cases newRealRepo, the helper, serves.
 
 // The two halves are not interchangeable. A diff is answered verbatim by the fake. Git decides which
 // lines a change added, and deriving that here would make every finding a property of this fixture.
@@ -10,11 +10,13 @@
 // the guard. File I/O is cheap for a suite, and process spawns are what it pays for, at about 100ms
 // each on the machine this is written on.
 
-// newRealRepo's own comment names the four cases that take it.
+// newRealRepo, the helper, has a comment of its own naming the four cases that take it.
 package voicecheck
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -73,11 +75,16 @@ func buildSeed(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
+	// The last two stop git from forking maintenance of its own. A commit starts it, and it outlives
+	// the commit. It takes a lock under `.git` and drops it again. copyTree, the helper each case
+	// builds a repository with, reads the same tree at that moment.
 	for _, args := range [][]string{
 		{"init", "-q"},
 		{"config", "user.email", "t@t"},
 		{"config", "user.name", "t"},
 		{"config", "commit.gpgsign", "false"},
+		{"config", "gc.auto", "0"},
+		{"config", "maintenance.auto", "false"},
 	} {
 		if err := git(dir, args...); err != nil {
 			return err
@@ -161,9 +168,16 @@ func newRealRepo(t *testing.T) *fixture {
 	return &fixture{t: t, dir: dir, git: repo.Exec{}, tree: map[string]string{}}
 }
 
+// A walk lists a directory, then stats each name it listed. A file removed between those two steps
+// fails the stat. One removed a moment later fails the read. Either used to stop the copy, so both
+// are skipped. The root is the exception: a copy whose source is gone must fail, or a case reads an
+// empty directory as its repository.
 func copyTree(src, dst string) error {
 	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) && path != src {
+				return nil
+			}
 			return err
 		}
 		rel, err := filepath.Rel(src, path)
@@ -176,10 +190,76 @@ func copyTree(src, dst string) error {
 		}
 		body, err := os.ReadFile(path)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil
+			}
 			return err
 		}
 		return os.WriteFile(target, body, info.Mode().Perm())
 	})
+}
+
+// The failure this stands for reached CI twice and never this laptop. A stat fell over
+// `.git/objects/maintenance.lock`. Git wrote that file and removed it while the copy read the tree.
+// A goroutine here writes and removes lock files while copies run. Maintenance did the same. Each
+// copy must finish and carry the tracked file.
+func TestACopyOutlivesAFileThatGoes(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "seed")
+	objects := filepath.Join(src, ".git", "objects")
+	if err := os.MkdirAll(objects, 0o755); err != nil {
+		t.Fatalf("could not lay out the source tree: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "seed.txt"), []byte("seed\n"), 0o644); err != nil {
+		t.Fatalf("could not write the tracked file: %v", err)
+	}
+
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			// Several names, so the window a copy can land in is wider than one file's.
+			for n := 0; n < 24; n++ {
+				lock := filepath.Join(objects, fmt.Sprintf("maintenance-%d.lock", n))
+				if err := os.WriteFile(lock, []byte("lock"), 0o644); err != nil {
+					return
+				}
+				os.Remove(lock)
+			}
+		}
+	}()
+	defer func() {
+		close(stop)
+		<-done
+	}()
+
+	for run := 0; run < 50; run++ {
+		dst := filepath.Join(t.TempDir(), "repo")
+		if err := copyTree(src, dst); err != nil {
+			t.Fatalf("copy %d stopped: %v", run, err)
+		}
+		body, err := os.ReadFile(filepath.Join(dst, "seed.txt"))
+		if err != nil {
+			t.Fatalf("copy %d left no tracked file: %v", run, err)
+		}
+		if string(body) != "seed\n" {
+			t.Fatalf("copy %d wrote %q for the tracked file", run, body)
+		}
+	}
+}
+
+// A missing source is a different case from a path that went during the walk. The copy fails, and
+// the caller hears about it.
+func TestACopyRefusesASourceThatWasNeverThere(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "absent")
+	if err := copyTree(missing, filepath.Join(t.TempDir(), "repo")); err == nil {
+		t.Fatal("a copy from an absent source reported success")
+	}
 }
 
 // write puts a file in the working tree and on disk, and leaves the diff alone. A file written and
