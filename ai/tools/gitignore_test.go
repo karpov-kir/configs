@@ -35,21 +35,22 @@ func TestEveryBuiltBinaryIsIgnored(t *testing.T) {
 	}
 }
 
-// Which of these paths git ignores. git's own answer rather than a parser of ours, which could agree
-// with the file and still disagree with git about precedence, anchoring or negation.
+// Reports which of these paths git ignores. The answer is git's own, and a parser of ours could
+// agree with the file and still disagree with git about precedence, anchoring or negation.
 //
-// One invocation for the whole list: git takes the paths on stdin and writes back the ones it ignores,
-// so a module holding two dozen tools costs one process rather than two dozen. `-z` on both streams,
-// because git C-quotes a path holding a quote or a non-ASCII byte.
+// One invocation covers the whole list, so a module holding two dozen tools spends one process here
+// instead of two dozen.
 func ignoredByGit(t *testing.T, paths []string) map[string]bool {
 	t.Helper()
+	// git takes the paths on stdin and writes back the ones it ignores. `-z` on both streams, because
+	// git C-quotes a path holding a quote or a non-ASCII byte.
 	ask := exec.Command("git", "check-ignore", "-z", "--stdin")
 	ask.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
 	answered, err := ask.Output()
 	var exit *exec.ExitError
 	// Exit 1 is git saying it ignores none of them, which is an answer. Anything else — git missing, no
-	// repository, a bad invocation — means the question went unanswered, and a case that did not run
-	// must not read as one that passed.
+	// repository, a bad invocation — leaves the question unanswered. A case that never ran fails here,
+	// so a green run always means git answered.
 	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1) {
 		t.Fatalf("git check-ignore could not answer for %v: %v", paths, err)
 	}

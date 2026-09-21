@@ -5,9 +5,10 @@ import (
 	"testing"
 )
 
-// A label more than half the rolls cast wins whatever it is, which is what the precedence fallback
-// below must not reach past. The cast is one the fallback would answer differently: `obvious`
-// outranks `unclear`, so a run reading this as a split answers obvious and no outright count is left.
+// A label more than half the rolls cast wins whatever it is, which is what verdictRank, the
+// precedence table, must not reach past. The cast is one the fallback would answer differently:
+// `obvious` outranks `unclear`, so a run reading this as a split answers obvious and no outright
+// count is left.
 func TestAMajorityLabelWinsOutright(t *testing.T) {
 	if got := MajorityLabel([]string{"unclear", "unclear", "obvious"}); got != "unclear" {
 		t.Errorf("three rolls, two unclear, answered %q — a majority was read as a split", got)

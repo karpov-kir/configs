@@ -34,16 +34,14 @@ func TestCommandRefusesAnUnassignedTask(t *testing.T) {
 	}
 }
 
-// A row naming an effort and no model is refused at parse, for either client. On claude nothing could
-// carry the effort; on codex something can, and the spawn then runs at whatever model the caller had —
-// the silent inheritance the policy exists to remove, and the shape that would otherwise leave an
-// orchestrator outside the tier order and so outside the ceiling. Both rows read the sentence rather
-// than the error, because validName refuses an empty model too and would otherwise answer for this
-// guard while it is disabled.
-//
-// One row per client and not per map: validateAssignments walks the sessions and the workers with one
-// validator, and TestPolicyRejectsMalformedDocuments breaks a session row against it.
+// A row carrying an effort with no model is refused at parse, for either client. On claude no field
+// carries the effort. On codex a field does, and the spawn then runs at whatever model the caller
+// had. That silent inheritance is what the policy exists to remove, and it leaves an orchestrator
+// outside the tier order and outside the ceiling.
 func TestARowNamingAnEffortAndNoModelIsRefused(t *testing.T) {
+	// One row per client covers the map: validateAssignments, the assignment validator, walks the
+	// sessions and the workers with one validator, and TestPolicyRejectsMalformedDocuments breaks a
+	// session row against it.
 	for _, swap := range []struct{ what, from, to string }{
 		{"a codex worker row", `"build/explore":{"codex":{"model":"middling","effort":"low"}`, `"build/explore":{"codex":{"effort":"low"}`},
 		{"a claude worker row", `"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"model":"sonnet"}`, `"build/explore":{"codex":{"model":"middling","effort":"low"},"claude":{"effort":"low"}`},
@@ -57,6 +55,8 @@ func TestARowNamingAnEffortAndNoModelIsRefused(t *testing.T) {
 			t.Errorf("%s naming no model parsed into %v", swap.what, policy.TaskNames())
 			continue
 		}
+		// Both rows assert on the refusal sentence. validName, the name check, refuses an empty model
+		// too, and it answers for this guard whenever the guard is disabled.
 		if !strings.Contains(err.Error(), "names no model") {
 			t.Errorf("%s was refused for the wrong reason: %v", swap.what, err)
 		}

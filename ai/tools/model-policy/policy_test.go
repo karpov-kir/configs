@@ -100,9 +100,9 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		// The other row of the effort table: three effort names are codex's alone, so one on a claude
 		// entry reads as a tier and sets nothing. Without this case the two halves of the set can be
 		// merged into one and every case here stays green.
-		// A row carrying an effort and no model is refused too, and by the sentence that says so rather
-		// than by a neighbouring guard: TestARowNamingAnEffortAndNoModelIsRefused holds that, for both
-		// clients, which is more than this table can ask.
+		// A row carrying an effort with no model is refused too, and the sentence that says so is what
+		// refuses it. TestARowNamingAnEffortAndNoModelIsRefused holds that for both clients, which is
+		// more than this table can ask.
 		"codex-only effort on claude": strings.Replace(sample, `"claude":{"model":"opus"}`, `"claude":{"model":"opus","effort":"ultra"}`, 1),
 		"option-shaped model":         strings.Replace(sample, `"model":"helper"`, `"model":"--dangerously-skip-permissions"`, 1),
 		"even rolls":                  strings.Replace(sample, `"rolls":3`, `"rolls":4`, 1),

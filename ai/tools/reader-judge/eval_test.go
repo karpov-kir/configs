@@ -833,8 +833,8 @@ func TestAPlainSetPathThatDoesNotReadIsAFailure(t *testing.T) {
 }
 
 // A sampled run counts what it read and what it did not. The budget takes files in sorted order, so a
-// second run at the same budget reads the same blocks, and the whole set stays the denominator a rate
-// is quoted over.
+// second run at the same budget reads the same blocks. The whole set stays the denominator a rate is
+// quoted over.
 func TestAPlainSetSampleNamesWhatItLeftUnread(t *testing.T) {
 	plainSetOf(t, "a.ts", "b.ts", "c.ts")
 	t.Setenv(plainBlocksEnv, "2")
@@ -863,7 +863,7 @@ func TestAPlainSetCaseIsNamedByPositionAndNotByPath(t *testing.T) {
 	}
 }
 
-// plainSetOf is a directory of one-block source files, named as the plain set for the case's
+// plainSetOf builds a directory of one-block source files and names it the plain set for the case's
 // duration. One block a file, so a case's block budget and its file count are the same number.
 func plainSetOf(t *testing.T, names ...string) string {
 	t.Helper()

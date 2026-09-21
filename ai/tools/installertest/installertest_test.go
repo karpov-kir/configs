@@ -3,13 +3,14 @@ package installertest_test
 // The two pieces of this package a suite can be wrong about without any case of its own going red.
 
 // Every other method here is a writer or an Expect, and a bug in one fails the suite that drove it.
-// A bound taken from the wrong directory, and a query that answers the same whatever is on disk, both
-// stay quiet: the writes land, the assertions pass, and the case reports on a tree nobody checked.
+// A bound taken from the wrong directory stays quiet, and so does a query that answers the same
+// whatever is on disk. The writes land, the assertions pass, and the case reports on an unchecked
+// tree.
 
-// The containment refusal itself has no case here. It calls t.Fatalf on the case's own *testing.T, so
-// a case driving it would be failing itself. Its negative control is hand-run, and
-// ~/.kk-flavor/standards/core-principles.md → 5 bounds it to that one run: pointing a fixture write
-// outside the base made every case using it fail, naming the guard rather than a result.
+// The containment refusal itself has no case here. It calls t.Fatalf on the case's own *testing.T,
+// and a case driving it fails itself. Its negative control is hand-run, and
+// ~/.kk-flavor/standards/core-principles.md → 5 bounds it to that one run. A fixture write pointed
+// outside the base made every case using it fail, and each failure named the containment guard.
 
 import (
 	"os"
@@ -31,8 +32,8 @@ func TestATreeTakesTheDirectoryItWasGivenAsItsBound(t *testing.T) {
 
 	tree := installertest.NewIn(t, chosen)
 
-	// Physically, the way every bound in this package is resolved: /var is a symlink to /private/var on
-	// macOS, and a bound left unresolved refuses every write made through a resolved path.
+	// Physically, the way every bound in this package is resolved. /var is a symlink to /private/var
+	// on macOS, and a bound left unresolved refuses every write made through a resolved path.
 	if want := installertest.Physical(t, chosen); tree.Base() != want {
 		t.Errorf("the tree bound itself to %s, wanted the directory it was given, %s", tree.Base(), want)
 	}
@@ -41,10 +42,10 @@ func TestATreeTakesTheDirectoryItWasGivenAsItsBound(t *testing.T) {
 	tree.ExpectFileBody(filepath.Join(chosen, "inside/file.txt"), "body")
 }
 
-// The queries answer rather than failing the case, so the table drives every shape at once: a case
-// that fataled on one row would never reach the next. The rows are the full set these three separate,
-// and each pair of them disagrees somewhere — an empty file from a missing one, a directory from a
-// file, a link that resolves from one that does not.
+// The queries hand back a value, so one table drives every shape at once and every row runs. The
+// rows are the full set these three separate, and each pair of them disagrees somewhere. An empty
+// file differs from a missing one, a directory from a file, and a link that resolves from one that
+// dangles.
 func TestTheQueriesAnswerForEveryShapeOnDisk(t *testing.T) {
 	t.Parallel()
 	tree := installertest.New(t)
@@ -70,7 +71,7 @@ func TestTheQueriesAnswerForEveryShapeOnDisk(t *testing.T) {
 		{name: "a directory", path: "/directory", exists: true},
 		// Stat follows it, so what the name holds is a file however it was reached.
 		{name: "a link to a file", path: "/link-to-file", body: "body", wasThere: true, exists: true, isFile: true},
-		// Lstat does not, so the entry is there while nothing readable is.
+		// Lstat stops at the entry itself, so a link resolving nowhere still counts as present.
 		{name: "a link resolving nowhere", path: "/dangling-link", exists: true},
 	} {
 		t.Run(c.name, func(t *testing.T) {

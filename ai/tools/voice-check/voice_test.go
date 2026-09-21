@@ -1048,10 +1048,11 @@ func TestASuppressedFindingIsCounted(t *testing.T) {
 	}
 }
 
-// The contrast spine with the comma dropped and a conjunction in its place, and the two shapes that
-// are not it. "Use no nesting and no preamble" forbids two things; "It is logged and not believed"
-// defines one thing against another the reader did not ask about. Told apart by whether what stands
-// before the conjunction is already a negation.
+// The contrast spine with the comma dropped and a conjunction in its place, beside the two shapes it
+// is not. The `both` fixtures hold those two. One forbids a pair of things. The other defines one
+// thing against another, which is outside what the reader asked.
+//
+// What tells them apart is whether the words before the conjunction already carry a negation.
 func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	spine := []string{

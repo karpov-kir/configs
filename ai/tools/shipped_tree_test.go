@@ -178,9 +178,9 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	}
 }
 
-// How each skill declares it runs, by skill, and what is wrong with the skills that declare nothing
-// readable. Three cases read the modes and would each have reported the same complaints, so the scan
-// states them and the case below is the one that makes them findings.
+// Returns how each skill declares it runs, by skill, and a complaint for each skill this cannot read
+// a declaration from. Three cases read the modes and would each raise the same complaints, so the
+// scan collects them, and TestEverySkillDeclaresHowItRuns is what turns them into failures.
 func runModes(t *testing.T) (map[string]string, []string) {
 	t.Helper()
 	declared := map[string]string{}

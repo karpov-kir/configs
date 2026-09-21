@@ -196,7 +196,7 @@ func TestEveryWayTheRatchetDidNotRunExitsTwoAndNamesIt(t *testing.T) {
 // Regeneration belongs in the same change that lowered a count, so what it writes has to be what the
 // tree measures now. The tree has to stand against it afterwards, or the floor was written from
 // something other than the counts just taken. The file's own header survives it: dropped, the ratchet
-// is a bare list of numbers and the reader has nothing saying what it is for.
+// is a bare list of numbers with no line saying what it is for.
 func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 	t.Parallel()
 	root := newRoot(t, measurement{alpha, 4}, measurement{beta, 2})

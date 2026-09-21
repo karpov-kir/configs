@@ -30,8 +30,8 @@ func TestAgreementWithCheck(t *testing.T) {
 
 	// A router may name one file twice — two triggers reaching the same standard is the ordinary way
 	// that happens. It is one file in context either way, so counting it twice overstates the tier and
-	// the two tools stop agreeing. This tree is the single-target tree with one more link on it, so it
-	// is where both the resolution and the double count are held.
+	// the two tools stop agreeing. This tree is the single-target tree with one more link on it. It
+	// holds both the resolution and the double count.
 	t.Run("agree when the router lists one target twice", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n- [core again](standards/core.md)\n")
@@ -49,16 +49,16 @@ func TestAgreementWithCheck(t *testing.T) {
 	})
 }
 
-// Withholding the row is not withholding the reading. Prose, scripts, the ledger and skills are all
-// measured and printed, and a caller handed an empty report cannot tell a refused budget file from a
-// tree that vanished.
+// A refused budget file withholds the ledger row and still prints the reading. Prose, scripts, the
+// ledger and skills are all measured and printed, and a caller handed an empty report cannot tell a
+// refused budget file from a tree that vanished.
 func TestAShortFigureNeverReachesTheLedger(t *testing.T) {
 	for _, fixture := range refusedBudgetFixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			f := fixture.build(t)
 			stdout, stderr, status := f.run(f.root)
-			// `uncounted import` is the `+` lower-bound note. A refusal supports no lower bound, so
-			// borrowing that wording here would teach a reader to read a floor off a figure that has none.
+			// `uncounted import` is the `+` lower-bound note. A refusal supports no lower bound, so this
+			// path keeps that wording out: it reads as a floor under a figure that has none.
 			if status != 2 || !strings.Contains(stdout+stderr, "budget file refused") ||
 				!strings.Contains(stdout, "prose:") ||
 				!strings.Contains(stdout, "SHORT:") || strings.Contains(stdout, "uncounted import") {
@@ -68,8 +68,8 @@ func TestAShortFigureNeverReachesTheLedger(t *testing.T) {
 	}
 }
 
-// Both tools print their figure on this path, so the agreement is meaningful here: each is short by
-// the same refused file, and a disagreement is one of them counting a file it could not read.
+// Both tools print their figure on this path. Each is short by the same refused file, and a
+// disagreement means one of them counted a file it could not read.
 func TestCheckRefusesTheSameBudgetFileAndReportsTheSameFigure(t *testing.T) {
 	for _, fixture := range refusedBudgetFixtures {
 		t.Run(fixture.name, func(t *testing.T) {
@@ -87,26 +87,28 @@ func TestCheckRefusesTheSameBudgetFileAndReportsTheSameFigure(t *testing.T) {
 // read while the run calls that exact figure SHORT. Only the bound decides membership, and ecocheck
 // applies the same one to the same tier.
 func TestARefusedBudgetFilesWordsAreNotInTheFigure(t *testing.T) {
-	// One run, three claims about it. inject.md is the only budget file left holding words, and it
-	// holds seven of them: counted, the oversize target would add four more — `alpha`, `beta`, `gamma`,
-	// and the run of NUL bytes behind them, which carries no space so it counts as one word — putting
-	// the figure at eleven. The count in the exit line is how many files were refused, not how many
-	// readers looked at one, and the budget count and the import scan both reach this file. And the row
-	// is withheld with every sound figure still printed, exactly as the other two refusals do it —
-	// asserted here rather than over refusedBudgetFixtures, because those cases quote ecocheck's own
-	// refusal wording and ecocheck words this one "file too large".
+	// One run, three claims about it. inject.md is the last budget file holding words, and it holds
+	// seven. The oversize target holds four more: `alpha`, `beta`, `gamma`, and the run of NUL bytes
+	// behind them. That run carries no space, so it counts as one word, and counting all four puts the
+	// figure at eleven.
 	t.Run("the figure holds none of its words, it is refused once, and every sound figure prints", func(t *testing.T) {
 		f := newOversizeBudgetFile(t)
 		stdout, stderr, status := f.run(f.root)
 		if got := figureIn(stdout, "always-loaded"); got != "7" {
 			t.Fatalf("always-loaded = %q, want \"7\" — 11 is the refused file's words counted anyway", got)
 		}
+		// The count in the exit line is how many files were refused. The budget count and the import
+		// scan both reach this file, and one refusal covers both readers.
 		if got := strings.Count(stdout+stderr, "budget file refused"); got != 1 {
 			t.Errorf("%d refusal lines, want 1\n%s", got, indent(stdout+stderr))
 		}
 		if !strings.Contains(stdout+stderr, "1 budget file(s) refused") || status != 2 {
 			t.Errorf("status: %d\n%s", status, indent(stdout+stderr))
 		}
+		// The row is withheld while every sound figure still prints, exactly as the other two refusals
+		// do it. This case asserts that directly, because the other cases, held in
+		// refusedBudgetFixtures, quote ecocheck's own refusal wording, and ecocheck words this one
+		// "file too large".
 		if !strings.Contains(stdout, "prose:") ||
 			!strings.Contains(stdout, "SHORT:") || strings.Contains(stdout, "uncounted import") {
 			t.Errorf("the row was withheld without the sound figures\n%s", indent(stdout))
@@ -155,10 +157,10 @@ func TestTheLedgerIsMeasuredApartFromTheInstructions(t *testing.T) {
 	})
 }
 
-// A path-shaped import name is reported rather than left to read as drift. The file sits where the
-// traversal lands, so a resolver with the guard gone would find it. This case asserts on the reported
-// refusal alone, so it would pass with the file absent too; ecocheck's twin of this fixture is the one
-// that also asserts the name stayed uncounted.
+// A path-shaped import name is reported as a refusal, and a reader never has to take it for drift.
+// The file sits where the traversal lands. The guard is what keeps it out. This case asserts on the
+// reported refusal alone, so it passes with the file absent too. ecocheck's twin of this fixture also
+// asserts that the name stayed uncounted.
 func TestAProbeShapedImportIsReportedNotHidden(t *testing.T) {
 	f := newRoot(t)
 	f.newHome()
@@ -171,7 +173,7 @@ func TestAProbeShapedImportIsReportedNotHidden(t *testing.T) {
 }
 
 // An ESC byte in a Read-always target is stripped by both tools. The name comes out of inject.md,
-// which a reviewed branch writes, and `\x1b[2K` erases the line it lands on — so an unsanitised name
+// which a reviewed branch writes. `\x1b[2K` erases the line it lands on, so an unsanitised name
 // deletes whatever the run printed beside it. Both tools report this same missing target, so both are
 // held to it.
 func TestAMissingReadAlwaysTargetCannotReachTheTerminalRaw(t *testing.T) {
@@ -182,8 +184,8 @@ func TestAMissingReadAlwaysTargetCannotReachTheTerminalRaw(t *testing.T) {
 	_, fromStats, _ := f.run(f.root)
 	fromCheck := f.checkOutput()
 
-	// The message must still have fired: a run that reported nothing carries no ESC byte either, and
-	// would pass the byte count alone while saying nothing about sanitising.
+	// A silent run is free of ESC bytes too, and a byte count alone passes it. The assertion takes the
+	// message text as well, and that is what pins the sanitising.
 	for _, said := range []struct{ tool, output string }{{"stats", fromStats}, {"check", fromCheck}} {
 		if !strings.Contains(said.output, "under Read always") || strings.Contains(said.output, "\x1b") {
 			t.Errorf("%s said:\n%s", said.tool,
@@ -373,13 +375,9 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 // went short. eco-stats.go carries the measured cost at the guard that acts on it. `--append` would
 // write those figures into stats.md, where every later delta is taken off them.
 func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
-	// Four claims about one run. The exit code reaches a caller that branches on status, and the SHORT
-	// line reaches the one reading the report — without it the figures sit on stdout in the same shape
-	// a whole measurement takes. The refusal quotes the path and is bounded, so `shut` survives only
-	// while the prefix in front of it leaves the bound unspent: newBase, the test helper in
-	// harness_test.go, is what keeps that prefix short. And prose and scripts are two walks over one
-	// tree, so the shut directory is met twice — the count is how many paths went unread, not how many
-	// times one was looked at, and refuseOversize keeps the same rule.
+	// Four claims about one run. The exit code reaches a caller that branches on status. The figures on
+	// stdout carry the same shape a whole measurement takes, so the SHORT line is what marks the
+	// shortfall for whoever reads the report.
 	t.Run("exits 2, marks the report short, and names the path once", func(t *testing.T) {
 		runtest.SkipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
 		f := newRoot(t)
@@ -396,10 +394,16 @@ func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
 		if !strings.Contains(stdout, "prose:") || !strings.Contains(stdout, "SHORT:") {
 			t.Errorf("the report does not carry its own shortfall\n%s", indent(stdout))
 		}
+		// The refusal quotes the path within a bound. The path `shut` survives only while the prefix in
+		// front of it leaves that bound unspent, and newBase, the test helper in harness_test.go, is
+		// what keeps the prefix short.
 		if !strings.Contains(stderr, "shut") || strings.Count(stderr, "could not read") != 1 {
 			t.Errorf("the path it could not read is named %d time(s)\n%s",
 				strings.Count(stderr, "could not read"), indent(stderr))
 		}
+		// Prose and scripts are two walks over one tree, so the shut directory is met twice. The count
+		// is how many paths went unread, and the same rule holds in refuseOversize, the guard on a
+		// budget file over the read bound.
 		if !strings.Contains(stderr, "1 path(s)") {
 			t.Errorf("the exit line does not count it once\n%s", indent(stderr))
 		}
@@ -601,8 +605,8 @@ func skillWithDescription(name string) string {
 // nothing saying so, which is exactly what refuseBudgetFile exists to prevent, so the file is refused
 // rather than read.
 func TestAnOversizeBudgetFileIsRefusedRatherThanRead(t *testing.T) {
-	// One refusal, not one per reader: a budget file is read here and again by the import scan, and the
-	// count in the exit line is meant to be how many files were refused.
+	// A budget file is read here and again by the import scan. The count in the exit line is how many
+	// files were refused, so this file is counted once across both readers.
 	t.Run("exits 2, names the bound it was over, and counts it once", func(t *testing.T) {
 		f := newRoot(t)
 		// Just past the bound, and made of newlines because that is the shape that costs the most for

@@ -47,9 +47,10 @@ func New(t *testing.T) *Tree {
 	return NewIn(t, t.TempDir())
 }
 
-// NewIn is a tree over a directory the caller already has, for a suite whose fixture root is built
-// before the tree is — a checkout it was pointed at, or a temp directory it laid out itself. The
-// directory has to exist, because an unresolvable bound contains nothing.
+// NewIn is a tree over a directory the caller already has. That fits a suite whose fixture root is
+// built before the tree is: a checkout it was pointed at, or a temp directory it laid out itself.
+// The directory has to exist, because the bound is its resolved path, and an unresolvable one
+// contains no path.
 
 // The path is resolved physically, because t.TempDir hands back /var/folders/… on macOS and /var is
 // itself a symlink to /private/var. An unresolved bound refuses every write made through a resolved
@@ -109,9 +110,9 @@ func (w *Tree) Write(path, body string) {
 	w.WriteMode(path, body, 0o644)
 }
 
-// WriteMode is Write with the mode named, for a fixture whose subject is the mode: a launcher the run
-// has to find executable, or a hook git has to be able to fire. The mode is set afterwards as well,
-// because os.WriteFile leaves an existing file's own mode alone.
+// WriteMode is Write with the mode named, for a fixture whose subject is the mode. Such a fixture
+// is a launcher the run has to find executable, or a hook git has to be able to fire. The mode is
+// set afterwards as well, because os.WriteFile leaves an existing file's own mode alone.
 func (w *Tree) WriteMode(path, body string, mode os.FileMode) {
 	w.t.Helper()
 	w.ContainedParent(path)
@@ -185,10 +186,9 @@ func (w *Tree) NewSkill(root, name, audience string) {
 }
 
 // CloseToNewFiles leaves a directory this process cannot create a file in. The tree probes it, since
-// root ignores the mode bits and a filesystem can drop them. A case that asserted against a directory
-// it can still write would pass for a reason other than its name, so the case is skipped with that
-// reason when the probe still writes. ~/.kk-flavor/standards/testing.md asks that of a fixture that
-// denies access.
+// root ignores the mode bits and a filesystem can drop them. Where the probe still writes, the case
+// is skipped with that reason: a case asserting against a writable directory passes for a reason
+// other than its name. ~/.kk-flavor/standards/testing.md asks that of a fixture that denies access.
 func (w *Tree) CloseToNewFiles(directory string) {
 	w.t.Helper()
 	w.ContainedParent(directory)
@@ -228,9 +228,9 @@ func (w *Tree) Read(path string) string {
 	return string(body)
 }
 
-// The three below ANSWER. Read and the Expect family decide for the case that a missing file is a
-// failure, and that is the wrong call wherever absence is one of the outcomes a case is comparing.
-// These hand the question back.
+// Body, Exists and IsFile ANSWER. Read and the Expect family decide for the case that a missing
+// file is a failure. That is the wrong call wherever absence is one of the outcomes a case is
+// comparing, and these three hand the question back.
 
 // Body is a file's contents, and whether there was a file to read. The second value is what separates
 // an empty file from a missing one, which "" alone cannot.
@@ -250,16 +250,16 @@ func (w *Tree) Exists(path string) bool {
 }
 
 // IsFile is whether the path is something a reader can read as a file. Stat, so a symlink to a
-// regular file answers yes — what is at the name matters here, not how it was reached. That is the
+// regular file counts — what is at the name matters here, not how it was reached. That is the
 // deliberate difference from Exists.
 func (w *Tree) IsFile(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.Mode().IsRegular()
 }
 
-// ExpectNoBreach fails the case where the run reached for a path outside this tree. It is a guard and
-// never a result: the run under test is bounded to the same tree the fixture writes in, so a breach
-// says the case was about to write somewhere it never meant to.
+// ExpectNoBreach fails the case where the run reached for a path outside this tree. It is a guard
+// and never a result. The run under test is bounded to the same tree the fixture writes in, so a
+// breach says the case was about to write somewhere it never meant to.
 func (w *Tree) ExpectNoBreach(breaches []string) {
 	w.t.Helper()
 	if len(breaches) > 0 {
@@ -371,14 +371,14 @@ func (w *Tree) Mounted(directory string) []string {
 // the branch these installers spend most of their lines on.
 
 // Every record is keyed "<kind> <name>", because a formula and a cask of the same name are different
-// packages to brew: `brew list --formula ghostty` answers non-zero for an installed cask, and a run
+// packages to brew. `brew list --formula ghostty` answers non-zero for an installed cask, and a run
 // without the flag reinstalls it on every pass.
 type BrewMachine struct {
 	*fake.Machine
 	// Installed is what this machine already has. A case sets an entry to drive the installed-first
 	// branch.
 	Installed map[string]bool
-	// Failing is the packages whose install answers non-zero.
+	// The Failing map holds the packages whose install answers non-zero.
 	Failing map[string]bool
 	// Installs is every install this run asked for, in order.
 	Installs []string

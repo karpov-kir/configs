@@ -16,9 +16,9 @@ func TestALineStartingWithACommentMarkerIsBlanked(t *testing.T) {
 		{name: "at the line start", text: "// a comment\n{\"a\": 1}\n", want: "\n{\"a\": 1}\n"},
 		{name: "behind leading whitespace, which does not save it", text: "  \t// indented\n{\"a\": 1}\n",
 			want: "\n{\"a\": 1}\n"},
-		// Left alone on purpose: the grammar is "a comment owns its whole line", and what stripping
-		// leaves here is a document the JSON parser refuses. Guessing at it would make the declaration
-		// mean whatever the guess made of it.
+		// The grammar is "a comment owns its whole line", so the stripper leaves this row alone. What
+		// stripping it leaves is a document the JSON parser refuses, and a guess at the intent would
+		// make the declaration mean whatever the guess made of it.
 		{name: "after JSON on the same line, where it is left alone", text: "{\"a\": 1} // trailing\n",
 			want: "{\"a\": 1} // trailing\n"},
 		{name: "inside a value, where blanking it would truncate the URL",

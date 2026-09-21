@@ -7,7 +7,7 @@ import (
 )
 
 func TestAgentIsRequiredAndValidated(t *testing.T) {
-	// One row per refusal: no selector, a name that is not a provider, and the selector twice. The
+	// One row per refusal: a missing selector, an empty provider name, and the selector twice. The
 	// name is spelled empty because that is also what the duplicate guard reads as "none yet".
 	for _, args := range [][]string{nil, {"--agent="}, {"--agent=claude", "--agent=codex"}} {
 		if _, _, err := ecoroot.AgentArgs(args); err == nil {

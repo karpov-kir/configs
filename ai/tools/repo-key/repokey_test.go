@@ -18,10 +18,10 @@ import (
 // repository, including the property these cases used to build a linked worktree for: a worktree's
 // common dir is its clone's.
 
-// A fixture is therefore a directory holding `.git/HEAD`. That is the single file FromSharedGitDir
-// probes for, and the `repotest.Fake` that built it is what answers where the entry point asks git:
-// it names `Root/.git` for whatever directory it is asked about, which is the answer a real git
-// gives from anywhere inside that clone, linked worktrees included.
+// A fixture is therefore a directory holding `.git/HEAD`, the single file FromSharedGitDir probes
+// for. The `repotest.Fake` that built it answers where the entry point asks git, naming `Root/.git`
+// for whatever directory it is asked about. A real git gives that same answer from anywhere inside
+// that clone, linked worktrees included.
 func newBareRepo(t *testing.T, name string) *repotest.Fake {
 	t.Helper()
 	git := repotest.New(filepath.Join(t.TempDir(), name))
@@ -173,10 +173,10 @@ func TestTheCommandStripsTheVariablesThatRelocateGit(t *testing.T) {
 // and not every character a directory name can carry survives that.
 var safeCharacters = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-// The abbreviation is weighed beside the key over the same clone rather than in a loop of its own.
-// It is asserted through its own entry point, because an abbreviation re-derived on its own stops
-// being covered by the key's table and nothing turns red when it does — but it needs the same eight
-// directories, and building them twice proves nothing the one pass does not.
+// The abbreviation is weighed beside the key, inside the loop that already walks the same clone. It
+// is asserted through its own entry point. An abbreviation re-derived on its own stops being covered
+// by the key's table, and the suite stays green when it breaks. A separate loop would build the same
+// eight directories a second time and prove what this pass already proves.
 func TestAKeyAndItsAbbreviationAreSafeToSpliceIntoAPathOrACommand(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"a b", "-rf", "x$(id)", "a\tb", "a*b", ".hidden", "--", "%"} {

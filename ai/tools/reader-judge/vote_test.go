@@ -55,9 +55,9 @@ func TestVotingRefusesARollNamingAUnitThatWasNeverOffered(t *testing.T) {
 }
 
 // The rule is MORE THAN half, and the count is Voting's own parameter, so it has to hold away from
-// the 3 production passes today. Four, because an odd count cannot tell the rule from a bare half:
-// no whole number of rolls is exactly half of 3 or of 9, and a vote reading `>=` there answers the
-// same as one reading `>`. At four it does not — four rolls need three.
+// the 3 production passes today. Four, because an odd count cannot tell the rule from a bare half. No
+// whole number of rolls is exactly half of 3 or of 9, and a vote reading `>=` there answers the same
+// as one reading `>`. At four it does not — four rolls need three.
 func TestTheMajorityRuleNeedsMoreThanHalfTheRolls(t *testing.T) {
 	for _, c := range []struct {
 		name    string

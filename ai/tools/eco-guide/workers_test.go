@@ -73,8 +73,8 @@ func workerCardFor(t *testing.T, page, name string) string {
 // the brief's own first sentence, and the tier the model policy resolves for it. Both halves are
 // asserted here, because a card carrying the name alone would look generated and say nothing.
 //
-// Two rows' tiers rather than one: the tier is resolved through the policy rather than read off the
-// worker, and one row's tier on its own could be a constant that happens to match.
+// Two rows' tiers are asserted here. The policy is what resolves a tier, and one row's tier on its
+// own could be a constant that happens to match.
 func TestAWorkerCardCarriesItsBriefAndTheTierItsRowBuys(t *testing.T) {
 	root := newRoot(t, fixtureTemplate, shipped)
 

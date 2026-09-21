@@ -82,13 +82,13 @@ func TestMain(m *testing.M) {
 
 // newRepo, the fixture helper, builds a directory the gate can be pointed at and the port that
 // answers for it. That is a work tree holding one commit, a clean tree, and a shared git dir whose
-// parent name is what `repo-key` abbreviates. repotest.Fake.OnDisk builds the two things that have
-// to be real on disk — the git dir, which the gate is pointed at, and the HEAD `repo-key` refuses a
-// git dir without — and resolves the root.
+// parent name is what `repo-key` abbreviates. repotest.Fake.OnDisk builds the two things that have to
+// be real on disk, and resolves the root. Those two are the git dir the gate is pointed at, and the
+// HEAD that `repo-key` demands of a git dir.
 
-// The directory handed to the gate stays the one that was created, and the resolved spelling is what
-// a draft quotes: os.MkdirTemp answers a symlinked path on macOS, so the two differ, and a gate that
-// did not resolve its own argument would fail every case here.
+// The gate is handed the directory as created, and a draft quotes the resolved spelling. On macOS,
+// os.MkdirTemp answers a symlinked path, so the two spellings differ. The gate resolves its own
+// argument, and the cases here rest on that.
 func newRepo(dir string) (repoDir, resolved string, git *repotest.Fake, err error) {
 	git = repotest.New(dir)
 	if err = git.OnDisk(); err != nil {

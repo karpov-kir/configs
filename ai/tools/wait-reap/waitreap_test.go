@@ -62,9 +62,9 @@ func wrapped(command string) string {
 }
 
 func TestEveryPollingLoopIsReported(t *testing.T) {
-	// One row per way a body can wait. What the condition polls — a file, a process, a log, another
-	// command's output — is text isWaitLoop never reads, so a row per condition is the same row under
-	// another name.
+	// One row per way a body can wait. A condition polls a file, a process, a log or another command's
+	// output. isWaitLoop, the loop detector, reads none of that text, so a row per condition is the
+	// same row under another name.
 	polling := map[string]string{
 		"sleeps between passes": "until [ -f /tmp/143-hold ]; do sleep 120; done",
 		"spins with no sleep":   "until [ ! -e /proc/self ] && false; do :; done 2>/dev/null",
@@ -338,9 +338,10 @@ func TestCommandOfSeparatesAGoneProcessFromAFailedRead(t *testing.T) {
 	}
 }
 
-// The other end of the mapping above: exit 1 is how `ps` says the pid is gone, and the case above
-// reads that end through a real `ps`. Every other status is a read that failed, and reading one as a
-// gone process is reading a live waiter as one that ended on its own.
+// The other end of the same mapping: exit 1 is how `ps` says the pid is gone, and
+// TestCommandOfSeparatesAGoneProcessFromAFailedRead reads that end through a real `ps`. Every other
+// status is a read that failed, and reading one as a gone process is reading a live waiter as one
+// that ended on its own.
 func TestAFailedReadIsNotReadAsAGoneProcess(t *testing.T) {
 	_, refused := exec.Command("sh", "-c", "exit 3").Output()
 	if refused == nil {

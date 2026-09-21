@@ -235,8 +235,8 @@ func TestAReplacementThatCannotLandIsCountedAsARefusal(t *testing.T) {
 	locked := f.base + "/locked"
 	file := locked + "/CLAUDE.md"
 	f.Write(file, body)
-	// CloseToNewFiles probes rather than assuming, and skips the case with its reason where this
-	// process writes into a mode-555 directory anyway.
+	// CloseToNewFiles probes the directory, and skips the case with its reason where this process
+	// writes into a mode-555 directory anyway.
 	f.CloseToNewFiles(locked)
 	run := f.newRun(installer.RunOptions{})
 

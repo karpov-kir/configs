@@ -15,7 +15,7 @@ import (
 var noRepository gitrepo.Git
 
 // One source file under a directory of its own, with the facts directory beside it. Every case here
-// strips one path, so the fixture holds that path and that directory rather than respelling both.
+// strips one path, so the fixture holds that path and that directory in place of respelling both.
 type fixture struct {
 	t     *testing.T
 	dir   string
@@ -55,8 +55,8 @@ func (f *fixture) run(options ...string) outcome {
 	return outcome{code: code, stdout: out.String(), stderr: errOut.String()}
 }
 
-// cut is run, with a run that cut nothing refused here rather than in each case: every assertion
-// below a strip reads a file the run was supposed to have rewritten.
+// The cut helper wraps run and fails a run that cut no block, so each case inherits that check.
+// Every assertion under a strip reads a file the run was supposed to have rewritten.
 func (f *fixture) cut(options ...string) outcome {
 	f.t.Helper()
 	said := f.run(options...)
@@ -277,8 +277,8 @@ func TestStripRefusesASecondArgument(t *testing.T) {
 }
 
 // --changed keeps the blocks the diff did not touch, so the diff is what this case states. What git
-// prints for a change is repo.Exec's subject, held against a real git in repo/exec_test.go; derived
-// here it would be this fixture's own diff the strip was measured against.
+// prints for a change is repo.Exec's subject, and repo/exec_test.go holds it against a real git. A
+// diff derived here would be this fixture's own, and the strip would be measured against that.
 func TestStripChangedRemovesOnlyTheBlocksTheDiffTouched(t *testing.T) {
 	f := newFixture(t, "f.go", "// human one\nfunc a() {}\n// agent two\nfunc b() {}\n")
 	git := repotest.New(f.dir)
@@ -299,14 +299,9 @@ func TestStripChangedRemovesOnlyTheBlocksTheDiffTouched(t *testing.T) {
 	}
 }
 
-// A file header sits above a blank line. The header goes and that blank goes with it: left behind, it
-// becomes line 1, the writer opens a file whose first line is empty, and the formatter drops it at the
-// gate — putting a line the change never wrote into the change set. Five files in the #3194 run
-// carried one.
-//
-// Every line under the trim then moves up. A site the writer opens on names a declaration, so a site
-// one line high names the declaration before the block's own. Two files in that run reported sites
-// that were each one high for this reason.
+// A file header sits above a blank line, and that blank goes when the header goes. A blank left on
+// top makes line 1 empty in the file the writer opens. The formatter drops it at the gate, putting a
+// line the change never wrote into the change set. Five files in the #3194 run carried one.
 func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
 	f := newFixture(t, "f.ts",
 		"// A header nobody reads.\n\nexport function a() {}\n\n// A note about b.\nexport function b() {}\n")
@@ -314,6 +309,9 @@ func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
 	if want := "export function a() {}\n\nexport function b() {}\n"; f.body() != want {
 		t.Fatalf("stripped file:\n%q\nwant\n%q", f.body(), want)
 	}
+	// Every line under the trim moves up. A site the writer opens on names a declaration, so a site
+	// one line high names the declaration before the block's own. Two files in the #3194 run reported
+	// sites that were each one high for this reason.
 	// a() is line 1 of the stripped file and b() is line 3.
 	if want := f.path + ":1 1.facts\n" + f.path + ":3 2.facts\n"; said.stdout != want {
 		t.Errorf("sites:\n%swant\n%s", said.stdout, want)
@@ -325,8 +323,7 @@ func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
 
 // The control for TestStripNumbersSitesUnderAHeaderItTrimmed: the same file with a blank line of its
 // own on top. Only blankness the strip created goes, or the strip is reformatting a file it was asked
-// to read — so the file's own first line stays, and every site keeps the number the blocks alone gave
-// it.
+// to read. The file's own first line stays, and every site keeps the number the blocks alone gave it.
 func TestStripLeavesSitesWhereItTrimmedNothing(t *testing.T) {
 	f := newFixture(t, "f.ts",
 		"\n// A header nobody reads.\n\nexport function a() {}\n\n// A note about b.\nexport function b() {}\n")

@@ -56,8 +56,8 @@ func TestCodexTakesWhatItCanPreserveAndRefusesWhatItCannot(t *testing.T) {
 // rendered string hides the boundaries between arguments, and those are what is at risk. A value
 // holding a space, a shell metacharacter or a newline has to arrive as one argument.
 
-// The `--` in the wanted list is the other half: it goes in unconditionally, so a command or an
-// argument starting with a dash is never read as a flag of Codex's own.
+// The `--` in the wanted list is the other half, and it goes in unconditionally. Codex takes
+// everything past it as the server's own command line, a leading dash included.
 func TestTheCommandLineKeepsEveryArgumentWhole(t *testing.T) {
 	t.Parallel()
 	args, err := codexArgs(mcp.Server{Name: "literal", Config: json.RawMessage(

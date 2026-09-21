@@ -13,7 +13,7 @@ import (
 // The ledger a case starts from when it needs one that already has its columns.
 const ledgerColumns = "| date | prose | scripts | always-loaded | skills | what ran |\n|---|---|---|---|---|---|\n"
 
-// A 60-word note appends nothing; a short one appends one row.
+// A 60-word note leaves the ledger as it was. A short one appends one row.
 func TestAnOverLongNoteIsRefusedRatherThanAppended(t *testing.T) {
 	f := newRoot(t)
 	ledger := f.newLedger("| date |\n")
@@ -38,8 +38,8 @@ func TestTheNoteCannotForgeALedgerRow(t *testing.T) {
 	appended := rowsIn(t, ledger) - before
 	lines := strings.Split(strings.TrimSuffix(readFile(t, ledger), "\n"), "\n")
 	row := lines[len(lines)-1]
-	// Escaped pipes come out before the count: `\|` separates no column, so counting raw `|` would
-	// read the guard working as the guard failing.
+	// Escaped pipes come out before the count, because `\|` separates no column. A count over raw `|`
+	// reads the guard working as the guard failing.
 	columns := strings.Count(strings.ReplaceAll(row, `\|`, ""), "|")
 	if appended != 1 || columns != 7 {
 		t.Errorf("rows appended: %d (want 1)\nunescaped pipes: %d (want 7)\n%s", appended, columns, row)
@@ -59,8 +59,8 @@ func TestTheNoteCannotCarryAControlByteIntoTheLedger(t *testing.T) {
 	written := readFile(t, ledger)
 	appended := rowsIn(t, ledger) - before
 
-	// The row has to have landed: a run that appended nothing carries no ESC either, and would pass a
-	// byte check while saying nothing about sanitising.
+	// The row has to have landed. A run that skipped the append is free of ESC bytes too, and a byte
+	// check alone passes it while leaving the sanitising untested.
 	if appended != 1 || strings.Contains(written+stdout+stderr, "\x1b") {
 		t.Errorf("status: %d\nrows appended: %d (want 1)\n%s", status, appended,
 			indent(strings.ReplaceAll(written+stdout+stderr, "\x1b", "<ESC>")))

@@ -591,29 +591,27 @@ func TestTheReportMeasuresCommentAuthorshipPerFile(t *testing.T) {
 }
 
 // Every report names the build that produced it and the checkout it measured on, so two readings
-// taken apart can be told apart. They are two facts: a stamp hashes source, so a tree can hash
-// identically to its own source and still be a commit nobody else has — which is what makes two
-// readings incomparable when the mount moved between them. The stub exports both; run directly, as
-// here, nothing does.
-//
-// An identity nobody stamped is reported, never omitted. A line that disappears when the build or the
-// checkout is unknown leaves its absence meaning two things — no stamp, or an older binary that never
-// printed one — and the reader cannot tell which.
-//
-// This tree is under the bar, where the attribution half prints nothing at all. The identity must not
-// ride on that half: an absent line would read as an older binary to anyone comparing an under-bar
-// log with an over-bar one.
+// taken apart can be told apart. A stamp hashes source, and a tree can hash identically to its own
+// source and still sit on a commit that exists in one checkout alone. Two readings are incomparable
+// when the mount moved between them.
 func TestBarNamesTheBuildAndTheTreeItMeasuredOn(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
 
+	// The shell stub exports both names. A direct run, as here, leaves them to the case.
 	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
 	t.Setenv("ECO_TOOL_TREE", "feedfacedead")
 	r.runBar()
 	r.expectCode(exitClean)
+	// This tree is under the bar, where the attribution half prints no line at all. The identity rides
+	// on its own half: an absent line would read as an older binary to anyone comparing an under-bar
+	// log with an over-bar one.
 	r.expectStdoutLacks("chargeable")
 	r.expectStdoutHas("measured by: voice-check build deadbeefcafe, tree feedfacedead")
 
+	// A run with no stamp still reports the line, as `unknown` on both halves. An absent line would
+	// carry two readings — a missing stamp, or an older binary whose output lacked it — and the reader
+	// would have to guess between them.
 	t.Setenv("ECO_TOOL_BUILD", "")
 	t.Setenv("ECO_TOOL_TREE", "")
 	r.runBar()

@@ -149,8 +149,8 @@ func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
 // read. The skip is announced and counted, which keeps it visible to a reader.
 
 // Which names are secret-bearing is `diffscan.SecretNamed`'s list, and every row of it is driven
-// where it lives, in `diffscan/diffscan_test.go`. Driving this whole pipeline once per name paid for
-// the same answer a second time; what belongs here is that the untracked arm asks that list at all.
+// where it lives, in `diffscan/diffscan_test.go`. A run of this whole pipeline per name pays for the
+// same answer a second time. This case holds only that the untracked arm asks that list at all.
 
 // Two guards stand on this path, and this case cannot say which of them fired. `diffscan.Options`'
 // SkipSecretNamed declines the file before it is opened, and `count` declines its lines after.
@@ -164,7 +164,7 @@ func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	f := newFixture(t)
 	f.untracked(".env", secret+"\n"+secret+"\n")
 	f.run()
-	// The secret is over the floor and appears twice, so a scan that read it would print it.
+	// The secret is over the floor and appears twice, so it is what this tool echoes from any file it reads.
 	f.ExpectNotOut(secret[:60])
 	f.ExpectErr("its name marks it as secret-bearing")
 	f.ExpectErr("1 file(s) skipped unread")

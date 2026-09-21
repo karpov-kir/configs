@@ -7,10 +7,7 @@ import (
 
 // A case that builds an unreadable path is building a condition the running process may not have.
 // Root reads a mode-000 file happily. So does a process holding CAP_DAC_OVERRIDE, and so does a
-// filesystem that leaves the bit off.
-//
-// These probe for the condition. A comparison against uid 0 would need a list of every environment
-// that behaves this way, and a probe answers for all of them at once.
+// filesystem that leaves the bit off. The functions here probe for the condition.
 
 // SkipUnlessModeDeniesRead leaves the case standing where a mode of 000 stops this process reading,
 // and skips it elsewhere naming what went unasserted.
@@ -23,7 +20,8 @@ func SkipUnlessModeDeniesRead(t *testing.T, what string) {
 }
 
 // SkipUnlessModeDeniesDirList is the directory twin. A walk that lists an unlistable directory takes
-// its whole subtree into the figures, which is a different case from the one being written.
+// its whole subtree into the figures, so the case measures something other than what it was written
+// for.
 func SkipUnlessModeDeniesDirList(t *testing.T, what string) {
 	t.Helper()
 	if ModeDeniesDirList(t) {
@@ -32,8 +30,9 @@ func SkipUnlessModeDeniesDirList(t *testing.T, what string) {
 	t.Skip("this process lists a mode-000 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so " + what)
 }
 
-// ModeDeniesRead and ModeDeniesDirList are the probes themselves. One case needs both answers at
-// once, and it words its own skip.
+// ModeDeniesRead and ModeDeniesDirList are the probes themselves. A comparison against uid 0 would
+// need a list of every environment that behaves this way, and a probe answers for all of them at
+// once. A single case needs both answers, and it words its own skip.
 func ModeDeniesRead(t *testing.T) bool {
 	t.Helper()
 	probe := t.TempDir() + "/probe"

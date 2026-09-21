@@ -41,8 +41,8 @@ func TestDecisionClassificationPreservesEntryAndSection(t *testing.T) {
 }
 
 // The malformed shapes and the operations that must refuse them are independent: every op runs the
-// same section reader, and every shape fails it the same way whichever op asked. So the shapes are
-// driven through one op and the ops through one shape, rather than as a cross product of the two.
+// same section reader, and every shape fails it the same way whichever op asked. So one op drives the
+// shapes and one shape drives the ops, in place of a cross product of the two.
 func TestDecisionRecordRejectsMalformedSections(t *testing.T) {
 	t.Parallel()
 	const malformed = "# Decisions\n1x | 2020-01-01 | selected\n"

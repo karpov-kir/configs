@@ -50,8 +50,8 @@ func run(t *testing.T, probe Probe, path string) (int, string, string) {
 // Every selection the file holds is asked about once, rows and tier order alike, and nothing else is.
 // A name invented here would send the check asking a provider about a string this file never chose.
 //
-// It is also the clean run every refusal case below is read against: nothing refused is exit 0 with no
-// REFUSED line, so a report that failed unconditionally would pass those cases too.
+// It is also the clean run every refusal case below is read against. A clean file exits 0 and prints
+// no REFUSED line, and a report that fires on every input passes those refusal cases too.
 func TestEverySelectionTheFileHoldsIsAskedAboutOnce(t *testing.T) {
 	var asked []string
 	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {

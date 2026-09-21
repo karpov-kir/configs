@@ -10,10 +10,10 @@ package ecoreport_test
 // and `repo/exec_test.go` holds them to real git. What is left here is that this package asks at all,
 // which is this one case: the same behaviour over the layout reader is pinned in scratch_location_test.go.
 //
-// The lever is GIT_CEILING_DIRECTORIES, pointed somewhere that is no ancestor of the fixture. layout.go
-// refuses on any of its four environment names, so the callers fall through to git; and a ceiling that
-// is not an ancestor changes nothing about what git itself answers, so what this case compares is the
-// two code paths and not two different repositories.
+// The lever is GIT_CEILING_DIRECTORIES, set to a path that stands outside the fixture's ancestry.
+// layout.go refuses on any of its four environment names, so the callers fall through to git. Git's
+// own answers stay the same under such a ceiling, so this case compares the two code paths over one
+// repository.
 //
 // The lever itself is proven in layout_test.go: TestTheResolverDeclinesWhenTheEnvironmentOverridesTheLayout
 // drives layoutRoot, layoutGitDir and layoutCommonDir with each of the four names set and requires all
@@ -36,8 +36,9 @@ func TestTheGitFallbackResolvesTheSharedGitDirAndNotTheWorktreesOwn(t *testing.T
 	fromSecond := f.runReportStdoutIn(second, "root")
 	f.record("both worktrees resolve one location through git",
 		fromFirst == fromSecond && fromFirst != "", "first: "+fromFirst+"\nsecond: "+fromSecond)
-	// Which directory, not merely that the two agree: `--git-path .` also answers the same string
-	// from one worktree asked twice, and would pass a case that only compared them to each other.
+	// This case asserts which directory the two resolve to, and agreement between them is the weaker
+	// claim. `--git-path .` answers the same string from one worktree asked twice, which a case
+	// comparing the two answers to each other accepts.
 	f.record("and it is the clone's shared git dir",
 		fromFirst == f.sharedIdsd(), "resolved: "+fromFirst+"\nwanted: "+f.sharedIdsd())
 }

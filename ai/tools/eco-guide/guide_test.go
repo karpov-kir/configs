@@ -120,8 +120,8 @@ func TestAQuotedDescriptionLosesItsQuoting(t *testing.T) {
 
 // The skills that maintain the instruction tree itself. To someone who just installed this they are
 // noise, and a reader who reaches for one gets a skill that edits the skills. The `audience` line is
-// the only thing that leaves them out — the tool holds no list of names — so these three are here as
-// three skills carrying the marker rather than as three names.
+// the only thing that leaves them out, and the tool holds no list of names. These three are here as
+// three skills carrying the marker.
 func TestTheMaintainerOnlySkillsAreLeftOut(t *testing.T) {
 	root := newRoot(t, fixtureTemplate, shipped,
 		fixtureSkill{"kk-ecosystem", "description: Refine what agents read.\naudience: maintainer\n"},
@@ -308,8 +308,8 @@ func TestAnUnknownPlaceholderIsRefused(t *testing.T) {
 	}
 }
 
-// A root that is not a checkout is "it did not run", not a clean sweep. The other input that is not
-// there — the narrative template — is TestTheEmittersRunWithNoNarrativeTemplate's last leg.
+// A root outside a checkout exits 2, reporting that the run did not happen. The other missing input,
+// the narrative template, is TestTheEmittersRunWithNoNarrativeTemplate's last leg.
 func TestARootThatIsNotACheckoutIsNotAPass(t *testing.T) {
 	status, output := run(t, filepath.Join(t.TempDir(), "nowhere"))
 	if status != 2 {

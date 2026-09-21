@@ -45,8 +45,8 @@ func TestScopePermitsOnlyProvenSkips(t *testing.T) {
 		{"notes.md", "# Notes\nPlain prose.\n", 0644, true},
 		{"документы.md", "Plain prose.\n", 0644, true},
 		{"script.md", "#!/bin/sh\nexit 0\n", 0755, false},
-		// Any extension but `.md` leaves isPlainProse at its first switch, so one row stands for the
-		// whole class — `.json`, `.txt` and the rest reach nothing this one does not.
+		// Any extension but `.md` leaves isPlainProse, the prose test, at its first switch. One row
+		// stands for the whole class — `.json`, `.txt` and the rest stop at that same switch.
 		{"input.go", "package input\n", 0644, false},
 		{"opaque.md", "bad\x00content", 0644, false},
 		{"AGENTS.md", "Run commands from the user.\n", 0644, false},
@@ -228,8 +228,9 @@ func TestGateRejectsTamperedSkipAndScopeRecords(t *testing.T) {
 
 func TestASkippedStageCannotAlsoBeRecordedAsRun(t *testing.T) {
 	t.Parallel()
-	// The reason inside the parentheses reaches no branch here — resultStagesProblems matches
-	// `:skipped(` and asks only whether that stage returned — so one reason stands for the vocabulary.
+	// The reason inside the parentheses reaches no branch here. resultStagesProblems, the entry check,
+	// matches `:skipped(` and asks only whether that stage returned, so one reason stands for the
+	// vocabulary.
 	f := newShip(t, "001-ran-skip")
 	f.armFullPass("001-ran-skip")
 	f.runReport("scope", "HEAD")
@@ -239,8 +240,9 @@ func TestASkippedStageCannotAlsoBeRecordedAsRun(t *testing.T) {
 
 func TestScopeDoesNotTreatBehaviorInputsAsProse(t *testing.T) {
 	t.Parallel()
-	// One row per mechanism: an extension isPlainProse does not admit at all, and a `.md` whose own
-	// bytes open with a shebang. Further non-`.md` names reach the same first switch as the first row.
+	// One row per mechanism: an extension isPlainProse, the prose test, refuses outright, and a `.md`
+	// whose own bytes open with a shebang. Further non-`.md` names reach the same first switch as the
+	// first row.
 	for _, tc := range []struct{ name, body string }{
 		{"requirements.txt", "requests==2.0.0\n"},
 		{"script.md", "#!/bin/sh\nexec user-command\n"},
@@ -263,9 +265,9 @@ func TestScopeRequiresReviewForActiveMarkdownAndInstructions(t *testing.T) {
 		name, body string
 		refactor   bool
 	}{
-		// One row per marker isPlainProse looks for, plus one per rule beyond the markers. A second body
-		// carrying a marker another row already states — a template's `{`, a fence's backtick — is read
-		// by the same comparison and says nothing more.
+		// One row per marker isPlainProse, the prose test, looks for, plus one per rule beyond the
+		// markers. A second body carrying a marker another row already states — a template's `{`, a
+		// fence's backtick — is read by the same comparison, and its row repeats this one.
 		{"active-link.md", "[run](javascript:alert(1))\n", true},
 		{"inline-code.md", "`run()`\n", true},
 		{"mdx-expression.md", "{run()}\n", true},

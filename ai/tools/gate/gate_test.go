@@ -151,8 +151,8 @@ func (f *fixture) onlyOnPath(tools ...string) {
 // stderr and the substitution comes back empty. The pipeline the check carries now comes back with a
 // format finding against a machine that measured none of the tree.
 
-// The control is every case below that reads a planned command: each one takes its checks off a plan
-// built on this machine's own PATH, where gofmt is, and `planned` fails the case unless that plan
+// The control is every case below that reads a planned command. Each one takes its checks off a plan
+// built on this machine's own PATH, where gofmt is. `planned` fails the case unless that plan
 // answered 0.
 func TestThePlanRefusesWhereGofmtIsMissing(t *testing.T) {
 	f := newFixture(t)
@@ -411,8 +411,8 @@ func TestAnEmptyTableRefuses(t *testing.T) {
 }
 
 func TestTheArgumentTable(t *testing.T) {
-	// The no-argument row is TestACleanRunExitsZeroAndRunsEveryCheck, which asserts the same exit and
-	// the same line over a table of two.
+	// The row with no arguments is TestACleanRunExitsZeroAndRunsEveryCheck, which asserts the same exit
+	// and the same line over a table of two.
 	for _, c := range []struct {
 		what   string
 		args   []string

@@ -423,13 +423,13 @@ func (f *fixture) stampFullPassIn(dir, ship string) {
 }
 
 // One ship's intent file, holding whatever the case needs it to say. `write` builds the ship folder,
-// so a case states the body and nothing else.
+// so a case states the body alone.
 func (f *fixture) writeIntent(slug, body string) {
 	f.t.Helper()
 	f.write(f.shipDir(slug)+"/intent.md", body)
 }
 
-// The same file under archive/, which is where a built intent lives.
+// The same file under archive/, where a built intent lives.
 func (f *fixture) writeArchivedIntent(slug, body string) {
 	f.t.Helper()
 	f.write(f.archiveDir(slug)+"/intent.md", body)

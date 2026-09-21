@@ -135,7 +135,7 @@ func (f *fixture) skillsMount(agent string) string {
 // --- the machine, as a working fake -----------------------------------------------------------------
 
 // The shared brew machine, plus the commands this installer's steps reach for. The clients and the
-// release tool are here so the mcp and tools steps get that far; a case about either refusal takes
+// release tool are here so the mcp and tools steps get that far. A case about either refusal takes
 // its command away again.
 func newMachine() *installertest.BrewMachine {
 	host := installertest.NewBrewMachine()

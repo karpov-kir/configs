@@ -1,15 +1,12 @@
-// The cases this fake earns, and no more. Almost everything it answers is a table a case filled in,
-// and asserting that a table hands back what was put in it tests the case rather than the code —
-// `testing.md` §3 asks for a fake's own test only where a bug in it could pass silently.
+// The cases this fake earns, and no more. Almost everything it answers is a table a case filled in.
+// A test asserting that a table hands back what was put in it tests the case while leaving the code
+// untested. `testing.md` §3 asks for a fake's own test only where a bug in it could pass silently.
 //
-// These three are the answers the fake DERIVES. A bug in one is invisible from the suites driving
-// it: the fixture goes quiet in a way that reads as a verdict about the tool. A commit the fake
-// knows only by name answers "no such revision" to the tool's second question; a linked worktree
-// with a history of its own hides the whole point of sharing a clone; an `add` that records only
-// what it was asked leaves every promotion refusing.
+// Three answers the fake DERIVES, one case each. A bug in one is invisible from the suites driving
+// it: the fixture goes quiet in a way that reads as a verdict about the tool.
 //
 // Each case says what git would answer, which is how every case driving this fake is written. That
-// real git answers so is `repo/exec_test.go`'s, against a real repository. Nothing here forks one.
+// real git answers so is `repo/exec_test.go`'s, against a real repository. No case here forks one.
 package repotest_test
 
 import (
@@ -24,9 +21,9 @@ import (
 )
 
 // git answers about a commit by its object id as readily as by the name that reached it. A tool that
-// resolves a base-ref to an id and then diffs against THAT asks by the id, so a fake holding the
-// commit under its name alone refuses the tool's second question — and the suite reads a hole in the
-// fixture as the tool refusing.
+// resolves a base-ref to an id and then diffs against THAT asks by the id. A fake holding the commit
+// under its name alone answers "no such revision" to the tool's second question. The suite then
+// reads a hole in the fixture as the tool refusing.
 func TestACommitAnswersToItsObjectIdAsWellAsItsName(t *testing.T) {
 	git := repotest.New("/repo")
 	git.Commit("base", map[string]string{"tracked.txt": "base\n"})
@@ -55,9 +52,9 @@ func TestACommitAnswersToItsObjectIdAsWellAsItsName(t *testing.T) {
 }
 
 // A linked worktree is one clone seen from another directory. Its git dir is its own — that is where
-// its identity is minted — and its common dir, its history and its ignore rules are the clone's. A
-// sibling with a history of its own is a second clone wearing a worktree's shape, and a case driving
-// two trees of one repository through it proves nothing about either.
+// its identity is minted — and its common dir, history and ignore rules are the clone's. A sibling
+// with its own history is a second clone wearing a worktree's shape, and it hides the whole point of
+// sharing a clone. A case driving two trees of one repository through it tests neither.
 func TestALinkedWorktreeSharesTheCloneAndAnswersItsOwnGitDir(t *testing.T) {
 	clone := repotest.New("/clone")
 	linked := clone.LinkedWorktreeAt("/linked", "/clone/.git/worktrees/wt")
@@ -72,8 +69,8 @@ func TestALinkedWorktreeSharesTheCloneAndAnswersItsOwnGitDir(t *testing.T) {
 		t.Errorf("TopLevel = (%q, %v), wanted the linked checkout", root, err)
 	}
 
-	// Committed AFTER the worktree was added, so this is the clone's own history and not a copy of it
-	// taken at that moment.
+	// The commit lands AFTER the worktree was added. What the linked worktree reads here is the
+	// clone's own history as it stands now, and never a copy of it taken at that moment.
 	clone.Commit("HEAD", map[string]string{"tracked.txt": "base\n"})
 	names, err := linked.NamesAt("/linked", "HEAD")
 	if err != nil || !slices.Equal(names, []string{"tracked.txt"}) {
@@ -81,7 +78,7 @@ func TestALinkedWorktreeSharesTheCloneAndAnswersItsOwnGitDir(t *testing.T) {
 	}
 
 	// The refusal switch is the clone's too. A case turning one question off means it off wherever
-	// that repository is asked, and a fake answering happily from the sibling sends the case's refusal
+	// that repository is asked. A fake answering happily from the sibling sends the case's refusal
 	// down a path it never meant to drive.
 	clone.Fail["Tracked"] = errors.New("fatal: unable to read the index")
 	if _, err := linked.Tracked("/linked"); err == nil {
@@ -91,8 +88,8 @@ func TestALinkedWorktreeSharesTheCloneAndAnswersItsOwnGitDir(t *testing.T) {
 
 // What a repository answers that no table can hold: what is on disk and outside the index, what
 // `add` swept up, and what a `.gitignore` written MID-RUN says. A tool that writes such a rule and
-// then asks whether it took effect is answered by an arrangement made before the run — which matches
-// whatever the tool wrote and can never fail.
+// then asks whether it took effect is answered by an arrangement made before the run. That
+// arrangement matches whatever the tool wrote, and it can never fail.
 func TestOnDiskModeAnswersAboutTheTreeRatherThanATable(t *testing.T) {
 	git := repotest.New(filepath.Join(t.TempDir(), "repo"))
 	if err := git.OnDisk(); err != nil {

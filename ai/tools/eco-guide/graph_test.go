@@ -373,8 +373,7 @@ func TestTheEmittersRunWithNoNarrativeTemplate(t *testing.T) {
 	if status, output := run(t, "--cost", "kk-qualify", root); status != 0 {
 		t.Fatalf("--cost needs the template it does not read: %d\n%s", status, output)
 	}
-	// And the page path still refuses, naming the template it could not read rather than emitting a
-	// guide without it.
+	// And the page path still refuses, naming the template it could not read.
 	if status, output := run(t, root); status != 2 ||
 		!strings.Contains(output, "narrative template") || !strings.Contains(output, templateRelative) {
 		t.Errorf("the page path no longer refuses a missing template by name: %d\n%s", status, output)
@@ -495,10 +494,10 @@ func TestACitationWithoutTheDeclarationIsNotBilled(t *testing.T) {
 // already printed beside every skill that dispatches it. The three lanes that kept their doors sit on
 // the worker side of the policy and the door side of that question.
 //
-// The profile it does answer is also where this file holds a worker row whose contract is not
-// `workers/<name>.md`. Six of this tree's rows are in that state — three doors, two borrowing another's
-// prompt, one a Go tool assembles — and read only at the first home every one of them is a leaf that
-// dispatches nothing.
+// The profile it does answer is also where this file holds a worker row. The contract of that row is
+// something other than `workers/<name>.md`. Six of this tree's rows are in that state: three doors,
+// two borrowing another's prompt, one a Go tool assembles. Read only at the first home, each of them
+// is a leaf with no dispatches.
 func TestADoorKeepingLaneAnswersItsCostAndADoorlessWorkerRefuses(t *testing.T) {
 	root := newGraphRoot(t, map[string]string{
 		"skills/kk-edit/SKILL.md": skillBody("dispatched", "Hand structure to `~/.kk-flavor/workers/refactor.md`."),
@@ -596,10 +595,8 @@ func TestAModeRowReadsItsOwnFileAndNotItsSkillsDirectory(t *testing.T) {
 }
 
 // The borrowing shape: a row with no file of its own, running the prompt its `worker` field names.
-// What that prompt dispatches is what this row dispatches, at this row's tier — and the file also
-// points at its own assets. Those pointers are the prompt owner's self-citations whoever runs them;
-// dropped against the borrowing row's name instead, they left the tree as dispatches and billed the
-// borrower for a second run of the very contract it is.
+// What that prompt dispatches is what this row dispatches, at this row's tier, and the file also
+// points at its own assets. Those pointers belong to the prompt's owner whoever runs them.
 func TestABorrowedPromptsSelfCitationsAreNotTheBorrowersDispatches(t *testing.T) {
 	policy := strings.Replace(graphPolicy, `"refactor":       {`,
 		`"lender/repair":  { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "worker": "kk-edit" },
@@ -620,6 +617,8 @@ func TestABorrowedPromptsSelfCitationsAreNotTheBorrowersDispatches(t *testing.T)
 		t.Fatalf("expected exit 0, got %d\n%s", status, output)
 	}
 	block := graphBlock(t, output, "lender/repair")
+	// These pointers were once dropped against the borrowing row's name. They left the tree as
+	// dispatches and billed the borrower for a second run of the contract it is.
 	if strings.Contains(block, "dispatches kk-edit") {
 		t.Errorf("a row was billed for dispatching the contract it runs, at a second row\n%s", block)
 	}

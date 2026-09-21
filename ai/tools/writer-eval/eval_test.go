@@ -36,7 +36,7 @@ const evalEnv = "WRITER_EVAL"
 const caseEnv = "WRITER_EVAL_CASE"
 
 // parallelEnv bounds how many model calls are in flight at once. Both halves of the eval read it, so
-// a sweep is one setting rather than two that can drift.
+// a sweep is one setting instead of two that can drift.
 const parallelEnv = "WRITER_EVAL_PARALLEL"
 
 func parallelCalls(t *testing.T) int {

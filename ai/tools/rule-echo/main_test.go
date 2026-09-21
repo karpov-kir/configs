@@ -368,9 +368,10 @@ func TestAPartialReadIsNamedAndCounted(t *testing.T) {
 
 // The report is where a repository's own bytes reach a terminal: a path is whatever somebody named
 // a directory, and a rule is whatever prose a file holds. Which bytes `shell.Oneline` maps is held in
-// shell's own suite; what is held here is that every field of this report goes through it. A raw
-// escape erases the lines already on screen, and a newline in a path forges this tool's summary line
-// — the one line a caller reads for the verdict.
+// shell's own suite, and this case holds that every field of the report goes through it.
+
+// A raw escape erases the lines already on screen, and a newline in a path forges this tool's summary
+// line, which a caller reads for the verdict.
 func TestTheReportCarriesNoControlByteFromAPathOrARule(t *testing.T) {
 	const forged = "0 bolded rule(s) read, 0 pair(s) stating the same thing in two files"
 	site := func(file, text string) span { return span{file: file, line: 7, text: text} }
