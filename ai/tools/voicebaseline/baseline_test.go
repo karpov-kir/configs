@@ -195,7 +195,8 @@ func TestEveryWayTheRatchetDidNotRunExitsTwoAndNamesIt(t *testing.T) {
 
 // Regeneration belongs in the same change that lowered a count, so what it writes has to be what the
 // tree measures now. The tree has to stand against it afterwards, or the floor was written from
-// something other than the counts just taken.
+// something other than the counts just taken. The file's own header survives it: dropped, the ratchet
+// is a bare list of numbers and the reader has nothing saying what it is for.
 func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 	t.Parallel()
 	root := newRoot(t, measurement{alpha, 4}, measurement{beta, 2})
@@ -209,23 +210,12 @@ func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 		t.Errorf("alpha.md measures 4 and is not recorded at 4, so the new floor is not the count the "+
 			"tree just reported\n%s", written)
 	}
+	if !strings.HasPrefix(written, fixtureHeader) {
+		t.Errorf("the header the fixture wrote is gone, and the ratchet is now a bare list of numbers "+
+			"nobody can read\n%s", written)
+	}
 	if held := runOver(t, root); held.code != 0 {
 		t.Errorf("the tree is off a baseline written from that same tree a moment earlier\n%v", held)
-	}
-}
-
-// The header carries what the file is for, and a regeneration that dropped it would leave the ratchet
-// as a bare list of numbers, unreadable to anyone.
-func TestRegenerateKeepsTheBaselineFilesOwnHeader(t *testing.T) {
-	t.Parallel()
-	root := newRoot(t, measurement{alpha, 1}, measurement{beta, 1})
-	writeBaseline(t, root, baselineLine(9, alpha))
-
-	if regenerated := runOver(t, root, "--regenerate"); regenerated.code != 0 {
-		t.Fatalf("--regenerate did not run, so the file read below is still the fixture's own\n%v", regenerated)
-	}
-	if written := read(t, filepath.Join(root, baselineInRoot)); !strings.HasPrefix(written, fixtureHeader) {
-		t.Errorf("the header the fixture wrote is gone from the regenerated file\n%s", written)
 	}
 }
 

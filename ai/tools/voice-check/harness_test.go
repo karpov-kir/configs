@@ -253,8 +253,9 @@ func TestACopyOutlivesAFileThatGoes(t *testing.T) {
 	}
 }
 
-// A missing source is a different case from a path that went during the walk. The copy fails, and
-// the caller hears about it.
+// A missing source is a different case from a path that went during the walk. The `path != src`
+// bound is what separates them, and this case is the only reading of it. A mistyped fixture path
+// hits the same arm, and the bound turns it into a failure the caller hears about.
 func TestACopyRefusesASourceThatWasNeverThere(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "absent")
 	if err := copyTree(missing, filepath.Join(t.TempDir(), "repo")); err == nil {

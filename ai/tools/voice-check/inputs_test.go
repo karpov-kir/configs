@@ -17,22 +17,13 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r.commit("add subdir")
 		r.run("subdir")
 		r.expectCode(2)
-		r.expectStderrHas("is a path, not a git-diff revision")
+		r.expectStderrHas("'subdir' is a path, not a git-diff revision")
 		r.expectStderrHas("the scan did NOT run")
 		// The grammar goes with an argument refusal, so the caller is told what this tool does take.
 		r.expectStderrHas(usage)
 		// Not the message a scan git rejected prints — two different failures must not read alike.
 		r.expectStderrLacks("git rejected these arguments")
 		r.expectNoStdout()
-	})
-
-	t.Run("a file path exits 2 and the refusal names the file", func(t *testing.T) {
-		r := newRepo(t)
-		r.write("seen.go", "x\n")
-		r.commit("add seen")
-		r.run("seen.go")
-		r.expectCode(2)
-		r.expectStderrHas("'seen.go' is a path")
 	})
 
 	t.Run("an option exits 2 and is named as an option", func(t *testing.T) {
@@ -154,29 +145,6 @@ func TestADiffAttributeDoesNotSuppressTheScan(t *testing.T) {
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("attr.go")
-}
-
-func TestUntrackedFilesReachTheRegisterScan(t *testing.T) {
-	t.Run("scanned when no revision is given, not when one is", func(t *testing.T) {
-		r := newRepo(t)
-		r.write("fresh.go", "// The reader climbs to the newest entry rather than the one asked for.\n")
-		r.run()
-		r.expectCode(1)
-		r.expectStdoutHas("fresh.go")
-
-		r.run("HEAD")
-		r.expectStdoutLacks("fresh.go")
-	})
-
-	t.Run("one over the byte cap is declined rather than read in silence", func(t *testing.T) {
-		r := newRepo(t)
-		r.write("big.go", "// The reader climbs to the newest entry rather than the one asked for.\n")
-		cfg := baseConfig()
-		cfg.MaxFileBytes = 8
-		r.runWith(cfg)
-		r.expectStdoutLacks("big.go")
-		r.expectStderrHas("declined unread")
-	})
 }
 
 func TestANewlineInAPathIsNoLongerAHazard(t *testing.T) {

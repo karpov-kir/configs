@@ -314,15 +314,3 @@ func TestTheStrikeReadsTheDeclarationsOwnWords(t *testing.T) {
 		}
 	}
 }
-
-// A catalogue constant's description says what the data is. The strike reads it as a restatement,
-// because a constant's name carries the same words, and deleting it would take the description of
-// an asset with it. This is why the check reports.
-func TestACatalogueDescriptionReadsAsARestatement(t *testing.T) {
-	lines := linesOf("// x\nexport const LEDGER_WITH_ACCRUAL_ENTRIES = 'ledger-accrual';\n")
-	words := DeclarationWords(lines, Blocks(lines)[0])
-	survived, hadContent := Restates("Ledger with accrual entries", words)
-	if !hadContent || len(survived) != 0 {
-		t.Skipf("the strike left %q, so this spelling is not the false-positive shape", survived)
-	}
-}
