@@ -49,7 +49,7 @@ The audit is a step you take before the block leaves your hands. A block whose a
 
 List every noun phrase in the block and classify each one:
 
-- `identifier` where the word is in the site's `identifiers.txt`. The strip writes that file beside the facts file.
+- `identifier` where the word is in the site's `identifiers.txt`. The strip writes that file beside the facts file, and it holds each name as the code spells it and in lower case, so a lookup matches either.
 - `domain` where the word is a `domain` entry in `comment-voice.conf`.
 - `plain` where every word of it is an ordinary English word and it carries no hyphen.
 

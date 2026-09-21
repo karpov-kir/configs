@@ -246,8 +246,13 @@ func identifierWords(lines []string) []string {
 			continue
 		}
 		for _, token := range identifierToken.FindAllString(line, -1) {
+			// Both spellings. The list held the lowercased form alone, and a writer looking up
+			// `PlayerUtilsProvider` as it met it in prose found nothing and classified a name the file
+			// imports as none of the three.
+			seen[token] = true
 			seen[strings.ToLower(token)] = true
 			for _, hump := range strings.Fields(camelHump.ReplaceAllString(token, "$1 $2")) {
+				seen[hump] = true
 				seen[strings.ToLower(hump)] = true
 			}
 		}

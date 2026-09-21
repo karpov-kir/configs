@@ -25,3 +25,20 @@ role, and record the candidate file hashes and the worker identity.
 A `stays` on the first case is the defect this fixture exists for. The rule settles that verdict, and
 a worker reaching its own judgement there has read the rule and set it aside. A `carried by` on the
 last case is the opposite defect, and it deletes a fact the code cannot show.
+
+### 5. A fact about a catalogue row
+
+```ts
+export const LEDGER_SOURCES: LedgerSource[] = [
+  { id: 'accrual-eu', url: 'https://example.invalid/accrual-eu.json' },
+  { id: 'accrual-us', url: 'https://example.invalid/accrual-us.json' },
+];
+```
+
+Facts: `No source is registered for the closing profile, because the vendor's own export predates it
+and the branch estate cannot fetch the newer one.`
+
+Expected: `carried by <a provenance field on the entry>`. The claim describes the row, and the code
+that reads the rows says none of it, so it belongs on the row. The structure has no field for it, and
+adding one is the edit. A `for the PR body` line loses the fact to the next reader of that catalogue.
+Run 4 of the reviewed stack lost three device rationales that way.

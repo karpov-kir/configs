@@ -54,7 +54,7 @@
 14 ai/kk-flavor/skills/kk-reduce/stats.md
 13 ai/kk-flavor/workers/reduce/reconcile.md
 13 ai/kk-flavor/workers/reduce/arbitrate.md
-12 ai/kk-flavor/workers/refactor.md
+11 ai/kk-flavor/workers/refactor.md
 12 ai/kk-flavor/workers/reduce/over-cut.md
 12 ai/kk-flavor/skills/kk-pr/address-review.md
 11 ai/kk-flavor/standards/git.md

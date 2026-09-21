@@ -570,11 +570,26 @@ func Restates(summary string, declWords map[string]bool) (survived []string, had
 // same list to the writer, so the fixture and the lane audit against one thing.
 func IdentifierWords(lines []string) []string {
 	blocks := Blocks(lines)
+	inComment := map[int]bool{}
+	for _, b := range blocks {
+		for offset := 0; offset < b.Span; offset++ {
+			inComment[b.Line+offset] = true
+		}
+	}
 	seen := map[string]bool{}
-	for word := range Identifiers(lines, blocks) {
-		seen[word] = true
-		for _, hump := range strings.Fields(camelBreak.ReplaceAllString(word, "$1 $2")) {
-			seen[strings.ToLower(hump)] = true
+	for at, line := range lines {
+		if inComment[at+1] {
+			continue
+		}
+		// Both spellings, as comment-strip writes them, so the eval hands the writer the list the lane
+		// hands it. The lowercased form alone left a writer looking up a name as prose spells it.
+		for _, token := range identifierWord.FindAllString(line, -1) {
+			seen[token] = true
+			seen[strings.ToLower(token)] = true
+			for _, hump := range strings.Fields(camelBreak.ReplaceAllString(token, "$1 $2")) {
+				seen[hump] = true
+				seen[strings.ToLower(hump)] = true
+			}
 		}
 	}
 	words := make([]string, 0, len(seen))
