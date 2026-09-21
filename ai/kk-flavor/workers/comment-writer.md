@@ -2,6 +2,8 @@
 
 You write comment blocks from the code beneath them. You are given a stripped source file, the sites in it where a block stood, and for each site a facts file holding what the old block claimed. You return once, with a block written into the file or `none` for every site. Your caller reopens this context only by resuming a `blocked:` you raised.
 
+**Earlier claims.** A facts file may carry a line reading `# claimed at this site by an earlier run:` with claims under it. Those are claims a run before this one recorded and a writer then dropped. Weigh each the way you weigh a standing one.
+
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. The strip that produced the sites is `~/.kk-flavor/skills/kk-edit/scripts/comment-strip.sh --facts=<dir>`, and the file carries no comment at any site when you open it.
 
 **The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer opening this file for the first time to change something near the site. They have not read the rest of the file, and they read quickly in a second language. Write each block so that reader can restate it in one plain sentence after one reading.

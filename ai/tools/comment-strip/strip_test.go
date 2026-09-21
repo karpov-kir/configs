@@ -289,3 +289,83 @@ func TestStripWritesTheIdentifierWordsBesideTheFacts(t *testing.T) {
 		}
 	}
 }
+
+// stripInto runs one strip of source at path, with an archive, and returns the facts file written.
+func stripInto(t *testing.T, dir, archive, source string) string {
+	t.Helper()
+	path := filepath.Join(dir, "f.ts")
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	facts := filepath.Join(dir, "facts")
+	if err := os.RemoveAll(facts); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	code := Strip("comment-strip.sh", []string{"--facts=" + facts, "--archive=" + archive, path}, dir, &out, &errOut)
+	if code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	return string(mustRead(t, filepath.Join(facts, "1.facts")))
+}
+
+// A fact a writer dropped on one run is gone from every later run of the same change set, because
+// the strip reads the block as it stands and the dropped text lives only in an earlier run's facts.
+// With an archive, question 3 sees every claim ever made at the site.
+func TestTheFactsFileCarriesWhatEarlierRunsClaimed(t *testing.T) {
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "archive")
+
+	// A site with no history reads as it always did.
+	first := stripInto(t, dir, archive, "// The vendor's export predates the closing profile.\nexport const ROWS = [1];\n")
+	if strings.Contains(first, earlierMarker) {
+		t.Errorf("a site with no history carried an earlier-run marker:\n%s", first)
+	}
+	if !strings.Contains(first, "vendor's export") {
+		t.Errorf("the standing block is missing:\n%s", first)
+	}
+
+	// The writer drops that claim and writes a different one. The next strip carries both.
+	second := stripInto(t, dir, archive, "// The estate cannot fetch the newer export.\nexport const ROWS = [1];\n")
+	if !strings.Contains(second, "estate cannot fetch") {
+		t.Errorf("the standing block is missing:\n%s", second)
+	}
+	if !strings.Contains(second, "vendor's export") {
+		t.Errorf("the claim an earlier run recorded is gone, which is the defect:\n%s", second)
+	}
+	if !strings.Contains(second, earlierMarker) {
+		t.Errorf("the earlier claim is unmarked:\n%s", second)
+	}
+
+	// A third run sees both earlier claims.
+	third := stripInto(t, dir, archive, "// A third claim.\nexport const ROWS = [1];\n")
+	for _, want := range []string{"A third claim", "estate cannot fetch", "vendor's export"} {
+		if !strings.Contains(third, want) {
+			t.Errorf("two earlier runs' claims are not all here, %q is missing:\n%s", want, third)
+		}
+	}
+
+	// A block byte-identical to one already held is not handed over twice.
+	again := stripInto(t, dir, archive, "// A third claim.\nexport const ROWS = [1];\n")
+	if n := strings.Count(again, "A third claim"); n != 1 {
+		t.Errorf("the standing block appears %d times, and a repeat of it is the same claim:\n%s", n, again)
+	}
+}
+
+// An archive a caller does not name leaves the facts file as it was, so a lane that wants no history
+// pays nothing for one.
+func TestAStripWithNoArchiveCarriesOnlyTheStandingBlock(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ts")
+	if err := os.WriteFile(path, []byte("// One claim.\nexport const ROWS = [1];\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	facts := filepath.Join(dir, "facts")
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	if body := string(mustRead(t, filepath.Join(facts, "1.facts"))); strings.Contains(body, earlierMarker) {
+		t.Errorf("a run with no archive carried an earlier-run marker:\n%s", body)
+	}
+}
