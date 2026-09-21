@@ -63,18 +63,18 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// flooded report and rebuilding the fixture four times only risks the four copies drifting.
 	t.Run("shows every other rank-5 kind through a flood of one of them, counting what it withheld", func(t *testing.T) {
 		newFloodedRankFive(t).reports(
-			// Without the floor, the class byte order puts first spends the whole budget and every other
-			// kind in the rank prints nothing.
+			// The floor is what keeps the rest of the rank on screen. Take it away and the class byte
+			// order puts first spends the whole budget, leaving every other kind unprinted.
 			ecocheck.DanglingLink, dangling, unresolved, noPosition,
 			unfamiliedSkill, ecocheck.SkillDirWithoutSkillFile, ecocheck.SkillWithoutDescription,
 			// The count is the flooding class's own: 45 raised, 33 shown once the other seven classes
-			// have taken their floor line. Subtracting the rank's cap instead prints 5, which every
-			// presence needle above stays green over.
+			// have taken their floor line. A count that subtracted the rank's cap instead prints 5,
+			// which every presence needle in this list stays green over.
 			"… and 12 "+ecocheck.SuppressedMarker,
 			// The second note, over the class the floor left one line short of its two findings. One note
 			// per class, each counting itself. A single note for the rank would say 13 on both lines.
 			"… and 1 "+ecocheck.SuppressedMarker,
-			// The remainder, exact so the arithmetic is checkable: 54 findings, of which 41 print. That
+			// The remainder, exact so the arithmetic is checkable: 54 findings, 41 of them printed. That
 			// is the 40 rank 5's budget allows, plus the rank-3 mismatch taking one from its own. The two
 			// notes print beside them and are counted as neither.
 			"… 13 "+ecocheck.UnshownMarker)
@@ -88,10 +88,10 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		f.reports("… and 60 "+ecocheck.SuppressedMarker, "… 60 "+ecocheck.UnshownMarker)
 	})
 
-	// The numbers, not the presence of the lines. The class's count has to be its own: subtracting the
-	// rank's cap instead prints a plausible number for the flooding class and `-37` for this one, which
-	// is why every case above stays green over it. The trailing line beside it counts neither of the
-	// tree's two notes as a finding.
+	// The numbers themselves are pinned here, past the mere presence of the lines. The class's count
+	// has to be its own. A count that subtracted the rank's cap instead prints a plausible number for
+	// the flooding class and `-37` for this one. That is why every case here stays green over it. The
+	// trailing line beside it counts neither of the tree's two notes as a finding.
 	t.Run("and counts a floored class's withheld findings against that class alone", func(t *testing.T) {
 		newDriftUnderAFloodOfItsRank(t).reports(
 			"… and 2 "+ecocheck.SuppressedMarker, "… 8 "+ecocheck.UnshownMarker)
@@ -114,8 +114,9 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// A file past the read bound is the plainest member of the tampered-check class — its own finding
 	// ends on "it was NOT checked" — and it went unranked, so it shared one budget with `dangling
 	// link:` and sorted below every one of them. 300 crafted links then hid an unread 8 MiB file
-	// completely: the report named no such file at all. Ordering rather than presence, for the reason
-	// `ranksAbove` gives; it fails on an absent finding too, so presence needs no case of its own.
+	// completely: the report named no such file at all. The ordering is what this pins, for the
+	// reason given by ranksAbove, the fixture helper. That helper fails on an absent finding too, so
+	// presence needs no case of its own.
 	t.Run("ranks a file past the read bound above a flood of link findings", func(t *testing.T) {
 		newOversizeUnderAFlood(t).ranksAbove(ecocheck.FileTooLargeToScan, ecocheck.DanglingLink)
 	})
@@ -149,10 +150,10 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 
 	// A drifted shared region shown under a flood of another class in its rank — and left in that rank.
 	// A floor that reserved the line and then appended it below every rank would satisfy presence. It
-	// would also put the drift under the findings this report exists to rank it above, so ordering is
-	// what this asserts; `ranksAbove` fails on an absent finding too, so presence needs no case beside
-	// it.
+	// would also put the drift under the findings this report exists to rank it above. So ordering is
+	// what this asserts.
 	t.Run("shows a drifted shared region in its own rank, above what that rank outranks", func(t *testing.T) {
+		// That check, ranksAbove, fails on an absent finding too, so presence needs no case beside it.
 		newDriftUnderAFloodOfItsRank(t).ranksAbove(ecocheck.SharedRegionHasDrifted+"greet", noPosition)
 	})
 

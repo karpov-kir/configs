@@ -565,11 +565,10 @@ func (f *fixture) ranksAbove(above, below string) {
 	}
 }
 
-// A finding built from text this checker did not choose, asserted over ONE run of one fixture: that
-// the finding appears at all, and that no ESC reaches the output through it. The first half is not
-// optional — without it the second passes on a run that raised no finding. Both come off the same
-// output, so the two halves cannot end up describing two different runs, and the fixture is built
-// once.
+// Asserts over ONE run of one fixture that a finding built from text the reviewed tree chose appears,
+// and that no ESC reaches the output through it. The first half is the control: drop it and the
+// second passes on a silent run. One output feeds both halves, so they cannot describe two different
+// runs, and the fixture is built once.
 func assertNoControlByteEscapes(t *testing.T, what, finding string, build func(*testing.T) *fixture) {
 	t.Run("reports "+what+", and no control byte from it reaches the output", func(t *testing.T) {
 		f := build(t)

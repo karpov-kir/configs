@@ -86,8 +86,8 @@ func TestOversizeFileIsNotReadByTheCallSiteScan(t *testing.T) {
 		return f
 	}
 
-	// The second needle is the control: without it the first holds over a tree the call-site pass never
-	// ran on at all.
+	// The second needle is the control: take it away and the first holds over a tree the call site
+	// pass skipped.
 	t.Run("reports the file it did not search, while the scan itself is live on that tree", func(t *testing.T) {
 		searched(t).reports("no call site in it was seen", noCallSite+"alpha — ")
 	})
@@ -107,9 +107,10 @@ func TestUnreadableFileIsNotSearchedForCallSitesInSilence(t *testing.T) {
 		return f
 	}
 
-	// The second needle is the control, and the thing that makes the fixture worth building: the unread
-	// file holds the one call site `alpha` has, so the run reports a subcommand as uncalled on evidence
-	// it never read. Both findings have to be there for a reader to tell those two facts apart.
+	// The second needle is the control, and the thing that makes the fixture worth building. The
+	// unread file holds the sole call site `alpha` has, so the run reports a subcommand as uncalled
+	// on evidence it never read. Both findings have to be there for a reader to tell those two facts
+	// apart.
 	t.Run("reports the file it could not search, and the subcommand it could not find a site for", func(t *testing.T) {
 		searched(t).reports("no call site in it was seen", noCallSite+"alpha — ")
 	})

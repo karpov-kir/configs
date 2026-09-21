@@ -123,19 +123,19 @@ func TestAPatternInACitedPathIsRefusedRatherThanMatched(t *testing.T) {
 		return f
 	}
 
-	// The target carries no section, so every pattern below matches a file that has no `One home`
-	// heading: a resolver that still globbed would resolve the path and say `dangling section ref`
-	// against it. That is why the refusals are asserted *and* that nothing resolved — asserting only
-	// the refusals would pass over a resolver answering these as find(1) does.
-	//
-	// One LINE per metacharacter, because the refusal names the byte it found and each is a separate
-	// way in; `\` is doubled only for Go's own literal. The last line is the markdown-link form, whose
-	// token comes from the other arm of the parser, filtered `[^()]*` — refusing in one arm alone
-	// would leave the other resolving patterns. Every refusal is a per-citation answer carrying its
-	// own line number, so one fixture and one run hold all five apart.
+	// The target carries no section heading, so every pattern here matches a file that lacks
+	// `One home`. A resolver that still globbed would resolve the path and say `dangling section ref`
+	// against it. Both halves are asserted: the refusals, and the absence of any resolution. A case
+	// that asserted the refusals alone passes over a resolver answering these as find(1) does.
 	t.Run("refuses every metacharacter, in both forms a citation is written in", func(t *testing.T) {
+		// One line per metacharacter, because the refusal names the byte it found and each is a
+		// separate way in. Go's own literal is what doubles the `\`. The last line is the
+		// markdown-link form, whose token comes from the other arm of the parser, filtered `[^()]*`.
+		// A refusal in one arm alone leaves the other resolving patterns.
 		refs := []string{"standards/targ*t.md", "standards/targ?t.md", "standards/[st]arget.md",
 			"standards/targe\\t.md", "targ*t.md"}
+		// Every refusal is a per-citation answer carrying its own line number, so one fixture and one
+		// run hold all five apart.
 		f := newPatternProbe(t,
 			"see `"+refs[0]+"` → **One home** for the rule",
 			"see `"+refs[1]+"` → **One home** for the rule",
@@ -151,8 +151,8 @@ func TestAPatternInACitedPathIsRefusedRatherThanMatched(t *testing.T) {
 		f.absent(output, dangling, unresolved)
 	})
 
-	// The control: the same citation without the metacharacter resolves, so the refusals above cannot
-	// be a scan that stopped reading citations altogether.
+	// The control: the same citation without the metacharacter resolves, so the metacharacter refusals
+	// cannot be a scan that stopped reading citations altogether.
 	t.Run("while the same citation naming the file outright still resolves", func(t *testing.T) {
 		f := newPatternProbe(t, "see `standards/target.md` → **One home** for the rule")
 		output := f.run()
@@ -343,9 +343,10 @@ func TestAnUncheckableCitationSaysWhenItsHeadWasCut(t *testing.T) {
 	// and the finding under test is the one that fires.
 	longHead := strings.Repeat("kk-qualify-", 10)
 
-	// The mark is matched together with the text the finding puts after the head, so the assertion is
-	// about where the cut is reported and not about a "..." landing anywhere in the output. The finding
-	// itself is asserted beside it as the control: without it the mark passes over a silent run.
+	// The mark is matched together with the text the finding puts after the head. The assertion is
+	// about the place the cut is reported, and a bare "..." somewhere else in the output fails it.
+	// The finding itself is asserted beside it as the control: take it away and the mark passes over
+	// a silent run.
 	t.Run("fires on a head that runs past the bound, marking the head it cut", func(t *testing.T) {
 		newBacktickedHead(t, "`"+longHead+"` → **The residue** decides").
 			reports(uncheckable, shell.CutMarker+"` → ")
@@ -466,13 +467,13 @@ func newDanglingVariant(t *testing.T, body, section string) *fixture {
 // This file writes its own citations out, because no scan reads a `.go` file. A shell suite covering
 // the same ground could not, which is the asymmetry that note answers.
 func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
-	// The note, and the cost this choice takes: there is no escape hatch, so a harness may carry no
-	// citation literal at all. The finding still fires, and that is what makes the rule bind.
+	// The note, and the cost this choice takes: the rule offers no escape hatch. A harness may carry
+	// zero citation literals, and the finding still fires, which is what makes the rule bind.
 	t.Run("names the rule on a finding against a suite, and reports it all the same", func(t *testing.T) {
 		newHarnessCitation(t, "fixture-test.sh").reports(ecocheck.HarnessCitationNote, dangling)
 	})
 
-	// The note is scoped to a harness. Every other script pays nothing for it — and the citation is
+	// The note is scoped to a harness, and every other script pays no price for it. The citation is
 	// still reported, or this half would pass on a fixture whose citation was never read.
 	t.Run("says nothing of the sort on an ordinary script, whose citation is still reported", func(t *testing.T) {
 		f := newHarnessCitation(t, "fixture.sh")

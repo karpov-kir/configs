@@ -40,7 +40,7 @@ func (c *checker) reported(needle string) bool {
 
 func TestNoBashToParseWithIsRefusedNotReportedAsClean(t *testing.T) {
 	// The refusal has to leave through the exit as well as through stderr. A reason on stderr that 0
-	// rides out on is a reason nobody reads: this runs as a gate, and callers read the code.
+	// rides out on goes unread: this runs as a gate, and callers read the code.
 	t.Run("says NO script was parsed when there is no bash, and exits 2 rather than on its finding count", func(t *testing.T) {
 		c := newCheckerOverABrokenScript(t)
 		c.scanScriptsParse()
@@ -63,9 +63,9 @@ func TestNoBashToParseWithIsRefusedNotReportedAsClean(t *testing.T) {
 		}
 	})
 
-	// The other direction, and the control for the case above: a tree with a bash finds the syntax
-	// error, calls itself runnable and exits on its findings — or every real run exits 2 and the code
-	// stops meaning anything.
+	// The other direction, and the control for the case where no bash exists. A tree with a bash finds
+	// the syntax error, calls itself runnable and exits on its findings. Exit 2 on this tree too would
+	// leave every real run exiting 2, and the code would stop meaning anything.
 	t.Run("while a tree it could parse finds the error and exits on its findings as before", func(t *testing.T) {
 		c := newCheckerOverABrokenScript(t, t.Name()+"/bash")
 		c.scanScriptsParse()

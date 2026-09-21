@@ -36,8 +36,8 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 		return f
 	}
 
-	// The refusal is the control for the two silences beside it: without it they hold over a run that
-	// never reached the file.
+	// The refusal is the control for the two silences beside it: take it away and they hold over a run
+	// that stopped short of the file.
 	t.Run("names the file it could not read, claiming neither an empty name nor a missing description", func(t *testing.T) {
 		f := newUnreadableSkill(t)
 		output := f.run()

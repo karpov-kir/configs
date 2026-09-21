@@ -217,8 +217,8 @@ func TestScriptTestPosition(t *testing.T) {
 	})
 
 	// The name is checked, and neither half of a search tool's refusal of it reaches the findings. The
-	// finding is the control for the two silences: without it they hold over a run that reported
-	// nothing at all.
+	// finding is the control for the two silences: take it away and they hold over a run that
+	// reported zero findings.
 	t.Run("checks a suite name starting with a dash, dumping no search-tool usage into the findings", func(t *testing.T) {
 		f := newDashSuiteScript(t)
 		output := f.run()
@@ -310,8 +310,8 @@ func TestANamedSuiteResolvesToAFileAndNotToABasename(t *testing.T) {
 		newSuiteNameOneLaneCarries(t).doesNotReport(welded)
 	})
 
-	// Not reported as missing either: the name does answer to files, and a reader sent to write a suite
-	// that is already there twice would look for a defect that is not the one there is.
+	// The name is reported as welded, and never as missing. The name does answer to files, and a
+	// reader sent to write a suite that is already there twice hunts for a defect the tree lacks.
 	t.Run("reports one two files answer to rather than picking either, and does not call it missing", func(t *testing.T) {
 		f := newSuiteNameTwoLanesCarry(t)
 		output := f.run()

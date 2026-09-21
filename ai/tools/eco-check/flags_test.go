@@ -312,8 +312,8 @@ func TestAScriptTheFlagScanCouldNotRead(t *testing.T) {
 	f.writeOversize(f.root + "/kk-flavor/skills/toy.sh")
 	f.newCallSites("toy.sh --agent=claude")
 	output := f.run()
-	// The control: the refusal itself is reported, so the two absences below are absences from a
-	// run that did reach this script rather than from one that never saw it.
+	// The control: the refusal itself is reported, so the two absences asserted beside it come from a
+	// run that did reach this script, and never from one that skipped it.
 	f.found(output, ecocheck.FileTooLargeToScan+f.root+"/kk-flavor/skills/toy.sh")
 	f.absent(output, noUsageLine, undocumentedFlag)
 }

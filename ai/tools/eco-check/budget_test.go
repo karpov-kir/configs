@@ -14,8 +14,8 @@ import (
 )
 
 func TestImportResolvedAtTheMount(t *testing.T) {
-	// Both halves off one run. The figure alone would hold for a run that counted some other set, and
-	// the silence alone for a run that counted nothing at all.
+	// Both halves off one run. The figure alone holds for a run that counted some other set, and the
+	// silence alone for a run whose count was zero.
 	t.Run("counts an import the mount really holds, folding it into the file count", func(t *testing.T) {
 		f := newMountedImport(t)
 		output := f.run()
@@ -43,14 +43,15 @@ func TestImportResolvedAtTheMount(t *testing.T) {
 	})
 
 	// The file has to sit exactly where the traversal lands. Put it anywhere else and the case passes
-	// on "no such file", proving nothing. Both halves off one run: uncounted says the resolver refused
-	// it, and the refusal says so out loud instead of leaving it to read as drift.
+	// on "no such file", which is a pass about the path's absence and leaves the traversal untested.
+	// Both halves off one run: uncounted says the resolver refused it, and the refusal says so out
+	// loud instead of leaving it to read as drift.
 	t.Run("refuses a name that is a path rather than a bare filename, and says so", func(t *testing.T) {
 		newTraversalImport(t).reports(uncounted, refused)
 	})
 
-	// The one shape that goes uncounted WITHOUT a refusal beside it: a plain subdirectory is not a
-	// probe, so only the census names it.
+	// A plain subdirectory is the uncounted shape that carries no refusal beside it. A subdirectory is
+	// an ordinary path and never a probe, so only the census names it.
 	t.Run("leaves a plain subdirectory import uncounted and does not report it as a probe", func(t *testing.T) {
 		f := newSubdirectoryImport(t)
 		output := f.run()
@@ -147,15 +148,15 @@ func TestATraversalReadAlwaysTargetIsNotStatted(t *testing.T) {
 		return f
 	}
 
-	// The leaked bit itself, and its control, off one run. Present, the target came back refused;
-	// absent, it came back through the other arm, and which of the two printed was the answer to the
+	// The leaked bit itself, and its control, off one run. Present, the target came back refused.
+	// Absent, it came back through the other arm, and which of the two printed was the answer to the
 	// branch author's question. The refusal is what says the Read-always list was read at all, so the
-	// silence beside it is a refusal rather than a fixture that never reached the budget scan.
+	// fixture reached the budget scan and the silence beside it means a refusal.
 	//
-	// Matched on the head of the absent arm's line rather than on its trailing `does not exist`: these
-	// paths run past the printer's 500-byte line cap, so the tail is cut and asserting on it passes
-	// whatever the checker did. The subtest is named clear of the phrase too — t.TempDir() puts the
-	// subtest's own name inside every path the run echoes.
+	// The assertion reads the head of the absent arm's line and stops before its trailing `does not
+	// exist`. These paths run past the printer's 500-byte line cap, so the tail is cut and an
+	// assertion on the tail passes whatever the checker did. The subtest is named clear of the phrase
+	// too — t.TempDir() puts the subtest's own name inside every path the run echoes.
 	t.Run("refuses a target that resolves outside the root, and reports neither as absent", func(t *testing.T) {
 		f := newProbe(t)
 		output := f.run()
@@ -243,8 +244,8 @@ func TestACutRefusalSaysThatItWasCut(t *testing.T) {
 		return f
 	}
 
-	// The refusal is the control for the mark: without it, the marker assertion passes over a run that
-	// refused nothing at all.
+	// The refusal is the control for the mark. Take it away and the marker assertion passes over a run
+	// whose refusal count was zero.
 	t.Run("refuses a budget file whose name runs past the bound, and marks that name", func(t *testing.T) {
 		newLongRefusedTarget(t).reports(ecocheck.BudgetFileRefused, "b"+shell.CutMarker)
 	})
@@ -256,13 +257,14 @@ func TestACutRefusalSaysThatItWasCut(t *testing.T) {
 		return newRootImporting(t, "../../"+strings.Repeat("e", overEveryBudgetMessageBound)+".md")
 	}
 
-	// The mark is matched on the whole cut name under the refusal's own wording, never on the marker
-	// alone: a refused import is also named in the uncounted-import note, which marks its own cut at a
-	// different bound — so "the marker is somewhere in the output" passes through that other call
-	// site whatever this one did, which is how the loose form was seen to pass over a broken bound.
-	// The refusal beside it is the control: without it the mark passes over a run that refused nothing.
+	// The mark is matched on the whole cut name under the refusal's own wording, and the marker alone
+	// is too loose a needle. A refused import is also named in the uncounted-import note, which marks
+	// its own cut at a different bound. So "the marker is somewhere in the output" passes through that
+	// other call site whatever this one did, and the loose form was seen to pass over a broken bound.
 	t.Run("refuses an import whose name runs past the bound, marking it under the refusal", func(t *testing.T) {
 		kept := "../../" + strings.Repeat("e", budgetMessageBound-len("../../")-len(shell.CutMarker))
+		// The refusal beside the mark is the control: take it away and the mark passes over a run
+		// whose refusal count was zero.
 		newLongRefusedImport(t).reports(refused, "named but not counted: "+kept+shell.CutMarker)
 	})
 }

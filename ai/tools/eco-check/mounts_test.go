@@ -35,9 +35,10 @@ func newInstalledRootWithSkillsMount(t *testing.T) *fixture {
 // the install must still be checked exactly as before. Silence alone is what a deleted scan looks
 // like, so neither case means anything without the other.
 func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
-	// The silence, and the skip note that was once invisible: without that line a run which checked no
-	// mount prints byte for byte what a run that checked every one prints, and check.sh puts
-	// `wiring: clean` over both. Both come off one run over a tree holding a skill to be silent about.
+	// The silence, and the skip note that was once invisible. Take the note away and a run that
+	// checked zero mounts prints byte for byte what a run that checked every one prints, and check.sh
+	// puts `wiring: clean` over both. Both come off one run over a tree holding a skill to be silent
+	// about.
 	t.Run("says nothing about the mounts of a checkout $HOME does not mount, and says out loud that it skipped them", func(t *testing.T) {
 		f := newRoot(t)
 		f.newHomeWithoutFlavorMount()
@@ -49,7 +50,7 @@ func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
 
 	// The control, and the half that keeps the gate honest: the same unmounted skill on an installed
 	// checkout is still a finding, and the skip note is absent because the note is a claim about work
-	// that did happen. Without this, gating everything off would pass the case above.
+	// that did happen. Take this case away and gating everything off passes the skip-note case.
 	t.Run("while an installed checkout with an unmounted skill still reports, and claims no skip", func(t *testing.T) {
 		f := newInstalledRootWithSkillsMount(t)
 		output := f.run()

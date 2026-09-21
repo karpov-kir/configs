@@ -26,10 +26,10 @@ func TestDirectionScan(t *testing.T) {
 		f.reportedViaFindings(cites)
 	})
 
-	// The three forms that wear the shape of a path into a lane and must stay quiet, one case each
-	// rather than one file carrying three lines: a form quiet for no reason at all, a form a guard
-	// keeps quiet, and a form quiet because the fixture never reached the scan all read the same
-	// through one assertion, so these silences may not share a tree.
+	// Three forms wear the shape of a path into a lane, and each must stay quiet. One case each, since
+	// a single file carrying three lines gives one assertion over three silences. A form quiet on its
+	// own, a form a guard keeps quiet, and a form quiet from a fixture the scan skipped all read the
+	// same way. So these silences get a tree apiece.
 	t.Run("stays quiet on a glob over the lanes, which names no one lane", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/standards/legal.md", "a glob names the set: `~/.kk-flavor/skills/*/SKILL.md`\n")
@@ -109,15 +109,15 @@ func TestDirectionScan(t *testing.T) {
 		f.doesNotReport(names)
 	})
 
-	// The second arm of the citation pattern: any path whose lane name is followed by at least one more
-	// segment, whatever that segment holds — a script here, a template in the tree this checks. The
-	// echoed path is pinned whole in the same assertion, because one trailing segment stops it at
-	// `.../kk-humanize/scripts` and drops the file the citation was about, which is the half that says
-	// what to go and move.
+	// The second arm of the citation pattern: any path whose lane name is followed by at least one
+	// more segment. That segment is a script here, or a template in the tree this checks.
 	t.Run("fires on a path into a lane that is not a SKILL.md, echoing it whole", func(t *testing.T) {
 		f := newRoot(t)
 		f.newMountedSkill("kk-humanize")
 		f.write(f.root+"/kk-flavor/standards/x.md", "read `"+laneScriptRef+"`\n")
+		// The echoed path is pinned whole in the same assertion. One trailing segment stops it at
+		// `.../kk-humanize/scripts` and drops the file the citation was about, which is the half that
+		// says what to go and move.
 		f.reports(cites, "kk-humanize/scripts/voice-check.sh — move the rule")
 	})
 
@@ -164,8 +164,9 @@ func TestDirectionScan(t *testing.T) {
 	// A name the lane grammar cannot hold is reported as malformed rather than as a name. Reported
 	// as a name, the ASCII half sent a reader to `skills/kk-driv/SKILL.md` for a `kk-drivé`
 	// directory — a path nothing can hold, which is a second defect invented beside the real one.
-	// And not also as an unknown skill, off the same run: without that half the first passes on a scan
-	// that reports both kinds, which leaves the invented path in front of a reader exactly as before.
+	// The same run reports no unknown skill, and that silence is asserted beside the malformed
+	// finding. Drop it and the first half passes on a scan that reports both kinds, which leaves the
+	// invented path in front of a reader exactly as before.
 	t.Run("reports a name carrying a non-ASCII character as malformed, and names no path for it", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/standards/x.md", "the lane that owns this is `kk-drivé`\n")
@@ -219,13 +220,10 @@ func TestDirectionScan(t *testing.T) {
 		f.doesNotReport(basenames)
 	})
 
-	// The third shape: a lane's file named by basename alone, carrying neither a lane name nor a path.
-	//
-	// It doubles as the control for the case below. The basename set is built from paths that cannot be
-	// split on a newline: a committed filename holding one would reach a line-oriented reader as two
-	// names, and each half is a forgery the reviewed tree chose. That case is the muting half — the head
-	// becomes a second copy of a real basename, the uniqueness gate drops it, and a genuine violation
-	// goes quiet. Without the hostile file, the finding must be there to lose.
+	// The third shape: a lane's file named by basename alone, which drops the lane name and the path.
+	// It doubles as the control for the newline-forgery case. The basename set is built from paths
+	// that cannot be split on a newline. A committed filename holding one reaches a line-oriented
+	// reader as two names, and each half is a forgery the reviewed tree chose.
 	t.Run("fires on a lane's file named by its basename alone (control for the case below)", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
@@ -233,6 +231,9 @@ func TestDirectionScan(t *testing.T) {
 		f.reports(basenames)
 	})
 
+	// This case is the muting half: the head becomes a second copy of a real basename, the uniqueness
+	// gate drops it, and a genuine violation goes quiet. The basename-alone case beside it is the
+	// control, so the finding must be there to lose.
 	t.Run("a newline in a committed filename cannot mute a real basename finding", func(t *testing.T) {
 		f := newRoot(t)
 		f.newLaneWithScript()
@@ -261,9 +262,9 @@ func TestDirectionScan(t *testing.T) {
 		f.absent(output, unchecked)
 	})
 
-	// Subtracting the name narrows the scan, and a narrowing nothing says out loud is the mute the
-	// second needle reports: any `.md` committed under kk-flavor/ named after a lane file would
-	// otherwise buy silence for free.
+	// The subtraction narrows the scan, and a silent narrowing is the mute the second needle reports.
+	// Any `.md` committed under kk-flavor/ named after a lane file buys silence for free once the
+	// narrowing goes unsaid.
 	t.Run("a lane file cannot forge a finding against a standard citing its own sibling, and the name is called unchecked", func(t *testing.T) {
 		f := newLaneFileTheSharedLayerAlsoCarries(t)
 		output := f.run()
@@ -330,9 +331,9 @@ func TestDirectionScan(t *testing.T) {
 		f.doesNotReport(neverRan)
 	})
 
-	// The guard and what it guards, off one run: the scan says it read nothing, and the violation behind
-	// the symlink is indeed not reported. Either half alone is satisfied by the wrong scan — silence by
-	// one that walked the tree, the notice by one that walked it and reported both.
+	// The guard and what it guards, off one run: the scan says it read no file at all, and the
+	// violation behind the symlink stays unreported. Either half alone is satisfied by the wrong scan
+	// — silence by one that walked the tree, the notice by one that walked it and reported both.
 	t.Run("reports itself when a symlinked kk-flavor leaves it nothing to walk", func(t *testing.T) {
 		f := newSymlinkedFlavorViolation(t)
 		output := f.run()
@@ -394,7 +395,7 @@ func TestDirectionScanAcrossLaneTrees(t *testing.T) {
 		f.reports(names)
 	})
 
-	// The finding's kind and the worker path it names, off one run — the path is what sends the reader
+	// The finding's kind and the worker path it names, off one run. The path is what sends the reader
 	// to the file, and a case asserting only the kind leaves it unpinned.
 	t.Run("names the worker owning a basename a shared file reaches for", func(t *testing.T) {
 		f := newWorkerLaneTree(t, workerBrief)
@@ -461,14 +462,16 @@ func TestTheWorkersExemptionHasAnEntrance(t *testing.T) {
 		f.doesNotReport(cites)
 	})
 
-	// Two copies means the scan cannot say which was meant, so it must say it narrowed rather than
-	// fall silent — the `basename not checked` notice, not the violation it would otherwise forge. Both
-	// halves come off one run: testing the violation set first is what would forge a finding against a
-	// name this scan has just admitted it cannot attribute, and the notice alone would not show it.
+	// With two copies the scan cannot say which was meant. It says out loud that it narrowed: the
+	// `basename not checked` notice, in place of silence. The violation it would otherwise forge
+	// stays out of the output.
 	t.Run("reports a basename two lane trees both hold as unchecked, forging no violation", func(t *testing.T) {
 		f := newWorkerLaneTree(t, workerBrief)
 		f.write(f.root+"/kk-flavor/skills/kk-patrol/scout.md", "a second file of that name\n")
 		f.write(f.root+"/kk-flavor/standards/x.md", "hand it `scout.md` verbatim\n")
+		// Both halves come off one run. A case testing the violation set first would forge a finding
+		// against a name this scan has just admitted it cannot attribute, and the notice alone leaves
+		// that forgery unshown.
 		output := f.run()
 		f.found(output, unchecked)
 		f.absent(output, basenames)

@@ -131,7 +131,7 @@ func TestSubcommandCountIsBounded(t *testing.T) {
 	// Presence alone is not enough here, and it was all this pinned: the notice reached the screen
 	// because it sorted ahead of the basename the findings led with, and the day those findings led
 	// with a path instead, the per-rank cap dropped the one line saying the scan had stopped checking.
-	// `ranksAbove` fails on an absent notice too, so its presence needs no case of its own.
+	// That check, ranksAbove, fails on an absent notice too, so its presence needs no case of its own.
 	t.Run("reports the subcommands it did not carry, above the findings that notice qualifies", func(t *testing.T) {
 		newFloodedDispatch(t).ranksAbove("were NOT checked", noCallSite)
 	})
@@ -154,9 +154,9 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 	}
 
 	// The count is what says how many, because the printer bounds the line and the last path on a long
-	// one can be cut; the first is in a fixed position and is asserted whole. And the report replaces
-	// the check rather than sitting beside it: a finding that cannot be attributed to one of two files
-	// is not printed against either.
+	// one can be cut. The first path is in a fixed position and is asserted whole. The report stands
+	// in place of the check: a finding that cannot be attributed to one of two files is not printed
+	// against either.
 	t.Run("reports the scripts sharing a name, naming how many and which, and withholds the finding it can no longer attribute", func(t *testing.T) {
 		f := newSharedScriptName(t)
 		output := f.run()
@@ -165,8 +165,8 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 		f.absent(output, noCallSite+"beta")
 	})
 
-	// Without this the case above passes on a fixture whose dispatch was never read. The path is part of
-	// the needle, because that is what the welded case takes away.
+	// Take this case away and the welded case passes on a fixture whose dispatch was never read. The
+	// path is part of the needle, because that is what the welded case takes away.
 	t.Run("while one script of that name is checked as before, named by path (control)", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
 		f.reports(noCallSite + "beta — " + f.root + "/kk-flavor/skills/toy.sh")
@@ -204,10 +204,10 @@ func TestAnUnreadableDispatchPathSaysItWasCut(t *testing.T) {
 		return f
 	}
 
-	// The mark is matched together with the text the finding puts after the path, so the assertion is
-	// about where the cut is reported rather than about a "..." landing anywhere in the output. The
-	// finding's own wording rides beside it as the control: without it the mark passes over a run that
-	// named no directory at all.
+	// The mark is matched together with the text the finding puts after the path. The assertion is
+	// about the place the cut is reported, and a bare "..." somewhere else in the output fails it.
+	// The finding's own wording rides beside it as the control: take it away and the mark passes over
+	// a run that named no directory at all.
 	t.Run("names the directory it could not read, marking the path it cut", func(t *testing.T) {
 		newLongToolName(t).reports("no source directory at ", shell.CutMarker+") — the 2 subcommand(s)")
 	})
@@ -387,8 +387,8 @@ func TestAnUnreadDispatchSurvivesAFlood(t *testing.T) {
 	}
 
 	// Presence alone passes again the day the rank is dropped and the flood lands one line short of
-	// the per-rank cap, so the ordering is what this pins — over the whole finding, path included,
-	// because `ranksAbove` fails on an absent needle too and that is what carries the presence half.
+	// the per-rank cap. The ordering is what this pins, over the whole finding, path included. That
+	// check, ranksAbove, fails on an absent needle too, and that is what carries the presence half.
 	t.Run("shows it through a flood of link findings, above that flood rather than inside it", func(t *testing.T) {
 		f := newUnreadDispatchUnderAFlood(t)
 		f.ranksAbove(unreadable+f.root+toyIsUnread, "dangling link: ")
