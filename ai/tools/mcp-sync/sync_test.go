@@ -12,13 +12,13 @@ import (
 	"configs/ai/tools/mcp"
 )
 
-// Nothing here runs a client CLI. The seam is `Client`, and what the suite drives is the REAL
-// claudeClient and codexClient with their one process call replaced by a recorder — so the argument
-// lists asserted below are the ones a machine would be handed, not a re-statement of them.
-//
-// The real CLIs are out of reach on purpose as well as in practice: `claude mcp add-json` writes the
-// human's live registry, and no CI runner has either binary. The one case that genuinely needs a real
-// Codex is in codex_cli_test.go, where it skips with its reason when the CLI is absent.
+// No case here runs a client CLI. The seam is `Client`, and the suite drives the REAL claudeClient
+// and codexClient with their one process call replaced by a recorder. The argument lists this file
+// asserts come from that recorder, so they are what a machine is handed.
+
+// The real CLIs are out of reach on purpose as well as in practice. `claude mcp add-json` writes the
+// human's live registry, and no CI runner has either binary. The single case that genuinely needs a
+// real Codex is in codex_cli_test.go, where it skips with its reason when the CLI is absent.
 
 // calls records one client's process invocations, and can be told to fail one of them.
 type calls struct {
@@ -64,8 +64,8 @@ const declaration = `// a comment owning its whole line
 `
 
 // How a fixture's launcher is left. Absent and present-but-not-executable are two ways to reach one
-// refusal, and both are checkouts a human really has: a partial copy, and a file that lost its mode
-// bit through an archive.
+// refusal. Both are checkouts a human really has: a partial copy, and a file that lost its mode bit
+// through an archive.
 type launcherState int
 
 const (
@@ -74,12 +74,14 @@ const (
 	launcherUnexecutable
 )
 
-// A checkout of this repository's `ai/` directory: the declaration, and the wrapper beside it.
-//
 // `name` may carry a quote, because that is the injection case. Everything lands under t.TempDir(),
-// and newCheckout refuses a name that would leave it — these fixtures are the shape of the script
-// that once followed a live symlink out of a sandbox and overwrote real config files in this
-// checkout, and the containment is asserted before the first write rather than looked for after.
+// and newCheckout refuses a name that would leave it.
+
+// These fixtures are the shape of the script that once followed a live symlink out of a sandbox and
+// overwrote real config files in this checkout. The containment is asserted before the first write,
+// and a later look would come too late.
+
+// A checkout of this repository's `ai/` directory: the declaration, and the wrapper beside it.
 func newCheckout(t *testing.T, name string, launcher launcherState) string {
 	t.Helper()
 	root := t.TempDir()
@@ -209,8 +211,8 @@ func TestHelpPrintsTheGrammarAndSyncsNothing(t *testing.T) {
 			if len(result.claude.lines) > 0 {
 				t.Errorf("%s registered something:\n%s", flag, result.claude.flat())
 			}
-			// Every agent the parser accepts, named by the help. Read from the same list the parser reads,
-			// so a client added to this tool cannot be one the help quietly stops mentioning.
+			// Every agent the parser accepts has to be named by the help. This loop walks the same list the
+			// parser reads, so a client added to this tool cannot be one the help quietly stops mentioning.
 			for _, agent := range agents {
 				if !strings.Contains(result.stdout, agent) {
 					t.Errorf("%s does not name the %q client, which this tool accepts — the help would then "+
@@ -235,8 +237,8 @@ func TestACheckoutThatSubstitutesAndHasTheWrapperSyncsEveryServer(t *testing.T) 
 	if result.code != exitSynced {
 		t.Fatalf("exit %d, want 0\n%s", result.code, result.stderr)
 	}
-	// The control that makes the two refusals below mean something: on a checkout that is fine, the
-	// same code registers. Without it, both refusals pass on any fixture broken enough to stop early.
+	// The control that makes the two launcher refusals mean something. On a sound checkout the same
+	// code registers, and without this both refusals pass on any fixture broken enough to stop early.
 	if len(result.claude.lines) == 0 {
 		t.Fatal("a sound checkout registered nothing, so every refusal case below would pass against a " +
 			"tool that never reaches a client at all")
@@ -277,8 +279,8 @@ func TestClaudeEntriesAreRemovedBeforeTheyAreAdded(t *testing.T) {
 	}
 }
 
-// What a failed re-add leaves behind is not "nothing happened": the entry was removed first, so the
-// human's client no longer has a server their file still declares.
+// A failed add leaves the entry removed, so the human's client no longer has a server their file
+// still declares.
 func TestAFailedClaudeReAddSaysTheServerIsNowUnregistered(t *testing.T) {
 	t.Parallel()
 	claude := &calls{failOn: "playwright"}
@@ -295,8 +297,8 @@ func TestAFailedClaudeReAddSaysTheServerIsNowUnregistered(t *testing.T) {
 	}
 }
 
-// A failure part-way is not "nothing happened": the entries before it are registered, and a refusal
-// claiming otherwise sends the human looking for a registry that has already moved.
+// A failure midway leaves the entries before it registered, and a refusal claiming an untouched
+// registry sends the human looking for one that has already moved.
 func TestAFailurePartWayThroughDoesNotClaimNothingWasSynced(t *testing.T) {
 	t.Parallel()
 	claude := &calls{failOn: "chrome-devtools"}
@@ -340,8 +342,8 @@ func TestACheckoutWithoutARunnableWrapperIsRefused(t *testing.T) {
 		launcher launcherState
 	}{
 		{name: "the wrapper is missing", launcher: launcherAbsent},
-		// Present but not executable is the same refusal: the CLI would take the entry happily and the
-		// server would fail at launch, with nothing saying so until the next session started it.
+		// A present wrapper without its mode bit draws the same refusal. The CLI takes the entry happily
+		// and the server fails at launch, and the failure stays quiet until the next session starts it.
 		{name: "the wrapper is not executable", launcher: launcherUnexecutable},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
@@ -375,8 +377,8 @@ func TestADeclarationThatIsNotThereStopsTheSync(t *testing.T) {
 	}
 }
 
-// The private half is read in the same run, and it wins: it is where an entry carrying a credential or
-// naming an internal host lives, and it exists to override the committed one.
+// The private half is read in the same run, and it wins. It is where an entry carrying a credential
+// or naming an internal host lives, and it exists to override the committed half.
 func TestThePrivateDeclarationIsSyncedAfterThePublicOne(t *testing.T) {
 	t.Parallel()
 	dir := newCheckout(t, "ai", launcherExecutable)
@@ -398,8 +400,8 @@ func TestThePrivateDeclarationIsSyncedAfterThePublicOne(t *testing.T) {
 	}
 }
 
-// Every declaration is read and refused as a set before anything is registered: a private file naming
-// something Codex cannot preserve must not land after the public entries have already been rewritten.
+// Every declaration is read and refused as a set before registration starts. A private file naming
+// something Codex cannot preserve must not land after the public entries have been rewritten.
 func TestAPrivateFileCodexCannotPreserveStopsTheWholeSync(t *testing.T) {
 	t.Parallel()
 	dir := newCheckout(t, "ai", launcherExecutable)

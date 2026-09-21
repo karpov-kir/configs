@@ -10,12 +10,11 @@ import (
 // The mode a config file is created with when the project has none yet.
 const newConfigMode = 0o644
 
+// writeConfig replaces the file by rename. A followed symlink writes outside the project, at whatever
+// the link names, and a followed hard link breaks a link the project deliberately made. The human
+// sees neither outcome, so a link here is refused.
+
 // The previous contents of a project's config file, or empty where there is none.
-//
-// A symlink or a hard link is refused rather than followed. The write below replaces the file by
-// rename, so following a link would either write through it — landing outside the project, at
-// whatever the link names — or break a hard link the project deliberately made, and the human would
-// see neither.
 func readConfig(file string) (string, error) {
 	info, err := os.Lstat(file)
 	if os.IsNotExist(err) {
@@ -42,11 +41,11 @@ func linkCount(info os.FileInfo) uint64 {
 	return uint64(status.Nlink)
 }
 
-// Written beside the file and renamed over it, so a reader of the config never sees half of one, and
-// a failure part-way leaves the previous version intact.
-//
-// The temporary carries this process's id and is created exclusively: two runs at once then fail to
-// create rather than writing over each other's half-written file.
+// The temporary carries this process's id and is created exclusively, so two runs at once both fail
+// to create it and neither writes over the other's half-written file.
+
+// writeConfig writes beside the file and renames over it, so a reader of the config never sees half a
+// file, and a failure midway leaves the previous version intact.
 func writeConfig(file, text, previous string) error {
 	if text == previous {
 		return nil

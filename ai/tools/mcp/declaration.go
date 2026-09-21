@@ -6,13 +6,13 @@ import (
 	"os"
 )
 
-// The one key a declaration file carries.
+// The only key a declaration file carries.
 const ServersKey = "mcpServers"
 
 // Server is one entry of a declaration: its name, and its configuration exactly as the file wrote it.
-// The configuration stays raw because it is what a client is handed — re-encoding it through a Go
-// type would drop any field this tool does not model, and the whole point of the refusals in
-// mcp-sync is that an unmodelled field is refused rather than silently lost.
+// The configuration stays raw because it is what a client is handed. Re-encoding it through a Go type
+// silently drops any field this tool does not model, and mcp-sync's refusals exist so such a field
+// stops the run instead.
 type Server struct {
 	Name   string
 	Config json.RawMessage
@@ -20,7 +20,7 @@ type Server struct {
 
 // Document is one declaration file, read and substituted.
 type Document struct {
-	// Source is the file it came from, so a refusal can name which of the two files is at fault.
+	// Source is the file it came from. A refusal names which of the two files is at fault.
 	Source  string
 	Servers []Server
 	// Keys is every top-level key the file carried. Codex refuses a file carrying anything but
@@ -29,11 +29,10 @@ type Document struct {
 }
 
 // ReadDocument reads one declaration file, strips its comments, substitutes the configs directory and
-// returns its servers in document order.
+// returns its servers in document order. configsDir must already be substitutable.
 //
-// The caller has already established that the directory is substitutable — ConfigsDirIsSubstitutable
-// is not re-asked here, because a caller that skipped it wants a refusal it can word for itself
-// rather than a parse error about a JSON string that closed early.
+// ConfigsDirIsSubstitutable is not re-asked here. A caller that skipped it wants a refusal it can word
+// for itself, and what it would get here is a parse error about a JSON string that closed early.
 func ReadDocument(file, configsDir string) (*Document, error) {
 	text, err := os.ReadFile(file)
 	if err != nil {

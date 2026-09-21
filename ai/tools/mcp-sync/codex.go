@@ -9,12 +9,12 @@ import (
 	"configs/ai/tools/mcp"
 )
 
-// The transport Codex registers as a URL rather than as a child process.
+// The transport Codex registers as a URL. Every other transport it takes is a child process.
 const codexHTTP = "http"
 
 // What Codex can be handed. It takes a server as command, arguments and environment, or as a
-// streamable HTTP URL, and it takes them as command-line arguments — so anything a declaration
-// carries beyond these fields would be dropped on the way in, and is refused instead.
+// streamable HTTP URL. All of it goes over as command-line arguments, so a declaration carrying a
+// field beyond these loses it on the way in, and the sync refuses such a declaration.
 var codexStdioFields = []string{"type", "command", "args", "env"}
 
 var codexHTTPFields = []string{"type", "url"}
@@ -25,17 +25,18 @@ var codexServerName = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*$`)
 // An environment variable name, as every shell spells one.
 var environmentName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// The URLs Codex registers as a streamable HTTP transport. No whitespace and no control character,
-// because the URL becomes one command-line argument and neither survives being read back out of one.
+// The URLs Codex registers as a streamable HTTP transport. Whitespace and control characters are
+// excluded, because the URL becomes one command-line argument and neither survives being read back
+// out of one.
 var codexURL = regexp.MustCompile(`^https?://[^[:space:][:cntrl:]]+$`)
 
 type codexClient struct {
 	run func(args []string) error
 }
 
-// Codex takes the whole file or none of it: it has no way to represent a declaration's other
-// top-level keys, and a name it cannot spell on a command line is a server it would register under a
-// different one.
+// Codex takes the whole file or none of it. It has no way to represent a declaration's other
+// top-level keys, and a name it cannot spell on a command line becomes a server registered under a
+// different name.
 func (c codexClient) AcceptsDocument(document *mcp.Document) error {
 	unsupported := len(document.Keys) != 1 || document.Keys[0] != mcp.ServersKey
 	for _, server := range document.Servers {
@@ -66,12 +67,12 @@ func (c codexClient) Register(server mcp.Server) error {
 	return nil
 }
 
+// The build IS the validation. Every field Codex can carry appears here as an argument, so a field
+// that reaches no argument is a field the registration loses, and the same walk answers both
+// questions. Two separate walks, one deciding and one building, let a field pass the first and drop
+// out of the second.
+
 // The command line that registers one server, or the reason it cannot be built.
-//
-// Building it IS the validation: every field Codex can carry appears here as an argument, so a field
-// that reaches no argument is one the registration would lose, and the same walk answers both
-// questions. Two separate walks — one deciding, one building — is how a field gets accepted by the
-// first and dropped by the second.
 func codexArgs(server mcp.Server) ([]string, error) {
 	config, err := mcp.ParseObject(server.Config)
 	if err != nil {
@@ -182,11 +183,11 @@ func argumentString(config *mcp.Object, field string) (string, error) {
 	return text, nil
 }
 
+// The NUL is what makes this a check. A command-line argument is NUL-terminated, so a value carrying
+// one arrives at the server truncated at it. A refusal here keeps a declaration from meaning one
+// thing in the file and another in the registry.
+
 // A JSON value that can be one command-line argument.
-//
-// The NUL is the whole reason this is a check and not a cast: a command-line argument is
-// NUL-terminated, so a value carrying one arrives at the server truncated at it. Refusing it here
-// keeps a declaration from meaning one thing in the file and another in the registry.
 func argumentValue(raw json.RawMessage) (string, error) {
 	var text string
 	if err := json.Unmarshal(raw, &text); err != nil {

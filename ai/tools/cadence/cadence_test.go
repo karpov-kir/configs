@@ -9,9 +9,9 @@
 // absence of the longer one instead — and the undetermined message deliberately ends "this is not a
 // 'not due'", so searching for the bare phrase finds the disclaimer and passes a broken run.
 //
-// Nothing here forks git. The record is resolved through two questions — where the working tree root
-// is, and where the store its worktrees share is — and a `repotest.Fake` answers both. That a real git
-// answers them as the cases below assume, a linked worktree included, is `repo/exec_test.go`'s.
+// No case here forks git. A `repotest.Fake` answers the two questions the record is resolved through,
+// the working tree root and the store its worktrees share. That a real git answers them as this suite
+// assumes, a linked worktree included, is `repo/exec_test.go`'s.
 //
 // Dates come from Go's own calendar arithmetic against a FIXED clock, never from re-deriving the
 // package's day count — a fixture that reimplemented it would agree with itself rather than with the
@@ -64,8 +64,8 @@ func newRepo(t *testing.T) *fixture {
 }
 
 // newNeutral answers as git does outside any repository, for the cases that must reach no record.
-// Arranged rather than found: a temp dir that sat inside one would pass those cases for the wrong
-// reason.
+// The fixture arranges that answer. A temp dir that happens to sit inside a repository passes those
+// cases for the wrong reason.
 func newNeutral(t *testing.T) *fixture {
 	t.Helper()
 	dir := t.TempDir()
@@ -380,7 +380,7 @@ func TestARecordThatCannotBeRead(t *testing.T) {
 // --- which repository the record belongs to -----------------------------------------------------
 
 // Run from a subdirectory, which is where an unabsolutised `--git-common-dir` invents a .git of its
-// own. recordPath carries why; the guard is that the question goes from the working tree root, so
+// own. recordPath carries why. The guard is that the question goes from the working tree root, so
 // that is what this asserts. The answer coming back absolute is `repo/exec_test.go`'s.
 func TestRecordingFromASubdirectory(t *testing.T) {
 	f := newRepo(t)
@@ -402,9 +402,9 @@ func TestRecordingFromASubdirectory(t *testing.T) {
 	f.expectCode(t, 1)
 }
 
-// A linked worktree shares the repository, so it shares the record. Read off the worktree's own git
-// dir — which is what `--git-dir` and `--git-path` answer there — the date written from the main tree
-// is invisible and the offer repeats in every worktree. That a real linked worktree answers a git dir
+// A linked worktree shares the repository, so it shares the record. `--git-dir` and `--git-path`
+// answer the worktree's own git dir there. A record read off that dir hides the date written from the
+// main tree, and the offer repeats in every worktree. That a real linked worktree answers a git dir
 // of its own and its clone's common dir is `repo/exec_test.go`'s.
 func TestALinkedWorktreeSeesTheMainTreesRecord(t *testing.T) {
 	f := newRepo(t)

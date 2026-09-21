@@ -31,9 +31,9 @@ func TestALineStartingWithACommentMarkerIsBlanked(t *testing.T) {
 	}
 }
 
-// The control that makes the row above a measurement: the stripping leaves that file unparseable on
-// purpose, so the grammar is "a comment owns its whole line" rather than "a comment is anything after
-// two slashes".
+// The control that makes the trailing-comment row of TestALineStartingWithACommentMarkerIsBlanked a
+// measurement. That stripping leaves the file unparseable on purpose. The grammar is "a comment owns
+// its whole line", so two slashes inside a value stay text.
 func TestATrailingCommentIsLeftForTheParserToRefuse(t *testing.T) {
 	t.Parallel()
 	stripped := StripComments("{\"a\": 1} // trailing\n")
@@ -44,8 +44,8 @@ func TestATrailingCommentIsLeftForTheParserToRefuse(t *testing.T) {
 	}
 }
 
-// Blanked and not deleted, so a parse error's line number still points at the line the human is
-// looking at.
+// The line is blanked in place, so a parse error's line number still points at the line the human
+// reads.
 func TestStrippingKeepsEveryLineWhereItWas(t *testing.T) {
 	t.Parallel()
 	text := "// one\n{\n  // two\n  \"a\": 1\n}\n"
@@ -71,9 +71,8 @@ func TestTheTokenBecomesTheDirectory(t *testing.T) {
 			want: "/a/x /a/y"},
 		{name: "nowhere, leaving text without the token untouched", text: `{"url": "https://example.com/mcp"}`,
 			dir: "/opt/kk", want: `{"url": "https://example.com/mcp"}`},
-		// Why this is a plain replacement and not a pattern: every delimiter a pattern language could
-		// take is a character a path may hold, and `&` is a replacement's own back-reference in sed.
-		// None of them is special here.
+		// A plain replacement, because every delimiter a pattern language could take is a character a
+		// path may hold. In sed, `&` is a replacement's own back-reference. Neither is special here.
 		{name: "in a path holding a pattern language's own metacharacters", text: "@CONFIGS@/mcp-env.sh",
 			dir: `/tmp/a&b$c*d e`, want: `/tmp/a&b$c*d e/mcp-env.sh`},
 	} {
@@ -112,7 +111,7 @@ func TestADirectoryIsSubstitutableUnlessItCanCloseOrEscapeAJSONString(t *testing
 	}
 }
 
-// Why those two are refused rather than escaped: both manglings are silent, and both parse.
+// Both manglings are silent and both parse, so no later stage catches them and the substitution refuses.
 //
 // A backslash lands inside the JSON string as an escape, so the entry still parses and names a
 // DIFFERENT path — `/opt/a\b` reaches the CLI as a backspace.
@@ -131,9 +130,9 @@ func TestABackslashInTheDirectoryYieldsJSONThatParsesAndNamesAnotherPath(t *test
 	}
 }
 
-// A crafted quote closes the string early, and the rest of the directory becomes further keys — an
-// `env` one being enough, since the environment stripping is exactly what the wrapper this command
-// names exists to do.
+// A crafted quote closes the string early, and the rest of the directory becomes further keys. An
+// `env` key is enough on its own, since environment stripping is what the wrapper this command names
+// exists to do.
 func TestACraftedQuoteInTheDirectoryGrowsTheEnvKeyTheWrapperExistsToRemove(t *testing.T) {
 	t.Parallel()
 	injected := SubstituteConfigsDir(`{"command": "@CONFIGS@/mcp-env.sh"}`,

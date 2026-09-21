@@ -222,20 +222,20 @@ func parseDate(text string) (time.Time, bool) {
 	return parsed, true
 }
 
-// git is asked rather than the layout being walked here. `--git-common-dir` knows about linked
-// worktrees, alternates and `$GIT_DIR`, and reimplementing that would put a second, quietly diverging
-// answer in the tree — one whose failure mode is writing the record somewhere no other caller looks,
-// which is invisible until the offer repeats forever. What git said about either failure is dropped:
-// its wording names a cause the caller cannot act on, where the two refusals below say what was not
-// determined.
+// `--git-common-dir` knows about linked worktrees, alternates and `$GIT_DIR`, so recordPath asks git
+// instead of walking the layout. A second implementation here quietly diverges from it. It writes the
+// record where no other caller looks, and the offer then repeats forever.
+
+// recordPath returns the per-repo record's path, or a refusal naming what was not determined. What
+// git said about either failure is dropped, because its wording names a cause the caller cannot act on.
 func recordPath(git repo.Git, cwd string) (string, error) {
 	root, err := git.TopLevel(cwd)
 	if err != nil || root == "" {
 		return "", errors.New("not inside a git repository, so there is no per-repo record — nothing was determined.")
 	}
-	// Asked from the root, never from the caller's own directory: git answers `--git-common-dir`
-	// relative to where it ran in an ordinary repo, so asked from a subdirectory the port anchors a
-	// bare `.git` there and the record lands beside the caller, invisible to everyone else.
+	// The question goes from the root. In an ordinary repo git answers `--git-common-dir` relative to
+	// its own working directory. A subdirectory therefore gets a bare `.git` anchored there by the
+	// port, and the record lands beside the caller, where no other worktree sees it.
 	gitDir, err := git.CommonDir(root)
 	if err != nil || gitDir == "" {
 		return "", errors.New("could not resolve the repository's shared git dir — nothing was determined.")

@@ -10,9 +10,12 @@ import (
 	"configs/ai/tools/mcp"
 )
 
+// The live registry these write is the human's, so almost every case passes a fake in this seam's
+// place. The exception is codex_cli_test.go. It drives this for real against a CODEX_HOME of its own,
+// and it skips where the CLI is absent.
+
 // NewCLIClient is the production half of the Client seam: each agent's own command-line interface,
-// found on PATH and driven as a process. The suite passes a fake in its place, so nothing below runs
-// under `go test` — the live registry these write is the human's.
+// found on PATH and driven as a process.
 func NewCLIClient(stdout, stderr io.Writer) NewClient {
 	return func(agent string) (Client, error) {
 		if _, err := exec.LookPath(agent); err != nil {
@@ -39,19 +42,18 @@ type claudeClient struct {
 	run func(args []string) error
 }
 
-// Claude stores a server's configuration as the JSON it was declared with, so there is no field it
-// cannot preserve and nothing to refuse here.
+// Claude stores a server's configuration as the JSON it was declared with, so it preserves every
+// field and this arm accepts every document.
 func (c claudeClient) AcceptsDocument(document *mcp.Document) error {
 	return nil
 }
 
-// Removed, then added: `claude mcp add-json` refuses a name that is already registered, and this tool
-// exists to update an entry as well as create one.
-//
 // The removal is allowed to fail, because the usual reason is that the server was never registered.
-// What that leaves is the window the message below is about: between the two calls the server is
-// gone, so a failed add is not "nothing happened", it is an entry the human still has in their file
-// and no longer has in their client.
+// Between the two calls the server is gone, which is what Register's own failure message is about. A
+// failed add leaves an entry the human still has in their file and no longer has in their client.
+
+// Register removes the entry and then adds it. `claude mcp add-json` refuses a name that is already
+// registered, and this tool exists to update an entry as well as create one.
 func (c claudeClient) Register(server mcp.Server) error {
 	name := server.Name
 	config, err := compact(server.Config)
@@ -66,9 +68,9 @@ func (c claudeClient) Register(server mcp.Server) error {
 	return nil
 }
 
-// One argument, so the entry goes across whole. The declaration's own spacing and line breaks are not
-// part of what it means to a client, and a multi-line argument is one more thing between the file and
-// the registry.
+// One argument, so the entry goes across whole. The declaration's own spacing and line breaks are no
+// part of what it means to a client. A multi-line argument is one more thing between the file and the
+// registry.
 func compact(config json.RawMessage) (string, error) {
 	var out bytes.Buffer
 	if err := json.Compact(&out, config); err != nil {

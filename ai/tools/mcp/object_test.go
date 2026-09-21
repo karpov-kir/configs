@@ -24,8 +24,8 @@ func TestAnObjectRoundTripsInDocumentOrder(t *testing.T) {
 	}
 }
 
-// Replacing a value must not move its key: a server updated in place would otherwise jump to the end
-// of a project's config and read as a removal plus an addition.
+// Set must leave a replaced value's key where it is. A key that moves sends the server to the end of
+// a project's config, where it reads as a removal plus an addition.
 func TestSettingAnExistingKeyLeavesItWhereItWas(t *testing.T) {
 	t.Parallel()
 	object, err := ParseObject([]byte(`{"one":1,"two":2,"three":3}`))
@@ -81,8 +81,9 @@ func TestEncodingLeavesTheLaunchersOwnCharactersAlone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encoding: %v", err)
 	}
-	// No backslash at all, rather than a hunt for one spelling of the escape: every character in this
-	// fixture is one Go's default encoder rewrites, and none of them needs escaping in JSON.
+	// The assertion looks for any backslash, because each escape has more than one spelling. Every
+	// character in this fixture is one Go's default encoder rewrites, and none of them needs escaping
+	// in JSON.
 	if strings.ContainsRune(string(encoded), '\\') {
 		t.Errorf("the launcher's own characters were written as escapes: %s\nThe file is compared byte for "+
 			"byte against what a reinstall would write, so an escaping nobody asked for reads as a file "+
@@ -106,10 +107,11 @@ func TestSomethingThatIsNotAnObjectIsRefused(t *testing.T) {
 	}
 }
 
-// Anything after the closing brace is a document that is not one object, whether or not that
-// something is itself JSON. The check used to be `Decode` into a second value, which only fires when
-// what follows PARSES — so `THIS IS NOT JSONC` appended to `ai/mcp.jsonc` was accepted, the file read
-// as the object above it, and every suite over it stayed green.
+// An earlier check decoded a second value, which fires only when what follows parses. `THIS IS NOT
+// JSONC` appended to `ai/mcp.jsonc` was accepted, the file read as the leading object, and every
+// suite over it stayed green.
+
+// Anything after the closing brace makes the document more than one object, valid JSON included.
 func TestAnythingAfterTheObjectIsRefusedWhetherOrNotItIsJSON(t *testing.T) {
 	for _, trailing := range []string{
 		`{"one":1} {"two":2}`,

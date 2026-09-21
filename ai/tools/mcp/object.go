@@ -9,18 +9,17 @@ import (
 	"strings"
 )
 
+// Order is not decoration. `project-mcp.sh` renders the declaration's server order into a project's
+// `.codex/config.toml`, and that file is compared byte for byte against a reinstall's output.
+// Re-ordering the servers turns an untouched region into one this tool refuses as edited.
+
+// A Go map answers its keys in a random order, and `encoding/json` marshals them sorted, so neither
+// can be the representation. Values stay raw for the same reason a level down. A project's
+// `.mcp.json` holds other tools' entries, and round-tripping one through a map sorts its keys and
+// re-escapes its strings. The result is a diff across a file this tool was asked to add a server to.
+
 // Object is a JSON object held in the order its document wrote it, with every value's own bytes kept
 // verbatim.
-//
-// Order is not decoration here. The declaration's server order is what `project-mcp.sh` renders into
-// a project's `.codex/config.toml`, and that file is compared byte for byte against what a reinstall
-// would write: re-ordering the servers turns an untouched region into one this tool refuses as
-// edited. A Go map answers its keys in a random order and `encoding/json` marshals them sorted, so
-// neither can be the representation.
-//
-// Values stay raw for the same reason a level down. A project's `.mcp.json` holds other tools'
-// entries, and round-tripping one through a map would sort its keys and re-escape its strings — a
-// diff across a file this tool was asked to add one server to.
 type Object struct {
 	keys   []string
 	values map[string]json.RawMessage
@@ -57,11 +56,12 @@ func ParseObject(raw []byte) (*Object, error) {
 	if _, err = decoder.Token(); err != nil {
 		return nil, err
 	}
-	// Whatever follows the object is not part of it. The test is that the decoder is at EOF, NOT that a
-	// second value decodes: a decode error means something is there and does not parse, which is the
-	// same document-is-not-one-object defect wearing a different hat. Read the other way round,
-	// `THIS IS NOT JSONC` appended to a declaration was accepted and the file read as the object above
-	// it, with every suite over it green.
+	// An earlier check decoded a second value, and it let `THIS IS NOT JSONC` appended to a declaration
+	// through. The file then read as the leading object alone, with every suite over it green.
+
+	// Whatever follows the object is not part of it, so the decoder must be at EOF here. A decode error
+	// means something is there and fails to parse, which is the same defect of a document that holds
+	// more than one object.
 	var trailing json.RawMessage
 	switch err = decoder.Decode(&trailing); {
 	case errors.Is(err, io.EOF):
@@ -73,7 +73,7 @@ func ParseObject(raw []byte) (*Object, error) {
 	}
 }
 
-// NewObject is an empty object, filled in whatever order the caller wants it written.
+// NewObject is an empty object. The caller fills it in whatever order it wants the object written.
 func NewObject() *Object {
 	return &Object{values: map[string]json.RawMessage{}}
 }
@@ -88,7 +88,7 @@ func (o *Object) Get(key string) (json.RawMessage, bool) {
 	return value, held
 }
 
-// Set keeps an existing key where it already sits, so replacing a value never moves it.
+// Set keeps an existing key at its current index, so a replaced value keeps its place.
 func (o *Object) Set(key string, value json.RawMessage) {
 	if _, held := o.values[key]; !held {
 		o.keys = append(o.keys, key)
@@ -96,8 +96,8 @@ func (o *Object) Set(key string, value json.RawMessage) {
 	o.values[key] = value
 }
 
-// SetValue encodes a Go value and sets it, so a caller building an object states values rather than
-// bytes. It goes through EncodeJSON, so what it writes is what a config file may hold.
+// SetValue encodes a Go value and sets it, so a caller building an object hands over a Go value and
+// leaves the encoding here. It goes through EncodeJSON, so what it writes is what a config file may hold.
 func (o *Object) SetValue(key string, value any) error {
 	encoded, err := EncodeJSON(value)
 	if err != nil {
@@ -143,12 +143,11 @@ func (o *Object) MarshalJSON() ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// EncodeJSON is `json.Marshal` with HTML escaping off and no trailing newline.
+// EncodeJSON is `json.Marshal` with HTML escaping off, and it trims the trailing newline.
 //
-// The default escaping is what a browser needs, not what a config file does: it writes the `&&` in
-// the launcher command as a pair of `\u0026` escapes, which is the same string to a parser and a
-// different file to `cmp`. These configs are compared byte for byte against what a reinstall would
-// write, so an escaping nobody asked for reads as a file somebody edited.
+// The default escaping guards a browser. It writes the `&&` in the launcher command as a pair of
+// `\u0026` escapes, one string to a parser and a different file to `cmp`. These configs are compared
+// byte for byte against a reinstall's output, so escaping no caller asked for reads as an edit.
 func EncodeJSON(value any) ([]byte, error) {
 	var out bytes.Buffer
 	encoder := json.NewEncoder(&out)

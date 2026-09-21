@@ -10,9 +10,8 @@ import (
 	gitrepo "configs/ai/tools/repo"
 )
 
-// What a case hands a run that never passes --changed. Only that option asks the repository
-// anything, so a run that started to would panic here rather than read an answer the case never
-// arranged.
+// What a case hands a run that never passes --changed. Only that option asks the repository anything,
+// and a run that asked anyway panics on this nil value. The case arranged no answers for it to read.
 var noRepository gitrepo.Git
 
 func TestStripRemovesEveryBlockAndRecordsItsSiteInTheStrippedFile(t *testing.T) {

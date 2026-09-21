@@ -11,14 +11,13 @@ import (
 	"configs/ai/tools/mcp"
 )
 
-// The one case in this package that starts a process, and the only one that could not be anything
-// else: what a project entry holds is a program for `sh`, and asserting the text of a program is
-// agreeing with the code that wrote it. Whether it survives a home directory full of characters `sh`
-// treats as syntax is a question only `sh` answers.
-//
-// The home here is deliberately hostile — a space, a `$value`, a quote and a non-ASCII character —
-// because a home directory is a name from outside this system, and the launcher reaches the wrapper
-// through `$HOME/.kk-flavor` on every machine that clones the project.
+// The single case in this package that starts a process. What a project entry holds is a program for
+// `sh`, and asserting the text of a program is agreeing with the code that wrote it. Whether it
+// survives a home directory full of characters `sh` treats as syntax is a question only `sh` answers.
+
+// The home here is deliberately hostile: a space, a `$value`, a quote and a non-ASCII character. A
+// home directory is a name from outside this system, and the launcher reaches the wrapper through
+// `$HOME/.kk-flavor` on every machine that clones the project.
 func TestTheLauncherReachesTheWrapperThroughAHomeFullOfShellSyntax(t *testing.T) {
 	t.Parallel()
 	p := newProject(t, claudeAgent)
@@ -27,8 +26,8 @@ func TestTheLauncherReachesTheWrapperThroughAHomeFullOfShellSyntax(t *testing.T)
 	if err := os.MkdirAll(filepath.Join(checkout, "kk-flavor"), 0o755); err != nil {
 		t.Fatalf("building the home fixture: %v", err)
 	}
-	// `.kk-flavor` is a symlink into whichever checkout installed it, which is why the launcher resolves
-	// it physically before walking up to the wrapper: `..` is read from the link's target, not its name.
+	// `.kk-flavor` is a symlink into whichever checkout installed it. The launcher resolves it
+	// physically before walking up to the wrapper, because the kernel reads `..` from the link's target.
 	if err := os.Symlink(filepath.Join(checkout, "kk-flavor"), filepath.Join(home, ".kk-flavor")); err != nil {
 		t.Fatalf("linking .kk-flavor: %v", err)
 	}
@@ -78,13 +77,13 @@ func installedEntry(t *testing.T, p *project, name string) installedServer {
 	return entry
 }
 
-// What the declaration says the server's own arguments are — read out of the file rather than written
-// out here, so the expectation follows the declaration instead of pinning a copy of it.
-//
-// Read from the declaration and NEVER from readPublicServers, whose answer is what this case is
-// measuring. Taken from there, the expectation moved with the mapping: dropping the `$0` word made
-// `sh` swallow the first argument, and the case agreed with the mapping about which arguments were
-// left.
+// An earlier version took the arguments from readPublicServers, and the expectation moved with the
+// mapping. The `$0` word was dropped, `sh` swallowed the first argument, and the case agreed with the
+// mapping about which arguments were left.
+
+// declaredArgs reads the server's own arguments out of the declaration file, so the expectation
+// follows the declaration instead of pinning a copy of it. It NEVER reads readPublicServers, whose
+// answer is what this case is measuring.
 func declaredArgs(t *testing.T, p *project, name string) []string {
 	t.Helper()
 	document, err := mcp.ReadDocument(filepath.Join(p.configs, "mcp.jsonc"), mcp.ConfigsToken)

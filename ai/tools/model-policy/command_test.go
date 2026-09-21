@@ -87,9 +87,10 @@ func TestInstalledPolicyFollowsTheInvokedMount(t *testing.T) {
 	}
 }
 
-// The sample document on disk, which is what the command takes. It reads a path rather than a policy,
-// so a case about the command has to give it one — and the shipped file is `ai/tools`'s to read, not
-// this package's: it sits outside the module, where Go's test cache cannot see it change.
+// The command takes a path, so a case about it has to write a file. The shipped file is read in
+// `ai/tools`. It sits outside the module, and Go's test cache cannot see it change.
+
+// fixtureConfig writes the sample document to a temp file and returns its path.
 func fixtureConfig(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "models.json")

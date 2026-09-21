@@ -16,8 +16,8 @@ import (
 
 func main() {
 	// argv[0] as the stub was invoked by, which `exec -a` preserved. The skills, the MCP declaration and
-	// the sibling scripts sit beside that stub, so this is where they are read from — never the process's
-	// own working directory, which is wherever the human happened to be standing.
+	// the sibling scripts sit beside that stub, so reads resolve against the stub's directory. The
+	// process's own working directory is wherever the human stood, and it is not read from.
 	self := filepath.Base(os.Args[0])
 	repo, err := shell.OwnDirectory(os.Args[0])
 	if err != nil {

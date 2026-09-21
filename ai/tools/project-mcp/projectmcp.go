@@ -1,15 +1,16 @@
-// Configure the public MCP servers in one project's own client files, and never in user settings.
-//
 //	usage: project-mcp.sh --agent=claude|codex [--dry-run] [--uninstall] <project>
 //
-// The servers come from `ai/mcp.jsonc`, the committed half of the declaration. `ai/mcp.private.jsonc`
-// is never read here: a project file is committed and reviewed, so anything carrying a credential or
-// naming an internal host belongs only in the user-scope sync.
-//
-// What lands in the project is not what the user scope registers. A user-scope entry names this
-// checkout by absolute path; a project file is shared with everyone who clones the project, so each
-// server is rewritten to reach the launcher through `$HOME/.kk-flavor` — the one path every install
-// of this flavor has.
+// The servers come from `ai/mcp.jsonc`, the committed half of the declaration. `mcp.private.jsonc`
+// stays closed here. A project file is committed and reviewed, so anything carrying a credential or
+// naming an internal host belongs in the user-scope sync alone.
+
+// What lands in the project differs from what the user scope registers. A user-scope entry names this
+// checkout by absolute path. A project file is shared with everyone who clones the project, so each
+// server is rewritten to reach the launcher through `$HOME/.kk-flavor`, the path every install of
+// this flavor has.
+
+// Configure the public MCP servers in one project's own client files, and never in user settings.
+// `usage` in this file states the grammar the stub takes, and the command's own header repeats it.
 package projectmcp
 
 import (
@@ -23,8 +24,8 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// Exit codes on the tools' shared vocabulary. 2 is a grammar this tool did not understand, so nothing
-// was attempted; 1 is a project or a config file it will not write.
+// Exit codes on the tools' shared vocabulary. 2 is a grammar this tool failed to parse, and it
+// attempted no write. 1 is a project or a config file it refuses to write.
 const (
 	exitDone     = 0
 	exitRefused  = 1
@@ -46,11 +47,13 @@ var configFiles = map[string]string{
 // Every message a human reads from this tool, whichever client it was asked about.
 const label = "project MCP"
 
+// `configsDir` is the directory holding `mcp.jsonc`, which is the tool's own directory. The caller
+// resolves it from the path the stub was invoked by.
+
+// `home` is the home directory refuseHome compares against. It arrives as a value, so no case in the
+// suite can reach the owner's own by reading the environment.
+
 // Run executes one invocation and returns its exit code.
-//
-// `configsDir` is the directory holding `mcp.jsonc` — the tool's own, resolved from the path the stub
-// was invoked by. `home` is the home directory the refusals below compare against; taken as a value
-// rather than read from the environment so no case in the suite can reach the owner's own.
 func Run(self string, args []string, configsDir, home string, git repo.Git, stdout, stderr io.Writer) int {
 	run, code, hasStopped := parseArguments(self, args, stdout, stderr)
 	if hasStopped {
@@ -64,9 +67,8 @@ func Run(self string, args []string, configsDir, home string, git repo.Git, stdo
 	return exitDone
 }
 
-// One invocation's fixed context. Held together because every step needs the project and the agent,
-// and a run reading one project while writing another's file is the inconsistency the two must not be
-// able to express.
+// One invocation's fixed context. Every step needs the project and the agent. A run that read one
+// project while writing another's file is the inconsistency these two fields cannot express.
 type invocation struct {
 	agent       string
 	project     string
@@ -78,9 +80,9 @@ type invocation struct {
 	git        repo.Git
 }
 
-// The third value says whether the run stops here — a refused invocation and a printed help both do,
-// and they exit differently. Read as a code alone, exit 0 from the help arm is indistinguishable from
-// "parsed fine, carry on", which is how an empty invocation reaches the filesystem.
+// The third value says whether the run stops here. A refused invocation and a printed help both do,
+// and they exit differently. A caller holding only the code reads exit 0 from the help arm as "parsed
+// fine, carry on". That is how an empty invocation reaches the filesystem.
 func parseArguments(self string, args []string, stdout, stderr io.Writer) (invocation, int, bool) {
 	run := invocation{}
 	for _, arg := range args {
@@ -140,9 +142,9 @@ func isKnownAgent(agent string) bool {
 
 // The whole of one run: resolve the project, work out what the file should hold, and write it.
 func (run *invocation) do(stdout io.Writer) error {
-	// Absolute as well as symlink-free, because the refusals below compare this against paths that
-	// already are: `.` is what a human standing in their home types, and a relative spelling reaching
-	// the home guard matches nothing it is guarding.
+	// The path is made absolute as well as symlink-free, because refuseHome compares it against paths
+	// that already are. `.` is what a human standing in their home types, and a relative spelling
+	// reaching the home guard matches none of what it guards.
 	project, err := shell.RealPath(run.project)
 	if err != nil {
 		return err
@@ -211,8 +213,8 @@ func (run *invocation) refuseHome() error {
 }
 
 // Codex's config sits one directory down, so this tool may have to create `.codex/`. A link there
-// points that write outside the project — at another project's configuration, or at anything else the
-// link names — so a `.codex` that is not a real directory stops the run.
+// points that write outside the project, at another project's configuration or at whatever else the
+// link names. A `.codex` that is not a real directory stops the run.
 func (run *invocation) refuseCodexDirectoryLink() error {
 	if run.agent != codexAgent {
 		return nil
@@ -231,12 +233,12 @@ func (run *invocation) refuseCodexDirectoryLink() error {
 	return nil
 }
 
-// A project's MCP configuration is meant to be committed and reviewed — that is the whole difference
-// between it and the user-scope registry. Written into a path the project ignores, it reaches nobody
-// else and silently differs from what every other clone has.
-//
-// The ignore rules are the project's, so they are reported rather than rewritten. Uninstalling skips
-// this: removing servers from a file the project ignores is still worth doing.
+// The ignore rules are the project's, so this reports them and leaves them alone. An uninstall skips
+// the check, because removing servers from a file the project ignores is still worth doing.
+
+// A project's MCP configuration is meant to be committed and reviewed, which is the whole difference
+// between it and the user-scope registry. A config written into a path the project ignores reaches no
+// other clone, and it differs silently from what every clone has.
 func (run *invocation) refuseUntrackedConfig(file string) error {
 	if _, err := run.git.TopLevel(run.project); err != nil {
 		return nil

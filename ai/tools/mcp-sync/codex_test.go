@@ -12,9 +12,9 @@ func server(config string) mcp.Server {
 	return mcp.Server{Name: "one", Config: json.RawMessage(config)}
 }
 
-// Every transport field Codex can be handed, and every shape of one it cannot. The whole table,
-// because what this decides is which declarations reach a registry unchanged and which are refused —
-// and a row nobody wrote is a field accepted by nothing but accident.
+// Every transport field Codex can be handed, and every shape of one it cannot. The table is
+// exhaustive. A row decides whether its declaration reaches a registry unchanged or draws a refusal.
+// A missing row leaves a field accepted by accident.
 func TestCodexTakesWhatItCanPreserveAndRefusesWhatItCannot(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
@@ -52,9 +52,9 @@ func TestCodexTakesWhatItCanPreserveAndRefusesWhatItCannot(t *testing.T) {
 	}
 }
 
-// The command line itself, which is what a registration IS. Held to the argument list rather than to
-// a rendered string, because the boundaries between arguments are the thing at risk: a value holding
-// a space, a shell metacharacter or a newline has to arrive as one argument.
+// The command line itself, which is what a registration IS. The case asserts the argument list. A
+// rendered string hides the boundaries between arguments, and those are what is at risk. A value
+// holding a space, a shell metacharacter or a newline has to arrive as one argument.
 func TestTheCommandLineKeepsEveryArgumentWhole(t *testing.T) {
 	t.Parallel()
 	args, err := codexArgs(mcp.Server{Name: "literal", Config: json.RawMessage(

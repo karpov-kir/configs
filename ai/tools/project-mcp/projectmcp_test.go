@@ -12,14 +12,18 @@ import (
 	"configs/ai/tools/repo/repotest"
 )
 
-// Nothing here runs a client, a package manager or git. Every case builds its own declaration under
-// its own temporary directory, and git is the port's fake, so the ignore cases arrange an answer
-// instead of building a repository to get one.
-//
-// The declaration this repository actually ships stays out of this package: it is outside the Go
-// module, and Go keys a package's test cache on the module, so a case here that read it would answer
-// `ok (cached)` over a file that had changed underneath the run — measured on 2026-09-17.
-// `ai/tools/shipped_mcp_declaration_test.go` reads it instead. `testing.md` rule 11.
+// No case here runs a client, a package manager or git. Every case builds its own declaration under
+// its own temporary directory, and git is the port's fake. The ignore cases arrange an answer instead
+// of building a repository to get one.
+
+// The declaration this repository actually ships stays out of this package. It is outside the Go
+// module, and Go keys a package's test cache on the module. A case here that read it answers
+// `ok (cached)` over a file that had changed underneath the run. That was measured on 2026-09-17.
+
+// `ai/tools/shipped_mcp_declaration_test.go` reads the shipped file instead. testing.md puts it
+// there, because a suite reads only what its runner's cache keys on.
+
+// A declaration of the shape every case in this file is built from.
 const declarationFixture = `// A declaration of this shape, not the one that ships.
 {
   "mcpServers": {
@@ -44,12 +48,13 @@ var fixtureServers = []string{"alpha", "beta"}
 // settings without naming a file format.
 const managedServerArgument = "@example/alpha"
 
+// No code in this package reads the process environment, because `home` is a parameter. No case can
+// reach the owner's own home, even with the containment assertion removed.
+
+// The guard stays because the shell this replaces once followed a live symlink out of its sandbox and
+// overwrote real config files in this checkout. It is asserted before the first write.
+
 // A project of its own, with a home of its own, both under this case's temporary directory.
-//
-// Nothing in this package reads the process environment — `home` is a parameter — so no case can
-// reach the owner's own home even if the containment below were removed. The guard stays because the
-// shell this replaces was the file that once followed a live symlink out of its sandbox and
-// overwrote real config files in this checkout, and it is asserted before the first write.
 type project struct {
 	t       *testing.T
 	root    string
@@ -79,8 +84,8 @@ func newProject(t *testing.T, agent string) *project {
 	return &project{
 		t: t, root: root, dir: dir, home: home, agent: agent,
 		configs: configs,
-		// No repository by default: most projects a human points this at are one, but arranging git's
-		// answer is the ignore cases' subject and every other case would be keying on it by accident.
+		// No repository by default. Most projects a human points this at are one, but arranging git's
+		// answer is the ignore cases' subject, and every other case would key on it by accident.
 		git: notARepository(),
 	}
 }
@@ -146,8 +151,8 @@ func (p *project) writeConfigFile(text string) {
 	}
 }
 
-// Every case below runs for both clients, because the two file formats are two implementations of one
-// behaviour and a case written for one is a claim nobody makes about the other.
+// forEachAgent runs the body for both clients. The two file formats are two implementations of one
+// behaviour, and a case written for one client makes no claim about the other.
 func forEachAgent(t *testing.T, body func(t *testing.T, p *project)) {
 	t.Helper()
 	for _, agent := range agents {
@@ -191,8 +196,8 @@ func TestInstallExportsEveryPublicServerPortably(t *testing.T) {
 				t.Errorf("%s is missing from the project config, which is the whole deliverable\n%s", name, text)
 			}
 		}
-		// Portable means: it names the one path every install of this flavor has, and never this
-		// checkout. A project file is committed and shared with everyone who clones the project.
+		// Portable means it names a path every install of this flavor has, and leaves this checkout out
+		// of it. A project file is committed and shared with everyone who clones the project.
 		for _, needle := range []string{"$HOME/.kk-flavor", "../mcp-env.sh"} {
 			if !strings.Contains(text, needle) {
 				t.Errorf("the project config does not reach the launcher through %s\n%s", needle, text)
@@ -281,8 +286,8 @@ func TestAServerAlreadyThereUnderAnotherDefinitionIsRefused(t *testing.T) {
 	})
 }
 
-// The write replaces the file by rename, so a link there would either write through it — landing
-// wherever the link names — or break a hard link the project made deliberately.
+// The write replaces the file by rename. A followed symlink writes wherever the link names, and a
+// followed hard link breaks one the project made deliberately.
 func TestAConfigThatIsNotARegularUnlinkedFileIsRefused(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
@@ -326,8 +331,8 @@ func TestAConfigThatIsNotARegularUnlinkedFileIsRefused(t *testing.T) {
 	})
 }
 
-// A project's MCP configuration is meant to be committed and reviewed. Written into a path the
-// project ignores it reaches nobody else, and silently differs from what every other clone has.
+// A project's MCP configuration is meant to be committed and reviewed. A config written into a path
+// the project ignores reaches no other clone, and it differs silently from what every clone has.
 func TestAnIgnoredConfigIsReportedWithoutRewritingTheProjectsIgnoreRules(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
@@ -349,8 +354,8 @@ func TestAnIgnoredConfigIsReportedWithoutRewritingTheProjectsIgnoreRules(t *test
 	})
 }
 
-// Uninstalling skips that check: removing servers from a file the project ignores is still worth
-// doing, and refusing would leave them there with no way to take them out.
+// An uninstall skips that check. A file the project ignores is still worth clearing of servers, and a
+// refusal leaves them there with no way to take them out.
 func TestUninstallRunsEvenWhereTheConfigIsIgnored(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
@@ -370,8 +375,8 @@ func TestUninstallRunsEvenWhereTheConfigIsIgnored(t *testing.T) {
 	})
 }
 
-// git answering neither yes nor no is not a no: a config this tool cannot ask about is one it may be
-// writing where nobody will see it.
+// An ignore question git leaves unanswered stops the write. A config this tool cannot ask about may
+// be one it is writing where no other clone will see it.
 func TestAnUnanswerableIgnoreQuestionStopsTheWrite(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
@@ -400,11 +405,12 @@ func TestTheHomeDirectoryIsNotAProject(t *testing.T) {
 	})
 }
 
-// And however it is spelled. `.` is what a human standing in their home types, and the guard compares
-// the project against an absolute home — so a spelling that stays relative matches nothing and the
-// run writes a project server list straight into the home directory.
-//
-// Not parallel, because it is the working directory that makes `.` mean the home directory.
+// `.` is what a human standing in their home types, and the guard compares the project against an
+// absolute home. A spelling that stays relative matches none of it, and the run writes a project
+// server list straight into the home directory.
+
+// The home directory is no project target, however it is spelled. This case is not parallel, because
+// the working directory is what makes `.` mean the home directory.
 func TestTheHomeDirectoryIsNotAProjectHoweverItIsSpelled(t *testing.T) {
 	for _, agent := range agents {
 		p := newProject(t, agent)
@@ -422,12 +428,12 @@ func TestTheHomeDirectoryIsNotAProjectHoweverItIsSpelled(t *testing.T) {
 	}
 }
 
-// The private declaration is the one carrying credentials and internal hosts. A project file is
-// committed, so nothing from it may ever reach one.
+// The private declaration carries credentials and internal hosts. A project file is committed, so no
+// part of it may reach one.
 func TestThePrivateDeclarationIsNeverReadHere(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
-		// Not valid JSON, so a run that reads it at all fails loudly rather than quietly copying it.
+		// Not valid JSON, so a run that reads it at all fails loudly instead of quietly copying it.
 		if err := os.WriteFile(filepath.Join(p.configs, "mcp.private.jsonc"),
 			[]byte("INVALID PRIVATE SECRET"), 0o644); err != nil {
 			t.Fatalf("building the fixture: %v", err)

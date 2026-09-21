@@ -9,17 +9,16 @@ import (
 	"testing"
 )
 
-// The one case in this package that runs a real client, and the only one that could not be anything
-// else: what it asks is whether CODEX ITSELF keeps an argument whole. Every other case here drives the
-// same command line through a recorder, which says what this tool hands over and nothing about what
-// the other side does with it.
-//
-// It is skipped where the CLI is absent — which is every CI runner and most machines. A skip is not a
-// pass: the reason below names what went unmeasured, and `go test -v` prints it. What stays measured
-// without the CLI is the command line itself, in codex_test.go.
-//
-// The registry is a CODEX_HOME of this test's own. The real one is the human's live configuration, and
-// a case that writes it has stopped being a test.
+// The single case in this package that runs a real client. It asks whether CODEX ITSELF keeps an
+// argument whole. Every other case here drives the same command line through a recorder, which says
+// what this tool hands over and leaves the other side's handling unmeasured.
+
+// It is skipped where the CLI is absent. That covers every CI runner and most machines. A skip is no
+// pass. The skip message names what went unmeasured, and `go test -v` prints it. Without the CLI, the
+// command line itself stays measured, in codex_test.go.
+
+// The registry is a CODEX_HOME of this test's own. The real CODEX_HOME is the human's live
+// configuration, and a case that writes it has stopped being a test.
 func TestARealCodexKeepsEveryArgumentBoundary(t *testing.T) {
 	if _, err := exec.LookPath(codexAgent); err != nil {
 		t.Skipf("the codex CLI is not on PATH, so whether a real Codex preserves an argument boundary, an "+

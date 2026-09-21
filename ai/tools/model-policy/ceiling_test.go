@@ -5,12 +5,13 @@ import (
 	"testing"
 )
 
-// The ceiling against a tree that has the defect, which the shipped one does not. Both clients are
-// asserted: the two orders share no model name, so a check that read one list and compared against the
-// other's top would report nothing and look green.
-//
-// The shipped tree is run past the same derivation by `ai/tools`, which is where a case may read
-// kk-flavor/skills/. This is the half that watches it fail.
+// The two tier orders share no model name. A check reading one list and comparing it against the
+// other's top reports an empty ceiling and looks green, so this case asserts both clients.
+
+// `ai/tools` runs the shipped tree past the same derivation, since a case there may read
+// kk-flavor/skills/. This case is the half that watches the derivation fail.
+
+// The ceiling against a tree that has the defect, which the shipped tree does not.
 func TestTheCeilingCatchesAnOrchestratorAtTheTopTier(t *testing.T) {
 	policy, err := Parse([]byte(sample))
 	if err != nil {
@@ -23,8 +24,8 @@ func TestTheCeilingCatchesAnOrchestratorAtTheTopTier(t *testing.T) {
 	if want := []string{"claude/kk-build", "codex/kk-build"}; !slices.Equal(atTop, want) {
 		t.Fatalf("at the ceiling: %v; want %v", atTop, want)
 	}
-	// The same row declared for the work it keeps is no finding at all — the ceiling reads the
-	// declaration, never the tier alone.
+	// The same row declared for the work it keeps comes back clean, because the ceiling reads the
+	// declaration as well as the tier.
 	atTop, err = policy.OrchestratorsAtTheCeiling(map[string]string{"kk-build": "holds — converses"})
 	if err != nil || len(atTop) != 0 {
 		t.Fatalf("a session at the top tier was reported: %v, %v", atTop, err)

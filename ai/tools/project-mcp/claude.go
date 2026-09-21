@@ -9,13 +9,14 @@ import (
 	"configs/ai/tools/mcp"
 )
 
-// Claude's project file is JSON, and it is the project's file rather than this tool's: it holds
-// whatever else the project put there, and this only adds or removes the servers it owns.
-//
-// An entry already registered under one of those names and holding something else is a refusal, not
-// an overwrite — the human wrote it, and this tool cannot tell an intentional override from a stale
-// copy. Uninstalling skips such an entry for the same reason: it is not the one this tool wrote, so
-// it is not this tool's to remove.
+// An entry already registered under one of those names and holding something else draws a refusal.
+// The human wrote it, and this tool cannot tell an intentional override from a stale copy.
+
+// An uninstall skips such an entry for the same reason. Another hand wrote it, and removing it
+// belongs to that hand.
+
+// mergeClaude adds or removes only the servers this tool owns. Claude's project file is JSON and it
+// belongs to the project, so whatever else the project put there stays.
 func mergeClaude(text string, servers []projectServer, isUninstall bool) (string, error) {
 	config := mcp.NewObject()
 	if text != "" {
@@ -66,9 +67,9 @@ func mergeClaude(text string, servers []projectServer, isUninstall bool) (string
 	return indentJSON(config)
 }
 
-// Two entries are the same server when they say the same thing, whatever order or spacing they say it
-// in: the file may have been written by an editor, by an earlier version of this tool, or by the Node
-// one it replaces.
+// Two entries are the same server when they say the same thing, in whatever order or spacing. The
+// file may have been written by an editor, by an earlier version of this tool, or by the Node version
+// it replaces.
 func isSameJSON(left, right json.RawMessage) bool {
 	var leftValue, rightValue any
 	if err := json.Unmarshal(left, &leftValue); err != nil {

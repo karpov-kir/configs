@@ -10,8 +10,8 @@ const ConfigsToken = "@CONFIGS@"
 // StripComments blanks every line whose first non-blank characters are `//`, leaving the line itself
 // in place.
 //
-// Anchored at the line start: blanking from any `//` onwards truncates a URL. It blanks rather than
-// deletes, so a parser's line numbers still point at the line the human is looking at.
+// The match is anchored at the line start, because blanking from any `//` onwards truncates a URL.
+// A blanked line stays in place, so a parser's line numbers still point at the line the human reads.
 func StripComments(text string) string {
 	lines := strings.Split(text, "\n")
 	for index, line := range lines {

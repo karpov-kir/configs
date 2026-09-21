@@ -9,27 +9,27 @@ import (
 )
 
 // The fences around the region this tool owns in a project's `.codex/config.toml`. Everything between
-// them is written by this tool and compared byte for byte on the next run; everything outside is the
-// project's, and is never rewritten.
+// them is written by this tool and compared byte for byte on the next run. Everything outside belongs
+// to the project, and this tool leaves it as it found it.
 const (
 	regionOpen  = "# kk-flavor-mcp:begin"
 	regionClose = "# kk-flavor-mcp:end"
 )
 
-// An ordinary server table and nothing else: `[mcp_servers.<name>]`, optionally with sub-tables, and
-// at most a trailing comment.
+// An ordinary server table by itself: `[mcp_servers.<name>]`, optionally with sub-tables, and at most
+// a trailing comment.
 var serverTable = regexp.MustCompile(`^\s*\[mcp_servers\.([a-zA-Z0-9_-]+)(?:\.[a-zA-Z0-9_-]+)*\]\s*(?:#.*)?$`)
 
-// A TOML escape. A file using them can spell `mcp_servers` in a way the line scan below would not
-// recognise, so such a file is left for an explicit edit.
+// A TOML escape. A file using them can spell `mcp_servers` in a way `serverTable` fails to recognise,
+// so such a file is left for an explicit edit.
 var tomlEscape = regexp.MustCompile(`\\[uU]`)
+
+// The whole approach is to recognise ordinary server tables and leave everything else alone. Other
+// spellings could redefine the parent table or a managed server, so a file using them goes back for
+// an explicit edit. A wrong guess here silently detaches a server the human still has in their config.
 
 // Codex's project file is TOML, which this tool does not parse. It owns one fenced region and reads
 // the rest only well enough to know it is not being asked to redefine something.
-//
-// Recognizing ordinary server tables only is the whole approach. Other spellings could redefine the
-// parent table or a managed server, so a file using them is left for an explicit edit rather than
-// guessed at — guessing wrong here silently detaches a server the human still has in their config.
 func mergeCodex(text string, servers []projectServer, isUninstall bool) (string, error) {
 	region, err := codexRegion(servers)
 	if err != nil {
@@ -48,8 +48,8 @@ func mergeCodex(text string, servers []projectServer, isUninstall bool) (string,
 		if owned := text[start:end+len(regionClose)] + "\n"; owned != region {
 			return "", fmt.Errorf("project MCP region was edited; preserve or remove it explicitly")
 		}
-		// A setting under the closing fence belongs to the last table above it, which is a managed
-		// server — so removing the region would silently re-home it on whatever table comes next.
+		// A setting under the closing fence belongs to the table that precedes it, a managed server.
+		// The region's removal silently moves that setting onto whatever table comes next.
 		suffix := text[end+len(regionClose):]
 		if following := firstSetting(suffix); following != "" && !strings.HasPrefix(strings.TrimLeft(following, " \t"), "[") {
 			return "", fmt.Errorf("settings after the MCP region belong to a managed server; " +
@@ -87,9 +87,9 @@ func codexRegion(servers []projectServer) (string, error) {
 	return regionOpen + "\n" + strings.Join(blocks, "\n") + regionClose + "\n", nil
 }
 
-// Both fences, each on a whole line of its own, in that order, and once each. Half a region, a
-// repeated one, or one sharing a line with something else is a file this tool cannot tell its own
-// writing from — so it says so rather than picking an interpretation.
+// Both fences, each on a whole line of its own, in that order, and once each. A half region, a
+// repeated region, or a fence sharing a line with something else leaves this tool unable to find its
+// own writing. It refuses and says so, and picks no interpretation.
 func checkRegionFences(text string, start, end int) error {
 	if start < 0 || end < start ||
 		strings.Index(text[start+len(regionOpen):], regionOpen) >= 0 ||

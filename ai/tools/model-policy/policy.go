@@ -379,26 +379,27 @@ func (p *Policy) TopTier(client string) (string, bool) {
 	return ordered[len(ordered)-1], true
 }
 
+// An orchestrator claims every substantive step is dispatched. The most expensive row is what the
+// work a session keeps costs. A skill holding both says two things that cannot both be true, and
+// neither file says which of them to believe.
+
+// The declarations are given, so a caller can hand this a tree that has the defect. A gate that only
+// ever runs against a tree that passes has never been seen to fail.
+
+// It is exported because the check that runs it over the shipped tree lives in `ai/tools`. That tree
+// is outside this module, and Go keys a package's test cache on the module. A case here reading
+// kk-flavor/skills/ answers `ok (cached)` over declarations that changed underneath the run. The
+// fixture case beside this file holds the derivation itself.
+
+// validateSettings makes every row name a model for every client, so every orchestrator ranks here.
+
+// The unranked arm is the other half of that, and it is unreachable on purpose. It walks the same
+// dispatchClients that validateTiers demands an order for, so every client asked about here is a
+// client Parse refused to leave unranked. It stays because a client added to that list with no order
+// behind it makes this report an empty ceiling and pass.
+
 // OrchestratorsAtTheCeiling names every skill in `declared` that calls itself an orchestrator and is
-// priced at the top tier, as `<client>/<skill>`, sorted. An orchestrator claims every substantive step
-// is dispatched; the most expensive row is what the work a session keeps costs, so a skill holding
-// both says two things that cannot both be true and neither file says which one to believe.
-//
-// Given the declarations rather than reading them, so a caller can hand it a tree that has the defect.
-// A gate only ever run against a tree that passes is one nobody has watched fail.
-//
-// Exported because the check that runs it over the shipped tree lives in `ai/tools`: that tree is
-// outside this module, and Go keys a package's test cache on the module, so a case here that read
-// kk-flavor/skills/ would answer `ok (cached)` over declarations that had changed underneath the run.
-// The fixture case beside this file is what holds the derivation itself.
-//
-// Every row names a model for every client — validateSettings refuses one that does not — so every
-// orchestrator ranks and this needs no arm for a row it cannot judge.
-//
-// The unranked arm below is the other half of that, and it is unreachable on purpose rather than by
-// luck: it walks the same dispatchClients validateTiers demands a non-empty order for, so every
-// client asked about here is one Parse refused to leave unranked. It stays because a client added to
-// that list with no order behind it would otherwise make this report an empty ceiling and pass.
+// priced at the top tier, as `<client>/<skill>`, sorted.
 func (p *Policy) OrchestratorsAtTheCeiling(declared map[string]string) ([]string, error) {
 	var atTop []string
 	for _, client := range dispatchClients {
@@ -563,8 +564,8 @@ func validName(value string) bool {
 var dispatchClients = []string{"codex", "claude"}
 
 // DispatchClients is that list, for the shipped-tree checks in `ai/tools`. They live there because the
-// tree is outside this module and Go's test cache cannot see it; they still have to walk the same two
-// clients as everything here, and a second list written out beside them is one that drifts.
+// tree is outside this module and Go's test cache cannot see it. They still walk the same two clients
+// as everything here, and a second list written out beside them falls out of step.
 func DispatchClients() []string { return slices.Clone(dispatchClients) }
 
 // The efforts both CLIs answer to, and the three codex carries on its own.

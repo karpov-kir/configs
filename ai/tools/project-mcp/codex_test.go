@@ -7,10 +7,12 @@ import (
 	"testing"
 )
 
-// Codex's file is TOML, which this tool does not parse: it owns one fenced region and reads the rest
-// only well enough to know it is not being asked to redefine something. Every case below is about
-// what it does with a file it cannot fully understand, and the answer is always to say so rather than
-// to guess — guessing wrong silently detaches a server the human still has in their config.
+// Codex's file is TOML, which this tool does not parse. It owns one fenced region and reads the rest
+// only well enough to know it is not being asked to redefine something.
+
+// Every case in this file is about what the tool does with a file it cannot fully understand. The
+// answer is always to say so. A wrong guess silently detaches a server the human still has in their
+// config.
 
 func TestAnEditedManagedRegionIsKeptRatherThanRemoved(t *testing.T) {
 	t.Parallel()
@@ -30,8 +32,8 @@ func TestAnEditedManagedRegionIsKeptRatherThanRemoved(t *testing.T) {
 	}
 }
 
-// A managed region with the project's own tables after it stays where it is. Reassembling the file
-// around the region would move it to the end: the same servers, a different file, and a diff in the
+// A managed region with the project's own tables after it stays where it is. A file reassembled
+// around the region moves it to the end: the same servers, a different file, and a diff in the
 // project's history on every reinstall.
 func TestAReinstallLeavesARegionThatIsNotAtTheEndOfTheFileWhereItIs(t *testing.T) {
 	t.Parallel()
@@ -51,8 +53,8 @@ func TestAReinstallLeavesARegionThatIsNotAtTheEndOfTheFileWhereItIs(t *testing.T
 	}
 }
 
-// A setting under the closing fence belongs to the last table above it, which is a managed server —
-// so removing the region would silently re-home it on whatever table comes next.
+// A setting under the closing fence belongs to the table that precedes it, a managed server. The
+// region's removal silently moves that setting onto whatever table comes next.
 func TestUninstallRefusesATrailingFieldThatBelongsToAManagedServer(t *testing.T) {
 	t.Parallel()
 	p := newProject(t, codexAgent)
@@ -139,8 +141,8 @@ func TestAFileThisToolCannotReadConfidentlyIsLeftForAnExplicitMerge(t *testing.T
 	}
 }
 
-// The other side of the table above: a server this tool does not manage is none of its business, and
-// the install goes ahead around it.
+// The other side of TestAFileThisToolCannotReadConfidentlyIsLeftForAnExplicitMerge. A server this
+// tool does not manage is none of its business, and the install goes ahead around it.
 func TestAnUnmanagedServerOutsideTheRegionIsLeftAlone(t *testing.T) {
 	t.Parallel()
 	p := newProject(t, codexAgent)
