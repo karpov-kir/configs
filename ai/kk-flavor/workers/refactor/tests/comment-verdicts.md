@@ -61,3 +61,27 @@ say and marks it unverified.
 A run on 2026-09-21 wrote a field saying no source exists, having left the second sentence out as
 unverified. The asset answered 200. A claim the lane can verify false is a correctness finding, and a
 claim it cannot verify keeps its source in the value.
+
+### 7. Two claims on one constant
+
+```ts
+export const PROBE_TIMEOUT_MS = 4000;
+
+export const LEDGER_SOURCES: LedgerSource[] = [
+  { id: 'accrual-eu', url: 'https://example.invalid/accrual-eu.json' },
+];
+```
+
+Facts on `PROBE_TIMEOUT_MS`: `Too short records a ledger as failing a posting it accepted. Too long
+only spends time.`
+
+Facts on the `accrual-eu` row: `The vendor's export for this source predates the closing profile.`
+
+Expected: `carried by <the constant's name>` for the first, and `carried by <a provenance field on the
+entry>` for the second. Both blocks stand on a declaration holding values alone, and the verdict
+differs because the claims do. The first gives the reason for the value, which a name carries. The
+second is about the thing the row names, which a field carries.
+
+Ten blocks of the reviewed set stand on data this way, and most of them are the first shape. A route
+firing on the declaration alone would put a design reason into a provenance field. The lane reads the
+claim itself.

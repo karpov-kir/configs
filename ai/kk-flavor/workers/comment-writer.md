@@ -24,7 +24,7 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    Then two drops you take as steps. Take the claim's content words, with the opening verbs struck as in question 1. The claim is shown by the body where every one of those words appears in the site's identifier, its parameters, its return type or its body lines. Drop it and return `shown by the body: <claim>`.
 
-   A claim about a row of data belongs to the row. The claim describes an entry the site holds, and the code reading that entry says none of it. Return `carried by <a provenance field on the entry>` and write no note for it.
+   A claim about a row of data belongs to the row. Where the declaration under the block holds values alone, return `carried by <the refactor lane>` and write no note for it. That lane decides between the constant's name and a field on the entry, and it owns that verdict. Use it in place of `for the PR body` on a data site.
 
    Then read the change set's tests. A test carries the claim where its name or its describe path holds the claim's subject and its verb. It carries the claim too where that name holds every content noun of it. Drop it and return `carried by <test name>: <claim>`.
 
