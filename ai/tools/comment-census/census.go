@@ -766,16 +766,14 @@ func standsOnData(lines []string, b Block) bool {
 }
 
 // paraphraseWords is the fewest camel humps an identifier needs before its split words in prose read
-// as that identifier. Measured at two, three and four humps: 41 of 304 notes, then 1, then none.
-//
-// It reports and never fires. An identifier's camel humps are usually the domain's own phrase, so
-// the prose using that phrase is right and the identifier is the derivative. comment-census's README
-// holds the samples.
+// as that identifier. The census measured two, three and four humps: 41 of 304 notes, then 1, then
+// none. It reports and never fires, since an identifier's humps are usually the domain's own phrase.
+// The README holds the samples.
 var paraphraseWords = 3
 
 // ParaphrasedIdentifiers returns the identifiers a note spells out in English instead of naming. A
-// reader given "the preferred key systems setting" gets no name and no explanation. The remedy is
-// the name with an appositive, as for a bare one.
+// reader given "the preferred key systems setting" is left short of both. The remedy is the name
+// with an appositive, as for a bare one.
 func ParaphrasedIdentifiers(note string, lines []string) []string {
 	low := strings.ToLower(note)
 	var out []string
