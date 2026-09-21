@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"configs/ai/tools/diffscan"
+	"configs/ai/tools/repo/repotest"
 	"configs/ai/tools/shell"
 )
 
@@ -504,8 +505,9 @@ func TestAMissingConfIsNotAnError(t *testing.T) {
 
 func TestAnUnknownProfileRefusesTheRun(t *testing.T) {
 	var out, errs strings.Builder
-	code := Run("voice-check.sh", []string{"--profile=loud"}, t.TempDir(),
-		Config{MaxFileBytes: 1 << 18}, &out, &errs)
+	dir := t.TempDir()
+	code := Run("voice-check.sh", []string{"--profile=loud"}, dir,
+		repotest.New(dir), Config{MaxFileBytes: 1 << 18}, &out, &errs)
 	if code != exitDidNotRun {
 		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
 	}
@@ -840,7 +842,7 @@ func TestARunThatReadAConfNamesIt(t *testing.T) {
 	t.Setenv("COMMENT_VOICE_CONF", conf)
 	var out, errs strings.Builder
 	Run("voice-check.sh", []string{"--profile=prose", conf}, dir,
-		Config{MaxFileBytes: 1 << 18}, &out, &errs)
+		repotest.New(dir), Config{MaxFileBytes: 1 << 18}, &out, &errs)
 	if !strings.Contains(errs.String(), voiceConfName) || !strings.Contains(errs.String(), "1 coined word") {
 		t.Fatalf("the run did not name the conf it read: %q", errs.String())
 	}

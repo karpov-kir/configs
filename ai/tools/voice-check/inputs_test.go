@@ -1,6 +1,7 @@
 package voicecheck
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -56,6 +57,9 @@ func TestARevisionIsNotAPath(t *testing.T) {
 
 	t.Run("a revision git cannot resolve exits 2 as git's rejection", func(t *testing.T) {
 		r := newRepo(t)
+		// What git answers for a name it holds nothing under. Stated rather than derived: a diff git
+		// refuses is the only way a caller ever hears about an unresolvable revision.
+		r.fake.Fail["Patch"] = errors.New("git diff no-such-rev --: fatal: bad revision 'no-such-rev'")
 		r.run("no-such-rev")
 		r.expectCode(2)
 		r.expectStderrHas("git rejected these arguments")
@@ -73,7 +77,8 @@ func TestARevisionIsNotAPath(t *testing.T) {
 	// branch under review a way to switch the scan off for everyone reading it, by committing a file
 	// called HEAD — and a revision is what the argument was always going to mean here.
 	t.Run("an argument that is both a revision and a filename is read as the revision", func(t *testing.T) {
-		r := newRepo(t)
+		// Real git, because git's own refusal is what the `--` averts and no fake can be made to give it.
+		r := newRealRepo(t)
 		r.write("HEAD", "ambiguous\n")
 		r.commit("add a file called HEAD")
 		r.run("HEAD")
@@ -85,7 +90,7 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r := newRepo(t)
 		r.write("kept.go", "x := 1\n")
 		r.commit("base")
-		r.write("kept.go", housey(1))
+		r.changed("kept.go", housey(1))
 		r.run("HEAD", "--", "kept.go")
 		r.expectCode(1)
 		r.expectStdoutHas("kept.go")
@@ -95,6 +100,8 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		r := newRepo(t)
 		r.write("kept.go", "x := 1\n")
 		r.commit("base")
+		// git narrows the diff to the pathspec, and this one names no file the change touched, so the
+		// scan is answered with an empty diff however heavy the tree beside it is.
 		r.write("kept.go", housey(1))
 		r.run("HEAD", "--", "no-such-path")
 		r.expectCode(0)
@@ -112,7 +119,7 @@ func TestAnAddedLineShapedLikeADiffHeader(t *testing.T) {
 	// `++ b/decoy.go` is what arrives as `+++ b/decoy.go` and can be mistaken for a real file header.
 	// Written with three, the line arrives as `++++ ` and matches nothing — a fixture that exercises
 	// the anchor is the only one that can fail when the anchor is removed.
-	r.write("real.go", "++ b/decoy.go\n"+heavy(8, 1))
+	r.changed("real.go", "++ b/decoy.go\n"+heavy(8, 1))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("real.go")
@@ -124,7 +131,9 @@ func TestANonASCIIPathIsStillAssigned(t *testing.T) {
 	r := newRepo(t)
 	r.write("café.go", "package fixture\n")
 	r.commit("base")
-	r.write("café.go", housey(1))
+	// Bare rather than C-quoted, which is what `core.quotePath=false` buys and repo/exec_test.go holds
+	// against a real git for every listing the port takes.
+	r.changed("café.go", housey(1))
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("café.go")
@@ -133,7 +142,9 @@ func TestANonASCIIPathIsStillAssigned(t *testing.T) {
 // --text, or one `* -diff` in the branch author's .gitattributes collapses the body to
 // "Binary files … differ" and the scan exits 0 over a real outlier.
 func TestADiffAttributeDoesNotSuppressTheScan(t *testing.T) {
-	r := newRepo(t)
+	// Real git, because the attribute is the subject: what it does to a diff body is git's behaviour
+	// and no fake can state it without agreeing with itself.
+	r := newRealRepo(t)
 	r.write("attr.go", "package fixture\n")
 	r.write(".gitattributes", "* -diff\n")
 	r.commit("base")
@@ -209,6 +220,8 @@ func TestATrackedPathWithAControlCharacterIsStillAssigned(t *testing.T) {
 	r.write(name, "package fixture\n")
 	r.commit("base")
 	r.write(name, housey(1))
+	// The C-quoted field git really prints for this path, which is the form the scan has to unquote.
+	r.addedUnder(`"b/tab\there.go"`, strings.Split(strings.TrimSuffix(housey(1), "\n"), "\n")...)
 	r.run("HEAD")
 	r.expectCode(1)
 	r.expectStdoutHas("tab here.go")
@@ -225,8 +238,8 @@ func TestADiffLinePastTheCapRefusesRatherThanReportingClean(t *testing.T) {
 	r.write("z.go", "package fixture\n")
 	r.commit("base")
 	// a.go sorts first, so the long line lands ahead of the outlier and hides it.
-	r.write("a.go", strings.Repeat("x", 70000)+"\n")
-	r.write("z.go", housey(1))
+	r.changed("a.go", strings.Repeat("x", 70000)+"\n")
+	r.changed("z.go", housey(1))
 
 	realCap := diffscan.MaxDiffLineBytes
 	diffscan.MaxDiffLineBytes = 64 * 1024

@@ -88,6 +88,7 @@ func TestTheAdapterAnswersGit(t *testing.T) {
 	t.Run("a config value", f.configValue)
 	t.Run("a worktree git means to prune", f.prunableWorktree)
 	t.Run("a refusal carries what git said", f.refusal)
+	t.Run("what the reader's own config cannot move", f.readerConfig)
 	// Last, because it writes to the index every case above reads.
 	t.Run("staging", f.staging)
 }
@@ -506,6 +507,35 @@ func (f fixture) staging(t *testing.T) {
 
 // git's own words reach the caller. A refusal summarised here sends its reader looking for a cause
 // this process already had in hand.
+// The two properties a caller's own repository configuration would otherwise decide. Both are held
+// here because both are the adapter's to keep: they were being held only by one tool's cases, where a
+// second tool reaching git through this file would not have been covered by them at all.
+func (f fixture) readerConfig(t *testing.T) {
+	// A textconv filter renders a file rather than reading it, and the attribute that turns one on is
+	// written by whoever wrote the branch. A caller measuring content would then be measuring the
+	// filter's output. `cat` is the filter, so a conversion that happened at all is visible as the
+	// marker never reaching the caller.
+	write(t, filepath.Join(f.root, ".gitattributes"), "converted.txt diff=rot\n")
+	write(t, filepath.Join(f.root, "converted.txt"), "raw bytes\n")
+	mustRun(t, f.root, "git", "add", ".gitattributes", "converted.txt")
+	mustRun(t, f.root, "git", "commit", "-qm", "a file with a diff attribute")
+	mustRun(t, f.root, "git", "config", "diff.rot.textconv", "sed s/raw/CONVERTED/")
+	if got := f.str(string(f.body(f.git.Show(f.root, "HEAD", "converted.txt"))), nil); got != "raw bytes\n" {
+		t.Errorf("Show returned %q, which is the reader's filter rendering the file rather than the file", got)
+	}
+
+	// A file called HEAD makes `git diff HEAD` ambiguous, and git refuses rather than guessing. The
+	// branch under review can commit that file, so a patch that did not end in `--` would be a scan any
+	// branch could switch off for everyone reading it.
+	write(t, filepath.Join(f.root, "HEAD"), "a file, not the revision\n")
+	mustRun(t, f.root, "git", "add", "HEAD")
+	mustRun(t, f.root, "git", "commit", "-qm", "a file called HEAD")
+	write(t, filepath.Join(f.root, "converted.txt"), "raw bytes, edited\n")
+	if _, err := f.git.Patch(f.root, []string{"HEAD"}, nil); err != nil {
+		t.Errorf("Patch over a repository holding a file called HEAD refused: %v", err)
+	}
+}
+
 func (f fixture) refusal(t *testing.T) {
 	_, err := f.git.Show(f.root, f.head, "no/such/file.txt")
 	if err == nil {

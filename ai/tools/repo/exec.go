@@ -245,8 +245,13 @@ func (e Exec) Status(dir string) ([]string, error) {
 	return entries, nil
 }
 
+// `--no-textconv`, and it is load-bearing in the same way the patch flags are: a `diff` attribute with
+// a textconv filter behind it is written by whoever wrote the branch, and with it on, what comes back
+// is the filter's rendering rather than the file's bytes. Every caller here is reading content to
+// measure or to compare, so a reader's own config deciding what they measure is the defect. It also
+// reverses what this call used to do, which was to ASK for the conversion.
 func (e Exec) Show(dir, rev, path string) ([]byte, error) {
-	return e.run(dir, "show", "--textconv", rev+":"+path)
+	return e.run(dir, "show", "--no-textconv", rev+":"+path)
 }
 
 // One process for the whole list. `cat-file --batch` reads object names on stdin and answers in the

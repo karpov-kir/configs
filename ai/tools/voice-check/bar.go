@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"configs/ai/tools/diffscan"
-	gitrepo "configs/ai/tools/repo"
+	"configs/ai/tools/repo"
 	"configs/ai/tools/shell"
 )
 
@@ -246,20 +246,14 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, autho
 // comment count it gives authorship as a share of what is there, which is bounded whichever way the
 // change went — where a rate built from the diff alone inverts on a change that only deleted.
 func (h hostRepo) authoredComments(revisions, changed []string) (map[string]int, error) {
-	// Scoped to the files already resolved as changed, which both narrows the diff and supplies the `--`
-	// that keeps a tree holding a file named like a revision from making the command ambiguous. Diff's
-	// bare form must stay ambiguous there: it is how a path passed where a revision belongs is refused
-	// rather than silently scanned against the index.
+	// Scoped to the files already resolved as changed, so the diff read here names the same set the
+	// rest of the bar measured. `HEAD` is spelled out because the bare form diffs against the INDEX,
+	// which would credit nothing to a change already staged.
 	named := revisions
 	if len(named) == 0 {
 		named = []string{"HEAD"}
 	}
-	args := append(append([]string{}, named...), "--")
-	args = append(args, changed...)
-	diff, err := gitOutput(h.root, append([]string{
-		"-c", "core.quotePath=false", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
-		"--no-relative", "--text", "--src-prefix=a/", "--dst-prefix=b/",
-	}, args...)...)
+	diff, err := h.git.Patch(h.root, named, changed)
 	if err != nil {
 		return nil, gitRefusal("could not read which comment lines this change wrote", err)
 	}
@@ -295,11 +289,11 @@ func (c changeSet) carriers() []fileMass {
 	return ranked
 }
 
-func bar(out console, args []string, cwd string, cfg Config) int {
-	if err := diffscan.RefuseNonRevisions(gitrepo.Exec{}, args, cwd); err != nil {
+func bar(out console, args []string, cwd string, git repo.Git, cfg Config) int {
+	if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 		return out.refuseArguments(err)
 	}
-	host, err := newHostRepo(cwd, cfg.MaxFileBytes)
+	host, err := newHostRepo(cwd, git, cfg.MaxFileBytes)
 	if err != nil {
 		return out.refuse(err)
 	}

@@ -11,6 +11,8 @@ import (
 	"path"
 	"strconv"
 	"strings"
+
+	"configs/ai/tools/repo"
 )
 
 const (
@@ -134,12 +136,12 @@ func (s *stats) add(other stats) {
 // reports a change set's comment lines beside the host repository's rate, and always exits 0,
 // because no edit turns on that figure. `--density` selects the mode only as the first argument.
 // Later in the arguments it is an option like any other, and refused as one.
-func Run(self string, args []string, cwd string, cfg Config, stdout, stderr io.Writer) int {
+func Run(self string, args []string, cwd string, git repo.Git, cfg Config, stdout, stderr io.Writer) int {
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--density" {
-		return bar(out, args[1:], cwd, cfg)
+		return bar(out, args[1:], cwd, git, cfg)
 	}
-	return voice(out, args, cwd, cfg)
+	return voice(out, args, cwd, git, cfg)
 }
 
 func notThisRepositorysSource(file string) bool {
