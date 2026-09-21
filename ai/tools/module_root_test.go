@@ -13,16 +13,13 @@
 package tools_test
 
 import (
-	"io/fs"
 	"os"
+	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 )
-
-// Directories with no Go source in them, skipped so the walk does not stat a repository's worth of git
-// objects and build output on every run.
-var notWalked = map[string]bool{".git": true, "bin": true, "dist": true, "node_modules": true}
 
 func TestTheModuleRootIsTheRepositoryRoot(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(repoRoot, "go.mod")); err != nil {
@@ -32,30 +29,10 @@ func TestTheModuleRootIsTheRepositoryRoot(t *testing.T) {
 	}
 
 	var extra []string
-	err := filepath.WalkDir(repoRoot, func(name string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	for _, tracked := range trackedFiles(t) {
+		if path.Base(tracked) == "go.mod" && tracked != "go.mod" {
+			extra = append(extra, tracked)
 		}
-		if entry.IsDir() {
-			if notWalked[entry.Name()] {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if entry.Name() != "go.mod" {
-			return nil
-		}
-		relative, err := filepath.Rel(repoRoot, name)
-		if err != nil {
-			return err
-		}
-		if relative != "go.mod" {
-			extra = append(extra, relative)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking %s for module files: %v — nothing was measured", repoRoot, err)
 	}
 
 	if len(extra) > 0 {
@@ -64,4 +41,23 @@ func TestTheModuleRootIsTheRepositoryRoot(t *testing.T) {
 			"this layout exists to end. `ai/kk-flavor/standards/testing.md` rule 11 states the rule.",
 			strings.Join(extra, ", "))
 	}
+}
+
+// Every file this repository tracks, by repo-relative path. The index and not the working tree, because
+// what this case asks is which modules the repository DECLARES, and one it does not track it has not
+// declared — the worktrees a developer keeps under their checkout each carry a go.mod, and none of them
+// is this repository's business. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte
+// and a quoted name reaches no file.
+func trackedFiles(t *testing.T) []string {
+	t.Helper()
+	listed, err := exec.Command("git", "-C", repoRoot, "ls-files", "--cached", "-z").Output()
+	if err != nil {
+		t.Fatalf("asking git what %s tracks: %v — nothing was measured", repoRoot, err)
+	}
+	files := strings.Split(strings.TrimSuffix(string(listed), "\x00"), "\x00")
+	if len(files) < 2 {
+		t.Fatalf("git lists %d tracked file(s) under %s, so this case asserts nothing — either the listing "+
+			"is reaching the wrong tree, or it is not being read", len(files), repoRoot)
+	}
+	return files
 }

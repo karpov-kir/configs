@@ -269,45 +269,37 @@ func TestEveryStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
 	}
 }
 
-// Every stub in the repository, by repo-relative path, sorted. A walk rather than git's listing, so a
-// stub written and not yet added is checked too — the moment it is easiest to leave one uncovered.
+// Every stub in the repository, by repo-relative path, sorted. git's listing rather than a walk, because
+// `git ls-files` stops at a nested repository's edge and a walk does not: a developer keeping worktrees
+// under their checkout has a copy of every stub in each of them, and each copy arrives here with no row
+// in the table below. `--others`, so a stub written and not yet added is checked too — the moment it is
+// easiest to leave one uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte
+// and a quoted name reaches no file.
 func discoverStubs(t *testing.T) []string {
 	t.Helper()
+	listed, err := exec.Command("git", "-C", repoRoot, "ls-files", "--cached", "--others",
+		"--exclude-standard", "-z", "--", "*.sh").Output()
+	if err != nil {
+		t.Fatalf("asking git for %s's scripts: %v", repoRoot, err)
+	}
 	var found []string
-	err := filepath.WalkDir(repoRoot, func(name string, entry os.DirEntry, err error) error {
+	for _, script := range strings.Split(strings.TrimSuffix(string(listed), "\x00"), "\x00") {
+		if script == "" {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(repoRoot, script))
 		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			if entry.Name() == ".git" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(name, ".sh") {
-			return nil
-		}
-		body, err := os.ReadFile(name)
-		if err != nil {
-			return err
+			t.Fatalf("read %s: %v", script, err)
 		}
 		if !carriesStubRegion(string(body)) {
-			return nil
+			continue
 		}
-		relative, err := filepath.Rel(repoRoot, name)
-		if err != nil {
-			return err
-		}
-		found = append(found, filepath.ToSlash(relative))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking %s for stubs: %v", repoRoot, err)
+		found = append(found, script)
 	}
 	if len(found) < 2 {
 		t.Fatalf("found %d file(s) carrying the %q region, so the loop below would assert almost nothing. "+
-			"Either the region was renamed and this suite has to follow it, or the walk is reaching the "+
-			"wrong tree.", len(found), stubRegionOpen)
+			"Either the region was renamed and this suite has to follow it, or the listing is reaching "+
+			"the wrong tree.", len(found), stubRegionOpen)
 	}
 	sort.Strings(found)
 	return found

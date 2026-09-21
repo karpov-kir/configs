@@ -14,12 +14,14 @@
 //
 // The offset scan discovers the stubs rather than listing them, so the one written tomorrow is held
 // without an edit here, and finding none is a failure — a scan over nothing is green for the wrong
-// reason. It walks rather than asking git: a stub written and not yet added is read too, which is the
-// moment it is easiest to leave one uncovered, and a walk cannot lose a name the way `git ls-files`
-// does, which C-quotes any path holding a non-ASCII byte or a quote and hands back a name reaching no
-// file. The walk is this file's own and not `stub_usage_test.go`'s, though the two now sit in one
-// package: two scans that agree by construction would shrink together, and each carries a floor of its
-// own so a walk that narrowed is caught by whichever floor it drops under first.
+// reason. It asks git rather than walking, because `git ls-files` stops at a nested repository's edge
+// and a walk does not: a developer keeping worktrees under their checkout has a copy of every stub in
+// each of them, and each copy fails this case for a depth that is correct where it really sits.
+// `--others`, so a stub written and not yet added is read too — the moment it is easiest to leave one
+// uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte and a quoted name
+// reaches no file. The scan is this file's own and not `stub_usage_test.go`'s, though the two now sit
+// in one package: two scans that agree by construction would shrink together, and each carries a floor
+// of its own so one that narrowed is caught by whichever floor it drops under first.
 package tools_test
 
 import (
@@ -28,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -65,8 +68,8 @@ func TestEveryStubDeclaresTheOffsetThatReachesItsOwnToolsDirectory(t *testing.T)
 	// Two controls, because the loop below is satisfied by an empty set and by one that never leaves a
 	// single directory — and the stubs sit at four depths in this tree.
 	if len(stubs) < 5 {
-		t.Fatalf("the walk found %d script(s) carrying %q, so this case asserts almost nothing. Either the "+
-			"region was renamed and this scan has to follow it, or the walk is reaching the wrong tree",
+		t.Fatalf("the scan found %d script(s) carrying %q, so this case asserts almost nothing. Either the "+
+			"region was renamed and this scan has to follow it, or the listing is reaching the wrong tree",
 			len(stubs), offsetRegionOpen)
 	}
 	directories := map[string]bool{}
@@ -264,36 +267,28 @@ func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing
 // Every script in the repository carrying the shared region, with the offset each one declares.
 func stubDepths(t *testing.T) []stubDepth {
 	t.Helper()
+	listed, err := exec.Command("git", "-C", repoRoot, "ls-files", "--cached", "--others",
+		"--exclude-standard", "-z", "--", "*.sh").Output()
+	if err != nil {
+		t.Fatalf("asking git for %s's scripts: %v — nothing was measured", repoRoot, err)
+	}
+	// git lists the index and then what is untracked, so the two runs are each sorted and the join is not.
+	scripts := strings.Split(strings.TrimSuffix(string(listed), "\x00"), "\x00")
+	sort.Strings(scripts)
+
 	var found []stubDepth
-	err := filepath.WalkDir(repoRoot, func(name string, entry os.DirEntry, err error) error {
+	for _, script := range scripts {
+		if script == "" {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(repoRoot, script))
 		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			if entry.Name() == ".git" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(name, ".sh") {
-			return nil
-		}
-		body, err := os.ReadFile(name)
-		if err != nil {
-			return err
+			t.Fatalf("reading %s: %v — nothing was measured", script, err)
 		}
 		if !carriesBothFences(string(body)) {
-			return nil
+			continue
 		}
-		relative, err := filepath.Rel(repoRoot, name)
-		if err != nil {
-			return err
-		}
-		found = append(found, stubDepth{path: filepath.ToSlash(relative), offset: declaredOffset(string(body))})
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walking %s for stubs: %v — nothing was measured", repoRoot, err)
+		found = append(found, stubDepth{path: script, offset: declaredOffset(string(body))})
 	}
 	return found
 }

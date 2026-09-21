@@ -17,11 +17,10 @@
 # much costs only a rebuild the next run would make anyway. `_test.go` is the one exclusion, because
 # no test file reaches a binary.
 #
-# go.mod is at the repository root, above this directory, so the walk starts there and not here. One
+# go.mod is at the repository root, above this directory, so the listing starts there and not here. One
 # declared offset rather than a search upward, for the reason resolve.sh gives about the stubs: a walk
 # finds whatever ancestor happens to carry a go.mod, which on a machine that keeps checkouts inside one
-# another is a different module. `.git` is pruned with bin/ and dist/ — it holds no Go source and
-# walking it costs a few thousand stats per invocation.
+# another is a different module.
 #
 # tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
 set -euo pipefail
@@ -65,19 +64,27 @@ fi
 [ -f "$module/go.mod" ] || die "no go.mod at $module, so the source of $tool cannot be stamped"
 
 # Sorted under LC_ALL=C and named relatively to the module root, so the same source stamps the same on
-# the release runner and on the machine that installs what it built. bin/ and dist/ are pruned because
-# they hold the binaries, and `.git` because it holds no Go at all — walking any of the three would
-# stat a few thousand files per run that cannot match.
+# the release runner and on the machine that installs what it built. git holds the list inside a
+# checkout: `git ls-files` stops at a nested repository's edge, so the worktrees a machine keeps inside
+# its checkout are out by git's own rule and not by an ignore entry anyone can edit away. `--others`,
+# because source written and not staged yet has to move the stamp or the binary built before it reads as
+# current. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte. Outside a checkout the
+# walk is all there is, pruning bin/ and dist/ for the binaries and `.git` for holding no Go; both
+# spellings name every file `./…`, so an unchanged tree stamps as it did when this only walked.
 sources=()
-while IFS= read -r path; do
-  sources+=("$path")
+while IFS= read -r -d '' path; do
+  sources+=("./${path#./}")
 done < <(
   CDPATH= cd "$module" &&
-    {
-      printf './go.mod\n'
+    if command -v git >/dev/null 2>&1 &&
+      [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ]; then
+      printf 'go.mod\0'
+      git ls-files --cached --others --exclude-standard -z -- '*.go' ':(exclude)*_test.go'
+    else
+      printf './go.mod\0'
       find . \( -name .git -o -name bin -o -name dist \) -prune -o \
-        -type f -name '*.go' ! -name '*_test.go' -print
-    } | LC_ALL=C sort
+        -type f -name '*.go' ! -name '*_test.go' -print0
+    fi | LC_ALL=C sort -z
 )
 [ ${#sources[@]} -gt 1 ] || die "found no Go source for $tool under $module, so the stamp would say nothing"
 

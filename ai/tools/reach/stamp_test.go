@@ -110,6 +110,49 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 	}
 }
 
+// A checkout kept inside the module — a linked worktree, a vendored clone — holds Go source that is not
+// this module's, and a walk of the filesystem cannot tell the two apart: this repository is developed on
+// a machine carrying eight such worktrees, where that walk saw 758 source files against the 243 the
+// repository tracks. `git ls-files` stops at a nested repository's edge, which is what keeps them out.
+//
+// The second half is the control. Asserting only that the stamp did not move is satisfied by a stamp
+// that sees nothing at all, so the same file where no repository of its own covers it has to move it.
+func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
+	t.Parallel()
+	sandbox := newSandbox(t)
+	module := newModule(t, sandbox, "nesting")
+	newRepository(t, module)
+	alone := stampOf(t, module, ownMain)
+
+	nested := filepath.Join(module, "worktrees", "inner")
+	writeFile(t, filepath.Join(toolsIn(nested), ownMain, "main.go"), straySource, 0o644)
+	newRepository(t, nested)
+	if nesting := stampOf(t, module, ownMain); nesting != alone {
+		t.Errorf("a checkout kept inside this one moved its stamp, so the source of every worktree a "+
+			"developer keeps under their repository is being hashed as this module's\nalone %q\n  now %q",
+			alone, nesting)
+	}
+
+	writeFile(t, filepath.Join(toolsIn(module), ownMain, "stray.go"), straySource, 0o644)
+	if stray := stampOf(t, module, ownMain); stray == alone {
+		t.Errorf("a source file added to the module left the stamp where it was, so the assertion above "+
+			"holds against a stamp that reads nothing\nalone %q\n  now %q", alone, stray)
+	}
+}
+
+// A file that is Go source and compiles into nothing, since no case here builds. Written into the module
+// and into the checkout nested inside it, so that where it lands is the only difference between them.
+const straySource = "package main\n\nvar Stray = 1\n"
+
+// A git repository at this path, with nothing added to it: source-stamp.sh lists untracked files as well
+// as tracked ones, so an init is the whole of what a fixture needs in order to be a checkout.
+func newRepository(t *testing.T, dir string) {
+	t.Helper()
+	if output, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
+		t.Fatalf("git init in %s: %v\n%s — nothing was measured", dir, err, output)
+	}
+}
+
 // The guard on the coverage set. A per-tool subset would make these two disagree, and the way such a
 // subset goes wrong is silent: it drops a directory the tool really imports and stops noticing edits
 // there. Whatever narrows the set again has to fail here first — and with this held, a row above asked

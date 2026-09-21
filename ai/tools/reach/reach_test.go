@@ -50,8 +50,10 @@ const tool = "widget"
 // Exactly what source-stamp.sh calls, and nothing spare: an entry nothing uses would let a new
 // dependency land in the script without a case going red, and it would also skip a case on a machine
 // the script runs fine on. `bash` is here because the shebang is `#!/usr/bin/env bash` and env looks it
-// up on PATH; the hasher is chosen per machine, so it is added where the fixture is built.
-var stampCommands = []string{"bash", "dirname", "find", "sort", "cut"}
+// up on PATH; the hasher is chosen per machine, so it is added where the fixture is built. Both `git`
+// and `find` belong here, because the script asks git for its file list inside a checkout and walks
+// where there is none.
+var stampCommands = []string{"bash", "dirname", "find", "git", "sort", "cut"}
 
 // What resolve.sh calls on top of those. It runs source-stamp.sh, so it needs all of them as well.
 var resolveCommands = append([]string{"cat", "mkdir", "mv", "rm"}, stampCommands...)
