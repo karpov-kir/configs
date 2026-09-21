@@ -14,8 +14,8 @@ import (
 
 func main() {
 	// argv[0] as the stub was invoked by, which `exec -a` preserved. The declarations and the launcher
-	// sit beside that stub, so this is where they are read from — never the process's own working
-	// directory, which is wherever the human happened to be standing.
+	// sit beside that stub, so the sync reads them from there. The process's own working directory is
+	// wherever the human happened to be standing, and no source is taken from it.
 	self := filepath.Base(os.Args[0])
 	configsDir, err := shell.OwnDirectory(os.Args[0])
 	if err != nil {

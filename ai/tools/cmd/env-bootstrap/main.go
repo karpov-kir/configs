@@ -15,8 +15,8 @@ import (
 
 func main() {
 	// argv[0] as the stub was invoked by, which `exec -a` preserved. The mount sources sit beside that
-	// stub, so this is where they are read from — never the process's own working directory, which is
-	// wherever the human happened to be standing.
+	// stub, so the install reads them from there. The process's own working directory is wherever the
+	// human happened to be standing, and no source is taken from it.
 	self := filepath.Base(os.Args[0])
 	repo, err := shell.OwnDirectory(os.Args[0])
 	if err != nil {

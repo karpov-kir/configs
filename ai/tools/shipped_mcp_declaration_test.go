@@ -1,6 +1,7 @@
-// The shipped `ai/mcp.jsonc`, held to what the two tools that read it depend on.
+// This file holds the shipped `ai/mcp.jsonc` to what the two tools that read it depend on.
 //
-// Here rather than beside `mcp-sync` and `project-mcp` for the reason shipped_tree_test.go's are.
+// It lives in this package with the other cases that read the shipped checkout, and away from the
+// `mcpsync` and `projectmcp` packages, for the reason shipped_tree_test.go gives.
 //
 // Each tool's own cases stay beside it and run over a declaration they build. What they cannot say is
 // anything about the file this repository actually ships.
@@ -27,14 +28,14 @@ const (
 	shippedDeclaration = shippedConfigsDir + "/mcp.jsonc"
 )
 
-// The public servers that declaration ships. Written out rather than read back from it: every other
-// case here derives its expectation from the file under test, so on their own they stay green while
-// the declaration empties out. This literal is what goes red on that edit.
+// The public servers that declaration ships, as a literal this file states. Every other case here
+// derives its expectation from the file under test, so they stay green as the declaration empties
+// out. This literal is what goes red on that edit.
 var shippedServers = []string{"chrome-devtools", "playwright"}
 
-// The wrapper every project entry reaches, named once per entry in both file formats. Not a copy of
-// project-mcp's own launcher program: this is the one word of it that identifies an entry, and the
-// program's shape is that package's subject.
+// The wrapper every project entry reaches, named once per entry in both file formats. This is the
+// single word of `projectmcp`'s launcher program that identifies an entry, and the program's shape is
+// that package's subject.
 const launcherProgram = "mcp-env.sh"
 
 func TestTheShippedDeclarationParsesOnlyAfterItsCommentsAreStripped(t *testing.T) {
@@ -43,8 +44,8 @@ func TestTheShippedDeclarationParsesOnlyAfterItsCommentsAreStripped(t *testing.T
 	if _, err := mcp.ParseDocument(shippedDeclaration, mcp.StripComments(text)); err != nil {
 		t.Errorf("%s does not parse after stripping: %v\nNothing would sync.", shippedDeclaration, err)
 	}
-	// The control that makes the line above a measurement rather than a tautology: the file really does
-	// carry comments, so the stripping is doing something.
+	// The control behind the ParseDocument assertion. Over a file carrying no comments that assertion
+	// would be a tautology, so this check proves the file carries them.
 	var value any
 	if err := json.Unmarshal([]byte(text), &value); err == nil {
 		t.Errorf("%s parses as plain JSON, so the case above no longer says anything about the comment "+
@@ -52,7 +53,7 @@ func TestTheShippedDeclarationParsesOnlyAfterItsCommentsAreStripped(t *testing.T
 	}
 }
 
-// End to end over the file that ships: what mcp-sync hands a client has to name a command that is
+// End to end over the file that ships. What `mcpsync` hands a client has to name a command that is
 // really there, or every stdio server registers and none of them starts.
 func TestEveryStdioServerTheShippedDeclarationRegistersNamesARunnableCommand(t *testing.T) {
 	t.Parallel()
@@ -62,8 +63,8 @@ func TestEveryStdioServerTheShippedDeclarationRegistersNamesARunnableCommand(t *
 	}
 	stripped := mcp.StripComments(readShippedDeclaration(t))
 	substituted := stdioCommands(t, mcp.SubstituteConfigsDir(stripped, configsDir))
-	// The same commands with the token left in, which is the control: without the substitution none of
-	// them resolves, so the loop below would otherwise pass whether it happened or not.
+	// The same commands with the token left in, which is the control. The substitution is what makes
+	// them resolve, and the loop over `substituted` would otherwise pass whether it happened or not.
 	declared := stdioCommands(t, stripped)
 
 	if len(substituted) == 0 {
@@ -100,9 +101,10 @@ func TestTheShippedDeclarationNamesExactlyThePublicServersPinnedHere(t *testing.
 	}
 }
 
-// project-mcp refuses a declaration it cannot map to a portable project entry — an added field, a
+// projectmcp refuses a declaration it cannot map to a portable project entry: an added field, a
 // second transport, a command that is not the launcher. That refusal is only ever asked about a
-// declaration, so nothing else says whether the one this repository ships still has a project form.
+// declaration, so this case is the only place saying whether the declaration this repository ships
+// still has a project form.
 func TestTheShippedDeclarationStillMapsIntoAProjectFile(t *testing.T) {
 	t.Parallel()
 	configsDir, err := filepath.Abs(shippedConfigsDir)
@@ -121,8 +123,9 @@ func TestTheShippedDeclarationStillMapsIntoAProjectFile(t *testing.T) {
 					"form and `project-mcp.sh` now refuses every project\n%s", code, said.String())
 			}
 			// Entries counted by the launcher each one runs, which both file formats spell the same way.
-			// Counting the server NAMES instead would pass on a renamed server, since one name is a
-			// prefix of the other often enough; the names are the case above's subject.
+			// A count of the server NAMES would pass on a renamed server, since one name is a prefix of
+			// the other often enough. The names are the subject of
+			// TestTheShippedDeclarationNamesExactlyThePublicServersPinnedHere.
 			written := projectConfig(t, project)
 			if entries := strings.Count(written, launcherProgram); entries != len(shippedServers) {
 				t.Errorf("the project config holds %d server entries and the declaration names %d, so a "+
@@ -158,9 +161,9 @@ func stdioCommands(t *testing.T, text string) []string {
 	return commands
 }
 
-// Everything the run left in the project, as one text. Collected by walking rather than by naming
-// `.mcp.json` and `.codex/config.toml`, so this case reads whatever each client's file is called
-// without holding a second copy of project-mcp's own table.
+// Everything the run left in the project, as one text. A walk finds them, so this case reads whatever
+// each client's file is called. A file naming `.mcp.json` and `.codex/config.toml` would hold a
+// second copy of `projectmcp`'s table.
 func projectConfig(t *testing.T, project string) string {
 	t.Helper()
 	var found []string
@@ -184,9 +187,9 @@ func projectConfig(t *testing.T, project string) string {
 	return strings.Join(found, "\n")
 }
 
-// Executable by its mode bits, never by asking whether this process may run it: root is allowed to
-// execute a file with no x bit at all, so an `access` check would accept a command nobody else could
-// start.
+// Executable by its mode bits. An `access` check asks whether THIS process may run it, and root is
+// allowed to execute a file with no x bit at all. Such a check would accept a command no other user
+// can start.
 func isExecutable(path string) bool {
 	info, err := os.Stat(path)
 	if err != nil {

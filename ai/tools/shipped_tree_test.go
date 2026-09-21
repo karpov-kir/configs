@@ -1,17 +1,20 @@
-// The shipped instruction tree, held against the shipped policy. These checks read directories under
-// kk-flavor/ and fail on what the two disagree about.
-//
-// They live in this package because it is where the cases reading the shipped checkout are gathered,
-// and the other nine files doing that point here for why. That gathering was once the only way to key
-// them: go.mod sat at `ai/tools`, Go keys a package's test cache on the module and skips a file above
-// its root rather than hashing it, so a case under `ai/tools/model-policy/` that walked
-// kk-flavor/skills/ answered `ok (cached)` over a tree that had moved — and a merge or a checkout is
-// exactly when it has. go.mod is at the repository root now, so a case is keyed on what it opens
-// wherever it sits, and this is a grouping rather than a constraint. `ai/kk-flavor/standards/
-// testing.md` rule 11 states the rule that made it one.
-//
-// What is left in model-policy is every check a checkout could not make truer: the parser, Resolve,
-// and the ceiling derivation run against a fixture tree that has the defect the shipped one does not.
+// This file measures the shipped instruction tree against the shipped policy. These checks read
+// directories under kk-flavor/ and fail on what the two disagree about.
+
+// They live in this package with the other cases that read the shipped checkout, and the other ten
+// files doing that point here for why.
+
+// That gathering was once the only way to key them. go.mod sat at `ai/tools`, and Go keys a package's
+// test cache on the module, hashing no file outside the module root. A case under
+// `ai/tools/model-policy/` that walked kk-flavor/skills/ therefore answered `ok (cached)` over a tree
+// that had moved, and a merge or a checkout is exactly when a tree has moved.
+
+// go.mod is at the repository root now, so a case is keyed on what it opens wherever it sits, and the
+// gathering is only a convention. `ai/kk-flavor/standards/testing.md` asks for one module at the
+// repository root, and that is what took the constraint away.
+
+// What is left in model-policy is every check a checkout could make no truer. The parser, Resolve,
+// and the ceiling derivation run against a fixture tree carrying the defect the shipped tree lacks.
 package tools_test
 
 import (
@@ -27,7 +30,7 @@ import (
 
 // The shipped tree these checks read, from the repository root — and the policy beside it, which
 // shipped_policy_test.go reads too. Every path is derived from that root, so a suite run from another
-// directory fails on the root rather than on whichever literal was missed.
+// directory fails on the root and never on whichever literal was missed.
 const (
 	flavorTree        = repoRoot + "/ai/kk-flavor"
 	skillsTree        = flavorTree + "/skills"
@@ -36,20 +39,20 @@ const (
 )
 
 // The Lanes table row the quality pass dispatches by. How a SKILL.md declares it runs is
-// shell.RunsDeclaration, shared with the emitters in eco-guide that price a skill from the same
-// line — a second copy of that grammar here would let the census and the cost profile disagree
-// about which skills the ceiling may ask anything.
+// shell.RunsDeclaration, which the emitters in eco-guide share to price a skill from the same line. A
+// second copy of that grammar here would let the census and the cost profile disagree about which
+// skills the ceiling may ask anything.
 var (
 	// Column two names what fills the lane, which is a worker's path for most of them and a skill's
-	// bare name for the three that kept a door. Both are reduced to the key the policy is written
-	// on: a path without its tree prefix and without `.md` IS that key, so one pattern reads both
-	// and a lane that changes home stays counted.
+	// bare name for the three that kept a door. Both are reduced to the key the policy is written on.
+	// That key is a path stripped of its tree prefix and of `.md`, so one pattern reads both and a
+	// lane that changes home stays counted.
 	lanesTableRow = regexp.MustCompile("(?m)^\\| *[a-z-]+ *\\| *`(?:~/\\.kk-flavor/workers/)?([a-z0-9/-]+?)(?:\\.md)?` *\\|")
 )
 
-// The policy is only a cost control surface while it covers everything that runs, so it is checked
-// against the tree rather than by hand: skills by their SKILL.md, workers by the directory that
-// declares them.
+// The policy is only a cost control surface while it covers everything that runs. So the check reads
+// the tree, taking skills from their SKILL.md and workers from the directory that declares them. A
+// hand-written list is what this replaces.
 func TestEverySkillAndWorkerHasARow(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	rows := nameSet(policy.TaskNames())
@@ -72,15 +75,15 @@ func TestEverySkillAndWorkerHasARow(t *testing.T) {
 			assertSessionRowReadsAModeFile(t, name)
 			continue
 		}
-		// Every worker row resolves to a prompt, and asked of the bare names too rather than sub-rows
-		// alone: a top-level row claims a prompt exactly as a sub-row does, and leaving it unasked is
-		// what would let the flat worker grammar land a row whose file was never written. The forms are
-		// the ones model-policy.md → **One row per skill, one per dispatch site** names, in its order.
+		// Every worker row resolves to a prompt, and the bare names are asked too. A top-level row claims
+		// a prompt the way a sub-row does, and a name left unasked lets the flat worker grammar land a
+		// row whose file was never written. model-policy.md asks for one row per skill and one per
+		// dispatch site, and these forms are in its order.
 		if workers[name] {
 			continue
 		}
 		// Parse has already refused a row naming one that is not a worker, or one that names another's
-		// prompt in turn; what is left is that the row named has a prompt to hand over.
+		// prompt in turn. What is left is that the row named has a prompt to hand over.
 		if target, named := owners[name]; named {
 			if _, stillASkill := skills[target]; !workers[target] && !stillASkill {
 				t.Errorf("row %s dispatches the prompt of %s, which has neither a file under kk-flavor/workers/ nor a SKILL.md", name, target)
@@ -103,8 +106,9 @@ func TestEverySkillAndWorkerHasARow(t *testing.T) {
 // price one kind apart for a question the tool's own tier cannot answer. The tree ships none today.
 const toolBuiltWorker = "reader-judge"
 
-// A session sub-row prices a named path through one session rather than a spawn, so the mode file that
-// path reads is its evidence. A session's own row is a skill, already checked against the skills tree.
+// A session sub-row prices a named path through one session, and a worker row prices a spawn. So the
+// mode file that path reads is its evidence. A session's own row is a skill, already checked against
+// the skills tree.
 func assertSessionRowReadsAModeFile(t *testing.T, name string) {
 	t.Helper()
 	skill, mode, isSub := strings.Cut(name, "/")
@@ -117,11 +121,12 @@ func assertSessionRowReadsAModeFile(t *testing.T, name string) {
 	}
 }
 
-// A session row is one nothing enforces, and which rows those are is derivable rather than a
-// judgement: a model is set for the judge, for every worker file, for a row naming another worker's
-// prompt, and for every leaf kk-qualify's Lanes table dispatches; everything else runs in whatever
-// session invoked it. The split stays hand-written so a reader of the policy can see it, and this
-// checks it against the derivation.
+// A model is set for the judge, for every worker file, for a row naming another worker's prompt, and
+// for every leaf kk-qualify's Lanes table dispatches. Everything else runs in whatever session
+// invoked it.
+
+// A session row is one no mechanism enforces, and which rows those are is derivable. The split stays
+// hand-written so a reader of the policy can see it, and this case checks it against the derivation.
 func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	skills := skillBodies(t)
@@ -136,7 +141,7 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	if len(enforced) < 5 {
 		t.Fatalf("the Lanes table yielded %d lanes, so this proved nothing", len(enforced)-1)
 	}
-	// A skill's own **Runs:** line is authoritative: the lane table knows only the skills the quality
+	// A skill's own `**Runs:**` line is authoritative: the lane table knows only the skills the quality
 	// pass dispatches, and a skill dispatched elsewhere is invisible to it. Only `dispatched` puts a
 	// row under workers — an orchestrator and a session both run in whatever session invoked them.
 	for skill, mode := range declaredRunModes(t) {
@@ -170,10 +175,10 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	}
 }
 
-// Every skill declares how it runs, in a form this file can read. Missing, the derivation below falls
-// back to the lane table, which sees only the skills the quality pass dispatches — so a skill that
-// forgot the line lands in whichever map its silence happens to imply, and the ceiling never asks it
-// anything. The declarations, by skill.
+// Every skill declares how it runs, in a form this file can read. Without the line,
+// TestSessionRowsMatchWhatNothingEnforces falls back to the lane table, which sees only the skills the
+// quality pass dispatches. A skill that forgot it lands in whichever map its silence happens to imply,
+// and the ceiling never asks it anything. The declarations, by skill.
 func declaredRunModes(t *testing.T) map[string]string {
 	t.Helper()
 	declared := map[string]string{}
@@ -219,15 +224,15 @@ func TestNoOrchestratorHoldsTheTopTier(t *testing.T) {
 	}
 }
 
-// A stale reference to a renamed worker key names a task nothing assigns, and Resolve catches that
-// only at the moment the dispatch runs — so the tree may not carry one. Slash-shaped tokens only: a
-// bare name is a skill or worker the completeness checks above already cover, and anything holding a
-// `.` or a placeholder is a path or a template rather than a task.
+// A stale reference to a renamed worker key names a task the policy leaves unassigned, and Resolve
+// catches that only at the moment the dispatch runs. So the tree may carry none. Slash-shaped tokens
+// only. A bare name is a skill or worker TestEverySkillAndWorkerHasARow already covers, and anything
+// holding a `.` or a placeholder is a path or a template.
 func TestNoFileNamesATaskThePolicyDoesNotAssign(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	rows := nameSet(policy.TaskNames())
 	// The first segment of every sub-row, which is a task family whether or not it is a row itself.
-	// `patrol/scout` and `patrol/fixer` carry no skill prefix, so keying on rows alone would leave the
+	// `patrol/scout` and `patrol/fixer` carry no skill prefix, and keying on rows alone leaves the
 	// whole family invisible to this scan.
 	families := map[string]bool{}
 	for name := range rows {
@@ -286,8 +291,8 @@ func TestNoFileNamesATaskThePolicyDoesNotAssign(t *testing.T) {
 	}
 }
 
-// Every skill in the tree, by name, with the body of its SKILL.md — the one census these checks count
-// skills from, so no two of them disagree about which directories are skills.
+// Every skill in the tree, by name, with the body of its SKILL.md. These checks count skills from
+// this census alone, and cannot disagree about which directories are skills.
 func skillBodies(t *testing.T) map[string][]byte {
 	t.Helper()
 	entries, err := os.ReadDir(skillsTree)
@@ -311,8 +316,8 @@ func skillBodies(t *testing.T) map[string][]byte {
 
 // One skill's SKILL.md, and the only place these checks read one. Regular files only: os.ReadFile
 // follows a symlink, so a committed link to /dev/zero hangs the check and one pointing outside the
-// repo gets its tokens echoed into a failure line. A directory whose SKILL.md is not a regular file
-// is therefore not a skill, which keeps every census on the same set.
+// repo gets its tokens echoed into a failure line. A directory whose SKILL.md is something else is
+// therefore no skill, and every census stays on the same set.
 func readSkillFile(skill string) ([]byte, bool) {
 	path := filepath.Join(skillsTree, skill, "SKILL.md")
 	info, err := os.Lstat(path)
@@ -358,14 +363,14 @@ func shippedWorkerFiles(t *testing.T) map[string]bool {
 	return found
 }
 
-// The extension declaration, held to the tree it describes. It is the one edge a reader cannot check
-// from the citation — `ecosystem.md` → **Three kinds, two homes** says extension, sequencing and
-// orientation all name a second file the same way — so the cost surface is told rather than guessing,
-// and a declaration nothing verifies is a claim that rots into a wrong number.
-//
-// Two ways it can be wrong and both are here: naming a skill that does not exist, and naming one this
-// file never reads. The second is the one that costs money — a stale `**Extends:**` left behind after
-// the citation moved keeps billing that contract's dispatches to this row forever.
+// A reader cannot check this edge from the citation. `ecosystem.md` says extension, sequencing and
+// orientation all name a second file the same way, so the declaration has to tell the cost surface. A
+// declaration no case verifies is a claim that rots into a wrong number.
+
+// This case holds the extension declaration to the tree it describes. It can be wrong two ways and
+// both are here. One names a skill that is absent, and one names a skill this file never reads. The
+// second costs money, because a stale `**Extends:**` left behind after the citation moved keeps
+// billing that contract's dispatches to this row forever.
 func TestEveryDeclaredExtensionNamesASkillThisOneActuallyReads(t *testing.T) {
 	skills := skillBodies(t)
 	for skill, body := range skills {
@@ -379,7 +384,7 @@ func TestEveryDeclaredExtensionNamesASkillThisOneActuallyReads(t *testing.T) {
 				t.Errorf("%s declares it extends %s, and no skill by that name has a SKILL.md", skill, target)
 				continue
 			}
-			// Read across the whole skill directory, not just SKILL.md: `kk-pr` declares the pass it
+			// The scan reads the whole skill directory, not just SKILL.md. `kk-pr` declares the pass it
 			// extends and cites it from `review.md` and `address-review.md`, which are the modes that
 			// run it.
 			if !skillDirCites(t, skill, target) {
@@ -409,9 +414,9 @@ func skillDirCites(t *testing.T, skill, target string) bool {
 	return found
 }
 
-// Every skill that declares it, named, so the set cannot quietly grow or shrink without someone saying
-// so here. Extension is the expensive edge and the only one the tree has to be told about, so which
-// skills claim it is a fact worth pinning rather than deriving.
+// Every skill that declares it, named, so the set cannot quietly grow or shrink. A change to the set
+// takes an edit here. Extension is the expensive edge, and the only edge the tree has to be told
+// about. So which skills claim it is a fact worth pinning by hand.
 func TestExactlyTheKnownSkillsDeclareAnExtension(t *testing.T) {
 	want := map[string]string{
 		"idsd-build":    "kk-build, kk-grill, idsd-charter, idsd-intent",

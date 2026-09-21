@@ -12,9 +12,9 @@ import (
 )
 
 func main() {
-	// The seams the suite drives, read here so the package takes them as data. Both exist so a suite
-	// can reach the run loop and the over-budget refusal without running the real checks — which are
-	// the suite this gate is part of, and a hundred seconds of it.
+	// The seams the suite drives, read here so the package takes them as data. Both exist to let a
+	// suite reach the run loop and the over-budget refusal without running the real checks. Those
+	// checks are the suite this gate is part of, and a hundred seconds of it.
 	budget, _ := strconv.Atoi(os.Getenv("GATE_BUDGET_SECONDS"))
 	env := gate.Env{
 		Root:   os.Getenv("GATE_ROOT"),

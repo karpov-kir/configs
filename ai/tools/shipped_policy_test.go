@@ -1,5 +1,6 @@
-// The shipped kk-flavor/models.json, held to what the tools resolving it depend on. These live here
-// rather than under `ai/tools/model-policy/` for the reason shipped_tree_test.go's do.
+// This file holds the shipped kk-flavor/models.json to what the tools resolving it depend on. These
+// cases live in this package with the others that read the shipped checkout, for the reason
+// shipped_tree_test.go gives.
 //
 // The parser's own cases stay beside it and read a fixture document. What they cannot say is anything
 // about the file this repository actually ships.
@@ -13,9 +14,9 @@ import (
 )
 
 // The shipped policy is the cost control surface, so every task in it must resolve for both clients.
-// Resolving is the whole assertion: two checks here once asked whether the settings that came back
-// named a model, and Parse refuses a row that does not, so they became assertions no document could
-// reach. TestARowNamingAnEffortAndNoModelIsRefused pins that at the parser, which is the cheaper level.
+// The assertion is the resolution itself. Two checks once asked whether the settings that came back
+// named a model, and Parse already refuses any row missing one, so no document can reach those
+// assertions. TestARowNamingAnEffortAndNoModelIsRefused pins that at the parser, the cheaper level.
 func TestEveryShippedTaskResolvesForBothClients(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	names := policy.TaskNames()
@@ -31,8 +32,8 @@ func TestEveryShippedTaskResolvesForBothClients(t *testing.T) {
 	}
 }
 
-// The judge is the only task a tool resolves on its own, so its assignment is the one the shipped
-// policy cannot lose without a gate going quiet.
+// The judge is the only task a tool resolves on its own. Lose its assignment from the shipped policy
+// and a gate goes quiet.
 func TestShippedPolicyKeepsTheJudgeCheapAndVoting(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	for client, want := range map[string]modelpolicy.Settings{
@@ -51,16 +52,17 @@ func TestShippedPolicyKeepsTheJudgeCheapAndVoting(t *testing.T) {
 
 // A task the policy does not list is refused, including one whose path starts with a skill that has a
 // row. That ancestor fallback used to answer, which is what let a renamed worker keep resolving to a
-// session row one tier down — see Resolve. A dozen live-looking names sit below, so the refusal is the
-// thing under test, not an edge case.
+// session row one tier down — see Resolve. A dozen live-looking names sit below, so what is under
+// test is the refusal itself.
 func TestAnUnlistedTaskIsRefusedRatherThanInherited(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	own, err := policy.Resolve(modelpolicy.Request{Client: "claude", Task: "build/explore"})
 	if err != nil || own.Requested.Model != "sonnet" || own.Kind != "worker" {
 		t.Fatalf("a site with its own row = %+v, %v", own, err)
 	}
-	// Each of these has a listed ancestor and no row of its own: a phase of a real skill, and the retired
-	// names of renamed workers — every one of them a skill prefix the resolver would have answered from.
+	// Each of these has a listed ancestor while holding no row of its own. They are a phase of a real
+	// skill, and the retired names of renamed workers, every one of them a skill prefix the resolver
+	// would have answered from.
 	for _, task := range []string{
 		"kk-build/plan-the-change", "kk-invented/phase",
 		"kk-patrol/scout", "kk-patrol/fixer", "kk-build/explore", "kk-grill/facts",
@@ -74,11 +76,13 @@ func TestAnUnlistedTaskIsRefusedRatherThanInherited(t *testing.T) {
 	}
 }
 
-// The rows that name another worker's prompt, pinned. The field is the first mechanism that can run a
-// protected lane's contract at a cheap row's tier, and nothing in the policy orders the tiers — so a
-// downgrade added as a new row reads like an ordinary cheap site rather than an edit to the protected
-// one. Pinning the set is what makes adding one a decision somebody had to write down; the ceiling
-// that would compare the two tiers needs an order the file does not carry yet.
+// The field is the first mechanism that can run a protected lane's contract at a cheap row's tier,
+// and the policy puts the tiers in no order. A downgrade added as a new row therefore reads like an
+// ordinary cheap site, and the edit it really makes is to the protected one.
+
+// The rows that name another worker's prompt, pinned. A pinned set makes adding one a decision
+// somebody had to write down. The ceiling that would compare the two tiers needs an order the file
+// does not carry yet.
 var shippedPromptOwners = map[string]string{
 	"reduce/fan-out": "kk-ecosystem",
 	"reduce/repair":  "kk-edit",
@@ -91,7 +95,8 @@ func TestOnlyThePinnedRowsNameAnotherWorkersPrompt(t *testing.T) {
 }
 
 // A row naming another worker's prompt owns none itself, so what it resolves to is the whole of its
-// contract: its own tier, and the name of the worker whose prompt the spawn is handed.
+// contract. That contract is its own tier, and the name of the worker whose prompt the spawn is
+// handed.
 func TestARowNamingAnotherWorkersPromptResolvesToBoth(t *testing.T) {
 	policy := loadShippedPolicy(t)
 	owners := policy.PromptOwners()
@@ -112,8 +117,8 @@ func TestARowNamingAnotherWorkersPromptResolvesToBoth(t *testing.T) {
 	}
 }
 
-// The policy's names as a set: every check that uses it asks whether one name is among them rather
-// than walking the list.
+// The policy's names as a set. Every check that uses it asks whether one name is among them, so none
+// of them walks the list.
 func nameSet(names []string) map[string]bool {
 	set := make(map[string]bool, len(names))
 	for _, name := range names {

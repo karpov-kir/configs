@@ -1,27 +1,32 @@
 // Cases for the `# --- shared:tool-stub ---` region every skill script carries to reach its Go binary.
-// It is one body copied into several files, so it is covered once here rather than per copy; that the
-// copies are still identical is the wiring check's shared-region scan, and that each stub's documented
-// usage line matches what its binary prints is `stub_usage_test.go`.
-//
-// They sit in this package and not beside the resolver's own cases in `reach/` for the reason
-// shipped_tree_test.go's cases do: every one of them reads the checkout rather than a fixture — the
-// stubs themselves, the tree they walk, and the two real files the ledger case compares.
-//
-// Two of these must not be weakened. Reaching the tool from an unrelated cwd is the defect the region
-// exists for, and it fails silently: a stub that resolved nothing prints nothing, and a check that
-// printed nothing reads exactly like a clean tree. And argv[0] surviving the exec is what decides which
+// It is one body copied into several files, and this file covers it once. That the copies are still
+// identical is the wiring check's shared-region scan, and that each stub's documented usage line
+// matches what its binary prints is `stub_usage_test.go`.
+
+// They sit in this package, away from the resolver's own cases in `reach/`, for the reason
+// shipped_tree_test.go gives. Each of them reads the checkout: the stubs themselves, the tree they
+// walk, and the two real files the ledger case compares. A fixture would hold none of that.
+
+// Two of these must not be weakened. The first is that a stub reaches its tool from an unrelated cwd,
+// which is the defect the region exists for. A stub that failed to resolve stays silent, and silence
+// reads exactly like a clean tree. The second is argv[0] surviving the exec, and it decides which
 // skill directory a tool writes into.
-//
-// The offset scan discovers the stubs rather than listing them, so the one written tomorrow is held
-// without an edit here, and finding none is a failure — a scan over nothing is green for the wrong
-// reason. It asks git rather than walking, because `git ls-files` stops at a nested repository's edge
-// and a walk does not: a developer keeping worktrees under their checkout has a copy of every stub in
-// each of them, and each copy fails this case for a depth that is correct where it really sits.
-// `--others`, so a stub written and not yet added is read too — the moment it is easiest to leave one
-// uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte and a quoted name
-// reaches no file. The scan is this file's own and not `stub_usage_test.go`'s, though the two now sit
-// in one package: two scans that agree by construction would shrink together, and each carries a floor
-// of its own so one that narrowed is caught by whichever floor it drops under first.
+
+// The offset scan discovers the stubs and holds no list of its own. A stub written tomorrow is
+// therefore covered here, with no edit to this file. A scan that finds none fails, because a scan
+// over an empty set is green for the wrong reason.
+
+// It asks git, because `git ls-files` stops at a nested repository's edge and a walk keeps going. A
+// developer keeping worktrees under their checkout has a copy of every stub in each of them. Each of
+// those copies fails this case for a depth that is correct where it really sits.
+
+// `--others`, so a stub written and still untracked is read too. That is the moment it is easiest to
+// leave one uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte, and a
+// quoted name reaches no file.
+
+// The scan is this file's own, and `stub_usage_test.go` keeps a second one, though the two now sit in
+// one package. Two scans that agree by construction would shrink together, and each carries a floor of
+// its own, so one that narrowed is caught by whichever floor it drops under first.
 package tools_test
 
 import (
@@ -47,8 +52,8 @@ const (
 // The resolver the stubs reach, beside this package.
 const resolveScript = "resolve.sh"
 
-// The stub the fixture cases copy, taken from the discovered set by name so that a stub which moved
-// fails here rather than being quietly replaced by a fixture of this file's own.
+// The stub the fixture cases copy. It comes from the discovered set by name, so a stub that moved
+// fails here. A fixture of this file's own never quietly replaces it.
 const fixtureStub = "ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh"
 
 // One stub, and the depth it says it sits at.
@@ -57,16 +62,18 @@ type stubDepth struct {
 	offset string
 }
 
-// The region resolves exactly one path — `$here/$tools_offset/tools/resolve.sh` — and consults nothing
-// else, so a stub's depth is its own property and what is worth holding is that each one declares the
-// depth it really has. An upward walk or a list of candidates would reach a tools directory the stub
-// does not name, and both earlier shapes of this region did: either runs a stranger's binary at exit 0.
+// An upward walk or a list of candidates would reach a tools directory the stub does not name. Both
+// earlier shapes of this region did, and either runs a stranger's binary at exit 0.
+
+// The region resolves exactly one path, `$here/$tools_offset/tools/resolve.sh`, and consults no other.
+// A stub's depth is therefore its own property, and what is worth holding is that each one declares
+// the depth it really has.
 func TestEveryStubDeclaresTheOffsetThatReachesItsOwnToolsDirectory(t *testing.T) {
 	t.Parallel()
 	stubs := stubDepths(t)
 
-	// Two controls, because the loop below is satisfied by an empty set and by one that never leaves a
-	// single directory — and the stubs sit at four depths in this tree.
+	// Two controls, because the loop over `stubs` is satisfied by an empty set and by one that never
+	// leaves a single directory. The stubs declare five distinct offsets in this tree.
 	if len(stubs) < 5 {
 		t.Fatalf("the scan found %d script(s) carrying %q, so this case asserts almost nothing. Either the "+
 			"region was renamed and this scan has to follow it, or the listing is reaching the wrong tree",
@@ -98,18 +105,17 @@ func TestEveryStubDeclaresTheOffsetThatReachesItsOwnToolsDirectory(t *testing.T)
 	}
 }
 
-// The defect the region exists for, at two of the depths the stubs sit at: a stub reaches its own tool
-// from a directory that has nothing to do with the checkout it lives in. Driven through the real tree
-// rather than a fixture, because a fixture proves only that a copy of the region works where this case
-// put it.
+// The defect the region exists for, at two of the depths the stubs sit at. A stub reaches its own tool
+// from a directory unrelated to the checkout it lives in. The real tree drives it. A fixture would
+// prove only that a copy of the region works where this case put it.
 func TestAStubReachesItsToolFromAnUnrelatedCwd(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
 		name string
 		stub string
 		args []string
-		// Wording only the binary behind the stub writes. A stub that reached nothing prints nothing, and
-		// nothing reads exactly like a clean tree.
+		// Only the binary behind the stub writes this wording. A stub that resolved no tool stays silent,
+		// and silence reads exactly like a clean tree.
 		marker string
 	}{
 		{
@@ -127,8 +133,8 @@ func TestAStubReachesItsToolFromAnUnrelatedCwd(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			// A root holding one restatement, so the tool has something to find: without content to find, a
-			// stub that silently did nothing would satisfy the same assertion a working one does.
+			// A root holding one restatement, which gives the tool something to find. Over an empty root, a
+			// silent stub and a working one would satisfy the same assertion.
 			root := newEchoRoot(t)
 			arguments := append([]string(nil), scenario.args...)
 			for i, argument := range arguments {
@@ -150,8 +156,8 @@ func TestAStubReachesItsToolFromAnUnrelatedCwd(t *testing.T) {
 // Each way the stub cannot reach a resolver. All of them exit 2 and name the fix, because a stub that
 // returned quietly would hand the caller silence, and a caller reads silence as a clean tree.
 //
-// Every checkout here is built under a sandbox, but the stub copied into each one is the real file and
-// its depth is the depth that file declares, so these cases read the checkout like the rest.
+// Every checkout here is built under a sandbox, and the stub copied into each one is the real file.
+// Its depth is the depth that file declares, so these cases read the checkout like the rest.
 func TestAStubThatCannotReachAResolverExitsTwoAndNamesTheFix(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
@@ -185,10 +191,10 @@ func TestAStubThatCannotReachAResolverExitsTwoAndNamesTheFix(t *testing.T) {
 			says: "chmod",
 		},
 		{
-			// A decoy one level above the checkout root, which is where two earlier shapes of this region
-			// reached. Asserted from both ends: the refusal names the resolver it could not find, AND the
-			// decoy never ran. Either alone passes for the wrong reason — a stub that died before resolving
-			// anything satisfies the second, and one that ran the decoy and then failed satisfies the first.
+			// A decoy one level above the checkout root, where two earlier shapes of this region reached.
+			// Both ends are asserted: the refusal has to name the resolver it could not find, and the decoy
+			// has to remain unreached. Either alone passes for the wrong reason, since a stub that died
+			// early satisfies the second and a run that reached the decoy then failed satisfies the first.
 			name: "a tools directory sits outside the checkout",
 			fixture: func(t *testing.T, sandbox string) string {
 				escape, err := os.MkdirTemp(sandbox, "escape-")
@@ -221,17 +227,17 @@ func TestAStubThatCannotReachAResolverExitsTwoAndNamesTheFix(t *testing.T) {
 	}
 }
 
-// argv[0] survives the exec. The tools derive their skill directory from it, so a stub that let the
-// binary's own path through would send every write to the tools directory instead. Proven with the
-// ledger, because it is the one write whose destination is visible, and asserted from both ends: a run
-// that wrote nowhere would satisfy the first half on its own.
+// argv[0] survives the exec. The tools derive their skill directory from it, and a stub that let the
+// binary's own path through would send every write to the tools directory. The ledger proves it. Its
+// write is the only one with a visible destination. Both ends are asserted, and a run that wrote
+// nowhere would satisfy the first half on its own.
 func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing.T) {
 	t.Parallel()
 	before := readFixture(t, liveLedger)
 
 	// Mirrors the real layout, because stats.sh's declared offset is counted from
-	// `kk-flavor/skills/<skill>/scripts/`. A shallower fixture puts the resolver out of its reach and the
-	// case fails having tested the fixture rather than the ledger path.
+	// `kk-flavor/skills/<skill>/scripts/`. A shallower fixture puts the resolver out of its reach, and
+	// the case then fails having tested the fixture and never the ledger path.
 	sandbox := newSandbox(t)
 	fake := sandboxed(t, sandbox, filepath.Join(sandbox, "checkout"))
 	writeFixture(t, filepath.Join(fake, "tools", resolveScript),
@@ -317,10 +323,9 @@ func declaredOffset(body string) string {
 	return ""
 }
 
-// A checkout holding one stub at the depth that stub declares, and nothing else. Built from the declared
-// offset rather than from directory names written here: a fixture a level off puts the resolver out of
-// the stub's reach, and the case then fails for the fixture's shape rather than for anything the stub
-// did.
+// A checkout holding one stub at the depth that stub declares, and no other file. The declared offset
+// builds it, and directory names written here play no part. A fixture a level off puts the resolver
+// out of the stub's reach, and the case then fails for the fixture's shape.
 func newStubCheckout(t *testing.T, sandbox, name string) string {
 	t.Helper()
 	checkout := filepath.Join(sandbox, name)
@@ -329,7 +334,7 @@ func newStubCheckout(t *testing.T, sandbox, name string) string {
 	return checkout
 }
 
-// Where the fixture stub sits inside such a checkout: as many levels down as its own offset climbs.
+// Where the fixture stub sits inside such a checkout: as many levels down as its offset has segments.
 func stubIn(t *testing.T) string {
 	t.Helper()
 	for _, found := range stubDepths(t) {
@@ -348,7 +353,7 @@ func stubIn(t *testing.T) string {
 	return ""
 }
 
-// A root holding one restatement in two files, which is what rule-echo has to find.
+// A root holding one restatement in two files, which is what `ruleecho.sh` has to find.
 func newEchoRoot(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -358,12 +363,12 @@ func newEchoRoot(t *testing.T) string {
 	return root
 }
 
-// One tool, built where the caller wants it. The only real build in this file: what the ledger case
-// measures is where the binary writes, so the binary has to be the real one.
-//
-// `./cmd/<tool>/` where the tool keeps its library apart and `./<tool>/` where its main sits with its
-// code, which is resolve.sh's own rule. Build the library package by mistake and `-o` writes an archive
-// — a file that is not executable, which the resolver then reports as a half-finished install.
+// One tool, built where the caller wants it. The only real build in this file. The ledger case
+// measures where the binary writes, and the binary has to be the real one.
+
+// `./cmd/<tool>/` for a tool keeping its library apart, and `./<tool>/` for one whose main sits with
+// its code. That is resolve.sh's own rule. Build the library package by mistake and `-o` writes an
+// archive, which is not executable, and the resolver then reports a half-finished install.
 func buildTool(t *testing.T, name, into string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(into), 0o755); err != nil {
@@ -378,17 +383,17 @@ func buildTool(t *testing.T, name, into string) {
 	}
 }
 
-// What one launch of a stub came back with. stdout and stderr are kept apart because a refusal has to
-// be audible on stderr while stdout carries what a caller reads.
+// What one launch of a stub came back with. stdout and stderr are kept apart, because a refusal has
+// to be audible on stderr. stdout carries what a caller reads.
 type stubRun struct {
 	stdout string
 	stderr string
 	code   int
 }
 
-// Whether either stream holds the wording. A refusal is asserted on what it says and never on its exit
-// code alone: every refusal the region has exits 2, so the code says one happened and never which, and
-// a case reading the code alone passes on whatever the fixture broke first.
+// Whether either stream holds the wording. A refusal is asserted on what it says, and never on its
+// exit code alone. Every refusal the region has exits 2, and the code says one happened without
+// saying which. A case reading the code alone passes on whatever the fixture broke first.
 func (r stubRun) said(wording string) bool {
 	return strings.Contains(r.stdout, wording) || strings.Contains(r.stderr, wording)
 }
@@ -397,15 +402,16 @@ func (r stubRun) String() string {
 	return fmt.Sprintf("exit %d\nstdout: %s\nstderr: %s", r.code, r.stdout, r.stderr)
 }
 
-// A launch of a stub, with an environment of its own: HOME under this case's own temp directory because
-// the tools these stubs reach read and write beneath it, and this machine's real PATH because the
-// resolver behind them rebuilds whenever the checkout has moved on since the binary in bin/. The build
-// cache is the machine's too, since a `go build` given an empty one compiles the standard library
-// before it reaches the tool.
-//
-// The working directory is an empty one nothing in the fixture knows about. Every stub finds its own
-// directory from `BASH_SOURCE`, and reaching one from cwd instead is the defect the region exists to
-// stop, so no case here is given a cwd that could hide it.
+// A launch of a stub, with an environment of its own. HOME sits under this case's own temp directory,
+// because the tools these stubs reach read and write beneath it. PATH is this machine's real one,
+// because the resolver behind them rebuilds whenever the checkout has moved past the binary in bin/.
+
+// The build cache is the machine's too, since a `go build` given an empty one compiles the standard
+// library before it reaches the tool.
+
+// The working directory is an empty one, and no part of the fixture knows it. Every stub finds its own
+// directory from `BASH_SOURCE`, and reaching one from cwd is the defect the region exists to stop. No
+// case here is given a cwd that might hide it.
 func newStubLaunch(t *testing.T, script string, arguments ...string) *exec.Cmd {
 	t.Helper()
 	cache, err := os.UserCacheDir()
@@ -424,9 +430,8 @@ func newStubLaunch(t *testing.T, script string, arguments ...string) *exec.Cmd {
 	return command
 }
 
-// One launch. A stub that could not be started at all is fatal rather than a failed case: every case
-// here is a launch, so it would otherwise fail for a reason that has nothing to do with the guard it
-// names.
+// One launch. A stub that could not be started at all is fatal. Every case here is a launch, and a
+// failed case would otherwise report a reason unrelated to the guard it names.
 func runStub(t *testing.T, command *exec.Cmd) stubRun {
 	t.Helper()
 	var out, errOut strings.Builder
@@ -444,10 +449,10 @@ func runStub(t *testing.T, command *exec.Cmd) stubRun {
 	return result
 }
 
-// A refusal, held to the wording only its own cause produces. Every refusal the region has exits 2, so
-// the code says one happened and never which: a case asserting the code alone passes on whatever the
-// fixture broke first while its name claims the cause. `command not found` is a PATH short of something
-// the stub calls, which no case here ever means.
+// This holds a refusal to the wording only its own cause produces. Every refusal the region has exits
+// 2, and the code says one happened without saying which. A case asserting the code alone passes on
+// whatever the fixture broke first, while its name claims the cause. `command not found` is a PATH
+// short of something the stub calls, which no case here ever means.
 func expectStubRefusal(t *testing.T, got stubRun, wording string) {
 	t.Helper()
 	if got.code != 2 {
@@ -480,11 +485,12 @@ func runnableScript(t *testing.T, script string) string {
 	return path
 }
 
-// A directory every fixture is built under, resolved physically. macOS reaches a temp directory through
-// a symlinked /var, and these stubs write executables. The incident behind this: a harness bug once
-// handed every case the same HOME, followed a live symlink into the checkout, and overwrote real config
-// files in the working tree. Resolving here is what lets sandboxed() below refuse a path before
-// anything is written to it rather than after.
+// macOS reaches a temp directory through a symlinked /var, and these stubs write executables. The
+// incident behind this: a harness bug once handed every case the same HOME. It followed a live
+// symlink into the checkout and overwrote config files in the working tree.
+
+// A directory every fixture is built under, resolved physically. The resolution here is what lets
+// sandboxed() refuse a path before anything is written to it.
 func newSandbox(t *testing.T) string {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -494,9 +500,9 @@ func newSandbox(t *testing.T) string {
 	return dir
 }
 
-// A fixture path, refused unless it really lies inside the sandbox. Called before the directory is
-// built and before any script writes into it: afterwards the write has already landed, and what these
-// scripts write is executable files.
+// A fixture path, refused unless it really lies inside the sandbox. Every caller reaches it before the
+// directory is built and before any script writes into it. Afterwards the write has already landed,
+// and what these scripts write is executable files.
 func sandboxed(t *testing.T, sandbox, path string) string {
 	t.Helper()
 	parent, err := filepath.EvalSymlinks(filepath.Dir(path))

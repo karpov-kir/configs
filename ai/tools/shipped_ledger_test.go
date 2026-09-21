@@ -1,9 +1,10 @@
 package tools_test
 
-// The live kk-reduce ledger, held against the seed a fresh checkout is given.
+// This file compares the live kk-reduce ledger with the seed a fresh checkout is given.
 //
-// Here rather than in `ai/tools/eco-stats/` for the reason shipped_tree_test.go's cases are. That a
-// first run writes the seed verbatim is that package's own case — the two together hold the pair.
+// It lives in this package with the other cases that read the shipped checkout, for the reason
+// shipped_tree_test.go gives. That a first run writes the seed verbatim is the `ecostats` package's
+// own case, and the two together hold the pair.
 
 import (
 	"os"
@@ -15,10 +16,10 @@ import (
 
 const liveLedger = repoRoot + "/ai/kk-flavor/skills/kk-reduce/stats.md"
 
-// The seed and the live ledger are a .md/source pair, which the shared-region scan cannot cover — it
-// reads `*.sh` only. Drift between them costs a fresh install the rules the real file owns, and
-// nothing but this case notices: the seed path runs only when there is no ledger, never on the tree
-// that would show it.
+// The seed and the live ledger are a .md/source pair, and the shared-region scan reads `*.sh` only,
+// so it cannot cover them. A divergence costs a fresh install the rules the real file owns, and this
+// case is the only place it shows. The seed path runs when a ledger is absent, and the tree that
+// would show a divergence never takes it.
 func TestTheSeededLedgerSaysWhatTheLiveOneSays(t *testing.T) {
 	live, err := os.ReadFile(liveLedger)
 	if err != nil {
@@ -31,8 +32,8 @@ func TestTheSeededLedgerSaysWhatTheLiveOneSays(t *testing.T) {
 	}
 }
 
-// As much of the live file as the seed is long, so a failure shows the two ends that differ rather
-// than every row ever appended.
+// As much of the live file as the seed is long. A failure then shows the two ends that differ, and
+// leaves out every row ever appended.
 func firstBytes(text string, n int) string {
 	if len(text) <= n {
 		return text

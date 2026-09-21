@@ -1,5 +1,5 @@
 // The judge as a command. The body is `readerjudge.Main`, because the order its steps run in is a
-// behaviour with a case on it and a `main()` is the one shape no case can call.
+// behaviour with a case on it, and no case can call a `main()`.
 //
 //	usage: reader-judge.sh [--config <policy.json>] [--numbers] [--changed[=<revisions>]] <kind> [<path>]
 package main

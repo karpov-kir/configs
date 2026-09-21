@@ -5,6 +5,7 @@ import (
 	"os"
 
 	commentstrip "configs/ai/tools/comment-strip"
+	"configs/ai/tools/repo"
 )
 
 func main() {
@@ -13,5 +14,5 @@ func main() {
 		os.Stderr.WriteString("comment-strip.sh: no working directory — the strip did NOT run\n")
 		os.Exit(2)
 	}
-	os.Exit(commentstrip.Strip("comment-strip.sh", os.Args[1:], cwd, os.Stdout, os.Stderr))
+	os.Exit(commentstrip.Strip("comment-strip.sh", os.Args[1:], cwd, repo.Exec{}, os.Stdout, os.Stderr))
 }

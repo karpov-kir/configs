@@ -1,7 +1,7 @@
 // A stub's header documents a usage line and the binary behind it prints one when it refuses a bad
 // invocation. Nothing else compares the two: each binary's line is asserted in its own suite and each
-// stub's is only scanned for its lowercase prefix by eco-check, so the two flag lists could drift
-// apart with both suites green.
+// stub's is only scanned for its lowercase prefix by ecocheck. The two flag lists can then diverge
+// with both suites green.
 //
 // The stubs are discovered and never listed, so the one written tomorrow is held here without an edit.
 // What no scan can derive is the invocation that makes each tool refuse: a guess either scans the
@@ -9,24 +9,25 @@
 // is what keeps the table honest — a stub with no row fails naming itself, rather than dropping out of
 // the loop in silence, which is the same hole in a new place.
 //
-// Each tool's line is taken by driving its refusal rather than by reading the source for a literal: a
-// test that greps the constant out of the package would agree with the code however wrong the printed
-// text is.
-//
-// Most of them are driven IN THIS PROCESS. Four cannot be: cite-graph, rule-echo, install-project and
-// project-skills keep their main with their code as `package main`, which no test can import, so those
-// are built and executed. The first exec of a fresh binary costs four to six seconds under this
+// Each tool's line is taken by driving its refusal. A test that greps the constant out of the package
+// would agree with the code however wrong the printed text is.
+
+// Most of them are driven IN THIS PROCESS. Four cannot be. cite-graph, rule-echo, install-project and
+// project-skills keep their main with their code as `package main`, which no test can import. Those
+// four are built and executed. The first exec of a fresh binary costs four to six seconds under this
 // machine's endpoint agent, and twenty-two of them were 30 of the root package's 33 seconds.
-//
+
 // A row's `call` is its in-process route, and it hands the tool's Run exactly what that tool's `main`
-// hands it. Three properties the exec route had are kept there by hand. argv[0] is the stub's own path,
-// which is what `exec -a "$0"` gives the binary and what the model-policy family resolves its
-// models.json from. $HOME, $XDG_CONFIG_HOME and the working directory are this test's own, so nothing a
-// refusal reads on the way to refusing is the human's. And the refusal still has to exit 2.
-//
+// hands it. Three properties the exec route had are kept there by hand. argv[0] is the stub's own
+// path, which is what `exec -a "$0"` gives the binary and what the `modelpolicy` family resolves its
+// models.json from.
+
+// $HOME, $XDG_CONFIG_HOME and the working directory are this test's own, so no refusal reads the
+// human's on its way to refusing. And the refusal still has to exit 2.
+
 // What a process proved and a call cannot is that `cmd/<tool>/main.go` wires Run the way the row does.
-// That is `stub_reach_test.go`'s, which drives whole stubs end to end. The name drift these cases exist
-// for was in cite-graph and rule-echo, and both of those are still processes.
+// That is `stub_reach_test.go`'s, which drives whole stubs end to end. The name mismatch these cases
+// exist for was in cite-graph and rule-echo, and both of those are still processes.
 package tools_test
 
 import (
@@ -70,9 +71,9 @@ import (
 
 const (
 	// A stub carries the shared region AS a region. A file that names the marker inside a string it
-	// searches for answers a grep for the name and carries neither of these lines, which is the
-	// difference between a stub and a file that talks about stubs. Told apart by that property rather
-	// than by name, because a name here is the stale list this suite exists to replace.
+	// searches for answers a grep for the name and carries neither of these lines. That is the
+	// difference between a stub and a file that talks about stubs. They are told apart by that
+	// property, because a name here is the stale list this suite exists to replace.
 	stubRegionOpen  = "# --- shared:tool-stub ---"
 	stubRegionClose = "# --- end shared:tool-stub ---"
 	// What every stub declares the tool behind it to be, and how this suite finds the package to build.
@@ -99,24 +100,24 @@ func (r refusal) base() string {
 	return path.Base(r.stub)
 }
 
-// One refusal's context: what a process would have been given, handed to a Run instead. Every field is
-// this test's own, so nothing a refusal reads on the way to refusing is the human's.
+// One refusal's context: what a process would have been given, with a Run taking it instead. Every
+// field is this test's own, so no refusal reads the human's on its way to refusing.
 type invocation struct {
 	// stub is the absolute path to the stub, which is argv[0] — what `exec -a "$0"` gives the binary.
 	stub string
-	// stubDir is the directory the stub really sits in, symlinks resolved, which is where four of these
-	// tools read their own sources, declarations and launcher from. Each of those mains resolves it the
-	// same way, off argv[0].
+	// stubDir is the directory the stub really sits in, symlinks resolved. Four of these tools read
+	// their own sources, declarations and launcher from it. Each of those mains resolves it the same
+	// way, off argv[0].
 	stubDir string
 	args    []string
 	cwd     string
 	home    string
-	// out takes both streams, the way CombinedOutput did: a refusal writing to stderr with nothing on
+	// out takes both streams, the way CombinedOutput did: a refusal writing to stderr with an empty
 	// stdout would otherwise leave the usage line unread.
 	out io.Writer
 }
 
-// The program name a refusal prints, which is the stub's basename and not this binary's.
+// The program name a refusal prints, which is the stub's basename. This binary's name stays out of it.
 func (i invocation) self() string {
 	return filepath.Base(i.stub)
 }
@@ -133,7 +134,7 @@ func (i invocation) arg(at int) string {
 }
 
 var refusals = []refusal{
-	// An unknown option, refused in argument parsing before the first link is surveyed. Not a bare
+	// An unknown option, which argument parsing refuses before the first link is surveyed. Not a bare
 	// invocation: for either of these that one mounts this machine's own configuration.
 	{stub: "ai/bootstrap.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return aibootstrap.Run(aibootstrap.Options{
@@ -163,18 +164,18 @@ var refusals = []refusal{
 	{stub: "ai/kk-flavor/scripts/reader-judge.sh", env: []string{"JUDGE_PROVIDER=claude"}, call: func(i invocation) int {
 		return readerjudge.Main(i.stub, i.args, strings.NewReader(""), i.out, i.out)
 	}},
-	// An unknown argument, refused before the client is looked for and long before a registry is
-	// written. Not a bare invocation: that one is also refused, but only after this machine has been
-	// asked whether it has the client's CLI.
+	// An unknown argument, which the tool refuses before the client is looked for and long before a
+	// registry is written. Not a bare invocation: that one is also refused, but only after this machine
+	// has been asked whether it has the client's CLI.
 	{stub: "ai/mcp-sync.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return mcpsync.Run(i.self(), i.args, i.stubDir, mcpsync.NewCLIClient(i.out, i.out), i.out, i.out)
 	}},
-	// An unknown option, refused in argument parsing before any project is read or written.
+	// An unknown option, which argument parsing refuses before any project is read or written.
 	{stub: "ai/install-project.sh", args: []string{"--nope"}},
 	{stub: "ai/project-mcp.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return projectmcp.Run(i.self(), i.args, i.stubDir, i.home, repo.Exec{}, i.out, i.out)
 	}},
-	// No arguments at all, which is the one refusal this entry point has: it takes a worktree it cannot
+	// No arguments at all, which is the only refusal this entry point has. It takes a worktree it cannot
 	// default, and any path it were handed here would be one on the machine running the suite.
 	{stub: "ai/project-skills.sh"},
 	{stub: "ai/kk-flavor/scripts/model-check.sh", args: []string{"--nope"}, call: func(i invocation) int {
@@ -196,7 +197,7 @@ var refusals = []refusal{
 		return waitreap.Run(i.args, i.out, i.out)
 	}},
 	{stub: "ai/kk-flavor/skills/idsd-qualify/scripts/report.sh", args: []string{"nope"}, call: func(i invocation) int {
-		// The one tool here that resolves a repository before it dispatches, so the working directory it
+		// The only tool here that resolves a repository before it dispatches, so the working directory it
 		// is handed has to be the empty one this suite built.
 		return ecoreport.Invocation{
 			Args: i.args, Dir: i.cwd, Self: i.stub, Home: i.home, ConfigHome: i.configHome(),
@@ -275,12 +276,14 @@ func TestEveryStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
 	}
 }
 
-// Every stub in the repository, by repo-relative path, sorted. git's listing rather than a walk, because
-// `git ls-files` stops at a nested repository's edge and a walk does not: a developer keeping worktrees
-// under their checkout has a copy of every stub in each of them, and each copy arrives here with no row
-// in the table below. `--others`, so a stub written and not yet added is checked too — the moment it is
-// easiest to leave one uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte
-// and a quoted name reaches no file.
+// `--others`, so a stub written and still untracked is checked too. That is the moment it is easiest
+// to leave one uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte, and
+// a quoted name reaches no file.
+
+// Every stub in the repository, by repo-relative path, sorted. git lists them, because `git ls-files`
+// stops at a nested repository's edge and a walk keeps going. A developer keeping worktrees under
+// their checkout has a copy of every stub in each of them, and each copy arrives here with no row in
+// `refusals`.
 func discoverStubs(t *testing.T) []string {
 	t.Helper()
 	listed, err := exec.Command("git", "-C", repoRoot, "ls-files", "--cached", "--others",
@@ -382,10 +385,10 @@ func rowPerStub(t *testing.T, stubs []string) map[string]refusal {
 // The tools that still have to be executed, built once into a directory of this test's own. Only the
 // rows with no in-process route: every binary built here is a fresh one, and the first exec of a fresh
 // binary costs seconds under this machine's endpoint agent.
-//
-// `./cmd/<tool>/` where the tool keeps its library apart, `./<tool>/` where its main sits with its
-// code — resolve.sh's rule. Today every row left here is of the second shape, which is exactly why it
-// is left here: `package main` is what no test can import.
+
+// `./cmd/<tool>/` for a tool keeping its library apart, `./<tool>/` for one whose main sits with its
+// code. That is resolve.sh's rule. Today every row left here is of the second shape, and that is
+// exactly why it is left here: `package main` is what no test can import.
 func buildTools(t *testing.T, stubs []string, tools map[string]string, rows map[string]refusal) string {
 	t.Helper()
 	into := t.TempDir()
@@ -402,8 +405,8 @@ func buildTools(t *testing.T, stubs []string, tools map[string]string, rows map[
 		}
 		build = append(build, pkg)
 	}
-	// No package named is every tool reached in process, which is where this suite is headed rather
-	// than an error. `go build` handed no package would build the directory it stands in.
+	// No package named means every tool is reached in process, and that is where this suite is headed.
+	// It is no error. `go build` handed no package would build the directory it stands in.
 	if len(build) == flagCount {
 		return into
 	}
@@ -442,8 +445,8 @@ func refusedUsage(t *testing.T, row refusal, binary, cwd string) string {
 	return ""
 }
 
-// One refusal, and the exit code it answered with. In this process where the row carries a route, and
-// as a process where the tool is a `package main` nothing can import.
+// One refusal, and the exit code it answered with. It runs in this process where the row carries a
+// route. Where the tool is a `package main` that no test can import, it runs as a process.
 //
 // Both routes get the same three things: argv[0] as the stub's own path, a $HOME of this test's own,
 // and the empty repository as the working directory.
@@ -460,7 +463,7 @@ func drive(t *testing.T, row refusal, binary, cwd string) (string, int) {
 		return asAProcess(t, row, binary, stub, cwd, home)
 	}
 
-	// The environment a process was given, set for this case alone. reader-judge reads $HOME and
+	// The environment a process was given, set for this case alone. `readerjudge` reads $HOME and
 	// $XDG_CONFIG_HOME for a roll-deadline override before it looks at the arguments at all.
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))

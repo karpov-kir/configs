@@ -1,14 +1,14 @@
-// Where go.mod sits decides which reads this repository's suites are keyed on, and nothing else in the
-// checkout would notice it moving.
-//
 // Go hashes every file a case opens inside the module root into that package's test cache entry, and
-// skips what lies above it. With go.mod at `ai/tools` the suites that read the checkout — the whole of
-// this package — answered `ok (cached)` over a tree that had moved, and the gate bought its way out by
-// forcing one package with `-count=1` on every run. At the repository root nothing a case can open is
-// above it, so the forcing is gone and a stale green has nowhere left to come from.
-//
-// That property is invisible while it holds: move the module file down again, or carve a second module
-// out of a subdirectory, and every suite still passes — it just stops noticing. This is the case that
+// skips what lies above the root. Where go.mod sits therefore decides which reads this repository's
+// suites are keyed on.
+
+// With go.mod at `ai/tools`, the suites in this package read the checkout and answered `ok (cached)`
+// over a tree that had moved. The gate worked around it by forcing one package with `-count=1` on
+// every run. At the repository root every file a case can open is inside the module, so the forcing
+// is gone and a stale green cannot happen.
+
+// The property is invisible while it holds. Move the module file down again, or carve a second module
+// out of a subdirectory, and every suite still passes, having stopped noticing. This is the case that
 // notices.
 package tools_test
 
@@ -43,11 +43,13 @@ func TestTheModuleRootIsTheRepositoryRoot(t *testing.T) {
 	}
 }
 
-// Every file this repository tracks, by repo-relative path. The index and not the working tree, because
-// what this case asks is which modules the repository DECLARES, and one it does not track it has not
-// declared — the worktrees a developer keeps under their checkout each carry a go.mod, and none of them
-// is this repository's business. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte
-// and a quoted name reaches no file.
+// A developer's worktrees sit under this checkout and each carries a go.mod, and those are outside
+// this repository's declarations. `-z`, because git C-quotes a path holding a quote or a non-ASCII
+// byte, and a quoted name reaches no file.
+
+// Lists every file this repository tracks, by repo-relative path. The listing reads the index, since
+// the question here is what the repository DECLARES as a module, and an untracked go.mod is outside
+// that.
 func trackedFiles(t *testing.T) []string {
 	t.Helper()
 	listed, err := exec.Command("git", "-C", repoRoot, "ls-files", "--cached", "-z").Output()

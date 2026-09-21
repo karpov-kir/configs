@@ -1,10 +1,11 @@
-// The judge configured from the shipped policy. `reader-judge` is the one task a tool resolves on its
-// own, so what the central file assigns it is the whole of its cost control, and these are the cases
-// that read that file rather than a fixture.
+// The judge configured from the shipped policy. Every other task is assigned by the caller dispatching
+// it, and a tool resolves `readerjudge` by itself. The central file's row for it is therefore the
+// whole of its cost control. A fixture would leave that row unchecked, so these cases read the
+// shipped file.
 //
-// Here rather than in `ai/tools/reader-judge/` for the reason shipped_tree_test.go's cases are.
-// Everything the judge does with a decision once it has one is that package's own suite's, against a
-// fixture.
+// They live in this package with the other cases that read the shipped checkout, for the reason
+// shipped_tree_test.go gives. What the judge does with a decision once it has one belongs to that
+// package's own suite, which drives it against a fixture.
 package tools_test
 
 import (
@@ -51,7 +52,7 @@ func TestJudgeCacheSeparatesClientSelections(t *testing.T) {
 }
 
 // A CLI that exits without answering. Configure only looks for one on PATH, and neither case here
-// takes a roll — a real client would price a model against somebody's account to prove which name the
+// takes a roll. A real client would price a model against somebody's account to prove which name the
 // policy handed over.
 func fakeCodex(t *testing.T) { fakeClient(t, "codex") }
 
