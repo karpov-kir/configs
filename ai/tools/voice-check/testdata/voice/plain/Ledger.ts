@@ -57,3 +57,8 @@ export function resolveSettlementCode(book: Element): string {
 export function claimFromPeriodBlindAnswer(book: Element): boolean {
   return Boolean(book);
 }
+
+/** Copies the entries into an array before a caller removes one. */
+export function toEntries(set: Element): Element[] {
+  return [];
+}

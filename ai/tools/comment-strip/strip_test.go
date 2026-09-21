@@ -251,3 +251,41 @@ func TestStripCountsEveryLineTheTrimTook(t *testing.T) {
 		t.Errorf("sites:\n%swant\n%s", out.String(), want)
 	}
 }
+
+// The writer's audit classifies a noun as the code's own word by looking it up in this file. The
+// brief named it before any code wrote it, and a writer following the audit then classified every
+// noun as none of the three and rewrote until it declined the site.
+func TestStripWritesTheIdentifierWordsBesideTheFacts(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ts")
+	source := "// A note about the entry type.\nexport function readEntryType(book: Element): string {\n  return '';\n}\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	facts := filepath.Join(dir, "facts")
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + facts, path}, dir, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d — %s", code, errOut.String())
+	}
+	body := string(mustRead(t, filepath.Join(facts, "identifiers.txt")))
+	words := strings.Fields(body)
+	held := map[string]bool{}
+	for _, word := range words {
+		held[word] = true
+	}
+	// The whole identifier and each of its humps, because a reader meets `readEntryType` in prose as
+	// "entry type" and the audit compares the parts.
+	for _, want := range []string{"readentrytype", "read", "entry", "type", "book", "element"} {
+		if !held[want] {
+			t.Errorf("identifiers.txt holds no %q, and the file spells it:\n%s", want, body)
+		}
+	}
+	if held["note"] {
+		t.Errorf("identifiers.txt holds a word from the comment, and the comment is what the writer replaces")
+	}
+	for i := 1; i < len(words); i++ {
+		if words[i-1] >= words[i] {
+			t.Fatalf("identifiers.txt is not sorted and deduplicated at %q, %q", words[i-1], words[i])
+		}
+	}
+}

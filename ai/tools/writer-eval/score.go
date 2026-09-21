@@ -24,8 +24,8 @@ type Return struct {
 	Terms []Audit
 	Verbs []Audit
 	// Answered and Needed carry what question 1 said, and Attempts counts the rewrites the writer
-	// showed. A none on a site question 1 called needed has to show two attempts, or the gate the
-	// writer runs over its own block is reading as permission to skip the site.
+	// showed. A none on a site question 1 called needed has to show two attempts. Otherwise the gate
+	// the writer runs over its own block reads as permission to skip the site.
 	Answered bool
 	Needed   bool
 	Attempts int
@@ -177,7 +177,7 @@ func Judge(name string, want Expected, r Return) Verdict {
 		v.Failures = Score(r)
 	}
 	// A none on a site question 1 called needed is a skipped rewrite unless the attempts are there to
-	// read. The writer says which site that is, so this reads presence and judges nothing.
+	// read. The writer names that site itself, so this reads presence.
 	if got == ExpectNone && r.Answered && r.Needed && r.Attempts < 2 {
 		v.Failures = append(v.Failures, Failure{"none-without-two-attempts",
 			fmt.Sprintf("%d attempt(s) shown", r.Attempts)})

@@ -77,3 +77,10 @@ export function resolveSettlementCode(book: Element): string {
 export function claimFromPeriodBlindAnswer(book: Element): boolean {
   return Boolean(book);
 }
+
+/**
+ * An entry set drops an entry as soon as the ledger does.
+ */
+export function toEntries(set: Element): Element[] {
+  return [];
+}

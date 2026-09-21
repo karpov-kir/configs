@@ -105,6 +105,9 @@ const (
 	checkLongBlock     = "long-block"
 	checkCoined        = "coined"
 	checkCoinedIdent   = "coined-identifier"
+	checkCounterfact   = "counterfactual-consequence"
+	checkAnthropo      = "anthropomorphism"
+	checkElidedVerb    = "elided-verb"
 	checkLongSentence  = "long-sentence"
 	checkClauseDepth   = "clause-depth"
 	checkDoubleNeg     = "double-negative"
@@ -114,6 +117,7 @@ const (
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
+	checkCounterfact, checkAnthropo, checkElidedVerb,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon}
 
 var (
@@ -608,6 +612,42 @@ func participialPhrase(read string) []int {
 
 // scanSegment is every check over one segment, and the only place a check runs. One function, so the
 // three profiles cannot drift into reading the same sentence differently.
+// The three shapes a reviewer read twice as confusing, each counted on sixty files of reviewed code
+// before it became a check: a consequence about code that does not exist at 14 of 304 notes, a
+// boolean written as a person at 3 of 711 sentences, a verb the sentence borrows from an earlier
+// clause at 1 of 711. comment-census holds the counts and the samples behind them.
+//
+// They read comments alone. The counts above were taken over comment blocks, and a rule file writes
+// about these shapes rather than in them.
+var (
+	// `so ... would` describes a call nobody makes, and the reader inverts it to learn what this code
+	// does.
+	reSoWould = regexp.MustCompile(`(?i)\bso\b[^.]*\b(would|could)\b`)
+
+	// A boolean written as a person answering. `yes` takes modifiers between the article and the
+	// word, because the sentence that prompted this said "a scheme-blind yes". `no` stays adjacent,
+	// since it is the determiner in "no row" and in "no longer".
+	reAnthropomorphic = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)\b(a|an|the|its|their|his|her|our|your)\s+(?:[a-z][a-z-]*\s+){0,2}yes\b`),
+		regexp.MustCompile(`(?i)\b(a|an|the|its|their|his|her|our|your)\s+no\b`),
+		regexp.MustCompile(`(?i)\bsay(s|ing)?\s+(yes|no)\b`),
+		regexp.MustCompile(`(?i)\banswers?\s+(yes|no)\b`),
+	}
+
+	// A verb the sentence borrows from a clause before it, which the reader has to supply again.
+	reElidedVerb = regexp.MustCompile(`(?i)\b(as|than|like|so)\s+(the|a|an|its|their)\s+\w+\s+(does|do|did)\b`)
+)
+
+// SentenceShapes are the three comment-only checks, exported so comment-census counts the same
+// patterns this scan fires on. One definition, two readers.
+func SentenceShapes() map[string][]*regexp.Regexp {
+	return map[string][]*regexp.Regexp{
+		checkCounterfact: {reSoWould},
+		checkAnthropo:    reAnthropomorphic,
+		checkElidedVerb:  {reElidedVerb},
+	}
+}
+
 func (s scanner) scanSegment(file string, seg segment) []Finding {
 	if seg.text == "" {
 		return nil
@@ -631,6 +671,18 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	prose := reInlineCode.ReplaceAllStringFunc(text, func(span string) string {
 		return strings.Repeat(" ", len(span))
 	})
+	// The three sentence shapes read comments alone, since their counts were taken over comment
+	// blocks and a rule file writes about them rather than in them.
+	if s.profile == ProfileComment {
+		for _, name := range []string{checkCounterfact, checkAnthropo, checkElidedVerb} {
+			for _, pattern := range SentenceShapes()[name] {
+				if at := pattern.FindStringIndex(prose); at != nil {
+					add(name, at[0], at[1])
+					break
+				}
+			}
+		}
+	}
 	// A coined word is a codebase's invented vocabulary, so the check belongs where code and the text
 	// about a change are — not over a rule file, which is prose about writing and uses the ordinary
 	// English word a codebase may happen to have coined. A machine-level conf naming one project's

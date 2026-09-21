@@ -41,12 +41,11 @@ const callDeadline = 4 * time.Minute
 // reader sees the variance.
 const evalRolls = 5
 
-// labelledBar is what every labelled case has to do. A case whose label says none or rename is
-// decided by a step, so it clears every roll. A case whose label says written is the writer judging,
-// so it clears writtenFloor of them.
+// labelledBar is what every labelled case has to do. A step decides a none and a rename, so those
+// clear every roll. The writer judges a written block, so that one clears writtenFloor.
 //
-// The two floors came apart when the steps that fixed every none case collapsed every written one:
-// the writer moved from judging to refusing, and one number could not see that happen. The plain half of the eval is the next piece, and
+// The floors came apart after the steps that fixed every none case collapsed every written one. The
+// writer had moved from judging to refusing, and one number could not see that happen. The plain half of the eval is the next piece, and
 // its bound is absent with it, because a bar declared before the thing that measures it reads as
 // enforced.
 const labelledBar = "a none case on every roll, a written case on three of five"
@@ -126,6 +125,10 @@ func prompt(t *testing.T, c Case) string {
 	}
 	fmt.Fprintf(&out, "=== the site ===\nThe file holds this code, with every comment block already removed:\n\n"+
 		"```ts\n%s\n```\n\nThe facts file for the site holds:\n\n%s\n\n", c.Code, c.Facts)
+	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
+	// thing. A run that withheld it would measure a writer whose audit can classify nothing.
+	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
+		strings.Join(census.IdentifierWords(strings.Split(c.Code, "\n")), " "))
 	if c.Tests != "" {
 		fmt.Fprintf(&out, "=== the change set's tests ===\nQuestion 3 greps these for a fact's nouns:\n\n"+
 			"```ts\n%s\n```\n\n", c.Tests)
@@ -340,10 +343,10 @@ const plainSetEnv = "JUDGE_EVAL_PLAIN"
 const plainBlocksEnv = "WRITER_EVAL_PLAIN_BLOCKS"
 const plainBlockBudget = 20
 
-// plainFailureBound is the share of written blocks on the plain half that may fail a check, and
-// plainWriteFloor is the share of the set the writer has to write for at all. The bound alone scored
-// the written blocks, so a writer answering none everywhere cleared it with nothing written, and the
-// labelled set caught that writer arriving. Both were written down before the run that reads them.
+// plainFailureBound is the share of written blocks that may fail a check. plainWriteFloor is the
+// share of the set the writer has to write for at all. The bound alone scored what was written, so a
+// writer answering none everywhere cleared it with an empty numerator. Both numbers were written
+// down before the run that reads them.
 const plainFailureBound = 0.10
 const plainWriteFloor = 0.50
 

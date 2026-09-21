@@ -549,3 +549,23 @@ func Restates(summary string, declWords map[string]bool) (survived []string, had
 	}
 	return survived, hadContent
 }
+
+// IdentifierWords is what comment-strip writes to identifiers.txt: every word a file's identifiers
+// spell, split at the camel humps, lowercased, deduplicated and sorted. The writer eval hands the
+// same list to the writer, so the fixture and the lane audit against one thing.
+func IdentifierWords(lines []string) []string {
+	blocks := Blocks(lines)
+	seen := map[string]bool{}
+	for word := range Identifiers(lines, blocks) {
+		seen[word] = true
+		for _, hump := range strings.Fields(camelBreak.ReplaceAllString(word, "$1 $2")) {
+			seen[strings.ToLower(hump)] = true
+		}
+	}
+	words := make([]string, 0, len(seen))
+	for word := range seen {
+		words = append(words, word)
+	}
+	sort.Strings(words)
+	return words
+}

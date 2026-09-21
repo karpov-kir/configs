@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	readerjudge "kk-flavor/tools/reader-judge"
@@ -209,8 +210,54 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 	if err := os.WriteFile(readPath, []byte(stripped), info.Mode().Perm()); err != nil {
 		return refuse("cannot write %s", echoable(path))
 	}
+	// The writer's audit classifies a noun phrase as the code's word by looking it up here, so the
+	// list has to exist beside the facts. Without it every noun audits as none of the three and the
+	// writer rewrites until it declines the site, which is a measured shift and not a guess.
+	if err := os.WriteFile(filepath.Join(dir, identifiersFile),
+		[]byte(strings.Join(identifierWords(lines), "\n")+"\n"), 0o644); err != nil {
+		return refuse("cannot write %s", echoable(filepath.Join(dir, identifiersFile)))
+	}
 	for _, s := range sites {
 		fmt.Fprintf(stdout, "%s:%d %s\n", path, s.line, s.facts)
 	}
 	return exitCut
+}
+
+// identifiersFile is what the writer's audit reads to tell the code's own words from English.
+const identifiersFile = "identifiers.txt"
+
+var identifierToken = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
+var camelHump = regexp.MustCompile(`([a-z0-9])([A-Z])`)
+
+// identifierWords is every word a file's identifiers spell, split at the camel humps, lowercased and
+// deduplicated. The humps are what a comment's nouns are compared against: a reader meets
+// `entryType` in prose as "entry type", so the audit needs the parts as well as the whole.
+//
+// Comment lines are left out. A word this file takes from the comments would audit as the code's own
+// word, and the comments are what the writer is replacing.
+func identifierWords(lines []string) []string {
+	inComment := map[int]bool{}
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		for offset := 0; offset < u.Span; offset++ {
+			inComment[u.Line+offset] = true
+		}
+	}
+	seen := map[string]bool{}
+	for at, line := range lines {
+		if inComment[at+1] {
+			continue
+		}
+		for _, token := range identifierToken.FindAllString(line, -1) {
+			seen[strings.ToLower(token)] = true
+			for _, hump := range strings.Fields(camelHump.ReplaceAllString(token, "$1 $2")) {
+				seen[strings.ToLower(hump)] = true
+			}
+		}
+	}
+	words := make([]string, 0, len(seen))
+	for word := range seen {
+		words = append(words, word)
+	}
+	sort.Strings(words)
+	return words
 }
