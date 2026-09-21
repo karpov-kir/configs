@@ -152,9 +152,9 @@ func Score(r Return) []Failure {
 		}
 	}
 	// The ceiling is the note's, and the summary sits outside it. The rule's two-sentence bound is in
-	// the note paragraph, and the block's own bound is four prose lines. Counting the block instead
-	// put a summary and a two-sentence note over a limit neither of them breaks, which took the plain
-	// half from 6% failing to 15%.
+	// the note paragraph, and the block's own bound is four prose lines. A check counting the block
+	// put a summary and a two-sentence note over a limit neither of them breaks, and the plain half
+	// went from 6% failing to 15%.
 	inNote := sentences
 	if r.Summary == PartWritten && len(inNote) > 0 {
 		inNote = inNote[1:]

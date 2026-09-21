@@ -133,8 +133,8 @@ func TestADeclinedSiteFailsNoTextCheck(t *testing.T) {
 	}
 }
 
-// The ceiling is the note's two sentences, and the summary sits outside it. Counting the block put a
-// summary and a two-sentence note over a limit neither of them breaks.
+// The ceiling is the note's two sentences, and the summary sits outside it. A check counting the
+// block put a summary and a two-sentence note over a limit neither of them breaks.
 func TestTheSentenceCeilingCountsTheNoteAndNotTheSummary(t *testing.T) {
 	allowed := ParseReturn("summary: needed\nnote: written\n/** A summary. One note. Two notes. */")
 	if checkedBy(Score(allowed), "over-the-sentence-ceiling") {
