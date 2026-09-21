@@ -39,18 +39,9 @@ func (c *checker) reported(needle string) bool {
 }
 
 func TestNoBashToParseWithIsRefusedNotReportedAsClean(t *testing.T) {
-	t.Run("finds the syntax error while a bash is there to find it", func(t *testing.T) {
-		c := newCheckerOverABrokenScript(t, t.Name()+"/bash")
-		c.scanScriptsParse()
-		if !c.reported("syntax: ") {
-			t.Fatalf("the fixture raised no syntax error, so the cases below prove nothing: %v", c.findings)
-		}
-		if len(c.unrunnable) != 0 {
-			t.Errorf("a scan that did parse reported itself unrunnable: %v", c.unrunnable)
-		}
-	})
-
-	t.Run("says NO script was parsed when there is no bash to parse with", func(t *testing.T) {
+	// The refusal has to leave through the exit as well as through stderr. A reason on stderr that 0
+	// rides out on goes unread: this runs as a gate, and callers read the code.
+	t.Run("says NO script was parsed when there is no bash, and exits 2 rather than on its finding count", func(t *testing.T) {
 		c := newCheckerOverABrokenScript(t)
 		c.scanScriptsParse()
 
@@ -63,14 +54,6 @@ func TestNoBashToParseWithIsRefusedNotReportedAsClean(t *testing.T) {
 		if !strings.Contains(strings.Join(c.unrunnable, "\n"), "NO script was parsed") {
 			t.Errorf("the refusal does not say what did not happen: %v", c.unrunnable)
 		}
-	})
-
-	// And it has to leave through the exit. A reason on stderr that 0 rides out on is a reason nobody
-	// reads: this runs as a gate, and callers read the code.
-	t.Run("and the check exits 2 rather than on its finding count", func(t *testing.T) {
-		c := newCheckerOverABrokenScript(t)
-		c.scanScriptsParse()
-
 		var out, errOut bytes.Buffer
 		if got := c.exitCode(&out, &errOut); got != 2 {
 			t.Errorf("exitCode = %d, want 2 — 0 and 1 both say the tree was checked\n%s", got, out.String())
@@ -80,12 +63,19 @@ func TestNoBashToParseWithIsRefusedNotReportedAsClean(t *testing.T) {
 		}
 	})
 
-	// The other direction: the refusal must not fire on a tree that was parsed, or every real run
-	// exits 2 and the code stops meaning anything.
-	t.Run("while a tree it could parse exits on its findings as before", func(t *testing.T) {
+	// The other direction, and the control for the case where no bash exists. A tree with a bash finds
+	// the syntax error, calls itself runnable and exits on its findings. Exit 2 on this tree too would
+	// leave every real run exiting 2, and the code would stop meaning anything.
+	t.Run("while a tree it could parse finds the error and exits on its findings as before", func(t *testing.T) {
 		c := newCheckerOverABrokenScript(t, t.Name()+"/bash")
 		c.scanScriptsParse()
 
+		if !c.reported("syntax: ") {
+			t.Fatalf("the fixture raised no syntax error, so this case proves nothing: %v", c.findings)
+		}
+		if len(c.unrunnable) != 0 {
+			t.Errorf("a scan that did parse reported itself unrunnable: %v", c.unrunnable)
+		}
 		var out, errOut bytes.Buffer
 		if got := c.exitCode(&out, &errOut); got != 1 {
 			t.Errorf("exitCode = %d, want 1 — the tree was checked and has a finding\n%s", got, out.String())

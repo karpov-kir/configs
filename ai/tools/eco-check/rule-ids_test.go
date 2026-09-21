@@ -6,12 +6,9 @@ import (
 
 // A rule cited by its number resolves in no file; the heading that number opens does.
 func TestBareRuleIDCitations(t *testing.T) {
-	t.Run("fires on a rule cited by its number", func(t *testing.T) {
-		newNumberedCitationOverItsHeading(t).reports(bareRule)
-	})
-
-	t.Run("and names the heading that number opens", func(t *testing.T) {
-		newNumberedCitationOverItsHeading(t).reports(principlesName + " → **" + principlesHeading + "**")
+	t.Run("fires on a rule cited by its number, naming the heading that number opens", func(t *testing.T) {
+		newNumberedCitationOverItsHeading(t).
+			reports(bareRule, principlesName+" → **"+principlesHeading+"**")
 	})
 
 	t.Run("names the form when no heading of that number resolves", func(t *testing.T) {

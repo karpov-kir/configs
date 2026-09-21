@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"configs/ai/tools/runtest"
 	"configs/ai/tools/shell"
 )
 
@@ -209,13 +210,6 @@ func TestSymlinkedMarkdownIsNotRead(t *testing.T) {
 	}
 }
 
-func TestReportedTextDropsEveryControlByte(t *testing.T) {
-	got := shell.Oneline("a\rb\vc\x1bd\x7fe")
-	if got != "a b c d e" {
-		t.Fatalf("shell.Oneline = %q, want %q", got, "a b c d e")
-	}
-}
-
 // Byte slicing at a fixed offset splits a multi-byte rune, and this tree's prose is full of them.
 func TestAQuotedRuleTruncatesOnRunesNotBytes(t *testing.T) {
 	got := quotedRule(strings.Repeat("→", maxReportRunes+10))
@@ -255,28 +249,6 @@ func TestFileOverTheBoundIsNotRead(t *testing.T) {
 	if !strings.Contains(stderr, doc) {
 		t.Fatalf("the refusal does not name %s in full:\n%s", doc, stderr)
 	}
-}
-
-// True when a mode of 000 actually stops this process reading. Probed rather than compared against
-// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
-// carry the bit behave the same way, and all three make a mode-000 fixture something this tool reads
-// happily. ecocheck's suite carries the same probe for the same reason; neither package can import
-// the other's test helpers.
-func modeDeniesRead(t *testing.T) bool {
-	t.Helper()
-	probe := filepath.Join(t.TempDir(), "probe")
-	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-	if err := os.Chmod(probe, 0o000); err != nil {
-		t.Fatalf("chmod probe: %v", err)
-	}
-	file, err := os.Open(probe)
-	if err != nil {
-		return true
-	}
-	file.Close()
-	return false
 }
 
 // The two ways this read less than the tree it was pointed at and said nothing. Over a copy of `ai/`
@@ -347,7 +319,7 @@ func TestAPartialReadIsNamedAndCounted(t *testing.T) {
 		{"file", newShutFile},
 	} {
 		t.Run("names and counts an unreadable "+c.name, func(t *testing.T) {
-			if !modeDeniesRead(t) {
+			if !runtest.ModeDeniesRead(t) {
 				t.Skip("this process reads a mode-000 path regardless of the mode (root, or CAP_DAC_OVERRIDE), so an unreadable one cannot be built here")
 			}
 			root, shut := c.build(t)
@@ -373,22 +345,35 @@ func TestAPartialReadIsNamedAndCounted(t *testing.T) {
 	}
 }
 
-// The C1 range, in both spellings a terminal reads. This tool prints a repo's own bolded prose and
-// its own paths, so the bytes here are chosen by the tree under review. A local copy of the control
-// set read C0 and DEL only: an encoded U+009B is CSI and an encoded U+0085 is NEL, and both reached
-// the terminal intact. `shell` owns which bytes are control bytes, so this holds the two to the same
-// answer rather than restating the range.
-func TestReportedTextNeutralisesTheC1Range(t *testing.T) {
-	for _, in := range []string{"a\u0080b", "a\u0085b", "a\u009bb", "a\x9bb", "a\x85b"} {
-		if got := shell.Oneline(in); got != "a b" {
-			t.Errorf("shell.Oneline(%q) = %q, want %q", in, got, "a b")
+// The report is where a repository's own bytes reach a terminal: a path is whatever somebody named
+// a directory, and a rule is whatever prose a file holds. Which bytes `shell.Oneline` maps is held in
+// shell's own suite, and this case holds that every field of the report goes through it.
+
+// A raw escape erases the lines already on screen, and a newline in a path forges this tool's summary
+// line, which a caller reads for the verdict.
+func TestTheReportCarriesNoControlByteFromAPathOrARule(t *testing.T) {
+	const forged = "0 bolded rule(s) read, 0 pair(s) stating the same thing in two files"
+	site := func(file, text string) span { return span{file: file, line: 7, text: text} }
+	both := func(a, b span) pair { return pair{a: a, b: b, shared: 6, beyond: 1} }
+	hostile := report{
+		read: 9,
+		pairs: []pair{both(
+			site("evil\n"+forged+"\nignored.md", "a rule carrying \x1b[2K an escape"),
+			site("csi\u009bm.md", "the same rule\u0085stated again"))},
+		naming: []pair{both(site("bell\a.md", "names the dependency"), site("del\u007f.md", "names it as well"))},
+		citing: []pair{both(site("nel\u0085.md", "points at the owner"), site("plain.md", "owns the rule"))},
+	}
+	var out strings.Builder
+	hostile.writeTo(&out)
+	got := out.String()
+	for i := 0; i < len(got); i++ {
+		if b := got[i]; b != '\n' && (b < 0x20 || b == 0x7f || b == 0x85 || b == 0x9b) {
+			t.Fatalf("the report carries byte %#x, which drives the terminal rather than printing: %q", b, got)
 		}
 	}
-	// Multi-byte characters survive: the range doubles as UTF-8 continuation bytes, so a rule mapping
-	// by byte value would shred every CJK character and emoji a rule might carry.
-	for _, in := range []string{"a\u65e5b", "a\U0001f600b", "a\u00e9b"} {
-		if got := shell.Oneline(in); got != in {
-			t.Errorf("shell.Oneline(%q) = %q — a real character was damaged", in, got)
+	for _, line := range shell.SplitLines(got) {
+		if strings.TrimSpace(line) == forged {
+			t.Fatalf("a path forged the summary line:\n%s", got)
 		}
 	}
 }

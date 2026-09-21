@@ -35,31 +35,27 @@ func newInstalledRootWithSkillsMount(t *testing.T) *fixture {
 // the install must still be checked exactly as before. Silence alone is what a deleted scan looks
 // like, so neither case means anything without the other.
 func TestTheMountScanAsksOnlyAboutTheInstalledCheckout(t *testing.T) {
-	t.Run("says nothing about the mounts of a checkout $HOME does not mount", func(t *testing.T) {
+	// The silence, and the skip note that was once invisible. Take the note away and a run that
+	// checked zero mounts prints byte for byte what a run that checked every one prints, and check.sh
+	// puts `wiring: clean` over both. Both come off one run over a tree holding a skill to be silent
+	// about.
+	t.Run("says nothing about the mounts of a checkout $HOME does not mount, and says out loud that it skipped them", func(t *testing.T) {
 		f := newRoot(t)
 		f.newHomeWithoutFlavorMount()
 		f.newMountedSkill("kk-drive")
-		f.doesNotReport("not mounted")
+		output := f.run()
+		f.found(output, "mounts: skipped")
+		f.absent(output, "not mounted")
 	})
 
 	// The control, and the half that keeps the gate honest: the same unmounted skill on an installed
-	// checkout is still a finding. Without it, gating everything off would pass the case above.
-	t.Run("while an installed checkout with an unmounted skill still reports", func(t *testing.T) {
-		newInstalledRootWithSkillsMount(t).reports(ecocheck.SkillNotMounted)
-	})
-
-	// The skip itself, which was invisible: without this line a run that checked no mount prints byte
-	// for byte what a run that checked every one prints, and check.sh puts `wiring: clean` over both.
-	t.Run("but says out loud that it skipped them", func(t *testing.T) {
-		f := newRoot(t)
-		f.newHomeWithoutFlavorMount()
-		f.reports("mounts: skipped")
-	})
-
-	// The other half of the contract, and the reason absence of that line can be read as "it ran": on
-	// the install the note is a claim about work that did happen.
-	t.Run("and does not say so where the scan did run", func(t *testing.T) {
-		newInstalledRoot(t).doesNotReport("mounts: skipped")
+	// checkout is still a finding, and the skip note is absent because the note is a claim about work
+	// that did happen. Take this case away and gating everything off passes the skip-note case.
+	t.Run("while an installed checkout with an unmounted skill still reports, and claims no skip", func(t *testing.T) {
+		f := newInstalledRootWithSkillsMount(t)
+		output := f.run()
+		f.found(output, ecocheck.SkillNotMounted)
+		f.absent(output, "mounts: skipped")
 	})
 
 	// And the skills mount missing altogether, which is the other arm. newHome builds $HOME/.claude
@@ -149,13 +145,8 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports a skill mounted somewhere else (control for the case below)", func(t *testing.T) {
-		newSkillMountedElsewhere(t).reports(ecocheck.SkillMountedElsewhere)
-	})
-
-	t.Run("and no control byte reaches the output", func(t *testing.T) {
-		newSkillMountedElsewhere(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "a skill mounted somewhere else", ecocheck.SkillMountedElsewhere,
+		newSkillMountedElsewhere)
 
 	// The name arm, which the target arm above never reaches: the two ends of the message are
 	// sanitised by two separate calls, and a case exercising one says nothing about the other. This
@@ -168,13 +159,8 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports a skill whose own name carries one (control for the case below)", func(t *testing.T) {
-		newSkillNamedWithAControlByte(t).reports(ecocheck.SkillNotMounted)
-	})
-
-	t.Run("and no control byte from that name reaches the output", func(t *testing.T) {
-		newSkillNamedWithAControlByte(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "a skill whose own name carries one", ecocheck.SkillNotMounted,
+		newSkillNamedWithAControlByte)
 
 	// The elsewhere arm of the same name. It is a third message built from a third pair of calls, and
 	// the two arms above leave it untouched: the case just above never reaches it, because a skill with
@@ -188,13 +174,8 @@ func TestMountFindingCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports that name mounted somewhere else (control for the case below)", func(t *testing.T) {
-		newSkillNamedWithAControlByteMountedElsewhere(t).reports(ecocheck.SkillMountedElsewhere)
-	})
-
-	t.Run("and no control byte from it reaches the output either", func(t *testing.T) {
-		newSkillNamedWithAControlByteMountedElsewhere(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "that name mounted somewhere else", ecocheck.SkillMountedElsewhere,
+		newSkillNamedWithAControlByteMountedElsewhere)
 }
 
 // Where ai/bootstrap.sh puts a mount, under the same name the checker reaches it by. newHome builds
@@ -327,13 +308,7 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports the mount (control for the case below)", func(t *testing.T) {
-		newMountWithAControlByte(t).reports(ecocheck.MountWithoutASkill)
-	})
-
-	t.Run("and no control byte reaches the output", func(t *testing.T) {
-		newMountWithAControlByte(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "the mount", ecocheck.MountWithoutASkill, newMountWithAControlByte)
 
 	newMountNamedWithAControlByte := func(t *testing.T) *fixture {
 		f := newInstalledRoot(t)
@@ -341,13 +316,8 @@ func TestAMountWithoutASkillCarriesNoControlByte(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports a mount whose own name carries one (control for the case below)", func(t *testing.T) {
-		newMountNamedWithAControlByte(t).reports(ecocheck.MountWithoutASkill)
-	})
-
-	t.Run("and no control byte from that name reaches the output", func(t *testing.T) {
-		newMountNamedWithAControlByte(t).doesNotReport("\x1b")
-	})
+	assertNoControlByteEscapes(t, "a mount whose own name carries one", ecocheck.MountWithoutASkill,
+		newMountNamedWithAControlByte)
 }
 
 // A machine carries one agent far more often than both, and the repository's own gate asks the mount

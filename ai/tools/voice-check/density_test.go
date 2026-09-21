@@ -49,24 +49,6 @@ func TestTheVoiceScanLeavesTheUntrackedHalfOutWhenRevisionsAreNamed(t *testing.T
 	r.expectStdoutLacks("fresh.go")
 }
 
-// A fixture is a test's material, and it is routinely in another language. A scan that counts it as
-// the repository's own source measures the fixture through the repository. A handful of TypeScript
-// fixtures moves a Go repository's comment rate on its own.
-
-// A fixture NAMED on the command line is still read: naming one is asking for it, and the voice
-// check's prose and instruction profiles are handed paths by a human.
-func TestNamingAFixtureIsAskingForIt(t *testing.T) {
-	if !notThisRepositorysSource("pkg/testdata/x.go") {
-		t.Error("a discovered fixture was treated as this repository's source")
-	}
-	if isFixture("pkg/testdataish/x.go") {
-		t.Error("a directory merely starting with testdata was read as Go's reserved one")
-	}
-	if !isFixture("testdata/x.go") || !isFixture("a/b/testdata/x.go") {
-		t.Error("testdata was not matched as a path segment at every depth")
-	}
-}
-
 func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	cases := []struct{ name, key, value string }{
 		{"a byte cap that is not a whole number", "DENSITY_MAX_FILE_BYTES", "big"},
@@ -147,6 +129,10 @@ func TestWhatCountsAsAComment(t *testing.T) {
 	}
 }
 
+// A fixture is a test's material, and it is routinely in another language. A scan that counts it as
+// the repository's own source measures the fixture through the repository: a handful of TypeScript
+// fixtures moves a Go repository's comment rate on its own. A fixture NAMED on the command line is
+// still read, since naming one is asking for it.
 func TestWhatIsNotThisRepositorysSource(t *testing.T) {
 	for _, file := range []string{"a.md", "b.markdown", "c.txt", "d.json", "e.lock", "pnpm-lock.yaml", "f.MD"} {
 		if !isProseOrData(file) {
@@ -157,6 +143,12 @@ func TestWhatIsNotThisRepositorysSource(t *testing.T) {
 		if !isFixture(file) {
 			t.Errorf("%q sits under testdata and was read as source", file)
 		}
+	}
+	if isFixture("pkg/testdataish/x.go") {
+		t.Error("a directory merely starting with testdata was read as Go's reserved one")
+	}
+	if !notThisRepositorysSource("pkg/testdata/x.go") {
+		t.Error("a discovered fixture was treated as this repository's source")
 	}
 	for _, file := range []string{"counted.go", "pkg/real.ts", "cmd/main.go"} {
 		if notThisRepositorysSource(file) {

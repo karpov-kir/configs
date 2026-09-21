@@ -40,28 +40,39 @@ func TestDecisionClassificationPreservesEntryAndSection(t *testing.T) {
 	}
 }
 
+// The malformed shapes and the operations that must refuse them are independent: every op runs the
+// same section reader, and every shape fails it the same way whichever op asked. So one op drives the
+// shapes and one shape drives the ops, in place of a cross product of the two.
 func TestDecisionRecordRejectsMalformedSections(t *testing.T) {
 	t.Parallel()
+	const malformed = "# Decisions\n1x | 2020-01-01 | selected\n"
+	refuses := func(t *testing.T, operation, body string) {
+		t.Helper()
+		f := newRepo(t)
+		path := recordFile(f, "project-decisions")
+		f.write(path, body)
+		args := []string{"record", operation, "project-decisions", "selected"}
+		if operation == "revise" || operation == "admit" {
+			args = append(args, "replacement")
+		}
+		if operation == "classify" {
+			args = append(args, "candidate")
+		}
+		f.runReport(args...)
+		f.record(operation+" refuses malformed sections unchanged", f.status == 2 && f.read(path) == body, f.evidence()+f.read(path))
+	}
 	for _, body := range []string{
-		"# Decisions\n1x | 2020-01-01 | selected\n",
+		malformed,
 		"## Decisions\n## Promotion candidates\n1x | 2020-01-01 | selected\n",
 		"## Promotion candidates\n## Decisions\n## Decisions\n1x | 2020-01-01 | selected\n",
 		"## Promotion candidates \n## Decisions\n1x | 2020-01-01 | selected\n",
 	} {
-		for _, operation := range []string{"append", "bump", "revise", "evict", "admit", "classify"} {
-			f := newRepo(t)
-			path := recordFile(f, "project-decisions")
-			f.write(path, body)
-			args := []string{"record", operation, "project-decisions", "selected"}
-			if operation == "revise" || operation == "admit" {
-				args = append(args, "replacement")
-			}
-			if operation == "classify" {
-				args = append(args, "candidate")
-			}
-			f.runReport(args...)
-			f.record(operation+" refuses malformed sections unchanged", f.status == 2 && f.read(path) == body, f.evidence()+f.read(path))
-		}
+		refuses(t, "append", body)
+	}
+	// Each op on its own account: one that stopped reading the sections would take a malformed record
+	// while every other op still refused it.
+	for _, operation := range []string{"bump", "revise", "evict", "admit", "classify"} {
+		refuses(t, operation, malformed)
 	}
 }
 

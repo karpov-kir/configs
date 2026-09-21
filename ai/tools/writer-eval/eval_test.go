@@ -35,6 +35,23 @@ const evalEnv = "WRITER_EVAL"
 // caseEnv narrows a run to the cases whose name starts with it.
 const caseEnv = "WRITER_EVAL_CASE"
 
+// parallelEnv bounds how many model calls are in flight at once. Both halves of the eval read it, so
+// a sweep is one setting instead of two that can drift.
+const parallelEnv = "WRITER_EVAL_PARALLEL"
+
+func parallelCalls(t *testing.T) int {
+	t.Helper()
+	set := os.Getenv(parallelEnv)
+	if set == "" {
+		return 4
+	}
+	at, err := strconv.Atoi(set)
+	if err != nil || at < 1 {
+		t.Fatalf("%s is %q, which is not a positive count", parallelEnv, set)
+	}
+	return at
+}
+
 const callDeadline = 4 * time.Minute
 
 // evalRolls is how many times each case is put to the writer. The writer is a model, so one roll per
@@ -282,12 +299,7 @@ func TestWriterEval(t *testing.T) {
 		cases = kept
 	}
 	settings := writerSettings(t)
-	at := 4
-	if set := os.Getenv("WRITER_EVAL_PARALLEL"); set != "" {
-		if at, err = strconv.Atoi(set); err != nil || at < 1 {
-			t.Fatalf("WRITER_EVAL_PARALLEL is %q, which is not a positive count", set)
-		}
-	}
+	at := parallelCalls(t)
 
 	rolls := make([][]Verdict, len(cases))
 	answers := make([][]string, len(cases))
@@ -597,14 +609,7 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 	}
 	cases := plainCases(t)
 	settings := writerSettings(t)
-	at := 4
-	if set := os.Getenv("WRITER_EVAL_PARALLEL"); set != "" {
-		parsed, err := strconv.Atoi(set)
-		if err != nil || parsed < 1 {
-			t.Fatalf("WRITER_EVAL_PARALLEL is %q, which is not a positive count", set)
-		}
-		at = parsed
-	}
+	at := parallelCalls(t)
 	verdicts := make([]Verdict, len(cases))
 	raws := make([]string, len(cases))
 	parts := make([]Return, len(cases))

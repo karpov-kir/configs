@@ -8,6 +8,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,38 +97,45 @@ func newGhPath(t *testing.T, sandbox string) string {
 	if err != nil {
 		t.Fatalf("building the gh fixture under %s: %v — nothing was measured", sandbox, err)
 	}
-	writeFile(t, filepath.Join(sandboxed(t, sandbox, dir), "gh"), fakeGh, 0o755)
+	runtest.WriteFile(t, filepath.Join(runtest.Sandboxed(t, sandbox, dir), "gh"), fakeGh, 0o755)
 	return dir
 }
 
 // A checkout shaped like this repository: the install.sh under test at ai/tools/, the workflow it reads
 // its tool list out of, and an origin remote where the case wants one.
-//
-// The git directory is written out file by file. What install.sh asks git for is one url, and four
-// files answer it. A fixture that shells out to build itself is the cost this whole port is about.
 func newCheckout(t *testing.T, sandbox, origin string) string {
 	t.Helper()
 	checkout, err := os.MkdirTemp(sandbox, "checkout-")
 	if err != nil {
 		t.Fatalf("building the checkout fixture under %s: %v — nothing was measured", sandbox, err)
 	}
-	sandboxed(t, sandbox, checkout)
+	runtest.Sandboxed(t, sandbox, checkout)
 
-	writeFile(t, filepath.Join(checkout, "ai", "tools", "install.sh"), read(t, runnable(t, installScript)), 0o755)
-	writeFile(t, filepath.Join(checkout, ".github", "workflows", "release-tools.yml"),
+	runtest.WriteFile(t, filepath.Join(checkout, "ai", "tools", "install.sh"), runtest.ReadFile(t, runtest.Runnable(t, installScript)), 0o755)
+	runtest.WriteFile(t, filepath.Join(checkout, ".github", "workflows", "release-tools.yml"),
 		"jobs:\n  build:\n    env:\n      SHIPPED: "+strings.Join(fixtureTools, " ")+"\n", 0o644)
+	newRepository(t, checkout, origin)
+	return checkout
+}
 
-	writeFile(t, filepath.Join(checkout, ".git", "HEAD"), "ref: refs/heads/main\n", 0o644)
+// Builds a git repository at this path file by file, with no `git init` run. These scripts ask git
+// for one remote url and one file listing, and four files answer both. A fixture that shells out to
+// build itself is the cost this whole port is about.
+
+// The remote is declared only where the caller names one, and no file is added to the repository:
+// source-stamp.sh lists untracked files as well as tracked ones.
+func newRepository(t *testing.T, root, origin string) {
+	t.Helper()
+	git := filepath.Join(root, ".git")
+	runtest.WriteFile(t, filepath.Join(git, "HEAD"), "ref: refs/heads/main\n", 0o644)
 	config := "[core]\n\trepositoryformatversion = 0\n"
 	if origin != "" {
 		config += "[remote \"origin\"]\n\turl = " + origin + "\n"
 	}
-	writeFile(t, filepath.Join(checkout, ".git", "config"), config, 0o644)
-	if err := os.MkdirAll(filepath.Join(checkout, ".git", "objects"), 0o755); err != nil {
-		t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
+	runtest.WriteFile(t, filepath.Join(git, "config"), config, 0o644)
+	for _, inside := range []string{"objects", "refs"} {
+		if err := os.MkdirAll(filepath.Join(git, inside), 0o755); err != nil {
+			t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
+		}
 	}
-	if err := os.MkdirAll(filepath.Join(checkout, ".git", "refs"), 0o755); err != nil {
-		t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
-	}
-	return checkout
 }

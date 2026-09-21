@@ -67,30 +67,6 @@ func TestTopTierNamesTheDearestModelAndRefusesAnUnknownClient(t *testing.T) {
 	}
 }
 
-// An effort with no model used to be a lever that kept a site on its caller's model. It is refused now,
-// and the whole of why is that the same file forbids what it does: a cheap coordinator is safe only
-// once every site under it names its own model. Nothing shipped ever used it, the tier order cannot
-// rank it, and a row outside that order is one no ceiling can judge. The case below is the refusal
-// itself; TestARowNamingAnEffortAndNoModelIsRefused covers the shapes it reaches. Both read the
-// sentence rather than the error, because validName refuses an empty model too and would otherwise
-// answer for this guard while it is disabled.
-func TestEffortWithoutAModelIsRefusedRatherThanKeptAsALever(t *testing.T) {
-	raw := strings.Replace(sample, `"kk-build":{"codex":{"model":"frontier","effort":"high"}`, `"kk-build":{"codex":{"effort":"high"}`, 1)
-	if raw == sample {
-		t.Fatal("the fixture edit matched nothing, so this case tests the unmodified sample")
-	}
-	_, err := Parse([]byte(raw))
-	if err == nil {
-		t.Fatal("a row carrying an effort and no model parsed, so the dispatch would take its caller's model")
-	}
-	// Which guard spoke, not merely that one did. validName refuses an empty segment too, so with this
-	// refusal disabled the document is still refused — by a sentence about whitespace and control
-	// characters, over a row that holds neither. Asserting the error alone would be green either way.
-	if !strings.Contains(err.Error(), "names no model") {
-		t.Fatalf("refused for the wrong reason, so this case cannot tell the guard from its neighbour: %v", err)
-	}
-}
-
 func TestUnassignedTaskFailsRatherThanInheriting(t *testing.T) {
 	p := policyForTest(t)
 	for _, request := range []Request{
@@ -120,13 +96,14 @@ func TestPolicyRejectsMalformedDocuments(t *testing.T) {
 		"no tasks":         `{"version":4,"limits":{"intents-in-flight":10},"sessions":{},"workers":{}}`,
 		"no cap":           strings.Replace(sample, `"intents-in-flight":10`, `"intents-in-flight":0`, 1),
 		"one client only":  strings.Replace(sample, `"claude":{"model":"haiku"},`, ``, 1),
-		"empty settings":   strings.Replace(sample, `"claude":{"model":"haiku"}`, `"claude":{}`, 1),
 		"unknown effort":   strings.Replace(sample, `"effort":"low"`, `"effort":"turbo"`, 1),
 		// The other row of the effort table: three effort names are codex's alone, so one on a claude
 		// entry reads as a tier and sets nothing. Without this case the two halves of the set can be
 		// merged into one and every case here stays green.
+		// A row carrying an effort with no model is refused too, and the sentence that says so is what
+		// refuses it. TestARowNamingAnEffortAndNoModelIsRefused holds that for both clients, which is
+		// more than this table can ask.
 		"codex-only effort on claude": strings.Replace(sample, `"claude":{"model":"opus"}`, `"claude":{"model":"opus","effort":"ultra"}`, 1),
-		"claude effort alone":         strings.Replace(sample, `"claude":{"model":"opus"}`, `"claude":{"effort":"high"}`, 1),
 		"option-shaped model":         strings.Replace(sample, `"model":"helper"`, `"model":"--dangerously-skip-permissions"`, 1),
 		"even rolls":                  strings.Replace(sample, `"rolls":3`, `"rolls":4`, 1),
 		"rolls over the cap":          strings.Replace(sample, `"rolls":3`, `"rolls":31`, 1),

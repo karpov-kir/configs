@@ -21,7 +21,7 @@ func TestAMountWhoseSourceIsGoneIsDropped(t *testing.T) {
 	f.newSkill("kk-build")
 	f.newSkill("kk-was-renamed")
 	f.mountSkills([]string{"kk-build", "kk-was-renamed"}, installer.RunOptions{})
-	f.expectLinkTo(f.skillsMount()+"/kk-was-renamed", f.repo+"/skills/kk-was-renamed")
+	f.ExpectLinkTo(f.skillsMount()+"/kk-was-renamed", f.repo+"/skills/kk-was-renamed")
 
 	f.RemoveAll(f.repo + "/skills/kk-was-renamed")
 	run := f.mountSkills([]string{"kk-build"}, installer.RunOptions{})
@@ -29,12 +29,12 @@ func TestAMountWhoseSourceIsGoneIsDropped(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("dropping a stale mount reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid("removed  " + f.skillsMount() + "/kk-was-renamed")
-	f.expectAbsent(f.skillsMount() + "/kk-was-renamed")
+	f.ExpectSaid("removed  " + f.skillsMount() + "/kk-was-renamed")
+	f.ExpectAbsent(f.skillsMount() + "/kk-was-renamed")
 
 	// The control: a skill this checkout still has keeps its mount. Without it, a sweep that took
 	// everything would pass every assertion above.
-	f.expectLinkTo(f.skillsMount()+"/kk-build", f.repo+"/skills/kk-build")
+	f.ExpectLinkTo(f.skillsMount()+"/kk-build", f.repo+"/skills/kk-build")
 }
 
 // The summary claims only what it checked, so each of these has to be left alone AND left out of the
@@ -61,11 +61,11 @@ func TestTheSweepLeavesEverythingItCannotProveItWrote(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("a home holding mounts from elsewhere reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSymlink(f.skillsMount() + "/kk-relative")
-	f.expectSymlink(f.skillsMount() + "/hand-made")
-	f.expectSymlink(f.skillsMount() + "/kk-gone")
-	f.expectDir(f.skillsMount() + "/copied-in-by-hand")
-	f.expectSaid("ok       every mount under " + f.skillsMount() + " this checkout wrote still resolves")
+	f.ExpectSymlink(f.skillsMount() + "/kk-relative")
+	f.ExpectSymlink(f.skillsMount() + "/hand-made")
+	f.ExpectSymlink(f.skillsMount() + "/kk-gone")
+	f.ExpectDir(f.skillsMount() + "/copied-in-by-hand")
+	f.ExpectSaid("ok       every mount under " + f.skillsMount() + " this checkout wrote still resolves")
 }
 
 func TestADryRunOverAStaleMountRemovesNothing(t *testing.T) {
@@ -80,8 +80,8 @@ func TestADryRunOverAStaleMountRemovesNothing(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("a dry run over a stale mount reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid("would remove " + f.skillsMount() + "/kk-was-renamed")
-	f.expectSymlink(f.skillsMount() + "/kk-was-renamed")
+	f.ExpectSaid("would remove " + f.skillsMount() + "/kk-was-renamed")
+	f.ExpectSymlink(f.skillsMount() + "/kk-was-renamed")
 }
 
 // A source root the run cannot read, and one that resolves and holds no source. Both leave every
@@ -105,8 +105,8 @@ func TestASourceRootThatSaysNothingStopsTheSweep(t *testing.T) {
 
 		f.mountSkills(nil, installer.RunOptions{})
 
-		f.expectSymlink(f.skillsMount() + "/kk-was-renamed")
-		f.expectSaid(f.repo + "/skills cannot be read, so no mount under " + f.skillsMount() + " was checked")
+		f.ExpectSymlink(f.skillsMount() + "/kk-was-renamed")
+		f.ExpectSaid(f.repo + "/skills cannot be read, so no mount under " + f.skillsMount() + " was checked")
 	})
 
 	t.Run("and one that resolves and holds nothing does too", func(t *testing.T) {
@@ -115,8 +115,8 @@ func TestASourceRootThatSaysNothingStopsTheSweep(t *testing.T) {
 
 		f.mountSkills(nil, installer.RunOptions{})
 
-		f.expectSymlink(f.skillsMount() + "/kk-was-renamed")
-		f.expectSaid(f.repo + "/skills holds no source, so no mount under " + f.skillsMount() + " was checked")
+		f.ExpectSymlink(f.skillsMount() + "/kk-was-renamed")
+		f.ExpectSaid(f.repo + "/skills holds no source, so no mount under " + f.skillsMount() + " was checked")
 	})
 
 	// The control, and the load-bearing half: the same root holding one source sweeps the stale mount.
@@ -127,7 +127,7 @@ func TestASourceRootThatSaysNothingStopsTheSweep(t *testing.T) {
 
 		f.mountSkills([]string{"kk-still-here"}, installer.RunOptions{})
 
-		f.expectAbsent(f.skillsMount() + "/kk-was-renamed")
+		f.ExpectAbsent(f.skillsMount() + "/kk-was-renamed")
 	})
 }
 
@@ -151,7 +151,7 @@ func TestAMountWhoseNameCarriesAControlByteStillReportsAsOneLine(t *testing.T) {
 
 	// The control, and the half that carries the rest. Every assertion that follows is otherwise
 	// equally satisfied by a run that never mounted the name, and the case would measure that instead.
-	f.expectSymlink(f.skillsMount() + "/" + gone)
+	f.ExpectSymlink(f.skillsMount() + "/" + gone)
 
 	f.RemoveAll(f.repo + "/skills/" + gone)
 	run := f.mountSkills([]string{"kk-stays"}, installer.RunOptions{})
@@ -159,9 +159,9 @@ func TestAMountWhoseNameCarriesAControlByteStillReportsAsOneLine(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("sweeping a mount named with an ESC reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid("removed  " + f.skillsMount() + "/idsd")
-	f.expectAbsent(f.skillsMount() + "/" + gone)
-	if strings.Contains(f.said(), escape) {
-		t.Errorf("an ESC out of the mount's own name reached the terminal:\n%q", f.said())
+	f.ExpectSaid("removed  " + f.skillsMount() + "/idsd")
+	f.ExpectAbsent(f.skillsMount() + "/" + gone)
+	if strings.Contains(f.Said(), escape) {
+		t.Errorf("an ESC out of the mount's own name reached the terminal:\n%q", f.Said())
 	}
 }

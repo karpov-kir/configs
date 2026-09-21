@@ -78,12 +78,8 @@ func TestADirectoryLinkWhereCodexsConfigBelongsIsRefused(t *testing.T) {
 	t.Parallel()
 	p := newProject(t, codexAgent)
 	outside := filepath.Join(p.root, "outside-directory")
-	if err := os.MkdirAll(outside, 0o755); err != nil {
-		t.Fatalf("building the fixture: %v", err)
-	}
-	if err := os.Symlink(outside, filepath.Join(p.dir, ".codex")); err != nil {
-		t.Fatalf("linking .codex: %v", err)
-	}
+	p.MkdirAll(outside)
+	p.Symlink(outside, filepath.Join(p.dir, ".codex"))
 
 	if outcome := p.run(); outcome.code == exitDone {
 		t.Fatal("the link was followed, so the write landed outside the project")

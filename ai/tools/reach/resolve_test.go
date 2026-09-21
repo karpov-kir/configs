@@ -13,6 +13,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,14 +34,14 @@ const (
 // build path works too, so the first branch is a preference.
 func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "built")
 	binary := filepath.Join(tools, "bin", tool)
 
-	built := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+	built := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 		newBuildPath(t, sandbox, "with-go", fakeToolchain), tool))
 	expectServed(t, built, binary)
-	if !strings.Contains(built.stderr, "fake toolchain") {
+	if !strings.Contains(built.Stderr, "fake toolchain") {
 		t.Errorf("the build's own output is not on stderr, so it went to the stream the caller execs\n%v", built)
 	}
 	if info, err := os.Stat(binary); err != nil || info.Mode().Perm()&0o111 == 0 {
@@ -49,21 +50,21 @@ func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T
 	}
 
 	release := newReleasePath(t, sandbox, "no-go")
-	served := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), release, tool))
+	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), release, tool))
 	expectServed(t, served, binary)
 	// The control every warning case rests on: a binary resolve.sh built from this source draws no
 	// warning on the run after. Without it each of those passes against a resolver that warns about every
 	// binary it serves.
-	if served.stderr != "" {
+	if served.Stderr != "" {
 		t.Errorf("a binary built from the source beside it was served with a warning, so the cases below "+
-			"cannot tell a warned binary from any other\nstderr: %s", served.stderr)
+			"cannot tell a warned binary from any other\nstderr: %s", served.Stderr)
 	}
 
 	override := newLaunch(t, filepath.Join(tools, "resolve.sh"), release, tool)
 	override.Env = append(override.Env, "ECO_TOOLS_BUILD=1")
-	skipped := launch(t, override)
-	expectRefusal(t, skipped, "go is not installed")
-	if !skipped.said("did NOT run") {
+	skipped := runtest.Launch(t, override)
+	runtest.ExpectRefusal(t, skipped, "go is not installed")
+	if !skipped.Said("did NOT run") {
 		t.Errorf("ECO_TOOLS_BUILD=1 refused without saying the tool did not run, and a caller reads a "+
 			"quiet refusal as a clean tree\n%v", skipped)
 	}
@@ -74,20 +75,20 @@ func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T
 // resolver that served the stale one prints the same path this one does.
 func TestAnEditedSourceIsRebuiltRatherThanServedFromTheBuildBeforeIt(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "edited")
 	binary := filepath.Join(tools, "bin", tool)
 	path := newBuildPath(t, sandbox, "with-go", fakeToolchain)
 
-	expectServed(t, launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, tool)), binary)
-	first := read(t, binary)
+	expectServed(t, runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, tool)), binary)
+	first := runtest.ReadFile(t, binary)
 
-	writeFile(t, filepath.Join(tools, tool, "main.go"), `package main
+	runtest.WriteFile(t, filepath.Join(tools, tool, "main.go"), `package main
 
 func main() { _ = "edited" }
 `, 0o644)
-	expectServed(t, launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, tool)), binary)
-	if read(t, binary) == first {
+	expectServed(t, runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, tool)), binary)
+	if runtest.ReadFile(t, binary) == first {
 		t.Errorf("%s holds the same bytes after an edit to the source it was built from, so the edit is "+
 			"being measured through the build that came before it", binary)
 	}
@@ -99,13 +100,13 @@ func main() { _ = "edited" }
 // that has no toolchain to rebuild with and find out.
 func TestABinaryNewerThanTheSourceItDisagreesWithIsServedWithTheDoubtOnStderr(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "newer")
 	binary := filepath.Join(tools, "bin", tool)
-	expectServed(t, launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+	expectServed(t, runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 		newBuildPath(t, sandbox, "with-go", fakeToolchain), tool)), binary)
 
-	writeFile(t, filepath.Join(tools, tool, "main.go"), `package main
+	runtest.WriteFile(t, filepath.Join(tools, tool, "main.go"), `package main
 
 func main() { _ = "edited" }
 `, 0o644)
@@ -125,10 +126,10 @@ func main() { _ = "edited" }
 		}
 	}
 
-	served := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 		newReleasePath(t, sandbox, "no-go"), tool))
 	expectServed(t, served, binary)
-	if !strings.Contains(served.stderr, builtElsewhere) {
+	if !strings.Contains(served.Stderr, builtElsewhere) {
 		t.Errorf("a binary built from something other than the source beside it was served without saying "+
 			"so, and on a machine with no toolchain nothing else will ever say it\n%v", served)
 	}
@@ -164,7 +165,7 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 			fixture: func(t *testing.T, sandbox string) (string, string, string) {
 				tools := newToolsDir(t, sandbox, "bad-stamper-tools")
 				placeBinary(t, tools, tool, foreignBinary, 0o755)
-				writeFile(t, filepath.Join(tools, "source-stamp.sh"), failingStamper, 0o755)
+				runtest.WriteFile(t, filepath.Join(tools, "source-stamp.sh"), failingStamper, 0o755)
 				return tools, tool, newReleasePath(t, sandbox, "bad-stamper-path")
 			},
 		},
@@ -186,15 +187,15 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			sandbox := newSandbox(t)
+			sandbox := runtest.Sandbox(t)
 			tools, name, path := scenario.fixture(t, sandbox)
-			served := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, name))
+			served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, name))
 			expectServed(t, served, filepath.Join(tools, "bin", name))
-			if !strings.Contains(served.stderr, notCompared) {
+			if !strings.Contains(served.Stderr, notCompared) {
 				t.Errorf("the binary was served as proven when nothing compared it with the source, and a "+
 					"check that did not run is not a clean one\n%v", served)
 			}
-			if scenario.also != "" && !served.said(scenario.also) {
+			if scenario.also != "" && !served.Said(scenario.also) {
 				t.Errorf("the refusal does not name what was missing (%q), so nobody on that machine can "+
 					"act on it\n%v", scenario.also, served)
 			}
@@ -207,16 +208,16 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 // other half of the pair: that case has a go.mod, and this one has none.
 func TestABinaryWithNoSourceBesideItWarnsAboutNothing(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newSourcelessDir(t, sandbox, "sourceless")
 	binary := placeBinary(t, tools, tool, foreignBinary, 0o755)
 
-	served := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 		newReleasePath(t, sandbox, "no-go"), tool))
 	expectServed(t, served, binary)
-	if served.stderr != "" {
+	if served.Stderr != "" {
 		t.Errorf("a checkout with no source to compare against was warned about, and a warning nobody can "+
-			"act on is one that stops being read\nstderr: %s", served.stderr)
+			"act on is one that stops being read\nstderr: %s", served.Stderr)
 	}
 }
 
@@ -225,33 +226,33 @@ func TestABinaryWithNoSourceBesideItWarnsAboutNothing(t *testing.T) {
 // written is removed, and the run after reports the gap.
 func TestABuildWhoseStamperFailsLeavesNoStampRatherThanThePreviousBuilds(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "stamp-write")
 	binary := filepath.Join(tools, "bin", tool)
 	build := newBuildPath(t, sandbox, "with-go", fakeToolchain)
-	expectServed(t, launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), build, tool)), binary)
+	expectServed(t, runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), build, tool)), binary)
 
 	// The control: a build that can stamp does, and what it writes is the stamp of the source it built.
 	stamp := binary + ".stamp"
-	stamped := launch(t, newLaunch(t, filepath.Join(tools, "source-stamp.sh"), build, tool))
-	if stamped.code != 0 || strings.TrimSpace(read(t, stamp)) != strings.TrimSpace(stamped.stdout) {
+	stamped := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "source-stamp.sh"), build, tool))
+	if stamped.Code != 0 || strings.TrimSpace(runtest.ReadFile(t, stamp)) != strings.TrimSpace(stamped.Stdout) {
 		t.Fatalf("the build wrote %q where the source stamps to %q, so the case below cannot tell a stamp "+
-			"that was removed from one that was never written", read(t, stamp), stamped.stdout)
+			"that was removed from one that was never written", runtest.ReadFile(t, stamp), stamped.Stdout)
 	}
 
-	writeFile(t, filepath.Join(tools, "source-stamp.sh"), failingStamper, 0o755)
+	runtest.WriteFile(t, filepath.Join(tools, "source-stamp.sh"), failingStamper, 0o755)
 	rebuild := newLaunch(t, filepath.Join(tools, "resolve.sh"), build, tool)
 	rebuild.Env = append(rebuild.Env, "ECO_TOOLS_BUILD=1")
-	expectServed(t, launch(t, rebuild), binary)
+	expectServed(t, runtest.Launch(t, rebuild), binary)
 	if _, err := os.Stat(stamp); err == nil {
 		t.Errorf("%s still holds %q after a build that could not stamp what it wrote. The next run reads "+
-			"that as proof these bytes came from this source and serves them unbuilt", stamp, read(t, stamp))
+			"that as proof these bytes came from this source and serves them unbuilt", stamp, runtest.ReadFile(t, stamp))
 	}
 
-	served := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 		newReleasePath(t, sandbox, "no-go"), tool))
 	expectServed(t, served, binary)
-	if !strings.Contains(served.stderr, notCompared) {
+	if !strings.Contains(served.Stderr, notCompared) {
 		t.Errorf("the run after an unstamped build served those bytes as proven\n%v", served)
 	}
 }
@@ -335,11 +336,11 @@ func TestEveryWayTheToolCannotBeReachedExitsTwoAndSaysItDidNotRun(t *testing.T) 
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			sandbox := newSandbox(t)
+			sandbox := runtest.Sandbox(t)
 			tools, path := scenario.fixture(t, sandbox)
-			refused := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, tool))
-			expectRefusal(t, refused, scenario.says)
-			if scenario.alsoSays != "" && !refused.said(scenario.alsoSays) {
+			refused := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), path, tool))
+			runtest.ExpectRefusal(t, refused, scenario.says)
+			if scenario.alsoSays != "" && !refused.Said(scenario.alsoSays) {
 				t.Errorf("the refusal does not also say %q, which is the half telling a caller what it "+
 					"costs\n%v", scenario.alsoSays, refused)
 			}
@@ -371,11 +372,11 @@ func TestANameThatCouldBecomeSomethingOtherThanADirectoryIsRefusedAsAName(t *tes
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			sandbox := newSandbox(t)
+			sandbox := runtest.Sandbox(t)
 			tools := newToolsDir(t, sandbox, "names")
-			refused := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+			refused := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 				newBuildPath(t, sandbox, "with-go", fakeToolchain), scenario.asked...))
-			expectRefusal(t, refused, scenario.refusal)
+			runtest.ExpectRefusal(t, refused, scenario.refusal)
 		})
 	}
 }
@@ -390,18 +391,18 @@ func TestANameThatCouldBecomeSomethingOtherThanADirectoryIsRefusedAsAName(t *tes
 // stub_reach_test.go's, for the reason reportingBinary, the fake tool const, states.
 func TestRunExecsTheBinaryAndLeavesItsOutputAlone(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newSourcelessDir(t, sandbox, "run")
 	placeBinary(t, tools, tool, reportingBinary, 0o755)
 
-	ran := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+	ran := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 		newReleasePath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh", "--flag", "a value"))
 
-	if ran.code != reportingExit {
+	if ran.Code != reportingExit {
 		t.Errorf("the caller saw exit %d where the binary exits %d, so resolve.sh answered instead of being "+
-			"replaced by it\n%v", ran.code, reportingExit, ran)
+			"replaced by it\n%v", ran.Code, reportingExit, ran)
 	}
-	if want := reportingMark + "argument=--flag\nargument=a value\n"; ran.stdout != want {
+	if want := reportingMark + "argument=--flag\nargument=a value\n"; ran.Stdout != want {
 		t.Errorf("stdout is not the tool's own output alone — it belongs to the tool from the exec on, and a "+
 			"path or a warning there is a line every caller of every stub has to learn to drop\nwant: %s%v",
 			want, ran)
@@ -413,17 +414,17 @@ func TestRunExecsTheBinaryAndLeavesItsOutputAlone(t *testing.T) {
 // dies before the exec, and every other case passes while a bare stub stays broken.
 func TestRunExecsTheBinaryWhenThereIsNothingToForward(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newSourcelessDir(t, sandbox, "run-bare")
 	placeBinary(t, tools, tool, reportingBinary, 0o755)
 
-	ran := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+	ran := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 		newReleasePath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh"))
 
-	if ran.code != reportingExit {
+	if ran.Code != reportingExit {
 		t.Errorf("a tool invoked with no arguments did not reach its binary\n%v", ran)
 	}
-	if ran.stdout != reportingMark {
+	if ran.Stdout != reportingMark {
 		t.Errorf("an argument reached the binary that no caller passed\n%v", ran)
 	}
 }
@@ -445,24 +446,20 @@ func TestRunRefusesTheSameWayAndNeverExecsAnything(t *testing.T) {
 		},
 		{
 			// argv[0] is required. Without it the resolver execs the binary under its own path, and every
-			// tool then writes into ai/tools instead of its skill directory.
+			// tool then writes into ai/tools instead of its skill directory. `--run` with no tool either
+			// is this same count check, `[ $# -ge 3 ]`, one argument further short.
 			name:  "no argv0 to exec under",
 			asked: []string{"--run", tool},
-			says:  "usage: resolve.sh --run",
-		},
-		{
-			name:  "no tool either",
-			asked: []string{"--run"},
 			says:  "usage: resolve.sh --run",
 		},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			sandbox := newSandbox(t)
+			sandbox := runtest.Sandbox(t)
 			tools := newSourcelessDir(t, sandbox, "refused")
-			refused := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
+			refused := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
 				newReleasePath(t, sandbox, "no-go"), scenario.asked...))
-			expectRefusal(t, refused, scenario.says)
+			runtest.ExpectRefusal(t, refused, scenario.says)
 		})
 	}
 }

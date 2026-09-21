@@ -115,12 +115,10 @@ func TestScriptTestPosition(t *testing.T) {
 		f.reports(missingTest)
 	})
 
-	t.Run("accepts a header whose named test exists", func(t *testing.T) {
-		newCoveredScript(t).doesNotReport(missingTest)
-	})
-
-	t.Run("a named existing test is a declared position", func(t *testing.T) {
-		newCoveredScript(t).doesNotReport(noPosition)
+	// A named test that exists is accepted, and it is also a declared position — one silence apiece,
+	// off one run.
+	t.Run("accepts a header whose named test exists, as a declared position", func(t *testing.T) {
+		newCoveredScript(t).doesNotReport(missingTest, noPosition)
 	})
 
 	// A script whose cases are in the module. `ai/mcp-env.sh` is the script in this tree that cannot
@@ -218,16 +216,14 @@ func TestScriptTestPosition(t *testing.T) {
 		newScriptWhoseSuiteAFilenameForges(t).reports(missingTest)
 	})
 
-	t.Run("a suite name starting with a dash is still checked", func(t *testing.T) {
-		newDashSuiteScript(t).reports(missingTest)
-	})
-
-	t.Run("and grep never dumps its usage into the findings", func(t *testing.T) {
-		newDashSuiteScript(t).doesNotReport("unrecognized option")
-	})
-
-	t.Run("nor its usage banner", func(t *testing.T) {
-		newDashSuiteScript(t).doesNotReport("Usage: grep")
+	// The name is checked, and neither half of a search tool's refusal of it reaches the findings. The
+	// finding is the control for the two silences: take it away and they hold over a run that
+	// reported zero findings.
+	t.Run("checks a suite name starting with a dash, dumping no search-tool usage into the findings", func(t *testing.T) {
+		f := newDashSuiteScript(t)
+		output := f.run()
+		f.found(output, missingTest)
+		f.absent(output, "unrecognized option", "Usage: grep")
 	})
 }
 
@@ -314,14 +310,13 @@ func TestANamedSuiteResolvesToAFileAndNotToABasename(t *testing.T) {
 		newSuiteNameOneLaneCarries(t).doesNotReport(welded)
 	})
 
-	t.Run("reports one two files answer to rather than picking either", func(t *testing.T) {
-		newSuiteNameTwoLanesCarry(t).reports(welded)
-	})
-
-	// Not reported as missing: the name does answer to files, and a reader sent to write a suite that
-	// is already there twice would look for a defect that is not the one there is.
-	t.Run("and does not call that name missing", func(t *testing.T) {
-		newSuiteNameTwoLanesCarry(t).doesNotReport(missingTest)
+	// The name is reported as welded, and never as missing. The name does answer to files, and a
+	// reader sent to write a suite that is already there twice hunts for a defect the tree lacks.
+	t.Run("reports one two files answer to rather than picking either, and does not call it missing", func(t *testing.T) {
+		f := newSuiteNameTwoLanesCarry(t)
+		output := f.run()
+		f.found(output, welded)
+		f.absent(output, missingTest)
 	})
 
 	// The sibling is what "a case in <suite> beside it" names, so the tree answers which file was
@@ -348,16 +343,13 @@ func TestATestPositionFindingNamesTheScriptByPath(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports both scripts, not one of them twice", func(t *testing.T) {
+	t.Run("reports both scripts, not one of them twice, naming a path a reader can open", func(t *testing.T) {
 		f := newTwoScriptsUnderOneName(t)
-		if count, output := f.countLinesStartingWith(missingTest + ":"); count != 2 {
+		count, output := f.countLinesStartingWith(missingTest + ":")
+		if count != 2 {
 			t.Errorf("expected one finding per script, got %d\n%s", count, indent(output))
 		}
-	})
-
-	t.Run("and names a path a reader can open", func(t *testing.T) {
-		f := newTwoScriptsUnderOneName(t)
-		f.reports(missingTest + ": " + f.root + "/kk-flavor/skills/one/scripts/claims.sh names claims-test.sh")
+		f.found(output, missingTest+": "+f.root+"/kk-flavor/skills/one/scripts/claims.sh names claims-test.sh")
 	})
 }
 
@@ -390,16 +382,12 @@ func unexpectedThen(line int) string {
 // yet. A fixture's bash names its binaries after its own case, so what one case stored can never
 // answer another's. The memo is keyed on the binary as well as the bytes.
 func TestRepeatedScriptContentIsParsedOnce(t *testing.T) {
-	// The half that would be a silent hole. Both copies are reported by their own path on a run where
+	// The half that would be a silent hole. BOTH copies are reported by their own path on a run where
 	// the bytes have been seen before, or a tree hides a broken script behind a clean one.
-	t.Run("reports a broken script on a run that has already parsed its bytes", func(t *testing.T) {
+	t.Run("reports both copies of a broken script on a run that has already parsed its bytes", func(t *testing.T) {
 		f := newRepeatedBrokenScript(t)
-		f.reportsOnASecondRun(f.root + "/kk-flavor/skills/second.sh: line 2")
-	})
-
-	t.Run("and reports the first copy of it too", func(t *testing.T) {
-		f := newRepeatedBrokenScript(t)
-		f.reportsOnASecondRun(f.root + "/kk-flavor/skills/first.sh: line 2")
+		f.reportsOnASecondRun(f.root+"/kk-flavor/skills/second.sh: line 2",
+			f.root+"/kk-flavor/skills/first.sh: line 2")
 	})
 
 	// Keyed on the whole content, not on a stand-in for it. The two scripts below are the same length

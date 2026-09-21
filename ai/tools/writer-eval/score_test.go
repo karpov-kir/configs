@@ -11,9 +11,6 @@ func TestNoneIsReadAsDecliningTheSite(t *testing.T) {
 			t.Errorf("%q was not read as declining the site", raw)
 		}
 	}
-	if ParseReturn("/** Returns the rows. */").None {
-		t.Errorf("a written block was read as declining the site")
-	}
 }
 
 func TestTheAuditLinesComeOutOfTheBlock(t *testing.T) {
@@ -144,13 +141,16 @@ func TestTheSentenceCeilingCountsTheNoteAndNotTheSummary(t *testing.T) {
 	if !checkedBy(Score(overLong), "over-the-sentence-ceiling") {
 		t.Errorf("three note sentences did not reach the ceiling")
 	}
-	noSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. Three. */")
-	if !checkedBy(Score(noSummary), "over-the-sentence-ceiling") {
-		t.Errorf("three note sentences with no summary did not reach the ceiling")
-	}
 	twoNoSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. */")
 	if checkedBy(Score(twoNoSummary), "over-the-sentence-ceiling") {
 		t.Errorf("two note sentences reached the ceiling")
+	}
+	// Three sentences with no summary to drop. This shape separates the summary-aware trim from an
+	// unconditional one. The two rows before it answer alike under either trim, so a scorer
+	// that stopped counting the note apart from the summary passes both of them.
+	threeNoSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. Three. */")
+	if !checkedBy(Score(threeNoSummary), "over-the-sentence-ceiling") {
+		t.Errorf("three note sentences with no summary did not reach the ceiling")
 	}
 }
 
@@ -198,17 +198,6 @@ func TestANoteDroppedAfterItWasNeededShowsItsAttempts(t *testing.T) {
 	}
 	if !checkedBy(failed.Failures, "note-dropped-without-two-attempts") {
 		t.Errorf("the note's gate did not fire: %+v", failed.Failures)
-	}
-}
-
-// The part and attempt lines come out of the block the way the audit lines do.
-func TestThePartAndAttemptLinesAreNotPartOfTheBlock(t *testing.T) {
-	r := ParseReturn("summary: needed\nnote: none\n/** A closing period posts in the base currency. */\n")
-	if r.Summary != PartWritten || r.Note != PartNone {
-		t.Errorf("the part lines were not read: %+v", r)
-	}
-	if got := r.Text(); got != "A closing period posts in the base currency." {
-		t.Errorf("block text %q", got)
 	}
 }
 

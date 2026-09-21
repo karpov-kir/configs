@@ -315,17 +315,24 @@ const wrapped = "Name the commit a scanner number was read off\n" +
 	"\n" +
 	"Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n"
 
-func TestCommitTrailersAreShownAsContextAndNeverOffered(t *testing.T) {
+// The subject is the line `git log --oneline` shows, and git requires it. It also summarises the body,
+// which is the shape the prompt calls restating what the reader can already see. This change's own
+// commit message lost its subject to a real vote before the kind withheld it. The trailers go the same
+// way, and both are shown so the vote reads the message it is judging.
+func TestACommitsSubjectAndTrailersAreShownAsContextAndNeverOffered(t *testing.T) {
 	path := write(t, wrapped)
 	var out, errs strings.Builder
-	// The roll names every unit it is offered; the trailer survives because it is not one of them.
+	// The roll names every unit it is offered. The subject and the trailer survive because neither is
+	// one of them.
 	greedy := func(_, view string) (string, error) {
 		var named []string
 		for n := 1; n <= unitsInView(view); n++ {
 			named = append(named, strconv.Itoa(n))
 		}
-		if !strings.Contains(view, "    | Co-Authored-By:") {
-			return "", fmt.Errorf("the trailer was not shown as context:\n%s", view)
+		for _, shown := range []string{"    | Name the commit a scanner number was read off", "    | Co-Authored-By:"} {
+			if !strings.Contains(view, shown) {
+				return "", fmt.Errorf("%q was not shown as context:\n%s", shown, view)
+			}
 		}
 		return strings.Join(named, ","), nil
 	}
@@ -333,7 +340,7 @@ func TestCommitTrailersAreShownAsContextAndNeverOffered(t *testing.T) {
 		t.Fatalf("exit %d, stderr %s", code, errs.String())
 	}
 	// The separators a deleted block sat between stay, which git's own `--cleanup` collapses and
-	// markdown renders as one blank; what matters here is that the trailer itself is untouched.
+	// markdown renders as one blank. What matters here is that the subject and the trailer are untouched.
 	if got := out.String(); got != "Name the commit a scanner number was read off\n\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n" {
 		t.Fatalf("the judge kept %q; the subject and the trailer should survive and nothing else", got)
 	}
@@ -348,29 +355,5 @@ func TestAnUnclosedFenceCannotCarryTheTrailersIntoAUnit(t *testing.T) {
 		if unit.Line <= 7 && unit.Line+unit.Span > 7 {
 			t.Fatalf("unit %+v was offered though it holds the trailer on line 7", unit)
 		}
-	}
-}
-
-// The subject is the line `git log --oneline` shows and the one git requires, and it summarises the
-// body — which is the shape the prompt calls restating what the reader can already see. This change's
-// own commit message lost its subject to a real vote before the kind withheld it.
-func TestACommitSubjectIsShownButNeverOffered(t *testing.T) {
-	path := write(t, wrapped)
-	var out, errs strings.Builder
-	greedy := func(_, view string) (string, error) {
-		var named []string
-		for n := 1; n <= unitsInView(view); n++ {
-			named = append(named, strconv.Itoa(n))
-		}
-		if !strings.Contains(view, "    | Name the commit a scanner number was read off") {
-			return "", fmt.Errorf("the subject was not shown as context:\n%s", view)
-		}
-		return strings.Join(named, ","), nil
-	}
-	if code := RunIn("j", []string{"commit", path}, ".", noRepository, nil, &out, &errs, greedy, nil); code != exitCut {
-		t.Fatalf("exit %d, stderr %s", code, errs.String())
-	}
-	if got := out.String(); !strings.HasPrefix(got, "Name the commit a scanner number was read off\n") {
-		t.Fatalf("the judge kept %q; the subject must survive a vote that named everything", got)
 	}
 }

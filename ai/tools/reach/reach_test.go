@@ -27,13 +27,11 @@
 package reach
 
 import (
-	"errors"
-	"fmt"
+	"configs/ai/tools/runtest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -128,25 +126,6 @@ const reportingMark = "the tool ran\n"
 // reached the caller" cannot be satisfied by resolve.sh succeeding or refusing.
 const reportingExit = 7
 
-// What one launch of a script came back with. stdout and stderr are kept apart, because several cases
-// turn on a warning being audible on stderr. stdout carries the path a caller execs, and no other line.
-type outcome struct {
-	stdout string
-	stderr string
-	code   int
-}
-
-// Whether either stream holds the wording. A refusal is asserted on what it says, and never on its
-// exit code alone. Every refusal these scripts have exits 2, so the code says one happened and leaves
-// the cause open. A case reading the code alone passes on whatever the fixture broke first.
-func (o outcome) said(wording string) bool {
-	return strings.Contains(o.stdout, wording) || strings.Contains(o.stderr, wording)
-}
-
-func (o outcome) String() string {
-	return fmt.Sprintf("exit %d\nstdout: %s\nstderr: %s", o.code, o.stdout, o.stderr)
-}
-
 // A command ready to launch, with an environment of its own. HOME sits under this case's own temp
 // directory, because these scripts reach tools that read and write beneath it. PATH is named by the
 // caller, because half the cases here are about a machine missing `go` or a way to hash a file.
@@ -161,7 +140,7 @@ func (o outcome) String() string {
 func newLaunch(t *testing.T, script, path string, arguments ...string) *exec.Cmd {
 	t.Helper()
 	home := t.TempDir()
-	command := exec.Command(bash(t), append([]string{runnable(t, script)}, arguments...)...)
+	command := exec.Command(runtest.Bash(t), append([]string{runtest.Runnable(t, script)}, arguments...)...)
 	command.Dir = t.TempDir()
 	command.Env = []string{
 		"HOME=" + home,
@@ -171,113 +150,17 @@ func newLaunch(t *testing.T, script, path string, arguments ...string) *exec.Cmd
 	return command
 }
 
-// Asserts a refusal carries the wording only its own cause produces. Every refusal these scripts have
-// exits 2, so the code says one happened and leaves the cause open. A case asserting the code alone
-// passes on whatever the fixture broke first while its name claims the cause. `command not found` is a
-// stripped PATH killing the script before it reaches any check at all, which no case here ever means.
-func expectRefusal(t *testing.T, got outcome, wording string) {
-	t.Helper()
-	if got.code != 2 {
-		t.Errorf("wanted exit 2 and the refusal %q\n%v", wording, got)
-		return
-	}
-	if got.said("command not found") || got.said(": not found") {
-		t.Errorf("a missing command produced this refusal, not %q — the PATH fixture is short of something "+
-			"the script calls, so this case measured that instead\n%v", wording, got)
-		return
-	}
-	if !got.said(wording) {
-		t.Errorf("the refusal does not say %q, so a caller cannot tell this cause from the others that also "+
-			"exit 2\n%v", wording, got)
-	}
-}
-
 // A binary served: exit 0, and stdout carrying that path alone. The whole of stdout, because a caller
 // execs what it reads, and a build log or a warning on that stream is a string no shell can run.
-func expectServed(t *testing.T, got outcome, binary string) {
+func expectServed(t *testing.T, got runtest.Run, binary string) {
 	t.Helper()
-	if got.code != 0 || got.stdout != binary+"\n" {
+	if got.Code != 0 || got.Stdout != binary+"\n" {
 		t.Errorf("wanted exit 0 and %q alone on stdout, which is what the caller execs\n%v", binary, got)
 	}
 }
 
-// One launch. A script that could not be started at all is fatal here. Every case here is a launch,
-// and a failed case would otherwise report a reason far from the guard it names.
-func launch(t *testing.T, command *exec.Cmd) outcome {
-	t.Helper()
-	var out, err strings.Builder
-	command.Stdout, command.Stderr = &out, &err
-	result := outcome{}
-	var exit *exec.ExitError
-	switch runErr := command.Run(); {
-	case runErr == nil:
-	case errors.As(runErr, &exit):
-		result.code = exit.ExitCode()
-	default:
-		t.Fatalf("could not run %s: %v — nothing was measured", command.Path, runErr)
-	}
-	result.stdout, result.stderr = out.String(), err.String()
-	return result
-}
-
-// bash itself, found on the PATH this process was started with. The PATH a case hands its child is the
-// case's own fixture, and several strip it to the bone on purpose.
-func bash(t *testing.T) string {
-	t.Helper()
-	found, err := exec.LookPath("bash")
-	if err != nil {
-		t.Fatalf("no bash on this machine (%v) — every script here is one, so nothing was measured", err)
-	}
-	return found
-}
-
-// The path to a script, refused loudly where it cannot be run.
-func runnable(t *testing.T, script string) string {
-	t.Helper()
-	path, err := filepath.Abs(script)
-	if err != nil {
-		t.Fatalf("resolving %s: %v — nothing was measured", script, err)
-	}
-	info, err := os.Stat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
-		t.Fatalf("%s is not an executable file (%v) — nothing was measured, and every case reaching for it "+
-			"would fail for that reason rather than for its own", path, err)
-	}
-	return path
-}
-
 // A directory every fixture is built under, resolved physically. macOS reaches a temp directory through
 // a symlinked /var, and these scripts write executables.
-
-// The incident behind this: a harness bug once handed every case the same HOME, followed a live symlink
-// into the checkout, and overwrote real config files in the working tree. The suite reported it, and
-// the report was read as a harness bug. What the run had already written went unasked. The resolution
-// happens here, so sandboxed() can refuse a path before anything is written to it.
-func newSandbox(t *testing.T) string {
-	t.Helper()
-	dir, err := filepath.EvalSymlinks(t.TempDir())
-	if err != nil {
-		t.Fatalf("resolving this case's temp directory: %v — nothing was measured", err)
-	}
-	return dir
-}
-
-// A fixture path, refused unless it really lies inside the sandbox. Callers reach it before the
-// directory is built and before any script writes into it. Afterwards the write has already landed,
-// and what these scripts write is executable files.
-func sandboxed(t *testing.T, sandbox, path string) string {
-	t.Helper()
-	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
-	if err != nil {
-		t.Fatalf("resolving the parent of %s: %v — a fixture whose path cannot be checked is one that "+
-			"could be written anywhere", path, err)
-	}
-	if parent != sandbox && !strings.HasPrefix(parent, sandbox+string(os.PathSeparator)) {
-		t.Fatalf("%s resolves to %s, which is outside this case's sandbox at %s — nothing was run, because "+
-			"what runs next writes executables", path, parent, sandbox)
-	}
-	return path
-}
 
 // Where the scripts sit inside a fixture checkout, at the same depth under the module root that
 // `ai/tools` has in this repository. The depth is part of the subject here. Both scripts reach go.mod
@@ -298,10 +181,10 @@ func moduleIn(tools string) string {
 // own bin/.
 func newToolsDir(t *testing.T, sandbox, name string) string {
 	t.Helper()
-	root := sandboxed(t, sandbox, filepath.Join(sandbox, name))
-	writeFile(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
+	root := runtest.Sandboxed(t, sandbox, filepath.Join(sandbox, name))
+	runtest.WriteFile(t, filepath.Join(root, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
 	dir := toolsIn(root)
-	writeFile(t, filepath.Join(dir, tool, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(dir, tool, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
 	copyScripts(t, dir)
 	return dir
 }
@@ -311,7 +194,7 @@ func newToolsDir(t *testing.T, sandbox, name string) string {
 // checkout holding an orphan binary. The resolver is still here, or there would be no tool to run.
 func newSourcelessDir(t *testing.T, sandbox, name string) string {
 	t.Helper()
-	dir := toolsIn(sandboxed(t, sandbox, filepath.Join(sandbox, name)))
+	dir := toolsIn(runtest.Sandboxed(t, sandbox, filepath.Join(sandbox, name)))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("building the source-less fixture: %v — nothing was measured", err)
 	}
@@ -322,7 +205,7 @@ func newSourcelessDir(t *testing.T, sandbox, name string) string {
 func copyScripts(t *testing.T, dir string) {
 	t.Helper()
 	for _, script := range []string{resolveScript, stampScript} {
-		writeFile(t, filepath.Join(dir, filepath.Base(script)), read(t, runnable(t, script)), 0o755)
+		runtest.WriteFile(t, filepath.Join(dir, filepath.Base(script)), runtest.ReadFile(t, runtest.Runnable(t, script)), 0o755)
 	}
 }
 
@@ -331,7 +214,7 @@ func copyScripts(t *testing.T, dir string) {
 func placeBinary(t *testing.T, tools, name, body string, mode os.FileMode) string {
 	t.Helper()
 	path := filepath.Join(tools, "bin", name)
-	writeFile(t, path, body, mode)
+	runtest.WriteFile(t, path, body, mode)
 	return path
 }
 
@@ -344,7 +227,7 @@ func newPathDir(t *testing.T, sandbox, name string, commands ...string) string {
 	if err != nil {
 		t.Fatalf("building the PATH fixture under %s: %v — nothing was measured", sandbox, err)
 	}
-	sandboxed(t, sandbox, dir)
+	runtest.Sandboxed(t, sandbox, dir)
 	for _, command := range commands {
 		real, err := exec.LookPath(command)
 		if err != nil {
@@ -370,7 +253,7 @@ func newReleasePath(t *testing.T, sandbox, name string) string {
 func newBuildPath(t *testing.T, sandbox, name, toolchain string) string {
 	t.Helper()
 	dir := newPathDir(t, sandbox, name, append(resolveCommands, hasher(t), "chmod")...)
-	writeFile(t, filepath.Join(dir, "go"), toolchain, 0o755)
+	runtest.WriteFile(t, filepath.Join(dir, "go"), toolchain, 0o755)
 	return dir
 }
 
@@ -385,27 +268,4 @@ func hasher(t *testing.T) string {
 	t.Fatalf("this machine has neither shasum nor sha256sum, so no stamp could be computed and nothing " +
 		"below was measured")
 	return ""
-}
-
-func writeFile(t *testing.T, path, body string, mode os.FileMode) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("building %s: %v — nothing was measured", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, []byte(body), mode); err != nil {
-		t.Fatalf("writing %s: %v — nothing was measured", path, err)
-	}
-	// WriteFile leaves an existing file's mode alone, and several cases rewrite one.
-	if err := os.Chmod(path, mode); err != nil {
-		t.Fatalf("setting the mode of %s: %v — nothing was measured", path, err)
-	}
-}
-
-func read(t *testing.T, path string) string {
-	t.Helper()
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s: %v — nothing was measured", path, err)
-	}
-	return string(body)
 }

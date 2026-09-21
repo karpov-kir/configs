@@ -60,8 +60,7 @@ func TestCloseOnACleanReportThePathDoneRuns(t *testing.T) {
 	// landed. Read absence alone and `state` answers `no-report`, which `idsd-ship continue` routes to
 	// "start ship <intent>": rebuilding work already merged.
 	archived := newShip(t, "001-landed-and-archived")
-	archived.mkdirAll(archived.scratch() + "/archive")
-	archived.write(archived.archiveDir("001-landed-and-archived")+"/intent.md", "# built and archived\n")
+	archived.writeArchivedIntent("001-landed-and-archived", "# built and archived\n")
 	archived.runReport("close", "001-landed-and-archived")
 	archived.runReport("state", "001-landed-and-archived")
 	archived.record("state answers done for a closed report whose intent is archived",

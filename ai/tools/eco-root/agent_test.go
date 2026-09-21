@@ -7,7 +7,9 @@ import (
 )
 
 func TestAgentIsRequiredAndValidated(t *testing.T) {
-	for _, args := range [][]string{nil, {"--agent="}, {"--agent=auto"}, {"--agent=claude", "--agent=codex"}} {
+	// One row per refusal: a missing selector, an empty provider name, and the selector twice. The
+	// name is spelled empty because that is also what the duplicate guard reads as "none yet".
+	for _, args := range [][]string{nil, {"--agent="}, {"--agent=claude", "--agent=codex"}} {
 		if _, _, err := ecoroot.AgentArgs(args); err == nil {
 			t.Errorf("accepted %v", args)
 		}

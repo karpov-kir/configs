@@ -1,18 +1,19 @@
 package ecoreport_test
 
-// The paths that ask the repository, which no other case here reaches.
+// The path that asks the repository, which no other case here reaches.
 //
 // layout.go answers the repository's shape by reading the filesystem, and every caller in this package
 // takes that answer when it comes. It comes for every fixture the rest of the suite builds, so the
 // port underneath it ran in no case. Mutation reported exactly that: disabling the CommonDir call, the
 // absolute-answer guard in gitPath, the helper, and the absolutize-against-the-root step each left the
 // suite green. Two of the three now live in `ai/tools/repo`'s adapter, which makes every answer absolute,
-// and `repo/exec_test.go` holds them to real git. What is left here is that this package asks at all.
+// and `repo/exec_test.go` holds them to real git. What is left here is that this package asks at all,
+// which is this one case: the same behaviour over the layout reader is pinned in scratch_location_test.go.
 //
-// The lever is GIT_CEILING_DIRECTORIES, pointed somewhere that is no ancestor of the fixture. layout.go
-// refuses on any of its four environment names, so the callers fall through to git; and a ceiling that
-// is not an ancestor changes nothing about what git itself answers, so what these cases compare is the
-// two code paths and not two different repositories.
+// The lever is GIT_CEILING_DIRECTORIES, set to a path that stands outside the fixture's ancestry.
+// layout.go refuses on any of its four environment names, so the callers fall through to git. Git's
+// own answers stay the same under such a ceiling, so this case compares the two code paths over one
+// repository.
 //
 // The lever itself is proven in layout_test.go: TestTheResolverDeclinesWhenTheEnvironmentOverridesTheLayout
 // drives layoutRoot, layoutGitDir and layoutCommonDir with each of the four names set and requires all
@@ -21,63 +22,23 @@ package ecoreport_test
 // Not parallel, and it cannot be: t.Setenv and t.Parallel are mutually exclusive.
 
 import (
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func TestTheGitFallbackResolvesWhatTheLayoutReaderWould(t *testing.T) {
+func TestTheGitFallbackResolvesTheSharedGitDirAndNotTheWorktreesOwn(t *testing.T) {
 	// No ancestor of any fixture, so git's own behaviour is untouched and only layout.go reacts.
 	t.Setenv("GIT_CEILING_DIRECTORIES", "/nonexistent-ceiling-for-the-fallback-cases")
 
-	t.Run("the shared git dir, not the worktree's own", func(t *testing.T) {
-		f := newShip(t, "001-fallback-shared")
-		f.newIntentFile("001-fallback-shared")
-		second := f.newLinkedWorktree("fallback-second")
-		fromFirst := f.runReportStdout("root")
-		fromSecond := f.runReportStdoutIn(second, "root")
-		f.record("both worktrees resolve one location through git",
-			fromFirst == fromSecond && fromFirst != "", "first: "+fromFirst+"\nsecond: "+fromSecond)
-		// Which directory, not merely that the two agree: `--git-path .` also answers the same string
-		// from one worktree asked twice, and would pass a case that only compared them to each other.
-		f.record("and it is the clone's shared git dir",
-			fromFirst == f.sharedIdsd(), "resolved: "+fromFirst+"\nwanted: "+f.sharedIdsd())
-	})
-
-	t.Run("absolutized against the root, not the caller", func(t *testing.T) {
-		f := newShip(t, "001-fallback-subdir")
-		f.newIntentFile("001-fallback-subdir")
-		sub := f.repo + "/deep/nested"
-		f.mkdirAll(sub)
-		fromRoot := f.runReportStdout("root")
-		fromSub := f.runReportStdoutIn(sub, "root")
-		// The question goes from the working tree ROOT, and the caller's own directory is left out of it.
-		// git answers `--git-common-dir` as a bare `.git` in an ordinary repository, so a caller's own
-		// directory reaching the adapter is a scratch dir built beside them.
-		f.record("a run from a subdirectory resolves the same absolute location through the port",
-			fromSub == fromRoot && filepath.IsAbs(fromSub), "root: "+fromRoot+"\nsubdir: "+fromSub)
-		f.record("and built nothing beside the caller", !f.exists(sub+"/.git"), sub)
-	})
-
-	t.Run("an absolute per-worktree git path is not prefixed onto the root", func(t *testing.T) {
-		f := newShip(t, "001-fallback-markers")
-		second := f.newLinkedWorktree("fallback-markers")
-		// A linked worktree's git path is its OWN git dir, absolute. Joined onto the root anyway it builds
-		// a directory tree inside the checkout, and the marker the next command looks for is not there —
-		// while every command still reports success. So the observation is what APPEARED in the
-		// worktree, never the shape of the wrong path, which mirrors wherever the fixture happens to live.
-		before := strings.Join(f.entries(second), "\n")
-		f.runReportIn(second, "invalidate", "001-fallback-markers")
-		f.recordCleanStageIn(cleanStageOptions{dir: second, stage: "code-review", intent: "001-fallback-markers"})
-		f.record("a stage result submitted from a linked worktree is recorded", f.status == 0, f.evidence())
-		after := strings.Join(f.entries(second), "\n")
-		f.record("and nothing new appeared inside the worktree", after == before,
-			"before:\n"+before+"\nafter:\n"+after)
-		for _, stage := range []string{"security-review", "edit", "refactor"} {
-			f.recordCleanStageIn(cleanStageOptions{dir: second, stage: stage, intent: "001-fallback-markers"})
-		}
-		f.runReportIn(second, "decisions-reviewed", "001-fallback-markers")
-		f.runReportIn(second, "stamp", allStagesStampedAs, "001-fallback-markers")
-		f.record("and it reads back, so the stamp can see it", f.status == 0, f.evidence())
-	})
+	f := newShip(t, "001-fallback-shared")
+	f.newIntentFile("001-fallback-shared")
+	second := f.newLinkedWorktree("fallback-second")
+	fromFirst := f.runReportStdout("root")
+	fromSecond := f.runReportStdoutIn(second, "root")
+	f.record("both worktrees resolve one location through git",
+		fromFirst == fromSecond && fromFirst != "", "first: "+fromFirst+"\nsecond: "+fromSecond)
+	// This case asserts which directory the two resolve to, and agreement between them is the weaker
+	// claim. `--git-path .` answers the same string from one worktree asked twice, which a case
+	// comparing the two answers to each other accepts.
+	f.record("and it is the clone's shared git dir",
+		fromFirst == f.sharedIdsd(), "resolved: "+fromFirst+"\nwanted: "+f.sharedIdsd())
 }

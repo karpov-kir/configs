@@ -832,18 +832,11 @@ func TestAPlainSetPathThatDoesNotReadIsAFailure(t *testing.T) {
 	}
 }
 
-// A sampled run says what it read and what it did not. The budget takes files in sorted order, so a
-// second run at the same budget reads the same blocks, and the report states the denominator it
-// quotes a rate over.
+// A sampled run counts what it read and what it did not. The budget takes files in sorted order, so a
+// second run at the same budget reads the same blocks. The whole set stays the denominator a rate is
+// quoted over.
 func TestAPlainSetSampleNamesWhatItLeftUnread(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"a.ts", "b.ts", "c.ts"} {
-		body := "// Lists every entry in the book.\nexport function list() {}\n"
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv(plainSetEnv, dir)
+	plainSetOf(t, "a.ts", "b.ts", "c.ts")
 	t.Setenv(plainBlocksEnv, "2")
 	cases, inSet, err := loadPlainSet()
 	if err != nil {
@@ -855,21 +848,12 @@ func TestAPlainSetSampleNamesWhatItLeftUnread(t *testing.T) {
 	if len(cases) != 2 {
 		t.Errorf("a budget of 2 blocks took %d file(s) of one block each", len(cases))
 	}
-	lines := strings.Join(labelTable(nil, plainResult{measured: true, cases: 2, blocks: 2, flagged: 0, inSet: 3}), "\n")
-	if !strings.Contains(lines, "out of 3 block(s) in the set") {
-		t.Errorf("the report does not say what it left unread:\n%s", lines)
-	}
 }
 
 // No path from the plain set reaches a log. The set is somebody else's tree, and a run's output gets
 // pasted around. A case carries its position in place of where it came from.
 func TestAPlainSetCaseIsNamedByPositionAndNotByPath(t *testing.T) {
-	dir := t.TempDir()
-	body := "// Lists every entry in the book.\nexport function list() {}\n"
-	if err := os.WriteFile(filepath.Join(dir, "SecretlyNamed.ts"), []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv(plainSetEnv, dir)
+	dir := plainSetOf(t, "SecretlyNamed.ts")
 	cases, _, err := loadPlainSet()
 	if err != nil || len(cases) != 1 {
 		t.Fatalf("%d case(s), %v", len(cases), err)
@@ -877,6 +861,21 @@ func TestAPlainSetCaseIsNamedByPositionAndNotByPath(t *testing.T) {
 	if strings.Contains(cases[0].name, "SecretlyNamed") || strings.Contains(cases[0].name, dir) {
 		t.Errorf("a case carries its path into the report: %q", cases[0].name)
 	}
+}
+
+// plainSetOf builds a directory of one-block source files and names it the plain set for the case's
+// duration. One block a file, so a case's block budget and its file count are the same number.
+func plainSetOf(t *testing.T, names ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range names {
+		body := "// Lists every entry in the book.\nexport function list() {}\n"
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv(plainSetEnv, dir)
+	return dir
 }
 
 // The table is the figure the kind ships or dies by, so a case drives it here instead of reading it

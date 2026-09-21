@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	ecoreport "configs/ai/tools/eco-report"
+	"configs/ai/tools/installertest"
 	"configs/ai/tools/repo"
 	"configs/ai/tools/repo/repotest"
 )
@@ -62,6 +63,10 @@ type fixture struct {
 	// table over a real seed repository, since applicability.go still runs one git command itself, but
 	// every question still comes through here.
 	fake *repotest.Fake
+
+	// The three queries a case asks of the tree it built. installertest.Tree owns that shape, and the
+	// answers are the same whichever suite asks: Lstat for what is there, Stat for what is a file.
+	tree *installertest.Tree
 
 	t    *testing.T
 	base string // scratch the case may write outside the repo into
@@ -104,6 +109,7 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 	t.Helper()
 	base := t.TempDir()
 	f := &fixture{t: t, base: base, repo: base + "/" + name, asking: &sync.Mutex{}}
+	f.tree = installertest.NewIn(t, base)
 	// Pinned at a fixture directory holding no override, never left empty: empty falls back to the
 	// process's own $XDG_CONFIG_HOME, and this suite would then read the developer's real idsd.conf —
 	// passing on a machine that has one and failing on every machine that does not. The same rule
@@ -416,14 +422,26 @@ func (f *fixture) stampFullPassIn(dir, ship string) {
 	f.runReportIn(dir, "stamp", allStagesStampedAs, ship)
 }
 
+// One ship's intent file, holding whatever the case needs it to say. `write` builds the ship folder,
+// so a case states the body alone.
+func (f *fixture) writeIntent(slug, body string) {
+	f.t.Helper()
+	f.write(f.shipDir(slug)+"/intent.md", body)
+}
+
+// The same file under archive/, where a built intent lives.
+func (f *fixture) writeArchivedIntent(slug, body string) {
+	f.t.Helper()
+	f.write(f.archiveDir(slug)+"/intent.md", body)
+}
+
 // An intent file for one slug. The body is fixed because no case asserts on it — what they care about
 // is the file's presence, and whether `discard` takes it or leaves it. The frontmatter is not: the
 // merge gate refuses an intent that never reached `status: approved`, so a status-less fixture would
 // make every gate case block for a reason it is not about. A case about that arm writes its own file.
 func (f *fixture) newIntentFile(slug string) {
 	f.t.Helper()
-	f.mkdirAll(f.shipDir(slug))
-	f.write(f.shipDir(slug)+"/intent.md", "---\nstatus: approved\n---\n\n# intent\n")
+	f.writeIntent(slug, "---\nstatus: approved\n---\n\n# intent\n")
 }
 
 // The human's own durable file, in the SCRATCH dir rather than the tree: what keeps the scratch
@@ -541,14 +559,6 @@ func (f *fixture) countFingerprints() *int {
 		return walk(root)
 	}
 	return &calls
-}
-
-func (f *fixture) nonEmptyLinesIn(path string) int {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return 0
-	}
-	return countNonEmptyLines(string(content))
 }
 
 // The entries are expanded here because `check-ignore` reads its argument as a literal pathname. An

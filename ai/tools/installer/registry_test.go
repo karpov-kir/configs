@@ -36,11 +36,11 @@ func TestAProjectIsRecordedOnceHoweverOftenItIsInstalled(t *testing.T) {
 	f, run := newRegistryFixture(t)
 
 	run.RecordInstall(f.base + "/p1")
-	f.expectSaid("recorded")
-	f.expectContained(run)
+	f.ExpectSaid("recorded")
+	f.ExpectNoBreach(run.Breaches())
 
 	run.RecordInstall(f.base + "/p1")
-	f.expectSaid("already recorded")
+	f.ExpectSaid("already recorded")
 
 	run.RecordInstall(f.base + "/p2")
 
@@ -97,7 +97,7 @@ func TestForgettingAProjectIsIdempotent(t *testing.T) {
 	run.RecordInstall(f.base + "/p2")
 
 	run.ForgetInstall(f.base + "/p1")
-	f.expectSaid("forgot")
+	f.ExpectSaid("forgot")
 	if strings.Contains(registryBody(t, run), "/p1\n") {
 		t.Errorf("the forgotten project is still recorded: %q", registryBody(t, run))
 	}
@@ -107,7 +107,7 @@ func TestForgettingAProjectIsIdempotent(t *testing.T) {
 	}
 
 	run.ForgetInstall(f.base + "/p1")
-	f.expectSaid("was not recorded")
+	f.ExpectSaid("was not recorded")
 	f.expectRefusals(run, 0)
 }
 
@@ -121,7 +121,7 @@ func TestAMachineWithNoRegistryReadsCleanAndForgetsCleanly(t *testing.T) {
 	}
 	run.ForgetInstall(f.base + "/p1")
 
-	f.expectSaid("nothing recorded to forget")
+	f.ExpectSaid("nothing recorded to forget")
 	f.expectRefusals(run, 0)
 }
 
@@ -133,6 +133,6 @@ func TestADryRunWritesNoRegistry(t *testing.T) {
 
 	run.RecordInstall(f.base + "/p1")
 
-	f.expectSaid("would record")
-	f.expectAbsent(run.RegistryFile())
+	f.ExpectSaid("would record")
+	f.ExpectAbsent(run.RegistryFile())
 }

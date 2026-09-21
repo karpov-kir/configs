@@ -11,15 +11,11 @@
 package aibootstrap_test
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	aibootstrap "configs/ai/tools/ai-bootstrap"
 	"configs/ai/tools/installertest"
-	"configs/ai/tools/machine"
-	"configs/ai/tools/machine/fake"
+	"configs/ai/tools/runtest"
 )
 
 // What the second-checkout guard looks for under a candidate root, and what a refusal leads with. The
@@ -35,7 +31,8 @@ var (
 
 // One case's tree: a checkout in ai/'s shape, a home, a machine, and everything the run printed.
 type fixture struct {
-	*installertest.Writer
+	*installertest.Tree
+	*runtest.Output
 	t    *testing.T
 	base string
 	repo string
@@ -46,17 +43,15 @@ type fixture struct {
 	// Whether this run is one another run's verify step started. A field so the case about the marker
 	// can set it without a second run.
 	isInsideVerify bool
-	machine        *brewMachine
-	out            strings.Builder
-	err            strings.Builder
+	machine        *installertest.BrewMachine
 }
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	writer := installertest.New(t)
-	base := writer.Base()
-	f := &fixture{Writer: writer, t: t, base: base, repo: base + "/checkout/ai",
-		home: base + "/home", machine: newBrewMachine()}
+	tree := installertest.New(t)
+	base := tree.Base()
+	f := &fixture{Tree: tree, Output: runtest.NewOutput(t), t: t, base: base,
+		repo: base + "/checkout/ai", home: base + "/home", machine: newMachine()}
 	f.codexHome = f.home + "/.codex"
 	f.MkdirAll(f.home)
 	f.newCheckout(f.repo)
@@ -77,17 +72,11 @@ func (f *fixture) newCheckout(root string) {
 	// different thing. The cases about that take one away again.
 	f.machine.Add(root+"/tools/install.sh", root+"/mcp-sync.sh", root+"/gate.sh")
 	for _, name := range publicSkills {
-		f.newSkill(root, name, "")
+		f.NewSkill(root, name, "")
 	}
 	for _, name := range maintainerSkills {
-		f.newSkill(root, name, "audience: maintainer\n")
+		f.NewSkill(root, name, "audience: maintainer\n")
 	}
-}
-
-func (f *fixture) newSkill(root, name, audience string) {
-	f.t.Helper()
-	f.Write(root+"/kk-flavor/skills/"+name+"/SKILL.md",
-		"---\nname: "+name+"\ndescription: a skill\n"+audience+"---\n")
 }
 
 // The owner template a case installs. It carries the region body, which is the only property of the
@@ -116,8 +105,7 @@ func (f *fixture) install(args ...string) int {
 
 func (f *fixture) runFrom(repo string, args ...string) int {
 	f.t.Helper()
-	f.out.Reset()
-	f.err.Reset()
+	f.Reset()
 	run, code := aibootstrap.Perform(aibootstrap.Options{
 		Self:           scriptName,
 		Args:           args,
@@ -127,15 +115,12 @@ func (f *fixture) runFrom(repo string, args ...string) int {
 		ConfigHome:     f.home + "/.config",
 		IsInsideVerify: f.isInsideVerify,
 		Machine:        f.machine,
-		Out:            &f.out,
-		Err:            &f.err,
+		Out:            &f.Out,
+		Err:            &f.Err,
 		WriteRoot:      f.base,
 	})
 	if run != nil {
-		if breaches := run.Breaches(); len(breaches) > 0 {
-			f.t.Fatalf("the run went for a path outside %s — %s\n"+
-				"this is the containment guard, not a failing case", f.base, strings.Join(breaches, "; "))
-		}
+		f.ExpectNoBreach(run.Breaches())
 	}
 	return code
 }
@@ -147,140 +132,13 @@ func (f *fixture) skillsMount(agent string) string {
 	return f.home + "/.claude/skills"
 }
 
-func (f *fixture) said() string {
-	return f.out.String() + f.err.String()
-}
-
-func (f *fixture) expectSaid(want string) {
-	f.t.Helper()
-	if !strings.Contains(f.said(), want) {
-		f.t.Errorf("the run never said %q. It said:\n%s", want, f.said())
-	}
-}
-
-func (f *fixture) expectNotSaid(unwanted string) {
-	f.t.Helper()
-	if strings.Contains(f.said(), unwanted) {
-		f.t.Errorf("the run said %q, which it must not. It said:\n%s", unwanted, f.said())
-	}
-}
-
-func (f *fixture) expectCode(got, want int) {
-	f.t.Helper()
-	if got != want {
-		f.t.Errorf("the run exited %d, wanted %d. It said:\n%s", got, want, f.said())
-	}
-}
-
-func (f *fixture) expectLinkTo(target, want string) {
-	f.t.Helper()
-	value, err := os.Readlink(target)
-	if err != nil {
-		f.t.Errorf("%s is not a symlink, so it was never mounted: %v", target, err)
-		return
-	}
-	if value != want {
-		f.t.Errorf("%s -> %s, wanted %s", target, value, want)
-	}
-}
-
-func (f *fixture) expectSymlink(target string) {
-	f.t.Helper()
-	if _, err := os.Readlink(target); err != nil {
-		f.t.Errorf("%s is not a symlink any more, so the run took it: %v", target, err)
-	}
-}
-
-// No entry at the path at all. Lstat is used, because Stat follows the link and answers "not there"
-// for one that dangles. That is the shape a half-finished removal leaves behind.
-func (f *fixture) expectAbsent(path string) {
-	f.t.Helper()
-	if info, err := os.Lstat(path); err == nil {
-		f.t.Errorf("%s is still there (%s)", path, info.Mode())
-	}
-}
-
-func (f *fixture) expectFileBody(path, want string) {
-	f.t.Helper()
-	got, err := os.ReadFile(path)
-	if err != nil {
-		f.t.Errorf("%s could not be read, so what was in it did not survive: %v", path, err)
-		return
-	}
-	if string(got) != want {
-		f.t.Errorf("%s holds %q, wanted %q", path, got, want)
-	}
-}
-
-func (f *fixture) expectFileContains(path, want string) {
-	f.t.Helper()
-	got, err := os.ReadFile(path)
-	if err != nil {
-		f.t.Errorf("%s could not be read: %v", path, err)
-		return
-	}
-	if !strings.Contains(string(got), want) {
-		f.t.Errorf("%s does not carry %q. It holds:\n%s", path, want, got)
-	}
-}
-
-func (f *fixture) expectNotSymlink(path string) {
-	f.t.Helper()
-	if value, err := os.Readlink(path); err == nil {
-		f.t.Errorf("%s is a symlink to %s, so it is not a copy of its own", path, value)
-	}
-}
-
-// Every symlink directly under a directory, by name.
-func (f *fixture) mounted(directory string) []string {
-	entries, err := os.ReadDir(directory)
-	if err != nil {
-		return nil
-	}
-	var names []string
-	for _, entry := range entries {
-		if _, err := os.Readlink(filepath.Join(directory, entry.Name())); err == nil {
-			names = append(names, entry.Name())
-		}
-	}
-	return names
-}
-
 // --- the machine, as a working fake -----------------------------------------------------------------
 
-// brew's own behaviour on top of the shared fake: a `list` answers non-zero until the matching
-// `install` has run. Canned codes could not express that, and installed-first is the branch the
-// packages step spends all its lines on.
-type brewMachine struct {
-	*fake.Machine
-	installed map[string]bool
-	installs  []string
-}
-
-func newBrewMachine() *brewMachine {
-	host := &brewMachine{Machine: fake.New(), installed: map[string]bool{}}
-	host.Answering("brew", host.answer)
-	// The clients and the release tool, so the mcp and tools steps reach their commands. A case about
-	// either refusal takes its command away again.
+// The shared brew machine, plus the commands this installer's steps reach for. The clients and the
+// release tool are here so the mcp and tools steps get that far. A case about either refusal takes
+// its command away again.
+func newMachine() *installertest.BrewMachine {
+	host := installertest.NewBrewMachine()
 	host.Add("claude", "codex", "gh", "go", "rtk")
 	return host
-}
-
-func (b *brewMachine) answer(command machine.Command) int {
-	name := command.Args[len(command.Args)-1]
-	if command.Args[0] == "list" {
-		if b.installed[name] {
-			return 0
-		}
-		return 1
-	}
-	b.installs = append(b.installs, name)
-	b.installed[name] = true
-	return 0
-}
-
-func (b *brewMachine) without(names ...string) {
-	for _, name := range names {
-		b.Present[name] = false
-	}
 }

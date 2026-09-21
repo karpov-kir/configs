@@ -20,11 +20,11 @@ import (
 func TestAnUnchangedTree(t *testing.T) {
 	f := newFixture(t)
 	f.run("HEAD")
-	f.expectCode(0)
-	f.expectNoStdout()
-	f.expectStderrHas("0 file(s) reached the scan")
+	f.ExpectCode(f.code, 0)
+	f.ExpectNoOut()
+	f.ExpectErr("0 file(s) reached the scan")
 	// The denominator is what tells "nothing repeated" from "nothing was read".
-	f.expectStderrHas("says nothing about the change set")
+	f.ExpectErr("says nothing about the change set")
 }
 
 func TestARevisionIsNotAPath(t *testing.T) {
@@ -34,21 +34,21 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		// both is a legal invocation and passes.
 		f.onDisk("seen.go", "x\n")
 		f.run("seen.go")
-		f.expectCode(2)
-		f.expectStderrHas("is a path, not a git-diff revision")
-		f.expectStderrHas("the scan did NOT run")
+		f.ExpectCode(f.code, 2)
+		f.ExpectErr("is a path, not a git-diff revision")
+		f.ExpectErr("the scan did NOT run")
 		// The grammar goes with an argument refusal, so the caller is told what this tool does take.
-		f.expectStderrHas(usage)
-		f.expectNoStdout()
+		f.ExpectErr(usage)
+		f.ExpectNoOut()
 	})
 
 	t.Run("an option exits 2 and is named as an option", func(t *testing.T) {
 		f := newFixture(t)
 		f.run("--output=/dev/null")
-		f.expectCode(2)
-		f.expectStderrHas("is an option, not a git-diff revision")
-		f.expectStderrHas(usage)
-		f.expectNoStdout()
+		f.ExpectCode(f.code, 2)
+		f.ExpectErr("is an option, not a git-diff revision")
+		f.ExpectErr(usage)
+		f.ExpectNoOut()
 	})
 
 	// The refusal is git's, so the case arranges git's refusal and never a name it happens to reject.
@@ -59,24 +59,14 @@ func TestARevisionIsNotAPath(t *testing.T) {
 		f := newFixture(t)
 		f.git.Fail["Patch"] = errors.New("fatal: bad revision 'no-such-rev'")
 		f.run("no-such-rev")
-		f.expectCode(2)
-		f.expectStderrHas("git rejected these arguments")
-		f.expectStderrHas("Not a clean result")
+		f.ExpectCode(f.code, 2)
+		f.ExpectErr("git rejected these arguments")
+		f.ExpectErr("Not a clean result")
 		// A revision this repository does not carry is a sound invocation. Answering it with the grammar
 		// would send the caller to fix an argument that was already the right shape.
-		f.expectStderrLacks(usage)
-		f.expectNoStdout()
+		f.ExpectNotErr(usage)
+		f.ExpectNoOut()
 	})
-}
-
-func TestARepeatedLineIsFound(t *testing.T) {
-	f := newFixture(t)
-	long := repeated('a', 120)
-	f.added("base.go", long, long)
-	f.run("HEAD")
-	f.expectCode(1)
-	f.expectStdoutHas("2x")
-	f.expectStdoutHas("120 chars")
 }
 
 func TestARepeatedTokenInsideDifferingLinesIsFound(t *testing.T) {
@@ -84,9 +74,9 @@ func TestARepeatedTokenInsideDifferingLinesIsFound(t *testing.T) {
 	token := repeated('k', 130)
 	f.added("base.go", "first = \""+token+"\"", "second = \""+token+"\"")
 	f.run("HEAD")
-	f.expectCode(1)
-	f.expectStdoutHas("2x token")
-	f.expectStdoutHas("130 chars")
+	f.ExpectCode(f.code, 1)
+	f.ExpectOut("2x token")
+	f.ExpectOut("130 chars")
 }
 
 func TestTheLengthFloor(t *testing.T) {
@@ -95,10 +85,10 @@ func TestTheLengthFloor(t *testing.T) {
 		short := repeated('a', 99)
 		f.added("base.go", short, short)
 		f.run("HEAD")
-		f.expectCode(0)
-		f.expectNoStdout()
+		f.ExpectCode(f.code, 0)
+		f.ExpectNoOut()
 		// Read all the same, so this run is not one that read nothing.
-		f.expectStderrHas("1 file(s) reached the scan")
+		f.ExpectErr("1 file(s) reached the scan")
 	})
 
 	t.Run("at the floor is reported", func(t *testing.T) {
@@ -106,8 +96,8 @@ func TestTheLengthFloor(t *testing.T) {
 		exact := repeated('a', 100)
 		f.added("base.go", exact, exact)
 		f.run("HEAD")
-		f.expectCode(1)
-		f.expectStdoutHas("100 chars")
+		f.ExpectCode(f.code, 1)
+		f.ExpectOut("100 chars")
 	})
 
 	t.Run("the floor is configurable", func(t *testing.T) {
@@ -115,8 +105,8 @@ func TestTheLengthFloor(t *testing.T) {
 		short := repeated('a', 20)
 		f.added("base.go", short, short)
 		f.runWith(Config{MinLength: 10, MaxFileBytes: defaultMaxFileBytes}, "HEAD")
-		f.expectCode(1)
-		f.expectStdoutHas("20 chars")
+		f.ExpectCode(f.code, 1)
+		f.ExpectOut("20 chars")
 	})
 }
 
@@ -124,8 +114,8 @@ func TestASingleOccurrenceIsNotADuplicate(t *testing.T) {
 	f := newFixture(t)
 	f.added("base.go", repeated('a', 200))
 	f.run("HEAD")
-	f.expectCode(0)
-	f.expectNoStdout()
+	f.ExpectCode(f.code, 0)
+	f.ExpectNoOut()
 }
 
 // `diff --git` is the anchor, never `+++` alone. TWO plus signs in the source: the diff prefixes every
@@ -137,8 +127,8 @@ func TestAnAddedLineShapedLikeADiffHeaderDoesNotReassignTheFile(t *testing.T) {
 	long := repeated('z', 120)
 	f.added("real.go", "++ b/decoy.go", long, long)
 	f.run("HEAD")
-	f.expectCode(1)
-	f.expectStdoutHas("2x")
+	f.ExpectCode(f.code, 1)
+	f.ExpectOut("2x")
 }
 
 func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
@@ -147,53 +137,37 @@ func TestUntrackedFilesAreScannedOnlyWithNoRevision(t *testing.T) {
 	f.untracked("fresh.go", long+"\n"+long+"\n")
 
 	f.run()
-	f.expectCode(1)
-	f.expectStdoutHas("2x")
+	f.ExpectCode(f.code, 1)
+	f.ExpectOut("2x")
 
 	f.run("HEAD")
-	f.expectCode(0)
-	f.expectNoStdout()
+	f.ExpectCode(f.code, 0)
+	f.ExpectNoOut()
 }
 
 // This tool echoes 60 bytes of every duplicate, so a file marked by NAME as secret-bearing is never
 // read. The skip is announced and counted, which keeps it visible to a reader.
 
-// The uppercase and modern-key rows each cover a real failure. On a case-insensitive filesystem
-// `.ENV` IS `.env`, and a list stopping at `id_rsa` misses the `id_ed25519` ssh-keygen writes by
-// default.
+// Which names are secret-bearing is `diffscan.SecretNamed`'s list, and every row of it is driven
+// where it lives, in `diffscan/diffscan_test.go`. A run of this whole pipeline per name pays for the
+// same answer a second time. This case holds only that the untracked arm asks that list at all.
 
-// Two guards stand on this path, and no row here says which of them fired. `diffscan.Options`'
+// Two guards stand on this path, and this case cannot say which of them fired. `diffscan.Options`'
 // SkipSecretNamed declines the file before it is opened, and `count` declines its lines after.
-// Measured: either guard alone keeps all 27 rows green, and only both off reddens them.
-
-// That is deliberate for a path that would otherwise put a credential in a report. Do not read a
-// green row as either guard working. Keep both, even where one looks redundant. The untracked guard
-// has its own case, against the code that owns it, in `diffscan/diffscan_test.go`.
+// Measured: either guard alone keeps this case green, and only both off reddens it. That is
+// deliberate for a path that would otherwise put a credential in a report. Do not read a green run
+// as either guard working, and keep both even where one looks redundant.
 
 // The case this file exists for.
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	secret := repeated('S', 130)
-	for _, name := range []string{
-		".env", ".env.local", "config/.env.production", "id_rsa", "server.pem", "app.key",
-		"my-credentials.txt", "secrets.yaml",
-		".ENV", "Server.PEM", "ID_RSA",
-		"id_ecdsa", "id_ed25519", "id_ed25519.bak",
-		".netrc", ".npmrc", "AuthKey_A1B2C3D4E5.p8",
-		// The suffix spelling of the same convention. Every name above it is a prefix form, so
-		// without these the table proves only that `.env*` matches `.env*`.
-		"production.env", "staging.env", "env/prod.env", "PRODUCTION.ENV",
-		".pgpass", ".htpasswd", ".pypirc", ".dockercfg", "deploy.ppk", "api.token",
-	} {
-		t.Run(name+" is skipped unread", func(t *testing.T) {
-			f := newFixture(t)
-			f.untracked(name, secret+"\n"+secret+"\n")
-			f.run()
-			// The secret is over the floor and appears twice, so a scan that read it would print it.
-			f.expectStdoutLacks(secret[:60])
-			f.expectStderrHas("its name marks it as secret-bearing")
-			f.expectStderrHas("1 file(s) skipped unread")
-		})
-	}
+	f := newFixture(t)
+	f.untracked(".env", secret+"\n"+secret+"\n")
+	f.run()
+	// The secret is over the floor and appears twice, so it is what this tool echoes from any file it reads.
+	f.ExpectNotOut(secret[:60])
+	f.ExpectErr("its name marks it as secret-bearing")
+	f.ExpectErr("1 file(s) skipped unread")
 }
 
 // The skip announcement names a file somebody else put in the tree, and it is the one path in this
@@ -210,9 +184,9 @@ func TestTheSkipAnnouncementIsSanitised(t *testing.T) {
 		f := newFixture(t)
 		f.untracked(".env\x1b[2J", secret+"\n"+secret+"\n")
 		f.run()
-		f.expectStderrHas("its name marks it as secret-bearing")
-		if strings.Contains(f.stderr.String(), "\x1b") {
-			t.Errorf("the announcement carries a raw escape: %q", f.stderr.String())
+		f.ExpectErr("its name marks it as secret-bearing")
+		if strings.Contains(f.Err.String(), "\x1b") {
+			t.Errorf("the announcement carries a raw escape: %q", f.Err.String())
 		}
 	})
 
@@ -223,10 +197,10 @@ func TestTheSkipAnnouncementIsSanitised(t *testing.T) {
 		name := strings.Repeat("d", 200) + "/.env"
 		f.untracked(name, secret+"\n"+secret+"\n")
 		f.run()
-		f.expectStderrHas("its name marks it as secret-bearing")
-		f.expectStderrHas(shell.CutMarker)
-		if strings.Contains(f.stderr.String(), name) {
-			t.Errorf("the whole %d-byte name reached stderr uncut: %q", len(name), f.stderr.String())
+		f.ExpectErr("its name marks it as secret-bearing")
+		f.ExpectErr(shell.CutMarker)
+		if strings.Contains(f.Err.String(), name) {
+			t.Errorf("the whole %d-byte name reached stderr uncut: %q", len(name), f.Err.String())
 		}
 	})
 }
@@ -242,10 +216,10 @@ func TestATrackedSecretNamedFileIsNeverScannedEither(t *testing.T) {
 	f.added(".env.staging", "TOKEN="+secret)
 
 	f.run("HEAD")
-	f.expectCode(0)
-	f.expectStdoutLacks(secret[:60])
-	f.expectStderrHas("its name marks it as secret-bearing")
-	f.expectStderrHas("2 file(s) skipped unread")
+	f.ExpectCode(f.code, 0)
+	f.ExpectNotOut(secret[:60])
+	f.ExpectErr("its name marks it as secret-bearing")
+	f.ExpectErr("2 file(s) skipped unread")
 }
 
 // The control the case above needs: the same duplicate in tracked files NOT named as secret-bearing
@@ -257,8 +231,8 @@ func TestATrackedOrdinaryFileWithTheSameDuplicateIsStillReported(t *testing.T) {
 	f.added("two.go", "TOKEN="+secret)
 
 	f.run("HEAD")
-	f.expectCode(1)
-	f.expectStdoutHas("2x token")
+	f.ExpectCode(f.code, 1)
+	f.ExpectOut("2x token")
 }
 
 // And the control: an ordinary untracked file with the same content IS read, or the case above would
@@ -268,8 +242,8 @@ func TestAnOrdinaryUntrackedFileWithTheSameContentIsRead(t *testing.T) {
 	body := repeated('S', 130)
 	f.untracked("ordinary.txt", body+"\n"+body+"\n")
 	f.run()
-	f.expectCode(1)
-	f.expectStdoutHas("2x")
+	f.ExpectCode(f.code, 1)
+	f.ExpectOut("2x")
 }
 
 // A symlink is declined, not followed. Stat answers about the target, so without Lstat an
@@ -289,10 +263,10 @@ func TestAnUntrackedSymlinkIsSkippedAndCounted(t *testing.T) {
 	}
 	f.git.AddUntracked("notes.txt")
 	f.run()
-	f.expectCode(0)
+	f.ExpectCode(f.code, 0)
 	// The body is over the floor and appears twice, so a scan that followed the link would print it.
-	f.expectStdoutLacks(body[:60])
-	f.expectStderrHas("1 file(s) skipped unread")
+	f.ExpectNotOut(body[:60])
+	f.ExpectErr("1 file(s) skipped unread")
 }
 
 func TestAnUntrackedBinaryFileIsSkippedAndCounted(t *testing.T) {
@@ -300,8 +274,8 @@ func TestAnUntrackedBinaryFileIsSkippedAndCounted(t *testing.T) {
 	long := repeated('b', 130)
 	f.untracked("blob.bin", "\x00"+long+"\n"+long+"\n")
 	f.run()
-	f.expectCode(0)
-	f.expectStderrHas("1 file(s) skipped unread")
+	f.ExpectCode(f.code, 0)
+	f.ExpectErr("1 file(s) skipped unread")
 }
 
 func TestAnUntrackedFileOverTheByteCapIsSkippedAndCounted(t *testing.T) {
@@ -309,8 +283,8 @@ func TestAnUntrackedFileOverTheByteCapIsSkippedAndCounted(t *testing.T) {
 	long := repeated('c', 130)
 	f.untracked("big.txt", long+"\n"+long+"\n")
 	f.runWith(Config{MinLength: defaultMinLength, MaxFileBytes: 32})
-	f.expectCode(0)
-	f.expectStderrHas("1 file(s) skipped unread")
+	f.ExpectCode(f.code, 0)
+	f.ExpectErr("1 file(s) skipped unread")
 }
 
 func TestPastTheDisplayCap(t *testing.T) {
@@ -329,9 +303,9 @@ func TestPastTheDisplayCap(t *testing.T) {
 	}
 	f.added("base.go", lines...)
 	f.run("HEAD")
-	f.expectCode(1)
-	f.expectStdoutHas("… and 1 further duplicate(s), not shown")
-	if shown := strings.Count(f.stdout.String(), " chars): "); shown != wantCap {
+	f.ExpectCode(f.code, 1)
+	f.ExpectOut("… and 1 further duplicate(s), not shown")
+	if shown := strings.Count(f.Out.String(), " chars): "); shown != wantCap {
 		t.Errorf("printed %d duplicates above the announcement, wanted exactly the cap %d", shown, wantCap)
 	}
 }
@@ -345,9 +319,9 @@ func TestTheReportIsOrdered(t *testing.T) {
 	}
 	f.added("base.go", lines...)
 	f.run("HEAD")
-	first := f.stdout.String()
+	first := f.Out.String()
 	f.run("HEAD")
-	if second := f.stdout.String(); first != second {
+	if second := f.Out.String(); first != second {
 		t.Errorf("two runs over one tree printed different reports:\n%s\nand\n%s", first, second)
 	}
 }

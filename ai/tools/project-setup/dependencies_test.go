@@ -11,9 +11,9 @@ import (
 func TestAWorkingMiseSatisfiesThePrerequisiteWithoutTouchingBrew(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.expectSaid("ok       mise is available on PATH")
+	f.ExpectSaid("ok       mise is available on PATH")
 	if !f.machine.Ran("mise", "--version") {
 		t.Errorf("mise was never verified: %v", f.machine.Spelled("mise"))
 	}
@@ -26,9 +26,9 @@ func TestABrokenMiseFailsReadinessWithoutChangingTheMachine(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering("mise", func(machine.Command) int { return 1 })
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("mise --version failed")
+	f.ExpectSaid("mise --version failed")
 	if f.machine.RanAny("brew") {
 		t.Errorf("a broken mise triggered a machine change: %v", f.machine.Spelled("brew"))
 	}
@@ -45,7 +45,7 @@ func TestAMissingMiseIsInstalledThroughAnExistingBrew(t *testing.T) {
 		return 0
 	})
 
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
 	if !f.machine.Ran("brew", "install", "mise") {
 		t.Errorf("brew was not asked for mise: %v", f.machine.Spelled("brew"))
@@ -54,7 +54,7 @@ func TestAMissingMiseIsInstalledThroughAnExistingBrew(t *testing.T) {
 		environment[0] != "HOMEBREW_NO_AUTO_UPDATE=1" {
 		t.Errorf("brew was handed %v, so the install would first update every tap", environment)
 	}
-	f.expectSaid("ok       mise is available on PATH")
+	f.ExpectSaid("ok       mise is available on PATH")
 }
 
 // With neither, it says what to do and stops: putting a package manager on somebody's machine to
@@ -64,11 +64,11 @@ func TestNeitherMiseNorBrewStopsWithTheInstructions(t *testing.T) {
 	f.machine.Present["mise"] = false
 	f.machine.Present["brew"] = false
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("https://mise.jdx.dev/installing-mise.html")
-	f.expectSaid("PATH")
-	f.expectAbsent(f.skillsMount("claude"))
+	f.ExpectSaid("https://mise.jdx.dev/installing-mise.html")
+	f.ExpectSaid("PATH")
+	f.ExpectAbsent(f.skillsMount("claude"))
 }
 
 func TestAFailedBrewInstallIsNamedRatherThanPassedOver(t *testing.T) {
@@ -76,9 +76,9 @@ func TestAFailedBrewInstallIsNamedRatherThanPassedOver(t *testing.T) {
 	f.machine.Present["mise"] = false
 	f.machine.Answering("brew", func(machine.Command) int { return 1 })
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("brew install mise failed")
+	f.ExpectSaid("brew install mise failed")
 }
 
 // brew can exit 0 having put mise somewhere this shell cannot reach. This run reports the PATH
@@ -88,18 +88,18 @@ func TestBrewSucceedingWithoutAReachableMiseGivesThePathRecovery(t *testing.T) {
 	f.machine.Present["mise"] = false
 	f.machine.Answering("brew", func(machine.Command) int { return 0 })
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("Add the Homebrew bin directory to PATH")
+	f.ExpectSaid("Add the Homebrew bin directory to PATH")
 }
 
 func TestADryRunNamesTheBoundedInstallAndRunsNothing(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Present["mise"] = false
 
-	f.expectCode(f.install("--agent=claude", "--dry-run"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--dry-run"), 0)
 
-	f.expectSaid("would run HOMEBREW_NO_AUTO_UPDATE=1 brew install mise")
+	f.ExpectSaid("would run HOMEBREW_NO_AUTO_UPDATE=1 brew install mise")
 	if f.machine.RanAny("brew") {
 		t.Errorf("a dry run invoked brew: %v", f.machine.Spelled("brew"))
 	}

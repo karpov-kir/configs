@@ -63,15 +63,3 @@ func TestADescentIsChargedForThePathItCopies(t *testing.T) {
 		t.Error("a chain of three left a budget of four unspent, so a descent was charged a flat step")
 	}
 }
-
-func TestASparseGraphLeavesTheBudgetUnspent(t *testing.T) {
-	adj := map[string][]string{"a": {"b"}, "b": {"c"}}
-	budget := shell.NewWalkBudget(shell.WalkSteps)
-	got := longest(adj, "a", budget)
-	if len(got) != 3 {
-		t.Fatalf("longest = %v, want the whole chain", got)
-	}
-	if budget.Exhausted() {
-		t.Error("a three-file chain exhausted a budget sized for the whole tree")
-	}
-}

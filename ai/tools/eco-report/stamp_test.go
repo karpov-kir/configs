@@ -133,10 +133,10 @@ func TestAStageNameThatIsNotAStageIsRefused(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "001-stage-names")
 	f.runReport("invalidate")
-	for _, stage := range []string{"bogus", ""} {
-		f.recordCleanStage(stage)
-		f.assertRefused("refuses an unknown or empty stage")
-	}
+	// An empty stage name reaches the same `default` arm as any other word that is not a stage. The
+	// switch belongs to validateStageResult, the stage validator, so one word stands for both.
+	f.recordCleanStage("bogus")
+	f.assertRefused("refuses a stage name that is not a stage")
 	f.recordCleanStage("code-review")
 	f.record("a known stage is accepted", f.status == 0, f.evidence())
 }

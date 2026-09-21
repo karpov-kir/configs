@@ -11,21 +11,21 @@ import (
 func TestTheDefaultTierInstallsNothingAndSaysRtkIsTheOwnersAlone(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.runStep("--skip-brew", "--agent=claude"), 0)
+	f.ExpectCode(f.runStep("--skip-brew", "--agent=claude"), 0)
 
-	if len(f.machine.installs) > 0 {
-		t.Errorf("a default tier installed %v", f.machine.installs)
+	if len(f.machine.Installs) > 0 {
+		t.Errorf("a default tier installed %v", f.machine.Installs)
 	}
-	f.expectSaid("  skipped  rtk is the owner tier's")
+	f.ExpectSaid("  skipped  rtk is the owner tier's")
 }
 
 func TestTheOwnerTierInstallsRtk(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.runStep("--skip-brew", "--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.runStep("--skip-brew", "--agent=claude", "--owner"), 0)
 
-	if !slices.Contains(f.machine.installs, "rtk") {
-		t.Errorf("the owner tier did not install rtk: %v", f.machine.installs)
+	if !slices.Contains(f.machine.Installs, "formula rtk") {
+		t.Errorf("the owner tier did not install rtk: %v", f.machine.Installs)
 	}
 }
 
@@ -33,24 +33,24 @@ func TestTheOwnerTierInstallsRtk(t *testing.T) {
 // noisy, and answers non-zero on an already-installed formula.
 func TestAFormulaAlreadyOnTheMachineIsNotInstalledAgain(t *testing.T) {
 	f := newFixture(t)
-	f.machine.installed["rtk"] = true
+	f.machine.Installed["formula rtk"] = true
 
-	f.expectCode(f.runStep("--skip-brew", "--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.runStep("--skip-brew", "--agent=claude", "--owner"), 0)
 
-	f.expectSaid("  ok       rtk")
-	if len(f.machine.installs) > 0 {
-		t.Errorf("the run reinstalled %v", f.machine.installs)
+	f.ExpectSaid("  ok       rtk")
+	if len(f.machine.Installs) > 0 {
+		t.Errorf("the run reinstalled %v", f.machine.Installs)
 	}
 }
 
 func TestADryRunNamesWhatItWouldInstallAndInstallsNothing(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.runStep("--skip-brew", "--agent=claude", "--owner", "--dry-run"), 0)
+	f.ExpectCode(f.runStep("--skip-brew", "--agent=claude", "--owner", "--dry-run"), 0)
 
-	f.expectSaid("would install rtk")
-	if len(f.machine.installs) > 0 {
-		t.Errorf("a dry run installed %v", f.machine.installs)
+	f.ExpectSaid("would install rtk")
+	if len(f.machine.Installs) > 0 {
+		t.Errorf("a dry run installed %v", f.machine.Installs)
 	}
 }
 
@@ -59,12 +59,12 @@ func TestADryRunNamesWhatItWouldInstallAndInstallsNothing(t *testing.T) {
 // owner tier, the only tier with a formula to miss.
 func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 	f := newFixture(t)
-	f.machine.without("brew")
+	f.machine.Without("brew")
 
-	f.expectCode(f.runStep("--skip-brew", "--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.runStep("--skip-brew", "--agent=claude", "--owner"), 1)
 
-	f.expectSaid("brew is not installed, so no formula was installed")
-	f.expectLinkTo(f.home+"/.kk-flavor", f.repo+"/kk-flavor")
+	f.ExpectSaid("brew is not installed, so no formula was installed")
+	f.ExpectLinkTo(f.home+"/.kk-flavor", f.repo+"/kk-flavor")
 }
 
 // A machine lacking brew still installs, where the tier asks brew for no formula. Since jq went, that
@@ -72,13 +72,13 @@ func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 // tier never used. The skip line still prints, so the run says what this tier does not take.
 func TestATierThatInstallsNoFormulaDoesNotNeedBrew(t *testing.T) {
 	f := newFixture(t)
-	f.machine.without("brew")
+	f.machine.Without("brew")
 
-	f.expectCode(f.runStep("--skip-brew", "--agent=claude"), 0)
+	f.ExpectCode(f.runStep("--skip-brew", "--agent=claude"), 0)
 
-	f.expectNotSaid("brew is not installed")
-	f.expectSaid("  skipped  rtk is the owner tier's")
-	if len(f.machine.installs) > 0 {
-		t.Errorf("a tier with no formula installed %v", f.machine.installs)
+	f.ExpectNotSaid("brew is not installed")
+	f.ExpectSaid("  skipped  rtk is the owner tier's")
+	if len(f.machine.Installs) > 0 {
+		t.Errorf("a tier with no formula installed %v", f.machine.Installs)
 	}
 }

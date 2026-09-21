@@ -34,7 +34,7 @@ func (f *fixture) discoverSkills(options installer.RunOptions, skills installer.
 	skills.MountParent = f.skillsMount()
 	found := run.AddSkillMounts(skills)
 	run.Mount()
-	f.expectContained(run)
+	f.ExpectNoBreach(run.Breaches())
 	return run, found
 }
 
@@ -48,8 +48,8 @@ func TestAMaintainerOnlySkillIsLeftOutUnlessItIsAskedFor(t *testing.T) {
 		run, found := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{})
 
 		f.expectRefusals(run, 0)
-		f.expectLinkTo(f.skillsMount()+"/kk-build", f.repo+"/skills/kk-build")
-		f.expectAbsent(f.skillsMount() + "/kk-ecosystem")
+		f.ExpectLinkTo(f.skillsMount()+"/kk-build", f.repo+"/skills/kk-build")
+		f.ExpectAbsent(f.skillsMount() + "/kk-ecosystem")
 		if found.Found != 2 || len(found.SkippedNames) != 1 {
 			t.Errorf("discovery found %d skill(s) and skipped %v, wanted 2 and one marked name",
 				found.Found, found.SkippedNames)
@@ -63,7 +63,7 @@ func TestAMaintainerOnlySkillIsLeftOutUnlessItIsAskedFor(t *testing.T) {
 
 		_, found := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{Maintainer: true})
 
-		f.expectLinkTo(f.skillsMount()+"/kk-ecosystem", f.repo+"/skills/kk-ecosystem")
+		f.ExpectLinkTo(f.skillsMount()+"/kk-ecosystem", f.repo+"/skills/kk-ecosystem")
 		if len(found.SkippedNames) != 0 {
 			t.Errorf("--maintainer skipped %v, wanted nothing", found.SkippedNames)
 		}
@@ -83,10 +83,10 @@ func TestAMaintainerOnlySkillIsLeftOutUnlessItIsAskedFor(t *testing.T) {
 			Uninstalling:    true,
 		})
 		run.Unmount()
-		f.expectContained(run)
+		f.ExpectNoBreach(run.Breaches())
 
-		f.expectAbsent(f.skillsMount() + "/kk-ecosystem")
-		f.expectAbsent(f.skillsMount() + "/kk-build")
+		f.ExpectAbsent(f.skillsMount() + "/kk-ecosystem")
+		f.ExpectAbsent(f.skillsMount() + "/kk-build")
 	})
 }
 
@@ -103,26 +103,14 @@ func TestAnAudienceNoReaderKnowsIsReportedAndStillMounted(t *testing.T) {
 	run, found := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{})
 
 	f.expectRefusals(run, 1)
-	f.expectSaid("maintainr")
-	f.expectSaid("audience: maintainer")
+	f.ExpectSaid("maintainr")
+	f.ExpectSaid("audience: maintainer")
 	// The mount still happens, so the tree behaves as it does today and the non-zero exit carries the
 	// news.
-	f.expectLinkTo(f.skillsMount()+"/kk-typo", f.repo+"/skills/kk-typo")
+	f.ExpectLinkTo(f.skillsMount()+"/kk-typo", f.repo+"/skills/kk-typo")
 	if found.Found != 1 {
 		t.Errorf("discovery found %d skill(s), wanted 1", found.Found)
 	}
-}
-
-// The control. The refusal in the case before this one could otherwise be a discovery that refuses
-// every skill it reads, and the case would measure that instead.
-func TestTheSameTreeWithTheMarkerSpelledRightRefusesNothing(t *testing.T) {
-	t.Parallel()
-	f := newSkillTree(t)
-
-	run, _ := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{Maintainer: true})
-
-	f.expectRefusals(run, 0)
-	f.expectNotSaid("no reader knows")
 }
 
 // The audience value is echoed back to whoever typed it, so it is text a branch chose reaching the
@@ -145,9 +133,9 @@ func TestARawCsiInAnAudienceValueNeverReachesTheTerminal(t *testing.T) {
 	// The control. The assertion that follows is otherwise equally satisfied by a run that never read
 	// the declaration at all.
 	f.expectRefusals(run, 1)
-	f.expectSaid("maintainr")
-	if strings.Contains(f.said(), csi) {
-		t.Errorf("a raw CSI out of the declared audience reached the terminal:\n%q", f.said())
+	f.ExpectSaid("maintainr")
+	if strings.Contains(f.Said(), csi) {
+		t.Errorf("a raw CSI out of the declared audience reached the terminal:\n%q", f.Said())
 	}
 }
 

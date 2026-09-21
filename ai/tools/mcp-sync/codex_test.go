@@ -55,6 +55,9 @@ func TestCodexTakesWhatItCanPreserveAndRefusesWhatItCannot(t *testing.T) {
 // The command line itself, which is what a registration IS. The case asserts the argument list. A
 // rendered string hides the boundaries between arguments, and those are what is at risk. A value
 // holding a space, a shell metacharacter or a newline has to arrive as one argument.
+
+// The `--` in the wanted list is the other half, and it goes in unconditionally. Codex takes
+// everything past it as the server's own command line, a leading dash included.
 func TestTheCommandLineKeepsEveryArgumentWhole(t *testing.T) {
 	t.Parallel()
 	args, err := codexArgs(mcp.Server{Name: "literal", Config: json.RawMessage(
@@ -66,19 +69,6 @@ func TestTheCommandLineKeepsEveryArgumentWhole(t *testing.T) {
 	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
 		t.Errorf("the command line is\n  %q\nwant\n  %q\nA boundary lost here is a server launched with "+
 			"arguments the human never wrote.", args, want)
-	}
-}
-
-// `--` before the command, so a command or argument that starts with a dash is not read as a flag of
-// Codex's own.
-func TestTheCommandIsSeparatedFromCodexsOwnFlags(t *testing.T) {
-	t.Parallel()
-	args, err := codexArgs(server(`{"command":"--not-a-flag","args":["--neither"]}`))
-	if err != nil {
-		t.Fatalf("building the command line: %v", err)
-	}
-	if index := indexOf(args, "--"); index < 0 || args[index+1] != "--not-a-flag" {
-		t.Errorf("the command is not separated from Codex's own flags: %q", args)
 	}
 }
 
@@ -104,13 +94,4 @@ func TestAnHTTPServerIsRegisteredAsAURL(t *testing.T) {
 	if strings.Join(args, " ") != "mcp add one --url http://127.0.0.1:9/mcp" {
 		t.Errorf("an HTTP server came out as %q", strings.Join(args, " "))
 	}
-}
-
-func indexOf(values []string, want string) int {
-	for index, value := range values {
-		if value == want {
-			return index
-		}
-	}
-	return -1
 }

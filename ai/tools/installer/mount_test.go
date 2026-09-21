@@ -22,16 +22,16 @@ func TestAFreshMachineGetsEveryLink(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("a fresh home reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid(label + ": ok")
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
-	f.expectLinkTo(f.home+"/.gitconfig", f.repo+"/git/.gitconfig")
-	f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
-	f.expectLinkTo(f.home+"/.config/starship.toml", f.repo+"/starship/starship.toml")
+	f.ExpectSaid(label + ": ok")
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectLinkTo(f.home+"/.gitconfig", f.repo+"/git/.gitconfig")
+	f.ExpectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
+	f.ExpectLinkTo(f.home+"/.config/starship.toml", f.repo+"/starship/starship.toml")
 
 	// A parent the README creates by hand. ~/.config is absent on a fresh machine, and a link into a
 	// missing directory fails where it would have to create one.
 	t.Run("and a missing parent directory is created", func(t *testing.T) {
-		f.expectDir(f.home + "/.config")
+		f.ExpectDir(f.home + "/.config")
 	})
 
 	// A machine with no mount yet leaves the second-checkout guard an empty table, so it must pass
@@ -39,7 +39,7 @@ func TestAFreshMachineGetsEveryLink(t *testing.T) {
 	// indistinguishable from one that was never reached. This guard runs on every machine already set
 	// up.
 	t.Run("and the second-checkout guard passes rather than staying silent", func(t *testing.T) {
-		f.expectSaid("no mount on this machine comes from another checkout")
+		f.ExpectSaid("no mount on this machine comes from another checkout")
 	})
 }
 
@@ -54,8 +54,8 @@ func TestASecondRunOverAFinishedHomeRelinksNothing(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("a second run reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid("  ok       " + f.home + "/.zshrc")
-	f.expectNotSaid("linked   " + f.home + "/.zshrc")
+	f.ExpectSaid("  ok       " + f.home + "/.zshrc")
+	f.ExpectNotSaid("linked   " + f.home + "/.zshrc")
 }
 
 // A link differing from the computed source only by a trailing slash is the same directory spelled two
@@ -70,8 +70,8 @@ func TestALinkDifferingOnlyByATrailingSlashIsLeftAlone(t *testing.T) {
 
 	f.mount(installer.RunOptions{})
 
-	f.expectSaid("  ok       " + f.home + "/.config/nvim")
-	f.expectNotSaid("repointed " + f.home + "/.config/nvim")
+	f.ExpectSaid("  ok       " + f.home + "/.config/nvim")
+	f.ExpectNotSaid("repointed " + f.home + "/.config/nvim")
 }
 
 // A symlink carries no data of its own, and a repoint therefore loses none. It is the single target
@@ -85,8 +85,8 @@ func TestAStaleSymlinkIsRepointedRatherThanRefused(t *testing.T) {
 	run := f.mount(installer.RunOptions{})
 
 	f.expectRefusals(run, 0)
-	f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
-	f.expectSaid("repointed " + f.home + "/.config/nvim")
+	f.ExpectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
+	f.ExpectSaid("repointed " + f.home + "/.config/nvim")
 }
 
 func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
@@ -104,9 +104,9 @@ func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
 		if code := run.Report(); code != 1 {
 			t.Errorf("a real directory at a target reported %d, wanted 1", code)
 		}
-		f.expectSaid("exists and is not a symlink")
-		f.expectFileBody(f.home+"/.config/nvim/init.lua", "my real config")
-		f.expectNotSymlink(f.home + "/.config/nvim")
+		f.ExpectSaid("exists and is not a symlink")
+		f.ExpectFileBody(f.home+"/.config/nvim/init.lua", "my real config")
+		f.ExpectNotSymlink(f.home + "/.config/nvim")
 	})
 
 	// A real file is the same hazard in the other shape, and takes the other branch of the existence
@@ -119,11 +119,11 @@ func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
 		run := f.mount(installer.RunOptions{})
 
 		f.expectRefusals(run, 1)
-		f.expectFileBody(f.home+"/.config/starship.toml", "hand-written prompt")
+		f.ExpectFileBody(f.home+"/.config/starship.toml", "hand-written prompt")
 
 		// One refusal must not abort the rest: a machine with one stray file should still get every
 		// other link, or fixing them becomes one run per problem.
-		f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+		f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 	})
 }
 
@@ -137,10 +137,10 @@ func TestASourceMissingFromTheCheckoutIsRefused(t *testing.T) {
 	run := f.mount(installer.RunOptions{})
 
 	f.expectRefusals(run, 1)
-	f.expectSaid("is missing from the repository")
-	f.expectAbsent(f.home + "/.config/nvim")
+	f.ExpectSaid("is missing from the repository")
+	f.ExpectAbsent(f.home + "/.config/nvim")
 	// And the rest is still linked, for the reason one refusal does not abort the run.
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
 // The flag has to leave the disk alone, or it is worse than absent. Someone checks with a dry run,
@@ -154,9 +154,9 @@ func TestADryRunWritesNothingAtAll(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("a dry run reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid("would link")
-	f.expectAbsent(f.home + "/.zshrc")
-	f.expectAbsent(f.home + "/.config")
+	f.ExpectSaid("would link")
+	f.ExpectAbsent(f.home + "/.zshrc")
+	f.ExpectAbsent(f.home + "/.config")
 }
 
 // `${target%/*}` on `/.zshrc` gives the empty string where `/` is wanted. A run that computed an
@@ -184,6 +184,6 @@ func TestARootLevelTargetNamesTheRootAsItsParent(t *testing.T) {
 	if !strings.Contains(breaches[0], "resolves to /;") {
 		t.Errorf("the parent came back as something other than /: %s", breaches[0])
 	}
-	f.expectNotSaid("could not create :")
-	f.expectAbsent("/.zshrc")
+	f.ExpectNotSaid("could not create :")
+	f.ExpectAbsent("/.zshrc")
 }

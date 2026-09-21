@@ -15,6 +15,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,7 +41,7 @@ var (
 // half way through writing.
 func TestAnInstallLandingInsideABuildLeavesNoBinaryUnderTheOtherWritersStamp(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	checkout := newContestedCheckout(t, sandbox)
 	tools := filepath.Join(checkout, "ai", "tools")
 	binary := filepath.Join(tools, "bin", contested)
@@ -61,18 +62,18 @@ func TestAnInstallLandingInsideABuildLeavesNoBinaryUnderTheOtherWritersStamp(t *
 
 	mark(t, filepath.Join(buildSignals, moveRelease))
 	expectServed(t, build.outcome(t), binary)
-	if installed := installing.outcome(t); installed.code != 0 {
+	if installed := installing.outcome(t); installed.Code != 0 {
 		t.Fatalf("the install refused the fixture release, so no install wrote the pair this case reads\n%v",
 			installed)
 	}
 
-	body := read(t, binary)
+	body := runtest.ReadFile(t, binary)
 	fromRelease := strings.Contains(body, releaseBody)
 	if !fromRelease && !strings.Contains(body, anySourceMark) {
 		t.Fatalf("%s carries neither writer's bytes, so the comparison below cannot tell the two writers "+
 			"apart", binary)
 	}
-	held := strings.TrimSpace(read(t, binary+".stamp"))
+	held := strings.TrimSpace(runtest.ReadFile(t, binary+".stamp"))
 	if held != releaseStamp && len(held) != stampLength {
 		t.Fatalf("the two writers left %q beside %s rather than either writer's stamp, so the comparison "+
 			"below has no stamp to read", held, binary)
@@ -135,8 +136,8 @@ func newContestedCheckout(t *testing.T, sandbox string) string {
 	t.Helper()
 	checkout := newCheckout(t, sandbox, "https://github.com/pinned/target.git")
 	tools := filepath.Join(checkout, "ai", "tools")
-	writeFile(t, filepath.Join(checkout, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
-	writeFile(t, filepath.Join(tools, contested, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(checkout, "go.mod"), "module fixture\n\ngo 1.24\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, contested, "main.go"), "package main\n\nfunc main() {}\n", 0o644)
 	copyScripts(t, tools)
 	return checkout
 }

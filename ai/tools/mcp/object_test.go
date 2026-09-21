@@ -96,7 +96,9 @@ func TestEncodingLeavesTheLaunchersOwnCharactersAlone(t *testing.T) {
 
 func TestSomethingThatIsNotAnObjectIsRefused(t *testing.T) {
 	t.Parallel()
-	for _, source := range []string{`[1,2]`, `"text"`, ``, `{"a":1} {"b":2}`, `{`} {
+	// A document holding a second object is TestAnythingAfterTheObjectIsRefusedWhetherOrNotItIsJSON's
+	// whole subject, so it is not repeated here.
+	for _, source := range []string{`[1,2]`, `"text"`, ``, `{`} {
 		t.Run(source, func(t *testing.T) {
 			t.Parallel()
 			if _, err := ParseObject([]byte(source)); err == nil {

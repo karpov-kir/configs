@@ -7,11 +7,11 @@ import "testing"
 func TestAnUnknownOptionIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run("--skip-brew", "--not-a-flag"), 2)
+	f.ExpectCode(f.run("--skip-brew", "--not-a-flag"), 2)
 
-	f.expectSaid("--not-a-flag")
-	f.expectSaid("usage: bootstrap.sh")
-	f.expectAbsent(f.home + "/.zshrc")
+	f.ExpectSaid("--not-a-flag")
+	f.ExpectSaid("usage: bootstrap.sh")
+	f.ExpectAbsent(f.home + "/.zshrc")
 }
 
 // The stub's own basename, which is the string eco-check's scans anchor on to read a stub's grammar
@@ -19,11 +19,11 @@ func TestAnUnknownOptionIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 func TestHelpPrintsTheUsageLineAndChangesNothing(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run("--help"), 0)
+	f.ExpectCode(f.run("--help"), 0)
 
-	f.expectSaid("usage: bootstrap.sh [--dry-run] [--relocate] [--skip-brew]")
-	f.expectAbsent(f.home + "/.zshrc")
-	f.expectAbsent(f.home + "/.config")
+	f.ExpectSaid("usage: bootstrap.sh [--dry-run] [--relocate] [--skip-brew]")
+	f.ExpectAbsent(f.home + "/.zshrc")
+	f.ExpectAbsent(f.home + "/.config")
 }
 
 // A dry run that wrote anything would be worse than having no flag at all. Someone checks with it, and
@@ -31,9 +31,9 @@ func TestHelpPrintsTheUsageLineAndChangesNothing(t *testing.T) {
 func TestADryRunSaysWhatItWouldDoAndWritesNothing(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run("--skip-brew", "--dry-run"), 0)
+	f.ExpectCode(f.run("--skip-brew", "--dry-run"), 0)
 
-	f.expectSaid("would link")
-	f.expectAbsent(f.home + "/.zshrc")
-	f.expectAbsent(f.home + "/.config")
+	f.ExpectSaid("would link")
+	f.ExpectAbsent(f.home + "/.zshrc")
+	f.ExpectAbsent(f.home + "/.config")
 }

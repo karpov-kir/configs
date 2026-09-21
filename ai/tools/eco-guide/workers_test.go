@@ -72,6 +72,9 @@ func workerCardFor(t *testing.T, page, name string) string {
 // A worker has no frontmatter, so its card is built from two sources that cannot be edited together:
 // the brief's own first sentence, and the tier the model policy resolves for it. Both halves are
 // asserted here, because a card carrying the name alone would look generated and say nothing.
+//
+// Two rows' tiers are asserted here. The policy is what resolves a tier, and one row's tier on its
+// own could be a constant that happens to match.
 func TestAWorkerCardCarriesItsBriefAndTheTierItsRowBuys(t *testing.T) {
 	root := newRoot(t, fixtureTemplate, shipped)
 
@@ -83,6 +86,7 @@ func TestAWorkerCardCarriesItsBriefAndTheTierItsRowBuys(t *testing.T) {
 		`<code class="k">code-review</code>`,
 		"You are one correctness review.",
 		"tier: claude opus &middot; codex gpt-6-astra high",
+		"tier: claude haiku &middot; codex gpt-5.6-luna low",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the worker card is missing %q\n%s", want, page)
@@ -91,22 +95,6 @@ func TestAWorkerCardCarriesItsBriefAndTheTierItsRowBuys(t *testing.T) {
 	// The sentence after the first one is the contract, which belongs in the brief and not on a card.
 	if strings.Contains(page, "The rest is the contract.") {
 		t.Errorf("the card printed past the brief's first sentence\n%s", page)
-	}
-}
-
-// The tier is resolved through the policy rather than read off the worker, so a row that assigns a
-// different model moves the page with no edit to the brief. Without this the card could be printing
-// a constant that happens to match.
-func TestAWorkerCardFollowsThePolicyRatherThanTheBrief(t *testing.T) {
-	root := newRoot(t, fixtureTemplate, shipped)
-	writeWorkers(t, root, fixtureWorker{"unpriced", "You are the cheap one.\n"})
-
-	if status, output := run(t, root); status != 0 {
-		t.Fatalf("expected exit 0, got %d\n%s", status, output)
-	}
-	page := generated(t, root)
-	if !strings.Contains(page, "tier: claude haiku &middot; codex gpt-5.6-luna low") {
-		t.Errorf("the cheap row's own tier did not reach its card\n%s", page)
 	}
 }
 

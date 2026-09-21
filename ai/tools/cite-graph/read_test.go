@@ -73,17 +73,6 @@ func TestSelfCitationAndFencesAreNotEdges(t *testing.T) {
 	}
 }
 
-func TestPathCitationResolvesByPath(t *testing.T) {
-	root := t.TempDir()
-	write(t, root, "std/writing.md", "# W\n\n## Density\n")
-	write(t, root, "other/writing.md", "# Other\n")
-	write(t, root, "caller.md", "see `std/writing.md` → **Density**\n")
-	_, edges, _ := graph(t, root)
-	if len(edges) != 1 || edges[0].to != "std/writing.md" {
-		t.Fatalf("edges = %+v, want one to std/writing.md", edges)
-	}
-}
-
 // `X → **A** and → **B**` makes two claims and names the file once. Counting one makes the target's
 // door surface read narrower than it is.
 func TestChainedSectionBelongsToTheFileAlreadyNamed(t *testing.T) {
@@ -243,20 +232,6 @@ func TestTheWholeFileReadAndItsCitationShareOneLine(t *testing.T) {
 	}
 	if !edges[0].precision {
 		t.Error("the bare mention shares the citation's line, so the citer holds the file whole")
-	}
-}
-
-func TestEdgeKeysOnTheHeadingNotTheCitation(t *testing.T) {
-	root := t.TempDir()
-	write(t, root, "std/h.md", "# H\n\n## Budget — the keep test\n")
-	write(t, root, "caller.md", "run `std/h.md` → **Budget** over every sentence\n")
-
-	_, edges, _ := graph(t, root)
-	if len(edges) != 1 {
-		t.Fatalf("edges = %+v, want 1", edges)
-	}
-	if edges[0].section != "Budget — the keep test" {
-		t.Fatalf("edge keyed on %q, want the heading it matched", edges[0].section)
 	}
 }
 

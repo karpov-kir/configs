@@ -9,23 +9,23 @@ import "testing"
 func TestUninstallOverAMachineHoldingNothingLinksNothingOnTheWay(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectNotSaid("  linked   ")
-	f.expectAbsent(f.home + "/.kk-flavor")
+	f.ExpectNotSaid("  linked   ")
+	f.ExpectAbsent(f.home + "/.kk-flavor")
 }
 
 func TestUninstallTakesTheBucketTheSkillsAndTheRegion(t *testing.T) {
 	f := newFixture(t)
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectAbsent(f.home + "/.kk-flavor")
-	if mounted := f.mounted(f.skillsMount("claude")); len(mounted) > 0 {
+	f.ExpectAbsent(f.home + "/.kk-flavor")
+	if mounted := f.Mounted(f.skillsMount("claude")); len(mounted) > 0 {
 		t.Errorf("the uninstall left %v mounted", mounted)
 	}
-	f.expectFileBody(f.home+"/.claude/CLAUDE.md", "")
+	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", "")
 }
 
 // The tier a machine was installed with is recorded nowhere. An uninstall that re-applied the
@@ -33,11 +33,11 @@ func TestUninstallTakesTheBucketTheSkillsAndTheRegion(t *testing.T) {
 // plain out would leave exactly the marked skills mounted, reporting ok.
 func TestAPlainUninstallRemovesWhatMaintainerInstalled(t *testing.T) {
 	f := newFixture(t)
-	f.expectCode(f.install("--agent=claude", "--maintainer"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--maintainer"), 0)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	if mounted := f.mounted(f.skillsMount("claude")); len(mounted) > 0 {
+	if mounted := f.Mounted(f.skillsMount("claude")); len(mounted) > 0 {
 		t.Errorf("the uninstall left %v mounted, which is every skill --maintainer had added", mounted)
 	}
 }
@@ -50,10 +50,10 @@ func TestUninstallNamesTheProjectsThatStillNeedThisCheckout(t *testing.T) {
 	f.MkdirAll(project)
 	f.Write(f.home+"/.config/kk-flavor/installs", project+"\n")
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectSaid("1 project(s) still hold skills mounted from this checkout")
-	f.expectSaid(project)
+	f.ExpectSaid("1 project(s) still hold skills mounted from this checkout")
+	f.ExpectSaid(project)
 }
 
 // This case runs at the default tier, which never installs rtk. The tier a machine was installed with
@@ -61,9 +61,9 @@ func TestUninstallNamesTheProjectsThatStillNeedThisCheckout(t *testing.T) {
 func TestUninstallSaysWhatItLeavesInstalled(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectSaid("rtk is left installed if this machine has it")
+	f.ExpectSaid("rtk is left installed if this machine has it")
 }
 
 // A missing instruction file is no refusal. A machine that never had this client configured is an
@@ -71,20 +71,20 @@ func TestUninstallSaysWhatItLeavesInstalled(t *testing.T) {
 func TestUninstallOverAMachineWithNoInstructionFileSaysSo(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectSaid(f.home + "/.claude/CLAUDE.md is not there")
+	f.ExpectSaid(f.home + "/.claude/CLAUDE.md is not there")
 }
 
 // The note an older Codex install wrote under the region. No install writes one any more, so an
 // uninstall is the only code left that takes one out.
 func TestUninstallRemovesTheOldCodexRtkNoteAsWellAsTheRegion(t *testing.T) {
 	f := newFixture(t)
-	f.expectCode(f.install("--agent=codex"), 0)
-	appendTo(t, f.codexHome+"/AGENTS.md",
+	f.ExpectCode(f.install("--agent=codex"), 0)
+	f.appendTo(f.codexHome+"/AGENTS.md",
 		"\n<!-- kk-flavor-rtk:begin -->\nRead the RTK notes.\n<!-- kk-flavor-rtk:end -->\n")
 
-	f.expectCode(f.install("--agent=codex", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=codex", "--uninstall"), 0)
 
-	f.expectFileBody(f.codexHome+"/AGENTS.md", "")
+	f.ExpectFileBody(f.codexHome+"/AGENTS.md", "")
 }

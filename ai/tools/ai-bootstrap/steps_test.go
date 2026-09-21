@@ -27,7 +27,7 @@ func (f *fixture) runStep(step string, args ...string) int {
 func TestTheToolsStepRunsTheInstallerAndReportsItsSuccess(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.runStep("--skip-tools", "--agent=claude"), 0)
+	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 0)
 
 	if !f.machine.RanAny(f.repo + "/tools/install.sh") {
 		t.Errorf("the tools installer was never invoked: %v", f.machine.Calls)
@@ -41,11 +41,11 @@ func TestNoReleaseToInstallFromIsNotAFailureWhenThisMachineHasGo(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/tools/install.sh", func(machine.Command) int { return 3 })
 
-	f.expectCode(f.runStep("--skip-tools", "--agent=claude"), 0)
+	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 0)
 
-	f.expectSaid("build from source on first use")
-	f.expectSaid("needs Go")
-	f.expectNotSaid("failed")
+	f.ExpectSaid("build from source on first use")
+	f.ExpectSaid("needs Go")
+	f.ExpectNotSaid("failed")
 }
 
 // Go is checked here, because --skip-verify turns the verify step off. A run would otherwise end
@@ -53,11 +53,11 @@ func TestNoReleaseToInstallFromIsNotAFailureWhenThisMachineHasGo(t *testing.T) {
 func TestNoReleaseAndNoGoIsARefusal(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/tools/install.sh", func(machine.Command) int { return 3 })
-	f.machine.without("go")
+	f.machine.Without("go")
 
-	f.expectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
+	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
 
-	f.expectSaid("neither downloaded nor built")
+	f.ExpectSaid("neither downloaded nor built")
 }
 
 // Every other outcome the installer has still fails the run. The exit 3 case alone could be a blanket
@@ -66,19 +66,19 @@ func TestAnInstallerThatRefusedFailsTheRun(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/tools/install.sh", func(machine.Command) int { return 2 })
 
-	f.expectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
+	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
 
-	f.expectSaid("install.sh failed")
-	f.expectNotSaid("build from source on first use")
+	f.ExpectSaid("install.sh failed")
+	f.ExpectNotSaid("build from source on first use")
 }
 
 func TestAMachineWithoutGhCannotFetchTheToolBinaries(t *testing.T) {
 	f := newFixture(t)
-	f.machine.without("gh")
+	f.machine.Without("gh")
 
-	f.expectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
+	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
 
-	f.expectSaid("gh is not installed")
+	f.ExpectSaid("gh is not installed")
 	if f.machine.RanAny(f.repo + "/tools/install.sh") {
 		t.Errorf("the installer ran on a machine with no gh: %v", f.machine.Calls)
 	}
@@ -89,7 +89,7 @@ func TestAMachineWithoutGhCannotFetchTheToolBinaries(t *testing.T) {
 func TestTheMcpStepSyncsThroughTheClientItWasAskedAbout(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.runStep("--skip-mcp", "--agent=codex"), 0)
+	f.ExpectCode(f.runStep("--skip-mcp", "--agent=codex"), 0)
 
 	if !f.machine.Ran(f.repo+"/mcp-sync.sh", "--agent=codex") {
 		t.Errorf("the MCP sync did not run for codex: %v", f.machine.Calls)
@@ -98,11 +98,11 @@ func TestTheMcpStepSyncsThroughTheClientItWasAskedAbout(t *testing.T) {
 
 func TestAMachineWithoutTheClientCliRegistersNothing(t *testing.T) {
 	f := newFixture(t)
-	f.machine.without("claude")
+	f.machine.Without("claude")
 
-	f.expectCode(f.runStep("--skip-mcp", "--agent=claude"), 1)
+	f.ExpectCode(f.runStep("--skip-mcp", "--agent=claude"), 1)
 
-	f.expectSaid("the claude CLI is not on PATH")
+	f.ExpectSaid("the claude CLI is not on PATH")
 	if f.machine.RanAny(f.repo + "/mcp-sync.sh") {
 		t.Errorf("the sync ran with no client CLI: %v", f.machine.Calls)
 	}
@@ -120,7 +120,7 @@ func TestVerifyRunsTheGateFromTheCheckoutRoot(t *testing.T) {
 		return 0
 	})
 
-	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 0)
+	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude"), 0)
 
 	// The checkout root, because the gate scopes every check against the repository it is standing in
 	// and ai/ is not one.
@@ -140,7 +140,7 @@ func TestVerifyTellsTheRunItStartsNotToVerifyAgain(t *testing.T) {
 		return 0
 	})
 
-	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 0)
+	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude"), 0)
 
 	if len(handed) != 1 || handed[0] != "BOOTSTRAP_VERIFYING=1" {
 		t.Errorf("the gate was handed %v, so a nested run would verify again and never finish", handed)
@@ -151,9 +151,9 @@ func TestARunInsideAVerifyDoesNotVerifyAgain(t *testing.T) {
 	f := newFixture(t)
 	f.isInsideVerify = true
 
-	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 0)
+	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude"), 0)
 
-	f.expectSaid("already inside a verify run")
+	f.ExpectSaid("already inside a verify run")
 	if f.machine.RanAny(f.repo + "/gate.sh") {
 		t.Errorf("a nested run re-entered the gate: %v", f.machine.Calls)
 	}
@@ -166,10 +166,10 @@ func TestAFailingGateAndAnUnmeasuredOneAreDifferentRefusals(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/gate.sh", func(machine.Command) int { return 1 })
 
-	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
+	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
 
-	f.expectSaid("reported a failing check")
-	f.expectNotSaid("could not measure every check")
+	f.ExpectSaid("reported a failing check")
+	f.ExpectNotSaid("could not measure every check")
 }
 
 // The refusal points at the gate's own output. It once told the reader to re-run "if it says a check
@@ -180,12 +180,12 @@ func TestAGateThatCouldNotMeasureIsNotBlamedOnTheCode(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/gate.sh", func(machine.Command) int { return 2 })
 
-	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
+	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
 
-	f.expectSaid("could not measure every check")
-	f.expectSaid("each said why above")
-	f.expectNotSaid("refused its own result")
-	f.expectNotSaid("reported a failing check")
+	f.ExpectSaid("could not measure every check")
+	f.ExpectSaid("each said why above")
+	f.ExpectNotSaid("refused its own result")
+	f.ExpectNotSaid("reported a failing check")
 }
 
 // A missing gate must not be reported as a failing check. The call would exit 127, and the default
@@ -196,11 +196,11 @@ func TestACheckoutWithoutTheGateIsARefusalInBothModes(t *testing.T) {
 	f := newFixture(t)
 	f.RemoveAll(f.repo + "/gate.sh")
 
-	f.expectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
-	f.expectSaid("is not in this checkout")
-	f.expectSaid("not the same as passing")
-	f.expectNotSaid("reported a failing check")
+	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude"), 1)
+	f.ExpectSaid("is not in this checkout")
+	f.ExpectSaid("not the same as passing")
+	f.ExpectNotSaid("reported a failing check")
 
-	f.expectCode(f.runStep("--skip-verify", "--agent=claude", "--dry-run"), 1)
-	f.expectNotSaid("ai bootstrap: ok")
+	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude", "--dry-run"), 1)
+	f.ExpectNotSaid("ai bootstrap: ok")
 }

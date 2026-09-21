@@ -18,6 +18,7 @@
 package reach
 
 import (
+	"configs/ai/tools/runtest"
 	"errors"
 	"fmt"
 	"os"
@@ -100,7 +101,7 @@ const tornPair = "the stamp beside %s names the source in the tree while the bin
 // bin/. That ordering pairs one build's bytes with the other's stamp.
 func TestABuildLandingInsideAnotherLeavesNoBinaryBesideTheOtherBuildsStamp(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "interleaved")
 	resolver := filepath.Join(tools, "resolve.sh")
 	binary := filepath.Join(tools, "bin", tool)
@@ -119,7 +120,7 @@ func TestABuildLandingInsideAnotherLeavesNoBinaryBesideTheOtherBuildsStamp(t *te
 	awaitAny(t, firstRun, filepath.Join(signals, buildStarted))
 
 	// The edit both builds straddle. From here the tree holds source the first build never read.
-	writeFile(t, filepath.Join(tools, tool, "main.go"), laterSource, 0o644)
+	runtest.WriteFile(t, filepath.Join(tools, tool, "main.go"), laterSource, 0o644)
 
 	secondRun := start(t, newLaunch(t, resolver, second, tool))
 	awaitAny(t, secondRun, filepath.Join(signals, moveDone), filepath.Join(signals, runQueued))
@@ -129,12 +130,12 @@ func TestABuildLandingInsideAnotherLeavesNoBinaryBesideTheOtherBuildsStamp(t *te
 	mark(t, filepath.Join(signals, moveRelease))
 	expectServed(t, secondRun.outcome(t), binary)
 
-	body := read(t, binary)
+	body := runtest.ReadFile(t, binary)
 	if !strings.Contains(body, anySourceMark) {
 		t.Fatalf("%s carries none of the source it was built from, so nothing below can tell one build's "+
 			"bytes from the other's", binary)
 	}
-	held := strings.TrimSpace(read(t, binary+".stamp"))
+	held := strings.TrimSpace(runtest.ReadFile(t, binary+".stamp"))
 	if len(held) != stampLength {
 		t.Fatalf("the two builds left %q beside %s rather than a stamp, so nothing below compares a binary "+
 			"with the source its stamp names", held, binary)
@@ -154,7 +155,7 @@ func TestABuildLandingInsideAnotherLeavesNoBinaryBesideTheOtherBuildsStamp(t *te
 // this package by two orders of magnitude.
 func TestABuildKilledWhileItHoldsTheLockLeavesTheToolReachable(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "killed")
 	resolver := filepath.Join(tools, "resolve.sh")
 	binary := filepath.Join(tools, "bin", tool)
@@ -190,7 +191,7 @@ func TestABuildKilledWhileItHoldsTheLockLeavesTheToolReachable(t *testing.T) {
 		t.Fatalf("ageing %s: %v — the abandoned lock this case is about was never set up", lock, err)
 	}
 
-	served := launch(t, newLaunch(t, resolver,
+	served := runtest.Launch(t, newLaunch(t, resolver,
 		newBuildPath(t, sandbox, "after-kill", fmt.Sprintf(recordingToolchain, "")), tool))
 	expectServed(t, served, binary)
 }
@@ -200,7 +201,7 @@ func TestABuildKilledWhileItHoldsTheLockLeavesTheToolReachable(t *testing.T) {
 // all refuses with it.
 func TestARunThatWaitedForALockServesThatBuildAndMakesNoneOfItsOwn(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "queued")
 	resolver := filepath.Join(tools, "resolve.sh")
 	binary := filepath.Join(tools, "bin", tool)
@@ -222,14 +223,14 @@ func TestARunThatWaitedForALockServesThatBuildAndMakesNoneOfItsOwn(t *testing.T)
 	// The build that held the lock, finishing: its bytes, the stamp naming the source it built, and the
 	// lock given up.
 	placeBinary(t, tools, tool, foreignBinary, 0o755)
-	writeFile(t, binary+".stamp", stampOf(t, moduleIn(tools), tool)+"\n", 0o644)
+	runtest.WriteFile(t, binary+".stamp", stampOf(t, moduleIn(tools), tool)+"\n", 0o644)
 	if err := os.Remove(lock); err != nil {
 		t.Fatalf("giving %s up on behalf of the build that held it: %v", lock, err)
 	}
 
 	served := queued.outcome(t)
 	expectServed(t, served, binary)
-	if served.said("does not compile") {
+	if served.Said("does not compile") {
 		t.Errorf("the run compiled source the build it waited for had already compiled, so every tool the "+
 			"gate launches at once builds itself once per launch\n%v", served)
 	}
@@ -311,7 +312,7 @@ func awaitAny(t *testing.T, launched *pending, markers ...string) {
 // A marker the case writes itself.
 func mark(t *testing.T, marker string) {
 	t.Helper()
-	writeFile(t, marker, "", 0o644)
+	runtest.WriteFile(t, marker, "", 0o644)
 }
 
 // A directory a case and the shims on its PATH signal each other through. One per ordering, because a
@@ -323,7 +324,7 @@ func newSignals(t *testing.T, sandbox string) string {
 	if err != nil {
 		t.Fatalf("building the signal directory under %s: %v — nothing was measured", sandbox, err)
 	}
-	return sandboxed(t, sandbox, dir)
+	return runtest.Sandboxed(t, sandbox, dir)
 }
 
 // A shim standing where newPathDir, the PATH fixture helper, linked a real command. The link goes first:
@@ -331,11 +332,11 @@ func newSignals(t *testing.T, sandbox string) string {
 // newSandbox, the sandbox helper, records in its own header.
 func placeShim(t *testing.T, sandbox, path, name, body string) {
 	t.Helper()
-	shim := sandboxed(t, sandbox, filepath.Join(path, name))
+	shim := runtest.Sandboxed(t, sandbox, filepath.Join(path, name))
 	if err := os.Remove(shim); err != nil && !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("clearing the %s linked into %s: %v — nothing was measured", name, path, err)
 	}
-	writeFile(t, shim, body, 0o755)
+	runtest.WriteFile(t, shim, body, 0o755)
 }
 
 func realCommand(t *testing.T, name string) string {
@@ -354,7 +355,7 @@ type pending struct {
 	done chan struct{}
 	// The fixture sets these before done closes and reads them after it, so the channel carries them across.
 	command *exec.Cmd
-	got     outcome
+	got     runtest.Run
 	err     error
 }
 
@@ -374,17 +375,17 @@ func start(t *testing.T, command *exec.Cmd) *pending {
 		switch waitErr := command.Wait(); {
 		case waitErr == nil:
 		case errors.As(waitErr, &exit):
-			launched.got.code = exit.ExitCode()
+			launched.got.Code = exit.ExitCode()
 		default:
 			launched.err = waitErr
 		}
-		launched.got.stdout, launched.got.stderr = out.String(), err.String()
+		launched.got.Stdout, launched.got.Stderr = out.String(), err.String()
 	}()
 	return launched
 }
 
 // What the launch came back with, once it is over.
-func (p *pending) outcome(t *testing.T) outcome {
+func (p *pending) outcome(t *testing.T) runtest.Run {
 	t.Helper()
 	<-p.done
 	if p.err != nil {
@@ -420,7 +421,7 @@ func signalGroup(t *testing.T, launched *pending, signal syscall.Signal) {
 // such lock wedged that tool for every session on the machine.
 func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "wedged")
 	lock := filepath.Join(tools, "bin", tool) + ".lock"
 	if err := os.MkdirAll(filepath.Join(lock, "leftover"), 0o755); err != nil {
@@ -438,7 +439,7 @@ func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
 		}
 	})
 	defer spinning.Stop()
-	expectRefusal(t, launch(t, command), "will not come away")
+	runtest.ExpectRefusal(t, runtest.Launch(t, command), "will not come away")
 }
 
 // A lock is broken on its age and on its holder together. A build that outruns five minutes is
@@ -447,7 +448,7 @@ func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
 // lock guards was left torn for every process after it.
 func TestALockALiveProcessHoldsSurvivesItsAge(t *testing.T) {
 	t.Parallel()
-	sandbox := newSandbox(t)
+	sandbox := runtest.Sandbox(t)
 	tools := newToolsDir(t, sandbox, "live-holder")
 	lock := filepath.Join(tools, "bin", tool) + ".lock"
 
@@ -480,7 +481,7 @@ func TestALockALiveProcessHoldsSurvivesItsAge(t *testing.T) {
 		}
 	})
 	defer waiting.Stop()
-	launch(t, command)
+	runtest.Launch(t, command)
 
 	held, err := os.ReadFile(filepath.Join(lock, "pid"))
 	if err != nil || string(held) != pid {

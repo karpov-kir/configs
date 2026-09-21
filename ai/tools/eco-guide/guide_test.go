@@ -119,7 +119,9 @@ func TestAQuotedDescriptionLosesItsQuoting(t *testing.T) {
 }
 
 // The skills that maintain the instruction tree itself. To someone who just installed this they are
-// noise, and a reader who reaches for one gets a skill that edits the skills.
+// noise, and a reader who reaches for one gets a skill that edits the skills. The `audience` line is
+// the only thing that leaves them out, and the tool holds no list of names. These three are here as
+// three skills carrying the marker.
 func TestTheMaintainerOnlySkillsAreLeftOut(t *testing.T) {
 	root := newRoot(t, fixtureTemplate, shipped,
 		fixtureSkill{"kk-ecosystem", "description: Refine what agents read.\naudience: maintainer\n"},
@@ -139,21 +141,6 @@ func TestTheMaintainerOnlySkillsAreLeftOut(t *testing.T) {
 	// Two skills counted, not four — the excluded ones must leave the figures too.
 	if !strings.Contains(page, "<b>2</b>") {
 		t.Errorf("the skill count still counts the maintainer-only skills\n%s", page)
-	}
-}
-
-// The marker is what the exclusion should rest on, so it has to work before the three names above
-// carry it. A skill declaring itself maintainer-only is left out whatever it is called.
-func TestTheMaintainerMarkerExcludesASkillOnItsOwn(t *testing.T) {
-	root := newRoot(t, fixtureTemplate, shipped,
-		fixtureSkill{"kk-tighten", "description: Tighten prose.\naudience: maintainer\n"},
-		fixtureSkill{"kk-build", "description: Build it.\n"})
-
-	if status, output := run(t, root); status != 0 {
-		t.Fatalf("expected exit 0, got %d\n%s", status, output)
-	}
-	if page := generated(t, root); strings.Contains(page, "kk-tighten") {
-		t.Errorf("a skill marked audience: maintainer reached an external reader's page\n%s", page)
 	}
 }
 
@@ -321,23 +308,12 @@ func TestAnUnknownPlaceholderIsRefused(t *testing.T) {
 	}
 }
 
-// A root that is not a checkout, and a template that is not there, are both "it did not run".
-func TestWhatCouldNotRunIsNotAPass(t *testing.T) {
+// A root outside a checkout exits 2, reporting that the run did not happen. The other missing input,
+// the narrative template, is TestTheEmittersRunWithNoNarrativeTemplate's last leg.
+func TestARootThatIsNotACheckoutIsNotAPass(t *testing.T) {
 	status, output := run(t, filepath.Join(t.TempDir(), "nowhere"))
 	if status != 2 {
 		t.Fatalf("expected exit 2 for a root that is not a checkout, got %d\n%s", status, output)
-	}
-
-	root := newRoot(t, fixtureTemplate, shipped)
-	if err := os.Remove(filepath.Join(root, templateRelative)); err != nil {
-		t.Fatalf("removing the template: %v", err)
-	}
-	status, output = run(t, root)
-	if status != 2 {
-		t.Fatalf("expected exit 2 with no template, got %d\n%s", status, output)
-	}
-	if !strings.Contains(output, templateRelative) {
-		t.Errorf("the refusal does not name the template it could not read\n%s", output)
 	}
 }
 

@@ -22,7 +22,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"configs/ai/tools/shell"
@@ -144,7 +146,8 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	// A skill's own `**Runs:**` line is authoritative: the lane table knows only the skills the quality
 	// pass dispatches, and a skill dispatched elsewhere is invisible to it. Only `dispatched` puts a
 	// row under workers — an orchestrator and a session both run in whatever session invoked them.
-	for skill, mode := range declaredRunModes(t) {
+	modes, _ := runModes(t)
+	for skill, mode := range modes {
 		enforced[skill] = mode == "dispatched"
 	}
 	// A sub-row is a worker when it has a prompt of its own or names another worker's. A session sub-row
@@ -175,37 +178,42 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	}
 }
 
-// Every skill declares how it runs, in a form this file can read. Without the line,
-// TestSessionRowsMatchWhatNothingEnforces falls back to the lane table, which sees only the skills the
-// quality pass dispatches. A skill that forgot it lands in whichever map its silence happens to imply,
-// and the ceiling never asks it anything. The declarations, by skill.
-func declaredRunModes(t *testing.T) map[string]string {
+// Returns how each skill declares it runs, by skill, and a complaint for each skill this cannot read
+// a declaration from. Three cases read the modes and would each raise the same complaints, so the
+// scan collects them, and TestEverySkillDeclaresHowItRuns is what turns them into failures.
+func runModes(t *testing.T) (map[string]string, []string) {
 	t.Helper()
 	declared := map[string]string{}
+	var unreadable []string
 	for skill, body := range skillBodies(t) {
 		mode, stated := shell.RunsDeclaration(shell.SplitLines(string(body)))
 		if mode == "" {
 			if stated {
-				t.Errorf("%s declares how it runs in a form this cannot read; it is `dispatched`, `orchestrator`, or `holds — <reason>` naming one of converses, session-context, landing", skill)
+				unreadable = append(unreadable, skill+" declares how it runs in a form this cannot read; it is `dispatched`, `orchestrator`, or `holds — <reason>` naming one of converses, session-context, landing")
 			} else {
-				t.Errorf("%s declares no **Runs:** line, so nothing says whether it holds work or hands every step away; it is `dispatched`, `orchestrator`, or `holds — <reason>` naming one of converses, session-context, landing", skill)
+				unreadable = append(unreadable, skill+" declares no **Runs:** line, so nothing says whether it holds work or hands every step away; it is `dispatched`, `orchestrator`, or `holds — <reason>` naming one of converses, session-context, landing")
 			}
 			continue
 		}
 		declared[skill] = mode
 	}
-	return declared
+	sort.Strings(unreadable)
+	return declared, unreadable
 }
 
+// Every skill declares how it runs, in a form this file can read. Without the line,
+// TestSessionRowsMatchWhatNothingEnforces falls back to the lane table, which sees only the skills the
+// quality pass dispatches. A skill that forgot it lands in whichever map its silence happens to imply,
+// and the ceiling never asks it anything.
 func TestEverySkillDeclaresHowItRuns(t *testing.T) {
-	declared := declaredRunModes(t)
-	if len(declared) != len(skillBodies(t)) {
-		t.Fatalf("%d skills declare how they run out of %d", len(declared), len(skillBodies(t)))
+	_, unreadable := runModes(t)
+	for _, complaint := range unreadable {
+		t.Error(complaint)
 	}
 }
 
 func TestNoOrchestratorHoldsTheTopTier(t *testing.T) {
-	declared := declaredRunModes(t)
+	declared, _ := runModes(t)
 	orchestrators := 0
 	for _, mode := range declared {
 		if mode == "orchestrator" {
@@ -292,12 +300,30 @@ func TestNoFileNamesATaskThePolicyDoesNotAssign(t *testing.T) {
 }
 
 // Every skill in the tree, by name, with the body of its SKILL.md. These checks count skills from
-// this census alone, and cannot disagree about which directories are skills.
+// this census alone, and cannot disagree about which directories are skills. Read once: six cases ask
+// for it, and the tree does not move under a run.
 func skillBodies(t *testing.T) map[string][]byte {
 	t.Helper()
+	skillsOnce.Do(func() { skills, skillsErr = readSkillBodies() })
+	if skillsErr != nil {
+		t.Fatal(skillsErr)
+	}
+	if len(skills) == 0 {
+		t.Fatal("found no skills to check, so every check against them proved nothing")
+	}
+	return skills
+}
+
+var (
+	skillsOnce sync.Once
+	skills     map[string][]byte
+	skillsErr  error
+)
+
+func readSkillBodies() (map[string][]byte, error) {
 	entries, err := os.ReadDir(skillsTree)
 	if err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 	bodies := map[string][]byte{}
 	for _, entry := range entries {
@@ -308,10 +334,7 @@ func skillBodies(t *testing.T) map[string][]byte {
 			bodies[entry.Name()] = body
 		}
 	}
-	if len(bodies) == 0 {
-		t.Fatal("found no skills to check, so every check against them proved nothing")
-	}
-	return bodies
+	return bodies, nil
 }
 
 // One skill's SKILL.md, and the only place these checks read one. Regular files only: os.ReadFile
@@ -334,6 +357,23 @@ func readSkillFile(skill string) ([]byte, bool) {
 // still a mounted skill.
 func shippedWorkerFiles(t *testing.T) map[string]bool {
 	t.Helper()
+	workersOnce.Do(func() { workers, workersErr = walkWorkerFiles() })
+	if workersErr != nil {
+		t.Fatal(workersErr)
+	}
+	if len(workers) == 0 {
+		t.Fatal("found no worker files, so every check against them proved nothing")
+	}
+	return workers
+}
+
+var (
+	workersOnce sync.Once
+	workers     map[string]bool
+	workersErr  error
+)
+
+func walkWorkerFiles() (map[string]bool, error) {
 	found := map[string]bool{}
 	if err := filepath.WalkDir(workersTree, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".md") {
@@ -355,12 +395,9 @@ func shippedWorkerFiles(t *testing.T) map[string]bool {
 		found[name] = true
 		return nil
 	}); err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
-	if len(found) == 0 {
-		t.Fatal("found no worker files, so every check against them proved nothing")
-	}
-	return found
+	return found, nil
 }
 
 // A reader cannot check this edge from the citation. `ecosystem.md` says extension, sequencing and

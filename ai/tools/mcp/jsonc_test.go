@@ -16,6 +16,9 @@ func TestALineStartingWithACommentMarkerIsBlanked(t *testing.T) {
 		{name: "at the line start", text: "// a comment\n{\"a\": 1}\n", want: "\n{\"a\": 1}\n"},
 		{name: "behind leading whitespace, which does not save it", text: "  \t// indented\n{\"a\": 1}\n",
 			want: "\n{\"a\": 1}\n"},
+		// The grammar is "a comment owns its whole line", so the stripper leaves this row alone. What
+		// stripping it leaves is a document the JSON parser refuses, and a guess at the intent would
+		// make the declaration mean whatever the guess made of it.
 		{name: "after JSON on the same line, where it is left alone", text: "{\"a\": 1} // trailing\n",
 			want: "{\"a\": 1} // trailing\n"},
 		{name: "inside a value, where blanking it would truncate the URL",
@@ -28,19 +31,6 @@ func TestALineStartingWithACommentMarkerIsBlanked(t *testing.T) {
 					scenario.name, got, scenario.want)
 			}
 		})
-	}
-}
-
-// The control that makes the trailing-comment row of TestALineStartingWithACommentMarkerIsBlanked a
-// measurement. That stripping leaves the file unparseable on purpose. The grammar is "a comment owns
-// its whole line", so two slashes inside a value stay text.
-func TestATrailingCommentIsLeftForTheParserToRefuse(t *testing.T) {
-	t.Parallel()
-	stripped := StripComments("{\"a\": 1} // trailing\n")
-	var value any
-	if err := json.Unmarshal([]byte(stripped), &value); err == nil {
-		t.Errorf("a trailing comment parsed as JSON, so the stripping guessed at it instead of leaving it "+
-			"to be refused — a declaration would then mean whatever the guess made of it\n  %q", stripped)
 	}
 }
 

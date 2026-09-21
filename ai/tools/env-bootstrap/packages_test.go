@@ -9,15 +9,15 @@ import (
 // noisy, and answers non-zero on an already-installed cask.
 func TestAPackageAlreadyOnTheMachineIsNotInstalledAgain(t *testing.T) {
 	f := newFixture(t)
-	f.brew.installed["formula mise"] = true
-	f.brew.installed["cask ghostty"] = true
+	f.brew.Installed["formula mise"] = true
+	f.brew.Installed["cask ghostty"] = true
 
-	f.expectCode(f.run(), 0)
+	f.ExpectCode(f.run(), 0)
 
-	f.expectSaid("  ok       mise")
-	f.expectSaid("  ok       ghostty")
-	if slices.Contains(f.brew.installs, "formula mise") || slices.Contains(f.brew.installs, "cask ghostty") {
-		t.Errorf("the run reinstalled something this machine already had: %v", f.brew.installs)
+	f.ExpectSaid("  ok       mise")
+	f.ExpectSaid("  ok       ghostty")
+	if slices.Contains(f.brew.Installs, "formula mise") || slices.Contains(f.brew.Installs, "cask ghostty") {
+		t.Errorf("the run reinstalled something this machine already had: %v", f.brew.Installs)
 	}
 }
 
@@ -26,22 +26,22 @@ func TestAPackageAlreadyOnTheMachineIsNotInstalledAgain(t *testing.T) {
 func TestACaskIsInstalledAsACaskAndNotAsAFormula(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run(), 0)
+	f.ExpectCode(f.run(), 0)
 
-	if !slices.Contains(f.brew.installs, "cask ghostty") {
-		t.Errorf("ghostty was not installed as a cask: %v", f.brew.installs)
+	if !slices.Contains(f.brew.Installs, "cask ghostty") {
+		t.Errorf("ghostty was not installed as a cask: %v", f.brew.Installs)
 	}
 }
 
 func TestADryRunNamesWhatItWouldInstallAndInstallsNothing(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run("--dry-run"), 0)
+	f.ExpectCode(f.run("--dry-run"), 0)
 
-	f.expectSaid("would install mise")
-	f.expectSaid("would install --cask ghostty")
-	if len(f.brew.installs) > 0 {
-		t.Errorf("a dry run installed %v", f.brew.installs)
+	f.ExpectSaid("would install mise")
+	f.ExpectSaid("would install --cask ghostty")
+	if len(f.brew.Installs) > 0 {
+		t.Errorf("a dry run installed %v", f.brew.Installs)
 	}
 }
 
@@ -49,27 +49,27 @@ func TestADryRunNamesWhatItWouldInstallAndInstallsNothing(t *testing.T) {
 // and every link, or fixing it becomes one run per problem.
 func TestAFailedInstallIsCollectedRatherThanEndingTheRun(t *testing.T) {
 	f := newFixture(t)
-	f.brew.failing["formula mise"] = true
+	f.brew.Failing["formula mise"] = true
 
-	f.expectCode(f.run(), 1)
+	f.ExpectCode(f.run(), 1)
 
-	f.expectSaid("brew install mise failed")
-	if !slices.Contains(f.brew.installs, "formula starship") {
-		t.Errorf("the run stopped at the first failure and never reached starship: %v", f.brew.installs)
+	f.ExpectSaid("brew install mise failed")
+	if !slices.Contains(f.brew.Installs, "formula starship") {
+		t.Errorf("the run stopped at the first failure and never reached starship: %v", f.brew.Installs)
 	}
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
 // A machine without brew still gets every link. The refusal is what keeps a half-done machine from
 // reading as a finished one.
 func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 	f := newFixture(t)
-	f.brew.without()
+	f.brew.Without("brew")
 
-	f.expectCode(f.run(), 1)
+	f.ExpectCode(f.run(), 1)
 
-	f.expectSaid("brew is not installed, so no formula or cask was installed")
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectSaid("brew is not installed, so no formula or cask was installed")
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
 // A silent skip reads exactly like a step that was never reached, so the skip is said out loud. Most
@@ -77,11 +77,11 @@ func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 func TestSkipBrewSaysItWasSkipped(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run("--skip-brew"), 0)
+	f.ExpectCode(f.run("--skip-brew"), 0)
 
-	f.expectSaid("brew (skipped)")
-	f.expectNotSaid("  ok       mise")
-	if len(f.brew.installs) > 0 {
-		t.Errorf("--skip-brew installed %v", f.brew.installs)
+	f.ExpectSaid("brew (skipped)")
+	f.ExpectNotSaid("  ok       mise")
+	if len(f.brew.Installs) > 0 {
+		t.Errorf("--skip-brew installed %v", f.brew.Installs)
 	}
 }

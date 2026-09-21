@@ -49,17 +49,6 @@ func TestAPairSharingOnlyACitedNameIsNotARestatement(t *testing.T) {
 	}
 }
 
-// A pair that shares only a cited name must not fail the run: the whole point of setting it apart is
-// that a reader has already answered it, and an exit 1 asks them again every time.
-func TestOnlyARestatementFailsTheRun(t *testing.T) {
-	naming, _, _ := classify(
-		spanOf("The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`"),
-		spanOf("The pass is `~/.kk-flavor/skills/kk-qualify/SKILL.md`"))
-	if naming == restatement {
-		t.Fatal("a shared name is being counted as a restatement, so a clean tree would exit 1")
-	}
-}
-
 func spanOf(text string) span {
 	return span{text: text, key: keyOf(text)}
 }

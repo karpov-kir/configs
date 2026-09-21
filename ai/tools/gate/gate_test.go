@@ -156,7 +156,9 @@ func (f *fixture) onlyOnPath(tools ...string) {
 // stderr and the substitution comes back empty. The pipeline the check carries now comes back with a
 // format finding against a machine that measured none of the tree.
 
-// The pair is the control, and the same plan with gofmt on PATH builds its checks.
+// The control is every case below that reads a planned command. Each one takes its checks off a plan
+// built on this machine's own PATH, where gofmt is. `planned` fails the case unless that plan
+// answered 0.
 func TestThePlanRefusesWhereGofmtIsMissing(t *testing.T) {
 	f := newFixture(t)
 	f.onlyOnPath("go")
@@ -168,15 +170,6 @@ func TestThePlanRefusesWhereGofmtIsMissing(t *testing.T) {
 			"that did not run, never a clean one", code, len(checks))
 	}
 	f.expectSaid("no gofmt")
-}
-
-func TestThePlanBuildsItsChecksWhereGofmtIsThere(t *testing.T) {
-	f := newFixture(t)
-	f.onlyOnPath("go", "gofmt")
-
-	if checks := f.planned(false); len(checks) == 0 {
-		t.Errorf("plan built no check with both tools on PATH")
-	}
 }
 
 // Two things about the bound every `go test` in the plan carries, and each has cost this repository
@@ -423,16 +416,18 @@ func TestAnEmptyTableRefuses(t *testing.T) {
 }
 
 func TestTheArgumentTable(t *testing.T) {
+	// The row with no arguments is TestACleanRunExitsZeroAndRunsEveryCheck, which asserts the same exit
+	// and the same line over a table of two.
 	for _, c := range []struct {
 		what   string
 		args   []string
 		status int
 		said   string
+		runs   bool
 	}{
-		{"no argument runs the gate", nil, 0, "ran ok"},
-		{"--full runs it too", []string{"--full"}, 0, "ran ok"},
-		{"--help prints the usage line and runs nothing", []string{"--help"}, 0, usageLine},
-		{"an unknown argument is refused with the usage line", []string{"--sideways"}, 2, usageLine},
+		{"--full runs the gate too", []string{"--full"}, 0, "ran ok", true},
+		{"--help prints the usage line and runs nothing", []string{"--help"}, 0, usageLine, false},
+		{"an unknown argument is refused with the usage line", []string{"--sideways"}, 2, usageLine, false},
 	} {
 		t.Run(c.what, func(t *testing.T) {
 			f := newFixture(t)
@@ -440,8 +435,8 @@ func TestTheArgumentTable(t *testing.T) {
 			f.run(c.args...)
 			f.expectCode(c.status)
 			f.expectSaid(c.said)
-			if ran := f.runCount("one.log"); c.args != nil && len(c.args) > 0 && c.args[0] != "--full" && ran != 0 {
-				t.Errorf("%s ran %d check(s), and it answers a question about the flags", c.what, ran)
+			if ran := f.runCount("one.log") > 0; ran != c.runs {
+				t.Errorf("%s ran the checks: %v, and it answers a question about the flags", c.what, ran)
 			}
 		})
 	}

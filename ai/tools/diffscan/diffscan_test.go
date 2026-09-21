@@ -201,6 +201,37 @@ func TestAPathIsRefusedOnlyWhereItNamesNoRevision(t *testing.T) {
 	}
 }
 
+// Which names are secret-bearing is a mapping, and a mapping is tested by every row of it. This list
+// is the rule's only home: SecretNamed is exported, so a caller scanning the diff asks it and keeps
+// no second copy. The table belongs here too, at one function call a row. A scanner driving its whole
+// pipeline once per name pays for the same answer in another package.
+func TestSecretNamedIsTheWholeNameTable(t *testing.T) {
+	// One row per rule of the list, plus the four readings the rules share. Two of those are the
+	// basename of a nested path and a substring matched anywhere in the whole path. The other two are
+	// the lowercasing (on a case-insensitive filesystem `.ENV` IS `.env`) and a trailing wildcard.
+	for _, name := range []string{
+		".env", ".env.local", "production.env",
+		"server.pem", "app.key", "AuthKey_A1B2C3D4E5.p8", "deploy.ppk", "api.token",
+		".netrc", ".npmrc", ".pgpass", ".htpasswd", ".pypirc", ".dockercfg",
+		"id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "id_ed25519.bak",
+		"my-credentials.txt", "secrets.yaml",
+		"config/.env.production", "credentials/app.go",
+		".ENV", "Server.PEM", "ID_RSA", "PRODUCTION.ENV",
+	} {
+		if !SecretNamed(name) {
+			t.Errorf("%q is read and echoed, and its name says it holds a credential", name)
+		}
+	}
+	// The refusals are the other half. `*token*` is absent from the list by design, so `tokenizer.go`
+	// is read. A guard that called every name secret would leave the scan empty and still pass every
+	// row of the accepting loop.
+	for _, name := range []string{"tokenizer.go", "main.go", "env.go", "keyboard.md", "notes.txt"} {
+		if SecretNamed(name) {
+			t.Errorf("%q is declined unread, and protecting a secret must not shrink the scan", name)
+		}
+	}
+}
+
 func TestAnUntrackedSecretNamedFileIsNeverRead(t *testing.T) {
 	const secret = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY"
 	fake, root := untrackedRepo(t, map[string]string{".env": secret + "\n", "plain.go": lfBody})

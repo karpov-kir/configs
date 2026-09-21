@@ -14,13 +14,13 @@ import (
 func TestTheOwnerTierInstallsAnIndependentCopy(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectNotSymlink(f.home + "/.claude/CLAUDE.md")
-	f.expectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
+	f.ExpectNotSymlink(f.home + "/.claude/CLAUDE.md")
+	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
 	// The receipt, which is what a later run compares against when the template has moved on. A run
 	// lacking one reads an upgrade as a file the owner edited, and refuses forever.
-	f.expectFileBody(f.home+"/.claude/CLAUDE.md.kk-flavor-installed", ownerTemplate)
+	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md.kk-flavor-installed", ownerTemplate)
 }
 
 // The owner's own writing is never replaced. This is the refusal the whole tier rests on: the copy is
@@ -29,35 +29,35 @@ func TestTheOwnerTierRefusesToOverwriteAFileItDidNotWrite(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/CLAUDE.md", "My custom instructions\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 1)
 
-	f.expectSaid("contains personal instructions")
-	f.expectFileBody(f.home+"/.claude/CLAUDE.md", "My custom instructions\n")
+	f.ExpectSaid("contains personal instructions")
+	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", "My custom instructions\n")
 }
 
 // An edit made after the copy landed is the owner's too. The receipt is what tells that apart from a
 // template this repository has upgraded since.
 func TestAnEditAfterTheCopyLandedIsRefusedOnTheNextRun(t *testing.T) {
 	f := newFixture(t)
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
-	appendTo(t, f.home+"/.claude/CLAUDE.md", "\nLocal addition.\n")
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.appendTo(f.home+"/.claude/CLAUDE.md", "\nLocal addition.\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 1)
 
-	f.expectFileContains(f.home+"/.claude/CLAUDE.md", "Local addition.")
+	f.ExpectFileContains(f.home+"/.claude/CLAUDE.md", "Local addition.")
 }
 
 // An upgraded template is not an edit, and the receipt is the only thing that can tell the two apart.
 // A machine lacking one would refuse the moment the template changed.
 func TestAnUpgradedTemplateReplacesTheCopyAndBacksTheOldOneUp(t *testing.T) {
 	f := newFixture(t)
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
-	rewrite(t, f.repo+"/owner-instructions.md", ownerTemplate+"\nA new paragraph.\n")
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.Write(f.repo+"/owner-instructions.md", ownerTemplate+"\nA new paragraph.\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectFileContains(f.home+"/.claude/CLAUDE.md", "A new paragraph.")
-	f.expectSaid("  backup   ")
+	f.ExpectFileContains(f.home+"/.claude/CLAUDE.md", "A new paragraph.")
+	f.ExpectSaid("  backup   ")
 	if backups := backupsOf(t, f.home+"/.claude", "CLAUDE.md.backup."); len(backups) != 1 {
 		t.Errorf("the upgrade left %d backup(s) beside the copy, wanted 1: %v", len(backups), backups)
 	}
@@ -71,11 +71,11 @@ func TestALegacyOwnerSymlinkBecomesAnIndependentCopy(t *testing.T) {
 	f.Write(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
 	f.Symlink(f.repo+"/CLAUDE.md", f.home+"/.claude/CLAUDE.md")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectNotSymlink(f.home + "/.claude/CLAUDE.md")
-	f.expectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
-	f.expectFileBody(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
+	f.ExpectNotSymlink(f.home + "/.claude/CLAUDE.md")
+	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
+	f.ExpectFileBody(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
 }
 
 // A Codex machine set up before the owner tier existed holds the generated region, with or without the
@@ -85,9 +85,9 @@ func TestAGeneratedCodexInstructionFileMigratesToTheOwnerCopy(t *testing.T) {
 	f.Write(f.codexHome+"/AGENTS.md",
 		flavor.RegionOpen+"\n"+flavor.RegionBody+"\n"+flavor.RegionClose+"\n")
 
-	f.expectCode(f.install("--agent=codex", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
 
-	f.expectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
+	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
 	if backups := backupsOf(t, f.codexHome, "AGENTS.md.backup."); len(backups) != 1 {
 		t.Errorf("the migration left %d backup(s), wanted 1: %v", len(backups), backups)
 	}
@@ -103,9 +103,9 @@ func TestAGeneratedCodexFileCarryingTheOldRtkNoteMigratesToo(t *testing.T) {
 			"use `rtk proxy <command>`.\n"+
 			flavor.LegacyRtkRegionClose+"\n")
 
-	f.expectCode(f.install("--agent=codex", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
 
-	f.expectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
+	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
 }
 
 // A dry run over the migration that wrote anything would be worse than having no flag at all. Someone
@@ -115,10 +115,10 @@ func TestADryRunOverTheOwnerMigrationLeavesTheFileAlone(t *testing.T) {
 	generated := flavor.RegionOpen + "\n" + flavor.RegionBody + "\n" + flavor.RegionClose + "\n"
 	f.Write(f.codexHome+"/AGENTS.md", generated)
 
-	f.expectCode(f.install("--agent=codex", "--owner", "--dry-run"), 0)
+	f.ExpectCode(f.install("--agent=codex", "--owner", "--dry-run"), 0)
 
-	f.expectFileBody(f.codexHome+"/AGENTS.md", generated)
-	f.expectSaid("would install")
+	f.ExpectFileBody(f.codexHome+"/AGENTS.md", generated)
+	f.ExpectSaid("would install")
 }
 
 // The owner's memory store is created empty and never written over. Its whole content is the owner's,
@@ -127,21 +127,21 @@ func TestTheOwnerMemoryStoreIsCreatedOnceAndThenLeftAlone(t *testing.T) {
 	f := newFixture(t)
 	memory := f.home + "/Documents/AI/MEMORY.md"
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
-	f.expectFileBody(memory, "# Memory\n")
-	rewrite(t, memory, "# Memory\n\nKeep this entry.\n")
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectFileBody(memory, "# Memory\n")
+	f.Write(memory, "# Memory\n\nKeep this entry.\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectFileBody(memory, "# Memory\n\nKeep this entry.\n")
+	f.ExpectFileBody(memory, "# Memory\n\nKeep this entry.\n")
 }
 
 func TestAnOrdinaryInstallCreatesNoOwnerMemory(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.expectAbsent(f.home + "/Documents")
+	f.ExpectAbsent(f.home + "/Documents")
 }
 
 // Both clients get the same file. An owner running one after the other reads one set of instructions,
@@ -149,55 +149,44 @@ func TestAnOrdinaryInstallCreatesNoOwnerMemory(t *testing.T) {
 func TestBothClientsGetTheSameOwnerCopy(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
-	f.expectCode(f.install("--agent=codex", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
 
-	f.expectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
-	f.expectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
+	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
+	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
 }
 
 // Uninstall takes back what this put there, and only that. By the time the owner has edited the file
 // it is no longer that, so it is preserved and the run says why.
 func TestTheOwnerUninstallRemovesItsOwnCopyAndRefusesAnEditedOne(t *testing.T) {
 	f := newFixture(t)
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectCode(f.install("--agent=claude", "--owner", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner", "--uninstall"), 0)
 
-	f.expectAbsent(f.home + "/.claude/CLAUDE.md")
-	f.expectAbsent(f.home + "/.claude/CLAUDE.md.kk-flavor-installed")
+	f.ExpectAbsent(f.home + "/.claude/CLAUDE.md")
+	f.ExpectAbsent(f.home + "/.claude/CLAUDE.md.kk-flavor-installed")
 	// The memory store stays: it is the owner's own writing, and no record here says whether they
 	// still want it.
-	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n")
+	f.ExpectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n")
 }
 
 func TestTheOwnerUninstallPreservesAModifiedFile(t *testing.T) {
 	f := newFixture(t)
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
-	appendTo(t, f.home+"/.claude/CLAUDE.md", "\nLocal addition.\n")
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.appendTo(f.home+"/.claude/CLAUDE.md", "\nLocal addition.\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner", "--uninstall"), 1)
+	f.ExpectCode(f.install("--agent=claude", "--owner", "--uninstall"), 1)
 
-	f.expectSaid("was modified — owner instructions were preserved")
-	f.expectFileContains(f.home+"/.claude/CLAUDE.md", "Local addition.")
+	f.ExpectSaid("was modified — owner instructions were preserved")
+	f.ExpectFileContains(f.home+"/.claude/CLAUDE.md", "Local addition.")
 }
 
 // --- fixture helpers a case needs and the harness does not ------------------------------------------
 
-func appendTo(t *testing.T, path, text string) {
-	t.Helper()
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("the fixture could not read %s: %v", path, err)
-	}
-	rewrite(t, path, string(body)+text)
-}
-
-func rewrite(t *testing.T, path, body string) {
-	t.Helper()
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatalf("the fixture could not write %s: %v", path, err)
-	}
+func (f *fixture) appendTo(path, text string) {
+	f.t.Helper()
+	f.Write(path, f.Read(path)+text)
 }
 
 func backupsOf(t *testing.T, directory, prefix string) []string {
@@ -222,13 +211,13 @@ func TestOwnerMemoryWrittenAtTheOldPathIsMoved(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
-	f.expectAbsent(f.home + "/Document/AI/MEMORY.md")
+	f.ExpectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
+	f.ExpectAbsent(f.home + "/Document/AI/MEMORY.md")
 	// The directories it left behind go too, but only where they are empty.
-	f.expectAbsent(f.home + "/Document")
-	f.expectSaid("moved")
+	f.ExpectAbsent(f.home + "/Document")
+	f.ExpectSaid("moved")
 }
 
 // A directory the human put something else in is theirs, whatever this run emptied beside it.
@@ -237,9 +226,9 @@ func TestTheOldMemoryDirectoryIsKeptWhenItHoldsAnythingElse(t *testing.T) {
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n")
 	f.Write(f.home+"/Document/AI/notes.md", "mine\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectFileBody(f.home+"/Document/AI/notes.md", "mine\n")
+	f.ExpectFileBody(f.home+"/Document/AI/notes.md", "mine\n")
 }
 
 // Two stores, with no way to tell which holds what. The merge is the human's call. This code cannot
@@ -249,11 +238,11 @@ func TestTwoOwnerMemoryStoresRefuseRatherThanPickOne(t *testing.T) {
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
 	f.Write(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 1)
 
-	f.expectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
-	f.expectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
-	f.expectSaid("exists at both")
+	f.ExpectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
+	f.ExpectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
+	f.ExpectSaid("exists at both")
 }
 
 // A dry run moves no file and says so once. A line saying it would move the file and a line saying it
@@ -265,8 +254,8 @@ func TestADryRunSaysItWouldMoveAndCreatesNothing(t *testing.T) {
 
 	f.install("--agent=claude", "--owner", "--dry-run")
 
-	f.expectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
-	f.expectAbsent(f.home + "/Documents/AI/MEMORY.md")
-	f.expectSaid("would move")
-	f.expectNotSaid("would create " + f.home + "/Documents/AI/MEMORY.md")
+	f.ExpectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
+	f.ExpectAbsent(f.home + "/Documents/AI/MEMORY.md")
+	f.ExpectSaid("would move")
+	f.ExpectNotSaid("would create " + f.home + "/Documents/AI/MEMORY.md")
 }

@@ -54,13 +54,13 @@ func (f *fixture) appendTo(path, content string) {
 	}
 }
 
+// An absent file reads as empty here. Every caller compares the body, and none of them separates the
+// two cases, so Body's second answer is dropped once at this place. The alternative is 140 call
+// sites each dropping it.
 func (f *fixture) read(path string) string {
 	f.t.Helper()
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	return string(content)
+	body, _ := f.tree.Body(path)
+	return body
 }
 
 func (f *fixture) symlink(target, link string) {
@@ -85,15 +85,9 @@ func (f *fixture) remove(path string) {
 	}
 }
 
-func (f *fixture) exists(path string) bool {
-	_, err := os.Lstat(path)
-	return err == nil
-}
+func (f *fixture) exists(path string) bool { return f.tree.Exists(path) }
 
-func (f *fixture) isFile(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && info.Mode().IsRegular()
-}
+func (f *fixture) isFile(path string) bool { return f.tree.IsFile(path) }
 
 func (f *fixture) find(root string) []string {
 	var found []string
@@ -223,10 +217,6 @@ func countLinesEqual(text, line string) int {
 
 func countLinesWithPrefix(text, prefix string) int {
 	return countLines(text, func(line string) bool { return strings.HasPrefix(line, prefix) })
-}
-
-func countNonEmptyLines(text string) int {
-	return countLines(text, func(line string) bool { return line != "" })
 }
 
 func countLinesEndingWith(text, suffix string) int {

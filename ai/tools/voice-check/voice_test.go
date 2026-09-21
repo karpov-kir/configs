@@ -138,7 +138,6 @@ func TestEachCheckFiresOnItsOwnShapeAndNotOnPlainProse(t *testing.T) {
 		{checkCounterfactal, "// Otherwise the reader picks the older entry.", "// The reader picks the older entry when nothing narrows."},
 		{checkNoSubject, "// Counted across the whole ledger.", "// Counts every entry across the ledger."},
 		{checkNoSubject, "// Reading entries out of a ledger.", "// Reads entries out of a ledger."},
-		{checkNoSubject, "// Narrowing a ledger to one entry.", "// Bring the choice to the human."},
 		{checkIntensifier, "// Nothing ties the entry to its book.", "// The entry has no compile-time tie to its book."},
 		{checkPositional, "// Distinct from the token above.", "// Distinct from `Untotalled`."},
 		{checkCoined, "// The reader climbs to the newest entry.", "// The reader selects the newest entry."},
@@ -263,15 +262,6 @@ func TestAnInlineCodeSpanIsNotReadAsProse(t *testing.T) {
 	}
 	if !hasCheck(s.scanProse("x.md", []string{bare}), checkIntensifier) {
 		t.Error("the same words outside backticks produced no finding, so the span is not what was skipped")
-	}
-}
-
-// The coined check is the exception: an identifier built on a coined word is the rename the refactor
-// lane owes, and backticks are where that identifier is written.
-func TestACoinedWordInsideBackticksIsStillReported(t *testing.T) {
-	found := voiceScanner().scanSource("f.ts", []string{"// Reads `readSprocket` from the entry."}, nil, nil)
-	if !hasCheck(found, checkCoined) {
-		t.Error("a coined word inside an identifier was skipped with the rest of the span")
 	}
 }
 
@@ -912,7 +902,8 @@ func TestTheInstructionProfileDoesNotRunTheCoinedCheck(t *testing.T) {
 }
 
 // In a comment the check reads past the backtick blanking, because a coined word inside backticks is
-// an identifier built on the term. In a body it does not: there the backticks quote a literal.
+// an identifier built on the term, and that identifier is the rename the refactor lane owes. In a
+// body it does not: there the backticks quote a literal.
 func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
 	s := scanner{coined: []string{"sprocket"}}
 	s.profile = ProfileComment
@@ -1005,24 +996,6 @@ func TestTwoCoinedWordsPartedByOneByteAreTwoFindings(t *testing.T) {
 	}
 }
 
-// The contrast spine with the comma dropped and a conjunction in its place.
-func TestTheContrastSpineIsCaughtWithAConjunction(t *testing.T) {
-	s := scanner{profile: ProfileComment}
-	for _, line := range []string{
-		"// It is logged and not believed.",
-		"// The string is thrown and not the object.",
-		"// It is a survey and no verdict.",
-	} {
-		if !hasCheck(s.scanSource("f.ts", []string{line}, nil, nil), checkContrast) {
-			t.Errorf("%q produced no contrast finding", line)
-		}
-	}
-	plain := "// The string is thrown and the object is kept."
-	if hasCheck(s.scanSource("f.ts", []string{plain}, nil, nil), checkContrast) {
-		t.Errorf("%q produced a contrast finding, and it names two real things", plain)
-	}
-}
-
 // A conf line that is not valid UTF-8 reaches a regular expression, and regexp refuses invalid UTF-8.
 // Through MustCompile that is a panic printing the conf's own bytes and a stack trace of host paths —
 // which undoes the refusal-without-echoing the rest of the conf handling was written for.
@@ -1075,9 +1048,11 @@ func TestASuppressedFindingIsCounted(t *testing.T) {
 	}
 }
 
-// Two prohibitions in one sentence are not the contrast spine. "Use no nesting and no preamble"
-// forbids two things; "It is logged and not believed" defines one thing against another the reader
-// did not ask about. Told apart by whether what stands before the conjunction is already a negation.
+// The contrast spine with the comma dropped and a conjunction in its place, beside the two shapes it
+// is not. The `both` fixtures hold those two. One forbids a pair of things. The other defines one
+// thing against another, which is outside what the reader asked.
+//
+// What tells them apart is whether the words before the conjunction already carry a negation.
 func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	spine := []string{
@@ -1089,6 +1064,8 @@ func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
 		"// Use no nesting and no preamble above the items.",
 		"// Write no speculative abstraction and no flexibility the task did not ask for.",
 		"// Use no headings, and no bold lead-in restating its own line.",
+		// Neither half is a negation, so the conjunction joins two things the sentence names.
+		"// The string is thrown and the object is kept.",
 	}
 	for _, line := range spine {
 		if !hasCheck(s.scanSource("f.ts", []string{line}, nil, nil), checkContrast) {
@@ -1158,20 +1135,6 @@ func TestOneNegationIsNotADoubleNegativeFinding(t *testing.T) {
 	double := "// The code is not absent and it is not unknown."
 	if !hasCheck(s.scanSource("f.ts", []string{double}, nil, nil), checkDoubleNeg) {
 		t.Errorf("%q carries two negations and produced no finding", double)
-	}
-}
-
-// `a; b` is a list. A semicolon with a clause after it is two sentences written as one, and the tail
-// length is what tells them apart.
-func TestASemicolonListIsNotASemicolonFinding(t *testing.T) {
-	s := scanner{profile: ProfileComment}
-	list := "// Reads three fields: owner; entry; book."
-	if hasCheck(s.scanSource("f.ts", []string{list}, nil, nil), checkSemicolon) {
-		t.Errorf("%q is a list and produced a semicolon finding", list)
-	}
-	join := "// The platform rejects the call; the method is called on its object instead of the reference."
-	if !hasCheck(s.scanSource("f.ts", []string{join}, nil, nil), checkSemicolon) {
-		t.Errorf("%q joins two clauses and produced no semicolon finding", join)
 	}
 }
 

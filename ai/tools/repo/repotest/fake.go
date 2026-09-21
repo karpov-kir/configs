@@ -13,7 +13,10 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
+	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -86,9 +89,19 @@ type Fake struct {
 	// arranging a broken repository. The key is the method name, e.g. "TopLevel".
 	Fail map[string]error
 
+	// onDisk says the working tree is real, and OnDisk sets it. Three answers then come off the
+	// filesystem, because no table can hold them. They are what is on disk and outside the index,
+	// what an `add` swept up, and what a `.gitignore` written MID-RUN says.
+	onDisk bool
+
 	// Added records every path Add staged, in call order, so a case can assert on a write without a
 	// repository to inspect.
 	Added []string
+	// Staged is every file an Add really put in the index, in call order. Added holds the pathspecs a
+	// caller NAMED, and this holds what they swept up, which is what `diff --cached --name-only`
+	// answers. Of the two, only this one tells a directory of ignored files from a directory of work.
+	// OnDisk mode fills it, where there is a tree to sweep.
+	Staged []string
 	// Asked records every method called, in order, for a case whose subject is whether something was
 	// asked at all — a memo, or a listing taken once per run.
 	Asked []string
@@ -118,6 +131,31 @@ func New(root string) *Fake {
 		Sources:     map[string]string{},
 		Fail:        map[string]error{},
 	}
+}
+
+// OnDisk makes the repository real to everything that looks at the filesystem: the git dir exists
+// and holds a HEAD. A tool pointed at a directory checks those two for itself. `repo-key` refuses a
+// git dir with no HEAD in it, and a record is written INTO the git dir. The answers around those two
+// stay this fake's, and three suites built the same two by hand.
+func (f *Fake) OnDisk() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := os.MkdirAll(f.Git, 0o755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(f.Git, "HEAD"), []byte("ref: refs/heads/main\n"), 0o644); err != nil {
+		return err
+	}
+	// os.MkdirTemp hands back a symlinked path on macOS, so the root comes back resolved and Root and
+	// Git are rewritten to the resolved spelling. A case quoting the path it created then matches the
+	// path the code under test resolved.
+	resolved, err := filepath.EvalSymlinks(f.Root)
+	if err != nil {
+		return err
+	}
+	f.Root, f.Git = resolved, filepath.Join(resolved, ".git")
+	f.onDisk = true
+	return nil
 }
 
 // PerDirectory makes every answer about a directory a declared one. A directory none of the builders
@@ -171,6 +209,30 @@ func (f *Fake) treeAt(dir, root, common string) {
 	f.Trees[dir] = Tree{Root: root, Common: common}
 }
 
+// LinkedWorktreeAt is a SECOND PORT, answering for another checkout of this clone: `git worktree
+// add`'s result, from a tool that is handed one repo.Git per directory it stands in. WorktreeAt is
+// the other shape, and the two are not interchangeable. WorktreeAt declares a worktree inside the
+// table THIS fake keys by directory, for a tool that asks one port about several directories.
+func (f *Fake) LinkedWorktreeAt(dir, gitDir string) *Fake {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	linked := New(dir)
+	// The worktree's git dir is its own, and that is where its identity is minted. Everything else is
+	// the clone's: the common dir, the history, the ignore sources a tracked `.gitignore` gives every
+	// checkout, and the refusal switch.
+	linked.Git, linked.Common = gitDir, f.sharedDir()
+	// Those four are shared LIVE, so a commit or a refusal arranged after this call is answered from
+	// both sides. A case turning one question off means it off wherever that repository is asked. Live
+	// sharing is the whole difference between a worktree and a second clone.
+	linked.Revs, linked.Refs, linked.Sources, linked.Fail, linked.Config = f.Revs, f.Refs, f.Sources, f.Fail, f.Config
+	// IgnoredPaths and WorktreeList are slices and cannot be shared that way. What a case stated
+	// before this call comes across, and a rule or a listing it states afterwards is stated on the
+	// tree that reads it.
+	linked.IgnoredPaths = append([]string(nil), f.IgnoredPaths...)
+	linked.onDisk = f.onDisk
+	return linked
+}
+
 // Diff sets what Patch answers, for every revision spelling a case does not name on its own.
 func (f *Fake) Diff(text string) *Fake {
 	f.mu.Lock()
@@ -197,6 +259,13 @@ func (f *Fake) Commit(rev string, files map[string]string) *Fake {
 	}
 	if f.Refs[rev] == "" {
 		f.Refs[rev] = objectID(rev)
+	}
+	// git answers about a commit by its object id as readily as by the name that reached it. A tool
+	// that resolves a base-ref and then diffs against the ID asks the second question that way. The
+	// same map, so the two spellings cannot drift into two commits.
+	if id := f.Refs[rev]; id != rev {
+		f.Revs[id] = held
+		f.Refs[id] = id
 	}
 	return f
 }
@@ -376,14 +445,55 @@ func (f *Fake) Untracked(dir string, pathspec ...string) ([]string, error) {
 	// `--exclude-standard` is on this listing, so an ignored path stays out of it. A case stating a path
 	// both untracked and ignored gets git's answer, and a caller is never handed a file git would have
 	// left out.
-	var names []string
-	for _, name := range f.UntrackedPaths {
-		if !f.isIgnored(name) {
-			names = append(names, name)
-		}
+	names, err := f.untrackedNames()
+	if err != nil {
+		return nil, err
 	}
 	sort.Strings(names)
 	return underPathspec(names, f.listingPathspec(dir, pathspec)), nil
+}
+
+// What `ls-files --others --exclude-standard` answers: on disk, outside the index, and unignored.
+// In OnDisk mode that is read off the tree, and never off a list a case has to keep in step with it.
+// A case cannot then write a file and forget to mention it, which reads as an empty scope. With no
+// tree to read, the list is what the case stated.
+func (f *Fake) untrackedNames() ([]string, error) {
+	if !f.onDisk {
+		var stated []string
+		for _, name := range f.UntrackedPaths {
+			if !f.isIgnored(name) {
+				stated = append(stated, name)
+			}
+		}
+		return stated, nil
+	}
+	var names []string
+	err := filepath.WalkDir(f.Root, func(full string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		name, under := strings.CutPrefix(full, f.Root+string(filepath.Separator))
+		if !under {
+			return nil
+		}
+		name = filepath.ToSlash(name)
+		if entry.IsDir() {
+			// The git dir sits outside the working tree, and git lists no path inside it.
+			if name == ".git" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if _, tracked := f.Revs[WorkTree][name]; tracked {
+			return nil
+		}
+		if f.isIgnored(name) {
+			return nil
+		}
+		names = append(names, name)
+		return nil
+	})
+	return names, err
 }
 
 func (f *Fake) NamesAt(dir, rev string) ([]string, error) {
@@ -623,7 +733,64 @@ func (f *Fake) IgnoreSource(dir, name string) (string, error) {
 	if !f.isIgnored(name) {
 		return "", nil
 	}
+	// A case wanting any other rule — `.git/info/exclude`, or core.excludesFile, the global ignore
+	// setting — states the answer with Ignore. The tree's own `.gitignore` is read first, and that is
+	// git's precedence.
+	if source, matched := f.gitignoreSource(name); matched {
+		return source, nil
+	}
 	return f.Sources[name], nil
+}
+
+// What the tree's own `.gitignore` says about a path. The file is read at the moment of the
+// question, which is what a tool that writes a rule and then asks whether it took effect needs. An
+// answer arranged before the run matches whatever the tool wrote, and can never fail.
+func (f *Fake) gitignoreSource(name string) (string, bool) {
+	if !f.onDisk {
+		return "", false
+	}
+	// Only literal glob matching with git's last-match-wins negation is modelled. A gitignore
+	// implementation here would be the fake agreeing with itself about a question `repo/exec_test.go`
+	// holds real git to.
+	body, err := os.ReadFile(filepath.Join(f.Root, ".gitignore"))
+	if err != nil {
+		return "", false
+	}
+	source, matched := "", false
+	for at, line := range strings.Split(string(body), "\n") {
+		rule := strings.TrimSpace(line)
+		if rule == "" || strings.HasPrefix(rule, "#") {
+			continue
+		}
+		if !ruleCovers(strings.TrimPrefix(rule, "!"), name) {
+			continue
+		}
+		matched = true
+		// `check-ignore -v` names the file, the line and the rule that decided. A negated rule leaves
+		// the path unignored, so the answer is empty, with no source printed.
+		source = fmt.Sprintf(".gitignore:%d:%s\t%s", at+1, rule, name)
+		if strings.HasPrefix(rule, "!") {
+			source = ""
+		}
+	}
+	return source, matched
+}
+
+// What one rule covers: the glob, or a directory every path under it. One reading, so a rule a case
+// stated and a rule the tree's own `.gitignore` holds cannot be answered two ways.
+func ruleCovers(rule, name string) bool {
+	rule = strings.TrimSuffix(rule, "/")
+	if hit, _ := path.Match(rule, name); hit {
+		return true
+	}
+	// A rule carrying no slash is held against the BASENAME at any depth, which is git's own reading.
+	// `*.out` covers records/build.out, which a rule matched against the whole path alone misses.
+	if !strings.Contains(rule, "/") {
+		if hit, _ := path.Match(rule, path.Base(name)); hit {
+			return true
+		}
+	}
+	return shell.IsWithin(name, rule)
 }
 
 func (f *Fake) Worktrees(dir string) ([]repo.Worktree, error) {
@@ -635,6 +802,10 @@ func (f *Fake) Worktrees(dir string) ([]repo.Worktree, error) {
 	return append([]repo.Worktree(nil), f.WorktreeList...), nil
 }
 
+// Add records the pathspecs it was asked for, and in OnDisk mode stages what they swept up. The
+// difference is the whole of what a caller reads back afterwards. `git add` over a directory whose
+// every file is ignored stages no file and still exits 0. A fake recording only the request answers
+// that the work is still outside the index, and every promotion built on that refuses.
 func (f *Fake) Add(dir string, paths []string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -642,7 +813,74 @@ func (f *Fake) Add(dir string, paths []string) error {
 		return err
 	}
 	f.Added = append(f.Added, paths...)
+	if !f.onDisk {
+		return nil
+	}
+	// A path NAMED to `git add` and covered by a rule is refused outright, where the same file swept
+	// up by a directory pathspec is passed over in silence. A caller naming its files one by one is
+	// counting on that refusal, and one that hands over a directory is counting on the silence.
+	for _, spec := range paths {
+		name := f.namedInTree(dir, spec)
+		if f.isIgnored(name) && isFile(filepath.Join(f.Root, name)) {
+			return fmt.Errorf("The following paths are ignored by one of your .gitignore files:\n%s\n"+
+				"hint: Use -f if you really want to add them.", spec)
+		}
+	}
+	for _, spec := range paths {
+		if err := f.stageUnder(f.namedInTree(dir, spec)); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// One pathspec as a repository-relative name. A caller spells it absolute or relative to the
+// directory git was run in, and git reads both.
+func (f *Fake) namedInTree(dir, spec string) string {
+	if below, under := strings.CutPrefix(spec, f.Root+"/"); under {
+		return below
+	}
+	return path.Clean(f.prefixOf(dir) + spec)
+}
+
+// Everything under one pathspec put in the index, with what is on disk at each. A rule covering a
+// file swept up this way takes it out, which is git's silence above.
+func (f *Fake) stageUnder(name string) error {
+	// A pathspec holding `..` cleans to a name that climbs, and joining that onto Root aims the walk at
+	// the machine outside the fixture. Git refuses such a pathspec by name, so this does too.
+	from := filepath.Join(f.Root, filepath.FromSlash(name))
+	if from != f.Root && !strings.HasPrefix(from, f.Root+string(filepath.Separator)) {
+		return fmt.Errorf("fatal: %s: '%s' is outside repository at '%s'", name, name, f.Root)
+	}
+	return filepath.WalkDir(from, func(full string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			// `git add` exits 0 over a pathspec naming no file, and over a directory.
+			return nil
+		}
+		under, inside := strings.CutPrefix(full, f.Root+string(filepath.Separator))
+		if !inside {
+			return nil
+		}
+		held := filepath.ToSlash(under)
+		if held == ".git" || strings.HasPrefix(held, ".git/") || f.isIgnored(held) {
+			return nil
+		}
+		body, err := os.ReadFile(full)
+		if err != nil {
+			return err
+		}
+		if f.Revs[WorkTree] == nil {
+			f.Revs[WorkTree] = map[string]string{}
+		}
+		f.Revs[WorkTree][held] = string(body)
+		f.Staged = append(f.Staged, held)
+		return nil
+	})
+}
+
+func isFile(full string) bool {
+	info, err := os.Lstat(full)
+	return err == nil && info.Mode().IsRegular()
 }
 
 // dir as a repository-relative prefix, slash-terminated and empty at the root — git's own
@@ -704,8 +942,11 @@ func (f *Fake) isIgnored(name string) bool {
 	if _, tracked := f.Revs[WorkTree][name]; tracked {
 		return false
 	}
+	if source, matched := f.gitignoreSource(name); matched {
+		return source != ""
+	}
 	for _, rule := range f.IgnoredPaths {
-		if shell.IsWithin(name, rule) {
+		if ruleCovers(rule, name) {
 			return true
 		}
 	}

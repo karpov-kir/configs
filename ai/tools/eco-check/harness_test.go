@@ -368,39 +368,6 @@ func (f *fixture) symlink(target, link string) {
 	}
 }
 
-// Decline a case whose fixture is a path this process has to be refused, on a machine where mode 000
-// refuses nobody. `what` finishes the sentence, so the skip still names what could not be built here
-// rather than only the machine it was declined on.
-func skipUnlessModeDeniesRead(t *testing.T, what string) {
-	t.Helper()
-	if modeDeniesRead(t) {
-		return
-	}
-	t.Skip("this process reads a mode-000 path regardless of the mode (root, or CAP_DAC_OVERRIDE), so " + what)
-}
-
-// True when a mode of 000 actually stops this process reading. Probed rather than compared against
-// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
-// carry the bit behave the same way, and all three make a mode-000 fixture a file the tool reads
-// happily. ecostats' suite carries the same probe for the same reason; neither package can import the
-// other's test helpers.
-func modeDeniesRead(t *testing.T) bool {
-	t.Helper()
-	probe := t.TempDir() + "/probe"
-	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-	if err := os.Chmod(probe, 0o000); err != nil {
-		t.Fatalf("chmod probe: %v", err)
-	}
-	file, err := os.Open(probe)
-	if err != nil {
-		return true
-	}
-	file.Close()
-	return false
-}
-
 func (f *fixture) chmod(path string, mode os.FileMode) {
 	f.t.Helper()
 	if err := os.Chmod(path, mode); err != nil {
@@ -558,14 +525,14 @@ func (f *fixture) parseCounts() (first, second int) {
 
 // The same two assertions against a second check of the same tree — what the run before it left
 // behind must not change what this one says.
-func (f *fixture) reportsOnASecondRun(needle string) {
+func (f *fixture) reportsOnASecondRun(needles ...string) {
 	f.t.Helper()
-	f.found(f.runTwice(), needle)
+	f.found(f.runTwice(), needles...)
 }
 
-func (f *fixture) doesNotReportOnASecondRun(needle string) {
+func (f *fixture) doesNotReportOnASecondRun(needles ...string) {
 	f.t.Helper()
-	f.absent(f.runTwice(), needle)
+	f.absent(f.runTwice(), needles...)
 }
 
 // The checker prints its budget lines before any finding, so a leak from a scan loop lands ahead of
@@ -594,15 +561,16 @@ func (f *fixture) ranksAbove(above, below string) {
 	}
 }
 
-// A finding built from text this checker did not choose, asserted twice over one fixture: that the
-// finding appears at all, and that no ESC reaches the output through it. The control is not optional —
-// without it the second half passes on a run that raised no finding.
+// Asserts over ONE run of one fixture that a finding built from text the reviewed tree chose appears,
+// and that no ESC reaches the output through it. The first half is the control: drop it and the
+// second passes on a silent run. One output feeds both halves, so they cannot describe two different
+// runs, and the fixture is built once.
 func assertNoControlByteEscapes(t *testing.T, what, finding string, build func(*testing.T) *fixture) {
-	t.Run("reports "+what+" (control for the case below)", func(t *testing.T) {
-		build(t).reports(finding)
-	})
-	t.Run("and no control byte from "+what+" reaches the output", func(t *testing.T) {
-		build(t).doesNotReport("\x1b")
+	t.Run("reports "+what+", and no control byte from it reaches the output", func(t *testing.T) {
+		f := build(t)
+		output := f.run()
+		f.found(output, finding)
+		f.absent(output, "\x1b")
 	})
 }
 

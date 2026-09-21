@@ -48,11 +48,11 @@ func TestAProjectThatIsNotARepositoryStillGetsItsSkills(t *testing.T) {
 	f := newFixture(t)
 	f.MkdirAll(f.project + "/.git")
 
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.expectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
-	f.expectAbsent(f.project + "/.git/hooks/post-checkout")
-	f.expectAbsent(f.project + "/.git/kk-flavor")
+	f.ExpectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
+	f.ExpectAbsent(f.project + "/.git/hooks/post-checkout")
+	f.ExpectAbsent(f.project + "/.git/kk-flavor")
 }
 
 // Skill links are local and ignored, so git cannot carry them into a worktree created later. The hook
@@ -62,15 +62,15 @@ func TestAnInstallEnablesFutureWorktreesAndRecordsTheTier(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
 
-	f.expectCode(f.install("--agent=claude", "--maintainer"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--maintainer"), 0)
 
-	f.expectFileBody(paths.hook, projectsetup.HookBody())
-	f.expectFileBody(paths.state+"/claude", "true\n")
-	f.expectFileContains(paths.common+"/info/exclude", ".claude/skills/kk-*")
+	f.ExpectFileBody(paths.hook, projectsetup.HookBody())
+	f.ExpectFileBody(paths.state+"/claude", "true\n")
+	f.ExpectFileContains(paths.common+"/info/exclude", ".claude/skills/kk-*")
 	// The write is executable code left in somebody else's repository, running on every checkout they
 	// make. A run that placed it without a word left them to discover it. --dry-run had always said it
 	// would enable these links, so the two runs disagreed about what an install does.
-	f.expectSaid("enabled  claude skill links for future worktrees: " + paths.hook)
+	f.ExpectSaid("enabled  claude skill links for future worktrees: " + paths.hook)
 }
 
 // Every worktree that exists gets the same links, because git cannot carry them itself.
@@ -79,13 +79,13 @@ func TestAnInstallSyncsTheWorktreesThatAlreadyExist(t *testing.T) {
 	f.asRepository()
 	sibling := f.newSibling("existing sibling")
 
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.expectLinkTo(sibling+"/.claude/skills/kk-build", f.home+"/.kk-flavor/skills/kk-build")
+	f.ExpectLinkTo(sibling+"/.claude/skills/kk-build", f.home+"/.kk-flavor/skills/kk-build")
 	// And the user level stays untouched: a project install never enables skills for every session on
 	// the machine, which is the machine-wide install and a different decision entirely.
-	f.expectAbsent(f.home + "/.claude")
-	f.expectAbsent(f.home + "/.agents")
+	f.ExpectAbsent(f.home + "/.claude")
+	f.ExpectAbsent(f.home + "/.agents")
 }
 
 // Anything already at the hook that this did not write is left alone and reported with the command
@@ -95,10 +95,10 @@ func TestAnExistingHookIsPreservedAndReportedWithTheRepair(t *testing.T) {
 	paths := f.asRepository()
 	f.Write(paths.hook, "#!/usr/bin/env python3\nprint(\"existing hook\")\n")
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectFileBody(paths.hook, "#!/usr/bin/env python3\nprint(\"existing hook\")\n")
-	f.expectSaid(`project-skills.sh" --sync .`)
+	f.ExpectFileBody(paths.hook, "#!/usr/bin/env python3\nprint(\"existing hook\")\n")
+	f.ExpectSaid(`project-skills.sh" --sync .`)
 }
 
 // An empty core.hooksPath, the Git config setting, counts as set, since git then looks in the worktree
@@ -109,10 +109,10 @@ func TestAnEmptyHooksPathIsStillAHookManagerAndIsReported(t *testing.T) {
 	paths := f.asRepository()
 	f.git.Config["core.hooksPath"] = ""
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("existing Git hooks were preserved")
-	f.expectAbsent(paths.hook)
+	f.ExpectSaid("existing Git hooks were preserved")
+	f.ExpectAbsent(paths.hook)
 }
 
 func TestAHooksManagerElsewhereIsReportedAndNotOverridden(t *testing.T) {
@@ -120,10 +120,10 @@ func TestAHooksManagerElsewhereIsReportedAndNotOverridden(t *testing.T) {
 	paths := f.asRepository()
 	f.git.Config["core.hooksPath"] = ".custom-hooks"
 
-	f.expectCode(f.install("--agent=claude", "--dry-run"), 1)
+	f.ExpectCode(f.install("--agent=claude", "--dry-run"), 1)
 
-	f.expectSaid("existing Git hooks were preserved")
-	f.expectAbsent(paths.state + "/claude")
+	f.ExpectSaid("existing Git hooks were preserved")
+	f.ExpectAbsent(paths.state + "/claude")
 }
 
 // Everything this run would write inside the git directory is checked before the first write. A
@@ -137,10 +137,10 @@ func TestASymlinkAnywhereInTheGitStorageIsRefused(t *testing.T) {
 			target := paths.common + "/" + planted
 			f.Symlink(f.base+"/never-written", target)
 
-			f.expectCode(f.install("--agent=claude"), 1)
+			f.ExpectCode(f.install("--agent=claude"), 1)
 
-			f.expectSaid("is a symlink — worktree setup was left alone")
-			f.expectAbsent(f.base + "/never-written")
+			f.ExpectSaid("is a symlink — worktree setup was left alone")
+			f.ExpectAbsent(f.base + "/never-written")
 		})
 	}
 }
@@ -152,11 +152,11 @@ func TestHardlinkedGitStateIsRefusedAndTheOutsideFileSurvives(t *testing.T) {
 	paths := f.asRepository()
 	f.Write(f.base+"/state-outside", "outside content\n")
 	f.MkdirAll(paths.state)
-	f.hardlink(f.base+"/state-outside", paths.state+"/claude")
+	f.Hardlink(f.base+"/state-outside", paths.state+"/claude")
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectFileBody(f.base+"/state-outside", "outside content\n")
+	f.ExpectFileBody(f.base+"/state-outside", "outside content\n")
 }
 
 // A listing this installer cannot read is a refusal, and a silent pass would be wrong: the worktrees
@@ -166,9 +166,9 @@ func TestAWorktreeListingThatCannotBeReadIsARefusal(t *testing.T) {
 	f.asRepository()
 	f.git.Fail["Worktrees"] = errors.New("git said no")
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("could not list worktrees for " + f.project)
+	f.ExpectSaid("could not list worktrees for " + f.project)
 }
 
 // Neither a bare repository nor an entry git itself calls stale is a tree to write into. A run that
@@ -184,10 +184,10 @@ func TestBareAndPrunableEntriesAreNeverWrittenInto(t *testing.T) {
 		repo.Worktree{Path: bare, Bare: true},
 		repo.Worktree{Path: stale, Prunable: true})
 
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.expectAbsent(bare + "/.claude")
-	f.expectAbsent(stale + "/.claude")
+	f.ExpectAbsent(bare + "/.claude")
+	f.ExpectAbsent(stale + "/.claude")
 }
 
 // A `.git/worktrees/` entry is a file anyone who can write the repository can forge, and it names the
@@ -202,10 +202,10 @@ func TestAForgedWorktreeEntryPointingAtAnotherRepositoryIsRefused(t *testing.T) 
 	// git answers for it, and answers with a different shared directory — which is the whole tell.
 	f.git.ForeignWorktreeAt(outsider, outsider+"/.git")
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("is not a worktree of " + f.git.Common)
-	f.expectAbsent(outsider + "/.claude")
+	f.ExpectSaid("is not a worktree of " + f.git.Common)
+	f.ExpectAbsent(outsider + "/.claude")
 }
 
 // The user's home is never a project. Skills mounted there would be enabled for every session on the
@@ -215,50 +215,50 @@ func TestAForgedEntryNamingTheUserHomeIsRefused(t *testing.T) {
 	f.asRepository()
 	f.git.WorktreeAt(f.home)
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("is the user home")
-	f.expectAbsent(f.home + "/.claude")
+	f.ExpectSaid("is the user home")
+	f.ExpectAbsent(f.home + "/.claude")
 }
 
 // The hook serves both clients, so it goes only once neither is installed any more.
 func TestTheHookGoesWithTheLastClientAndNotBefore(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
-	f.expectCode(f.install("--agent=claude"), 0)
-	f.expectCode(f.install("--agent=codex"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=codex"), 0)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
-	f.expectFileBody(paths.hook, projectsetup.HookBody())
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectFileBody(paths.hook, projectsetup.HookBody())
 
-	f.expectCode(f.install("--agent=codex", "--uninstall"), 0)
-	f.expectAbsent(paths.hook)
-	f.expectAbsent(paths.state)
+	f.ExpectCode(f.install("--agent=codex", "--uninstall"), 0)
+	f.ExpectAbsent(paths.hook)
+	f.ExpectAbsent(paths.state)
 }
 
 // A hook somebody edited since is theirs, whatever this installer wrote there first.
 func TestAnEditedHookIsLeftBehindOnUninstall(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
-	f.expectCode(f.install("--agent=claude"), 0)
-	f.rewrite(paths.hook, projectsetup.HookBody()+"# and something of my own\n")
+	f.ExpectCode(f.install("--agent=claude"), 0)
+	f.WriteMode(paths.hook, projectsetup.HookBody()+"# and something of my own\n", 0o755)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectFileContains(paths.hook, "# and something of my own")
+	f.ExpectFileContains(paths.hook, "# and something of my own")
 }
 
 func TestUninstallClearsTheSiblingsLinksAndTheSharedIgnoreRules(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
 	sibling := f.newSibling("sibling")
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-	f.expectAbsent(sibling + "/.claude/skills/kk-build")
-	f.expectFileLacks(paths.common+"/info/exclude", ".claude/skills/kk-*")
-	f.expectAbsent(paths.state + "/claude")
+	f.ExpectAbsent(sibling + "/.claude/skills/kk-build")
+	f.ExpectFileLacks(paths.common+"/info/exclude", ".claude/skills/kk-*")
+	f.ExpectAbsent(paths.state + "/claude")
 }
 
 // The hook is code this installer leaves in somebody's repository to run on every checkout. It runs
@@ -275,11 +275,11 @@ func TestAHookIsNotWrittenWhenTheCheckoutCannotRunIt(t *testing.T) {
 			paths := f.asRepository()
 			f.RemoveAll(f.repo + "/" + c.missing)
 
-			f.expectCode(f.install("--agent=claude"), 1)
+			f.ExpectCode(f.install("--agent=claude"), 1)
 
-			f.expectSaid(c.said)
-			f.expectAbsent(paths.hook)
-			f.expectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
+			f.ExpectSaid(c.said)
+			f.ExpectAbsent(paths.hook)
+			f.ExpectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
 		})
 	}
 }
@@ -298,10 +298,10 @@ func TestAResolverThatCannotBeExecutedStopsTheHookToo(t *testing.T) {
 			"bit — so the refusal this case names could not be built")
 	}
 
-	f.expectCode(f.install("--agent=claude"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.expectSaid("tools/resolve.sh cannot be run")
-	f.expectAbsent(paths.hook)
+	f.ExpectSaid("tools/resolve.sh cannot be run")
+	f.ExpectAbsent(paths.hook)
 }
 
 // What the hook says when it fires in somebody's project and the checkout behind ~/.kk-flavor has
@@ -315,11 +315,11 @@ func TestTheHookBlamesTheFlavorCheckoutAndNotTheRepositoryItFiresIn(t *testing.T
 	}
 	f := newFixture(t)
 	f.asRepository()
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 	f.RemoveAll(f.repo + "/project-skills.sh")
 
 	hook := f.base + "/fired-hook"
-	f.rewrite(hook, projectsetup.HookBody())
+	f.WriteMode(hook, projectsetup.HookBody(), 0o755)
 	run := exec.Command(bash, hook)
 	run.Dir = f.project
 	run.Env = append(os.Environ(), "HOME="+f.home)
@@ -347,21 +347,21 @@ func TestTheHookThisInstallerWroteBeforeIsStillItsOwn(t *testing.T) {
 		f := newFixture(t)
 		paths := f.asRepository()
 		f.MkdirAll(paths.common + "/hooks")
-		f.rewrite(paths.hook, projectsetup.SupersededHookBody())
+		f.WriteMode(paths.hook, projectsetup.SupersededHookBody(), 0o755)
 
-		f.expectCode(f.install("--agent=claude"), 0)
+		f.ExpectCode(f.install("--agent=claude"), 0)
 
-		f.expectFileBody(paths.hook, projectsetup.HookBody())
+		f.ExpectFileBody(paths.hook, projectsetup.HookBody())
 	})
 
 	t.Run("an uninstall removes it", func(t *testing.T) {
 		f := newFixture(t)
 		paths := f.asRepository()
-		f.expectCode(f.install("--agent=claude"), 0)
-		f.rewrite(paths.hook, projectsetup.SupersededHookBody())
+		f.ExpectCode(f.install("--agent=claude"), 0)
+		f.WriteMode(paths.hook, projectsetup.SupersededHookBody(), 0o755)
 
-		f.expectCode(f.install("--agent=claude", "--uninstall"), 0)
+		f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
-		f.expectAbsent(paths.hook)
+		f.ExpectAbsent(paths.hook)
 	})
 }

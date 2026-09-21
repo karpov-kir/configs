@@ -243,6 +243,9 @@ func TestLayerDeclarationReadsTheThreeAndRefusesAFourth(t *testing.T) {
 		{line: "**Layer:** process", layer: "process", declared: true},
 		{line: "**Layer:** process\r", layer: "process", declared: true},
 		{line: "**Layer:** foundation", layer: "", declared: true},
+		// This row carries the closing anchor. `basement` opens on a real layer name, so a pattern that
+		// stopped anchoring its end reads it as `base` and files the standard in an invented layer. The
+		// `foundation` row shares no prefix with any layer, which leaves the anchor to this one.
 		{line: "**Layer:** basement", layer: "", declared: true},
 		{line: "**Layer:** Base", layer: "", declared: true},
 		{line: "**Layer:**", layer: "", declared: true},
