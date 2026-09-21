@@ -170,6 +170,15 @@ func loadPlainSet(t *testing.T) [][]string {
 func TestCensusOverThePlainSet(t *testing.T) {
 	files := loadPlainSet(t)
 	rep := Measure(files)
+	// The rest of this case prints a report and makes no assertion. The loader, loadPlainSet, skips the
+	// whole case unless JUDGE_EVAL_PLAIN points at a corpus. This holds for whoever points it at one.
+
+	// These three figures are what the report is a report OF. A corpus that walked to an empty set
+	// reads here exactly as a census with something to say.
+	if rep.Files == 0 || rep.Blocks == 0 || rep.Notes == 0 {
+		t.Fatalf("the census measured %d file(s), %d block(s) and %d note(s) over %d loaded file(s), so "+
+			"the report below describes nothing", rep.Files, rep.Blocks, rep.Notes, len(files))
+	}
 	var out strings.Builder
 	fmt.Fprintf(&out, "\nfiles %d, comment blocks %d, summaries over a declaration %d, note sentences %d\n\n",
 		rep.Files, rep.Blocks, rep.Summaries, rep.Notes)
