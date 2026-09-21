@@ -416,14 +416,26 @@ func (f *fixture) stampFullPassIn(dir, ship string) {
 	f.runReportIn(dir, "stamp", allStagesStampedAs, ship)
 }
 
+// One ship's intent file, holding whatever the case needs it to say. `write` builds the ship folder,
+// so a case states the body and nothing else.
+func (f *fixture) writeIntent(slug, body string) {
+	f.t.Helper()
+	f.write(f.shipDir(slug)+"/intent.md", body)
+}
+
+// The same file under archive/, which is where a built intent lives.
+func (f *fixture) writeArchivedIntent(slug, body string) {
+	f.t.Helper()
+	f.write(f.archiveDir(slug)+"/intent.md", body)
+}
+
 // An intent file for one slug. The body is fixed because no case asserts on it — what they care about
 // is the file's presence, and whether `discard` takes it or leaves it. The frontmatter is not: the
 // merge gate refuses an intent that never reached `status: approved`, so a status-less fixture would
 // make every gate case block for a reason it is not about. A case about that arm writes its own file.
 func (f *fixture) newIntentFile(slug string) {
 	f.t.Helper()
-	f.mkdirAll(f.shipDir(slug))
-	f.write(f.shipDir(slug)+"/intent.md", "---\nstatus: approved\n---\n\n# intent\n")
+	f.writeIntent(slug, "---\nstatus: approved\n---\n\n# intent\n")
 }
 
 // The human's own durable file, in the SCRATCH dir rather than the tree: what keeps the scratch
@@ -541,14 +553,6 @@ func (f *fixture) countFingerprints() *int {
 		return walk(root)
 	}
 	return &calls
-}
-
-func (f *fixture) nonEmptyLinesIn(path string) int {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return 0
-	}
-	return countNonEmptyLines(string(content))
 }
 
 // The entries are expanded here because `check-ignore` reads its argument as a literal pathname. An

@@ -225,10 +225,6 @@ func countLinesWithPrefix(text, prefix string) int {
 	return countLines(text, func(line string) bool { return strings.HasPrefix(line, prefix) })
 }
 
-func countNonEmptyLines(text string) int {
-	return countLines(text, func(line string) bool { return line != "" })
-}
-
 func countLinesEndingWith(text, suffix string) int {
 	return countLines(text, func(line string) bool { return strings.HasSuffix(line, suffix) })
 }

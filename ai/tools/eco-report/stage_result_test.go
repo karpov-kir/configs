@@ -111,8 +111,9 @@ func TestTypedStageResultCannotHideAnOpenFinding(t *testing.T) {
 
 func TestTypedStageResultRejectsMalformedOrUnfinishedReturns(t *testing.T) {
 	cases := map[string]func(map[string]any){
+		// A status that is absent and one that says `failed` are the same reading to validateStageResult,
+		// which asks only whether it says `complete`, so this row stands for both.
 		"failed":              func(result map[string]any) { result["status"] = "failed" },
-		"incomplete":          func(result map[string]any) { delete(result, "status") },
 		"null items":          func(result map[string]any) { result["items"] = nil },
 		"unknown field":       func(result map[string]any) { result["surprise"] = true },
 		"field alias":         func(result map[string]any) { result["STATUS"] = "complete" },

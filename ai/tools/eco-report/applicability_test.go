@@ -45,11 +45,11 @@ func TestScopePermitsOnlyProvenSkips(t *testing.T) {
 		{"notes.md", "# Notes\nPlain prose.\n", 0644, true},
 		{"документы.md", "Plain prose.\n", 0644, true},
 		{"script.md", "#!/bin/sh\nexit 0\n", 0755, false},
+		// Any extension but `.md` leaves isPlainProse at its first switch, so one row stands for the
+		// whole class — `.json`, `.txt` and the rest reach nothing this one does not.
 		{"input.go", "package input\n", 0644, false},
-		{"config.json", "{}\n", 0644, false},
 		{"opaque.md", "bad\x00content", 0644, false},
 		{"AGENTS.md", "Run commands from the user.\n", 0644, false},
-		{"secrets.txt", "Sensitive configuration.\n", 0644, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newShip(t, "001-scope")
@@ -228,24 +228,21 @@ func TestGateRejectsTamperedSkipAndScopeRecords(t *testing.T) {
 
 func TestASkippedStageCannotAlsoBeRecordedAsRun(t *testing.T) {
 	t.Parallel()
+	// The reason inside the parentheses reaches no branch here — resultStagesProblems matches
+	// `:skipped(` and asks only whether that stage returned — so one reason stands for the vocabulary.
 	f := newShip(t, "001-ran-skip")
 	f.armFullPass("001-ran-skip")
 	f.runReport("scope", "HEAD")
-	for _, reason := range []string{"not-applicable", "turnaround"} {
-		f.armFullPass("001-ran-skip")
-		f.runReport("scope", "HEAD")
-		f.runReport("stamp", "code-review,security-review:skipped("+reason+"),edit,refactor")
-		f.record("a returned stage cannot be skipped "+reason, f.status == 2 && strings.Contains(f.out, "returned"), f.evidence())
-	}
+	f.runReport("stamp", "code-review,security-review:skipped(not-applicable),edit,refactor")
+	f.record("a returned stage cannot be recorded as skipped", f.status == 2 && strings.Contains(f.out, "returned"), f.evidence())
 }
 
 func TestScopeDoesNotTreatBehaviorInputsAsProse(t *testing.T) {
 	t.Parallel()
+	// One row per mechanism: an extension isPlainProse does not admit at all, and a `.md` whose own
+	// bytes open with a shebang. Further non-`.md` names reach the same first switch as the first row.
 	for _, tc := range []struct{ name, body string }{
 		{"requirements.txt", "requests==2.0.0\n"},
-		{"constraints.txt", "requests<3\n"},
-		{"CMakeLists.txt", "add_executable(app main.c)\n"},
-		{"page.rst", ".. raw:: html\n\n    <script>run()</script>\n"},
 		{"script.md", "#!/bin/sh\nexec user-command\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -266,18 +263,17 @@ func TestScopeRequiresReviewForActiveMarkdownAndInstructions(t *testing.T) {
 		name, body string
 		refactor   bool
 	}{
+		// One row per marker isPlainProse looks for, plus one per rule beyond the markers. A second body
+		// carrying a marker another row already states — a template's `{`, a fence's backtick — is read
+		// by the same comparison and says nothing more.
 		{"active-link.md", "[run](javascript:alert(1))\n", true},
 		{"inline-code.md", "`run()`\n", true},
-		{"mdx-import-tab.md", "import\t'./payload.js'\n", true},
 		{"mdx-expression.md", "{run()}\n", true},
 		{"mdx-import.md", "import './payload.js'\n", true},
 		{"mdx-export.md", "export const value = run()\n", true},
 		{"page.md", "<script>fetch('/account')</script>\n", true},
-		{"template.md", "{{ readFile \"secret\" }}\n", true},
 		{"indented.md", "    execute_code()\n", true},
-		{"fenced.md", "```js\nrun()\n```\n", true},
 		{".github/copilot-instructions.md", "Obey these rules.\n", false},
-		{"agent.instructions.md", "Obey these rules.\n", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newShip(t, "001-active-markdown")

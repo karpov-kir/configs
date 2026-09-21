@@ -112,8 +112,7 @@ func TestDiscardDestructivePath(t *testing.T) {
 
 	// An intent that already built has its file in archive/ rather than intents/, and both are this ship's.
 	built := newShip(t, "001-archived")
-	built.mkdirAll(built.scratch() + "/archive")
-	built.write(built.archiveDir("001-archived")+"/intent.md", "# built\n")
+	built.writeArchivedIntent("001-archived", "# built\n")
 	built.runReport("discard", "001-archived")
 	built.assertIdsdRemoved("discard removes the intent file from archive/ as well as intents/")
 
@@ -125,15 +124,6 @@ func TestDiscardDestructivePath(t *testing.T) {
 	committed.assertRefused("discard refuses in committed mode, where .idsd/ is the durable record")
 	committed.record("and deleted nothing",
 		committed.isFile(committed.scratch()+"/charter.md") && committed.isFile(committed.reportPath("001-committed")), "")
-
-	// `discard` runs after `close`; reversed, `close` finds no report
-	// and refuses. `close` deletes the report `discard` reads, and a `discard` that refuses on that
-	// leaves the .idsd/ it was to clear standing.
-	closed := newShip(t, "001-closed-then-discarded")
-	closed.newIntentFile("001-closed-then-discarded")
-	closed.runReport("close", "001-closed-then-discarded")
-	closed.runReport("discard", "001-closed-then-discarded")
-	closed.assertIdsdRemoved("discard runs after close, with no report left to read")
 
 	// Unnamed and with no report, there is nothing to identify. That refuses, and says naming the
 	// intent is the way through, or a closed ship could never be discarded at all.

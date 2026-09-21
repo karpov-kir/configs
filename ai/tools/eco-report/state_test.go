@@ -223,8 +223,7 @@ func TestStateAnswersEveryTokenItRoutesOn(t *testing.T) {
 	// token's own archive arm, since `state` answers from the report's filename a step earlier, and the
 	// two are different ships whenever the frontmatter names a slug the filename does not.
 	archived := newShip(t, "001-landed")
-	archived.mkdirAll(archived.scratch() + "/archive")
-	archived.write(archived.archiveDir("001-landed")+"/intent.md", "# built, and merged\n")
+	archived.writeArchivedIntent("001-landed", "# built, and merged\n")
 	archived.runReport("list")
 	archived.record("done for a ship whose intent file has reached archive/",
 		stateOf(archived.out, "001-landed") == "done", archived.out)

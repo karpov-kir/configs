@@ -149,8 +149,7 @@ func TestGateBlocksAnIntentTheGapRoundsNeverApproved(t *testing.T) {
 	// The intent sits in the git-ignored scratch, so writing it moves nothing the fingerprint reads and
 	// the freshness arm stays clear. It carries no `- [ ]`, so the open-item arm stays clear too.
 	writeIntent := func(frontmatter string) {
-		f.mkdirAll(f.scratch() + "/intents")
-		f.write(f.shipDir("001-gating")+"/intent.md", "---\ntitle: t\n"+frontmatter+"---\n\n# intent\n")
+		f.writeIntent("001-gating", "---\ntitle: t\n"+frontmatter+"---\n\n# intent\n")
 	}
 
 	writeIntent("status: approved\n")
