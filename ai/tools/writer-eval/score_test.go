@@ -212,9 +212,9 @@ func TestThePartAndAttemptLinesAreNotPartOfTheBlock(t *testing.T) {
 	}
 }
 
-// A writer returns the declaration under the block as often as not. Counting that line as a sentence
-// put seven of twenty-one plain blocks over the note's ceiling, which is a parser reading code as
-// prose rather than a writer breaking a rule.
+// A writer returns the declaration under the block as often as not. A score counting that line as a
+// sentence put seven of twenty-one plain blocks over the note's ceiling. That is a parser reading
+// code as prose, and the writer had broken no rule.
 func TestTheDeclarationUnderTheBlockIsNoSentence(t *testing.T) {
 	r := ParseReturn("summary: none\nnote: written\n" +
 		"```ts\n" +
