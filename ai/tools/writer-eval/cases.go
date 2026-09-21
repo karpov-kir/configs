@@ -32,6 +32,10 @@ type Case struct {
 	Floor int
 }
 
+// ExpectCarried is a site whose claim belongs somewhere else in the tree: a field on the data row it
+// describes, a test, a lint rule. The writer returns where it goes and writes no block.
+const ExpectCarried Expected = "carried"
+
 // ExpectRename is a site whose own identifier carries a coined compound. The writer returns the
 // rename and leaves the word out of its prose, so the refactor lane can take it.
 const ExpectRename Expected = "rename"
@@ -40,6 +44,7 @@ var expectedClasses = map[string]Expected{
 	string(ExpectNone):    ExpectNone,
 	string(ExpectWritten): ExpectWritten,
 	string(ExpectRename):  ExpectRename,
+	string(ExpectCarried): ExpectCarried,
 }
 
 const codeSection = "--- code"
@@ -74,7 +79,8 @@ func ParseCase(name, raw string) (Case, error) {
 		case "expect":
 			class, known := expectedClasses[strings.ToLower(value)]
 			if !known {
-				return c, fmt.Errorf("%s expects %q, and the classes are none, written and rename", name, value)
+				return c, fmt.Errorf("%s expects %q, and the classes are none, written, rename and carried",
+					name, value)
 			}
 			c.Expect = class
 		case "why":
@@ -144,6 +150,9 @@ func ClassOf(r Return) Expected {
 		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(line)), renameLine) {
 			return ExpectRename
 		}
+	}
+	if r.Carried && r.Block == "" {
+		return ExpectCarried
 	}
 	if r.None {
 		return ExpectNone

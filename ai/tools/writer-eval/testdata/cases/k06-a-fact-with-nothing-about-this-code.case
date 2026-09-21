@@ -1,6 +1,5 @@
-expect: written
-note: written
-why: the value sits in the table this block stands on, so the note anchors on the table; a fact standing alone reads out of the blue; Kirill on 2026-09-21 called the same shape "Same", after calling its neighbour "This looks out of blue and hard to follow"; the second sentence says what this code does about the fact
+expect: carried
+why: the claim is a fact about a row of the table it sits on, so it goes to a provenance field on that row and a note is the wrong home for it; the writer tried twice on 2026-09-21 and declined both, since a constant table performs no action a consequence sentence can name
 labelled: 2026-09-21
 --- code
 export const SCHEME_NAMES: Record<Settlement, string[]> = {

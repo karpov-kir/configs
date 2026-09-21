@@ -30,6 +30,9 @@ type Return struct {
 	Summary  Part
 	Note     Part
 	Attempts int
+	// Carried says the return sent the claim somewhere else in the tree. A claim about a row of data
+	// goes to a field on that row, and a block is the wrong home for it however well written.
+	Carried bool
 }
 
 // Part is what one half of a block came back as.
@@ -86,7 +89,10 @@ func ParseReturn(raw string) Return {
 			out.Attempts++
 			continue
 		}
-		if verdictLine.MatchString(line) {
+		if m := verdictLine.FindStringSubmatch(line); m != nil {
+			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(m[1])), "carried by") {
+				out.Carried = true
+			}
 			continue
 		}
 		if m := auditLine.FindStringSubmatch(line); m != nil {
@@ -219,7 +225,15 @@ type Verdict struct {
 
 // Passed says whether a case cleared the bar. The class has to match, and a written block has to
 // fail no check.
-func (v Verdict) Passed() bool { return v.Want == v.Got && len(v.Failures) == 0 }
+//
+// A carried claim satisfies a case wanting none, since both leave the site without a block and the
+// carried line says where the claim went. A case wanting carried asks for that line by name.
+func (v Verdict) Passed() bool {
+	if len(v.Failures) > 0 {
+		return false
+	}
+	return v.Want == v.Got || (v.Want == ExpectNone && v.Got == ExpectCarried)
+}
 
 // Judge scores one return against what its case expected. A declined site and a rename are scored on
 // their class alone. A run that checked the prose of a declined block would report a failure about

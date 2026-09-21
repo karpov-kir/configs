@@ -296,6 +296,8 @@ func TestWriterEval(t *testing.T) {
 	fmt.Fprintf(&out, "k05 is a judgement case: the coined-identifier check reads prose, and that "+
 		"compound sits only in the identifier.\n")
 	fmt.Fprintf(&out, "Watch: k01 has come back as a rename, on a site carrying no compound at all.\n")
+	fmt.Fprintf(&out, "Earlier tables understated every carried-by case: the score read a return's "+
+		"`carried by` line as block prose until 2026-09-21.\n")
 	t.Log(out.String())
 	if passed != len(cases) {
 		t.Errorf("%d of %d labelled case(s) cleared their floor", passed, len(cases))
