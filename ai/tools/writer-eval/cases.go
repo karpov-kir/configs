@@ -32,11 +32,11 @@ type Case struct {
 	// leaves the case scored on the site alone.
 	WantSummary string
 	WantNote    string
-	// Keeps is the wording the block has to carry, as alternatives of which one must appear. It serves
-	// the claims whose worth is an obligation. A note saying a table copies another states what is. A
-	// note saying it must match another states what is owed, and only that one tells a reader who
-	// changes one side that they owe the other.
-	Keeps []string
+	// Keeps is the wording the block has to carry: one group per `keeps:` line, alternatives inside a
+	// group, and every group has to be met. One group asks for one thing. Run 7 read a block that
+	// named a caller's act and left the site unnamed, and the case there asked for the caller alone
+	// and passed it on every roll.
+	Keeps [][]string
 	// Bars is the wording the block may not carry, as alternatives of which none may appear. It holds a
 	// shape a review already rejected at this site. A rule the writer reads can be rewritten, and a
 	// rewrite that reverses the reason for an earlier fix would let the rejected shape back without
@@ -130,14 +130,16 @@ func ParseCase(name, raw string) (Case, error) {
 		case "note":
 			c.WantNote = strings.ToLower(value)
 		case "keeps":
+			var group []string
 			for _, wording := range strings.Split(value, "|") {
 				if trimmed := strings.TrimSpace(wording); trimmed != "" {
-					c.Keeps = append(c.Keeps, strings.ToLower(trimmed))
+					group = append(group, strings.ToLower(trimmed))
 				}
 			}
-			if len(c.Keeps) == 0 {
+			if len(group) == 0 {
 				return c, fmt.Errorf("%s names no wording to keep", name)
 			}
+			c.Keeps = append(c.Keeps, group)
 		case "bars":
 			for _, wording := range strings.Split(value, "|") {
 				if trimmed := strings.TrimSpace(wording); trimmed != "" {
@@ -232,15 +234,17 @@ func JudgeCase(c Case, r Return) Verdict {
 	want(c.WantNote, "note", r.Note)
 	// A block the writer never wrote fails on its part already, and reporting the wording too would
 	// count one miss twice.
-	if len(c.Keeps) > 0 && r.Block != "" {
+	if r.Block != "" {
 		text := strings.ToLower(r.Text())
-		kept := false
-		for _, wording := range c.Keeps {
-			kept = kept || strings.Contains(text, wording)
-		}
-		if !kept {
-			v.Failures = append(v.Failures, Failure{"dropped-the-obligation",
-				"the block keeps none of: " + strings.Join(c.Keeps, ", ")})
+		for _, group := range c.Keeps {
+			kept := false
+			for _, wording := range group {
+				kept = kept || strings.Contains(text, wording)
+			}
+			if !kept {
+				v.Failures = append(v.Failures, Failure{"dropped-the-obligation",
+					"the block keeps none of: " + strings.Join(group, ", ")})
+			}
 		}
 	}
 	for _, wording := range c.Bars {

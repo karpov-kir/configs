@@ -59,7 +59,28 @@ const callDeadline = 4 * time.Minute
 // rolls fell short too. Three cases moved by two rolls between runs, and neither run touched any of
 // them. A case counts as passed only where every roll passed. The table prints the split, so a
 // reader sees the variance.
-const evalRolls = 5
+var evalRolls, rollsProblem = rollsFromEnv(os.Getenv(rollsEnv))
+
+const defaultRolls = 5
+
+// rollsEnv raises the roll count for one run. Five rolls cannot separate a rule that moved an answer
+// from a case that answers differently twice. l03 came back 0 of 5 and then 4 of 5 over two runs
+// whose rule text differed by one sentence, and that case reads neither. A question about what a
+// rule did to a case is asked at a roll count that can answer it.
+const rollsEnv = "WRITER_EVAL_ROLLS"
+
+// rollsFromEnv reads the roll count, and returns the reason where the value carries no positive
+// number. A silent fall back to five prints a table a reader places against the wrong run.
+func rollsFromEnv(set string) (int, string) {
+	if set == "" {
+		return defaultRolls, ""
+	}
+	count, err := strconv.Atoi(set)
+	if err != nil || count < 1 {
+		return defaultRolls, fmt.Sprintf("%s is %q, which is not a positive count", rollsEnv, set)
+	}
+	return count, ""
+}
 
 // labelledBar is what every labelled case has to do. A step decides a none and a rename, so those
 // clear every roll. The writer judges a written block, so that one clears writtenFloor.
@@ -75,7 +96,7 @@ const writtenFloor = 3
 // with" into "copies", which leaves a reader of the changed side unaware of what they owe. Every
 // part of that return was otherwise right, and the harness had no way to see the loss.
 func TestABlockThatDropsTheObligationFails(t *testing.T) {
-	c := Case{Name: "k08", Expect: ExpectWritten, Keeps: []string{"must match", "must stay in step"}}
+	c := Case{Name: "k08", Expect: ExpectWritten, Keeps: [][]string{{"must match", "must stay in step"}}}
 	dropped := Return{Block: "// This table copies the ledger's settlement map.", Summary: PartNone, Note: PartWritten}
 	if JudgeCase(c, dropped).Passed() {
 		t.Errorf("a block stating what is, where the claim states what is owed, passed")
@@ -158,6 +179,23 @@ func TestACaseCarriesItsCallersSeparatelyFromItsCode(t *testing.T) {
 	}
 	if _, err := ParseCase("k-typo", strings.Replace(raw, "--- callers", "--- calers", 1)); err == nil {
 		t.Errorf("a misspelt section name parsed, and its lines would join the code")
+	}
+}
+
+// A run that quietly fell back to five rolls would print a table a reader could not place against
+// another run's.
+func TestARollCountThatNamesNoNumberIsReported(t *testing.T) {
+	if count, problem := rollsFromEnv(""); count != defaultRolls || problem != "" {
+		t.Errorf("an unset value gave %d rolls and %q", count, problem)
+	}
+	if count, problem := rollsFromEnv("15"); count != 15 || problem != "" {
+		t.Errorf("15 gave %d rolls and %q", count, problem)
+	}
+	for _, bad := range []string{"0", "-3", "many"} {
+		count, problem := rollsFromEnv(bad)
+		if problem == "" {
+			t.Errorf("%q passed as a roll count, giving %d", bad, count)
+		}
 	}
 }
 
@@ -278,6 +316,9 @@ func callWriter(settings modelpolicy.Settings, text string) (string, error) {
 // TestWriterEval runs the labelled set through the real writer row and prints the table. It reads
 // the bar labelledBar names, which was written down before the first run.
 func TestWriterEval(t *testing.T) {
+	if rollsProblem != "" {
+		t.Fatal(rollsProblem)
+	}
 	if os.Getenv(evalEnv) == "" {
 		t.Skipf("%s is unset; this spends one model call per case", evalEnv)
 	}

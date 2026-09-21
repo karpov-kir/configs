@@ -913,9 +913,15 @@ func ScanFile(profile Profile, coined []string, allowed allowlist, file, content
 func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int {
 	profile := ProfileComment
 	counts := false
+	// The writer checks one block before it writes it, and a block is source where a revision range is
+	// a diff. The comment profile reads stdin as a diff, so a block piped to it holds no hunk and the
+	// run reports an empty scan. Run 7 put 17 bare identifiers over 8 files past the gate that way.
+	source := false
 flags:
 	for len(args) > 0 {
 		switch {
+		case args[0] == "--source":
+			source = true
 		case strings.HasPrefix(args[0], "--profile="):
 			named := Profile(strings.TrimPrefix(args[0], "--profile="))
 			switch named {
@@ -932,6 +938,10 @@ flags:
 		}
 		args = args[1:]
 	}
+	if source && profile != ProfileComment {
+		return out.refuseArguments(fmt.Errorf("--source reads a block with the comment profile's checks, "+
+			"and the %s profile has no blocks — the scan did NOT run", profile))
+	}
 	if counts && profile == ProfileComment {
 		return out.refuseArguments(errors.New("--per-file counts the findings in each path it is given, " +
 			"and the comment profile is handed a diff — the scan did NOT run"))
@@ -939,7 +949,7 @@ flags:
 
 	// The arguments are read before anything else, and refused with the grammar. The scan would instead
 	// hand the caller a git failure, which is silent about what this tool takes.
-	if profile == ProfileComment && len(args) > 0 && args[0] != "-" {
+	if profile == ProfileComment && !source && len(args) > 0 && args[0] != "-" {
 		if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
 			return out.refuseArguments(err)
 		}
@@ -965,10 +975,10 @@ flags:
 	}
 
 	var found []Finding
-	if profile == ProfileComment {
+	if profile == ProfileComment && !source {
 		found, err = s.scanChange(args, cwd, git, cfg, &over)
 	} else {
-		found, err = s.scanPaths(args, cwd, cfg, &over)
+		found, err = s.scanPaths(args, cwd, cfg, &over, source)
 	}
 	if err != nil {
 		return out.refuse(err)
@@ -1235,7 +1245,13 @@ func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
 
 // scanPaths reads the named files, or stdin for `-`. The prose profile's caller usually holds the
 // text rather than a path — a PR body being drafted — so stdin is the common form there.
-func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned) ([]Finding, error) {
+func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned, source bool) ([]Finding, error) {
+	read := func(file string, lines []string) []Finding {
+		if source {
+			return s.scanSource(file, lines, nil, lines)
+		}
+		return s.scanProse(file, lines)
+	}
 	if len(args) == 0 {
 		return nil, fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", s.profile)
 	}
@@ -1247,7 +1263,7 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned)
 				return nil, fmt.Errorf("stdin %v — exit 2, the scan did NOT run", err)
 			}
 			over.files++
-			found = append(found, s.scanProse("-", shell.SplitLines(string(body)))...)
+			found = append(found, read("-", shell.SplitLines(string(body)))...)
 			continue
 		}
 		path := arg
@@ -1270,7 +1286,7 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned)
 				shell.CutBytesMarked(shell.Oneline(arg), maxPathBytes))
 		}
 		over.files++
-		found = append(found, s.scanProse(arg, shell.SplitLines(string(body)))...)
+		found = append(found, read(arg, shell.SplitLines(string(body)))...)
 	}
 	return found, nil
 }
@@ -1344,7 +1360,8 @@ func reportCounts(out console, s scanner, profile Profile, args []string, cwd st
 	}
 	total := 0
 	for _, arg := range args {
-		found, err := s.scanPaths([]string{arg}, cwd, cfg, over)
+		// --per-file is refused with the comment profile, so these are prose paths.
+		found, err := s.scanPaths([]string{arg}, cwd, cfg, over, false)
 		if err != nil {
 			// The counts already printed stay on stdout. The caller pairs them back against the paths it
 			// asked for, and the last path with a line is where the run stopped.

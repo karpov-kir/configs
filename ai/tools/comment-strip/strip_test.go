@@ -442,3 +442,58 @@ func TestAStripWithNoArchiveCarriesOnlyTheStandingBlock(t *testing.T) {
 		t.Errorf("a run with no archive carried an earlier-run marker:\n%s", body)
 	}
 }
+
+// Run 7 offered 45 of 118 archived-only sites at a line their declaration had left, 6 on a blank
+// line. The record matched by its declaration and was offered at its recorded line. Code added over
+// a site then sent the writer to whatever had moved into its place.
+func TestAnArchivedSiteIsOfferedWhereItsDeclarationStandsNow(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "moved.go")
+	archive := filepath.Join(dir, "archive")
+	stripOnce(t, dir, path, archive, "package b\n\n// A fact about the vendor export.\nfunc gamma() {}\n", "facts1")
+	grown := "package b\n\nfunc alpha() {}\n\nfunc beta() {}\n\nfunc gamma() {}\n"
+	if err := os.WriteFile(path, []byte(grown), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts2"), "--archive=" + archive, path},
+		dir, noRepository, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
+	}
+	got := read(t, filepath.Join(dir, "facts2"), "1.facts")
+	site, _, _ := strings.Cut(got, "\n")
+	if want := path + ":7"; site != want {
+		t.Errorf("the site reads %q, want %q — gamma stands on line 7 and the record was written at 3", site, want)
+	}
+}
+
+// A record whose line still holds a standing block is that block's own history, and a rename makes
+// the two declarations differ. The declaration decided alone, so run 7 offered such a line twice:
+// once as the standing site, once as a site of its own.
+func TestARenamedDeclarationKeepsTheRecordAtItsOwnSite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "renamed.go")
+	archive := filepath.Join(dir, "archive")
+	stripOnce(t, dir, path, archive,
+		"package b\n\n// Claim about one.\nfunc getCodecsCheckString() {}\n\n// Claim about two.\nfunc other() {}\n", "facts1")
+	renamed := "package b\n\n// A newer claim about one.\nfunc newContentType() {}\n\n// Claim about two.\nfunc other() {}\n"
+	if err := os.WriteFile(path, []byte(renamed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	into := filepath.Join(dir, "facts2")
+	if code := Strip("comment-strip.sh", []string{"--facts=" + into, "--archive=" + archive, path},
+		dir, noRepository, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
+	}
+	found, err := filepath.Glob(filepath.Join(into, "*.facts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 2 {
+		t.Errorf("%d site(s), want 2 — the renamed declaration was offered as a site of its own", len(found))
+	}
+	if got := read(t, into, "1.facts"); !strings.Contains(got, "Claim about one") {
+		t.Errorf("the renamed site lost its earlier claim:\n%s", got)
+	}
+}

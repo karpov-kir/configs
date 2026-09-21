@@ -1,0 +1,14 @@
+expect: written
+note: written
+floor: 3
+keeps: soleEntryType
+keeps: so | because | which means
+why: run 7 read a block whose first fact carried a consequence and whose second left one to the reader, and a reviewer read the result as still confusing; the block has to say what this function does about the fact and not leave the reader to infer it; the reviewed set puts a consequence on every sentence in 7 of its 170 multi-sentence blocks, so this is the writer's rule and no check, and the case is what holds it
+labelled: 2026-09-21
+--- code
+export function soleEntryType(rows: LedgerRow[]): string | undefined {
+  const types = new Set(rows.map((row) => row.entryType));
+  return types.size === 1 ? [...types][0] : undefined;
+}
+--- facts
+The poster switches between rows that declare one entry type. This function returns undefined where several declare it.

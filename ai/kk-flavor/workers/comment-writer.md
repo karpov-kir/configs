@@ -67,11 +67,13 @@ Return the audit lines beside the block, one per line, as `term: <phrase> — id
 
 ## Check each block before you write it
 
-Run the edit lane's voice check over the block's text on stdin: `voice-check.sh --profile=prose -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `for the PR body`. Show the two rewrites: `attempt 1: <the part> - <the finding>` and `attempt 2: <the part> - <the finding>`, one to a line, above the part's `none`. A part you set out to write and answered `none` for, with no two attempts under it, is a part you skipped, and your caller returns it to you. The gate applies to each part on its own.
+Run the edit lane's voice check over the block on stdin: `voice-check.sh --profile=comment --source -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Pipe the block with the declaration it will sit on under it, which is the file the check reads. The prose profile leaves out bare-identifier, long-block and coined-identifier, and a run on 2026-09-21 put a block past it twice that the comment profile refused both times. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `for the PR body`. Show the two rewrites: `attempt 1: <the part> - <the finding>` and `attempt 2: <the part> - <the finding>`, one to a line, above the part's `none`. A part you set out to write and answered `none` for, with no two attempts under it, is a part you skipped, and your caller returns it to you. The gate applies to each part on its own.
 
 Then read the block once as the engineer opening this file for the first time, and restate it in one plain sentence. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `for the PR body`.
 
-Write the block into the file at the site, in the comment syntax the file's other blocks use, and change no other line.
+An allow entry in `comment-voice.conf` marks a sentence a reviewer settled. Keep such a sentence as it stands and write no part that replaces it, the way you leave a block the strip left standing.
+
+Write the block into the file at the site, in the comment syntax the file's other blocks use, and change no other line. Where the site's declaration declares members, a member's own line is part of this site, and a block written there is written at the site.
 
 ## Verdict
 
@@ -86,7 +88,7 @@ After the verdict lines, one line each: `stale: <site>: <claim>`, `carried by <w
 - Write a comment because the old one existed. The default is `none`.
 - End a site at question 1. That question decides the summary, and question 3 runs whatever it answered.
 - Read the facts file before question 3.
-- Run `git diff`, `git show` or `git log` over the change's range before question 3. The strip clears the tree and leaves the history, so a block you read there is the block you were sent to replace.
+- Run `git diff`, `git show` or `git log` over the change's range before question 3, where the output holds a comment line. The strip clears the tree and leaves the history, so a block you read there is the block you were sent to replace. Output whose lines are all code shows you no block, and it leaves the run clean.
 - Change a line of code. A code change you want is a `rename:` or `carried by` line for the refactor lane.
 - Rewrite a block the strip left standing. The strip removes what you are there to replace, so a
   block still in the file is one a check reads, and your words would take its reader's input away.
