@@ -143,6 +143,14 @@ func Shapes() []Shape {
 			`(?i)\b(as|than|like|so)\s+(the|a|an|its|their)\s+\w+\s+(does|do|did)\b`))},
 		{"negated-case", "summary", firstMatch(mustAll(
 			`(?i)\bor\s+[\w']+\s+(unless|except)\b`))},
+		// The positional words a reviewer read as unplaceable, where no backticked name sits in the
+		// sentence to place them. Proposed on 2026-09-20 and never measured until now.
+		{"positional-here", "either", func(s string) string {
+			if strings.Contains(s, "`") {
+				return ""
+			}
+			return firstMatch(mustAll(`(?i)\bhere\b`, `(?i)\bthis (question|cell)\b`))(s)
+		}},
 		{"long-sentence-15", "either", func(s string) string {
 			if WordCount(s) > 15 {
 				return s
@@ -361,6 +369,7 @@ type Report struct {
 	Unanchored Tally
 	BareIdent  Tally
 	OnAnEntry  Tally
+	Paraphrase Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -392,6 +401,7 @@ func Measure(files [][]string) Report {
 	unanchored := &Tally{Name: "note-opening-on-another-actor"}
 	bareIdent := &Tally{Name: "bare-identifier-in-a-note"}
 	onAnEntry := &Tally{Name: "note-on-a-data-entry"}
+	paraphrase := &Tally{Name: "paraphrased-identifier"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
@@ -439,6 +449,9 @@ func Measure(files [][]string) Report {
 				}
 				for _, bare := range BareIdentifiers(note, words) {
 					bareIdent.add(bare + " || " + note)
+				}
+				for _, said := range ParaphrasedIdentifiers(note, lines) {
+					paraphrase.add(said)
 				}
 			}
 		}
@@ -515,6 +528,7 @@ func Measure(files [][]string) Report {
 	rep.Unanchored = *unanchored
 	rep.BareIdent = *bareIdent
 	rep.OnAnEntry = *onAnEntry
+	rep.Paraphrase = *paraphrase
 	rep.SoUnnamed = *soUnnamed
 	return rep
 }
@@ -749,4 +763,39 @@ func standsOnData(lines []string, b Block) bool {
 		}
 	}
 	return false
+}
+
+// paraphraseWords is the fewest camel humps an identifier needs before its split words in prose read
+// as that identifier. The floor was measured at two, three and four humps: 41 of 304 notes, then 1,
+// then none.
+//
+// The check reports and never fires, because an identifier's camel words are usually the domain's
+// own phrase. `DeviceClaim` is named after "device claim", `contentType` after "content type", and
+// prose using those phrases is right while the identifier is the derivative. Every hit at two humps
+// is that shape, and the one at three is a specification's term.
+var paraphraseWords = 3
+
+// ParaphrasedIdentifiers returns the identifiers a note spells out in English instead of naming. A
+// reader given "the preferred key systems setting" has neither the name nor an explanation of it, so
+// the remedy is the name with an appositive, the same as a bare one.
+func ParaphrasedIdentifiers(note string, lines []string) []string {
+	low := strings.ToLower(note)
+	var out []string
+	seen := map[string]bool{}
+	for _, token := range identifierWord.FindAllString(strings.Join(lines, " "), -1) {
+		if seen[token] || strings.Contains(note, token) {
+			continue
+		}
+		humps := strings.Fields(camelBreak.ReplaceAllString(token, "$1 $2"))
+		if len(humps) < paraphraseWords {
+			continue
+		}
+		said := strings.ToLower(strings.Join(humps, " "))
+		if !strings.Contains(low, said) {
+			continue
+		}
+		seen[token] = true
+		out = append(out, token+" as \""+said+"\" || "+note)
+	}
+	return out
 }
