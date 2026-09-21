@@ -395,7 +395,7 @@ func Measure(files [][]string) Report {
 				}
 			}
 			// The keep test's first drop, as a step: a claim whose every content word the declaration
-			// already spells is shown by the body. Counted before it lands, like every rule here.
+			// already spells is shown by the body. The census counts it before it lands, like every rule here.
 			for _, note := range b.Notes() {
 				if survived, hadContent := Restates(note, words); hadContent && len(survived) == 0 {
 					shownBy.add(note)
