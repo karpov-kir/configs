@@ -2,8 +2,8 @@ package envbootstrap_test
 
 import "testing"
 
-// An option nobody understood must stop the run rather than ride along: this writes into $HOME, so a
-// typo carried past the parser is a machine changed by a command its human did not mean.
+// An unknown option must stop the run. This tool writes into $HOME, so a typo carried past the parser
+// changes the machine in a way its human did not mean.
 func TestAnUnknownOptionIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 	f := newFixture(t)
 
@@ -26,8 +26,8 @@ func TestHelpPrintsTheUsageLineAndChangesNothing(t *testing.T) {
 	f.expectAbsent(f.home + "/.config")
 }
 
-// The flag has to write nothing, or it is worse than not having it: someone checks with --dry-run and
-// it is the run that changed their machine.
+// A dry run that wrote anything would be worse than having no flag at all. Someone checks with it, and
+// the check is the run that changes their machine.
 func TestADryRunSaysWhatItWouldDoAndWritesNothing(t *testing.T) {
 	f := newFixture(t)
 

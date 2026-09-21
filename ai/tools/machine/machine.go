@@ -1,15 +1,13 @@
 // Package machine is everything outside this process that an installer touches: which commands this
-// machine has, and what they answer. One port for all of them rather than one per tool, because what
-// an installer decides on is always the same two facts, and a fake per command would be a fake per
-// case.
+// machine has, and what they answer. One port covers all of them, because every installer decides on
+// the same two facts, and a port per tool would mean a fake per case.
 //
-// The installers hold this and never os/exec. That is what lets their suites drive brew's
-// installed-first branch, rtk's argument list, and the exit codes the tools installer and the gate
-// answer with — none of which this machine could be asked to produce, and all of which are branches a
-// human's setup turns on.
+// An installer holds this interface and imports no os/exec, so its suite can drive brew's
+// installed-first branch, rtk's argument list, and the exit codes project-setup answers with. A
+// developer's own setup turns those branches on, and a suite cannot arrange one.
 //
-// The adapter below is the one part with no test of its own: nothing in it branches, and faking the
-// commands it runs would only assert the fake.
+// The adapter here has no test of its own. Its body branches on no condition, and faking the commands
+// it runs would only assert the fake.
 package machine
 
 import (
@@ -17,9 +15,8 @@ import (
 	"os/exec"
 )
 
-// Command is one invocation. A struct rather than a variadic call, because every caller sets at least
-// the name and the arguments and several set the environment, and a positional signature would put
-// the rarely-used ones where a reader cannot tell them apart.
+// Command is one invocation. Several callers set the environment or the directory, and a positional
+// signature would put those where a reader cannot tell them apart.
 type Command struct {
 	Name string
 	Args []string
@@ -37,9 +34,8 @@ type Command struct {
 type Machine interface {
 	// HasCommand is `command -v`: whether this machine can run it at all.
 	HasCommand(name string) bool
-	// Run executes the command and answers its exit code. A command that could not start at all answers
-	// 127, which is the shell's own code for it, so a caller reading an exit code never has to also
-	// handle an error that means the same thing.
+	// Run executes the command and answers its exit code. A command that could not start answers 127.
+	// That is the shell's own code for it, and a caller then reads one exit code for both.
 	Run(command Command) int
 }
 

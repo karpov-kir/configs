@@ -1,10 +1,10 @@
-// Package fake is a working machine the installers' suites drive instead of this one. Its own package
-// rather than a file beside the adapter, so nothing a release ships carries it.
+// Package fake is a working machine the installers' suites drive in place of the real one. It sits in
+// its own package, so a release ships none of it.
 //
-// Working, not canned: a case hands it a handler per command, and the handler decides both the exit
-// code and what the command did to the fixture — brew install marking a formula present, rtk writing
-// the file the next step reads. A fake that only returned codes could not express the installed-first
-// branch at all, which is the branch these installers spend most of their lines on.
+// A case hands it a handler per command. The handler decides the exit code and what the command did to
+// the fixture: brew install marks a formula present, and rtk writes the file the next step reads. A
+// fake that only returned canned codes could not reach the installed-first branch. These installers
+// spend most of their lines there.
 package fake
 
 import (
@@ -15,14 +15,15 @@ import (
 
 // Machine records every command it was asked to run and answers each one the way its case said to.
 type Machine struct {
-	// Present is the commands this machine has. A name with no entry is one `command -v` cannot find,
-	// which is the case every "X is not installed" refusal is driven by.
+	// Present is the commands this machine has. A name missing from this map is one `command -v` fails
+	// to find, which drives every "X is not installed" refusal.
 	Present map[string]bool
-	// Answer decides what one command does, keyed by its name. A name with no handler runs and exits 0,
-	// which is what most steps want and what keeps a case to the one command it is about.
+	// Answer decides what one command does, and its key is the command name. A name with no handler
+	// runs and exits 0, which is what most steps want and what keeps a case down to the command it is
+	// about.
 	Answer map[string]func(command machine.Command) int
-	// Calls is every command in the order it was asked for, so a case can assert on an argument list a
-	// tool's own behaviour depends on — rtk's init flags are the one that has been wrong.
+	// Calls is every command in the order it was asked for, so a case can assert on an argument list.
+	// rtk's init flags are the argument list that has been wrong before.
 	Calls []machine.Command
 }
 
@@ -38,8 +39,8 @@ func (m *Machine) Add(names ...string) *Machine {
 	return m
 }
 
-// Answering declares a command and what it does. Two steps in one, because a handler for a command
-// this machine does not have is a case whose assertion can never be reached.
+// Declares a command and what it does, in one step. A handler for a command this machine lacks is a
+// case whose assertion is never reached.
 func (m *Machine) Answering(name string, answer func(command machine.Command) int) *Machine {
 	m.Present[name] = true
 	m.Answer[name] = answer

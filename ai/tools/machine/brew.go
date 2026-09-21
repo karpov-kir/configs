@@ -1,11 +1,9 @@
 package machine
 
-// Both installers ask brew the same two questions, and both get one of them wrong the same way if it
-// is spelled out at the call site: `brew list --formula ghostty` answers no for a cask that is
-// installed, so a lookup without the kind reinstalls it on every run and reports a finished machine as
-// one needing work. The kind is carried rather than passed as a flag for that reason.
-//
-// What each installer does with the answers stays its own — the tiers differ, and so does the wording.
+// The env and ai installers ask brew the same two questions, and the kind travels with the name
+// through both. `brew list --formula ghostty` exits non-zero for an installed cask, and a call site
+// spelling the kind by hand reinstalls the cask on every run. What each installer does with the
+// answers stays its own, tiers and wording included.
 
 // PackageKind is which of brew's two catalogues a name lives in.
 type PackageKind int

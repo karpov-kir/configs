@@ -1,15 +1,9 @@
 package envbootstrap_test
 
-// The cases for the shell and editor install. What the mounting machinery does with a table —
-// refusing a real file, repointing a stale link, stopping at a second checkout — is driven in
-// ai/tools/installer's own suite against the same code; what is driven here is this installer's own
-// decisions: the table it declares, the flags it accepts, and the packages step.
-//
-// Every case gets a home of its own under t.TempDir(), and the run it drives is bounded to that same
-// tree with WriteRoot. The suite this replaces once handed every case the same home: a fixture write
-// followed a live symlink into the checkout and overwrote nvim/init.lua and starship/starship.toml in
-// the working tree. So the bound is read back after every run, and a breach fails the case as a guard
-// rather than as a result.
+// The cases for the shell and editor install. ai/tools/installer's own suite drives what the mounting
+// machinery does with a table: refusing a real file, repointing a stale link, stopping at a second
+// checkout. This suite drives the decisions this installer makes: the table it declares, the flags it
+// accepts, and the packages step.
 
 import (
 	"os"
@@ -38,6 +32,9 @@ type fixture struct {
 	err  strings.Builder
 }
 
+// Every case gets a home of its own under t.TempDir(). The suite this replaced shared one home, where
+// a fixture write followed a live symlink into the checkout and overwrote nvim/init.lua and
+// starship/starship.toml in the working tree.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	writer := installertest.New(t)
@@ -50,8 +47,8 @@ func newFixture(t *testing.T) *fixture {
 }
 
 // A checkout in the shape the second-checkout guard recognises: the installer under test at the root,
-// and the sources beside it. A fixture missing the installer would be turned away by the guard's last
-// condition and the case would be measuring that rather than what it named.
+// and the sources beside it. A fixture missing the installer is turned away by the guard's last
+// condition, and the case then measures that condition.
 func (f *fixture) newCheckout(root string) {
 	f.t.Helper()
 	f.Write(root+"/"+scriptName, "#!/usr/bin/env bash\n")
@@ -63,9 +60,9 @@ func (f *fixture) newCheckout(root string) {
 	f.Write(root+"/starship/starship.toml", "the prompt\n")
 }
 
-// The run a case drives, with everything it did not name taken from the fixture. Out, Err and
-// WriteRoot are the fixture's whatever a case says: a case that could print elsewhere is a case whose
-// output nothing reads, and one that could write elsewhere is the incident in this file's header.
+// The run a case drives, with everything it did not name taken from the fixture. Out and Err are the
+// fixture's, so every assertion reads the same output. WriteRoot bounds every write to this case's own
+// tree, and Breaches is read back afterwards, so a run that reached outside the tree fails as a guard.
 func (f *fixture) run(args ...string) int {
 	f.t.Helper()
 	f.out.Reset()
@@ -134,8 +131,6 @@ func (f *fixture) expectAbsent(path string) {
 	}
 }
 
-// --- the fixture writers ------------------------------------------------------------------------
-
 // --- brew, as a working machine --------------------------------------------------------------------
 
 // The fake machine with brew's own behaviour on it: a `list` answers non-zero until the matching
@@ -180,8 +175,7 @@ func (b *brewMachine) answer(command machine.Command) int {
 	return 0
 }
 
-// The machine that has brew but nothing installed through it, which is every case that does not say
-// otherwise.
+// Takes brew off this machine. Every other case runs with brew present and an empty install list.
 func (b *brewMachine) without() {
 	b.Present["brew"] = false
 }

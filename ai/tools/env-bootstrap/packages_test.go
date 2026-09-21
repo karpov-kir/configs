@@ -21,9 +21,8 @@ func TestAPackageAlreadyOnTheMachineIsNotInstalledAgain(t *testing.T) {
 	}
 }
 
-// A cask is asked for with its own flag on both halves. `brew list --formula ghostty` answers no for a
-// cask that is installed, so a run that dropped the flag would reinstall it on every pass and report a
-// finished machine as one needing work.
+// A cask is asked for with its own flag on both halves. `brew list --formula ghostty` exits non-zero
+// for an installed cask, and a run without the flag reinstalls it on every pass.
 func TestACaskIsInstalledAsACaskAndNotAsAFormula(t *testing.T) {
 	f := newFixture(t)
 
@@ -61,8 +60,8 @@ func TestAFailedInstallIsCollectedRatherThanEndingTheRun(t *testing.T) {
 	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
-// A machine without brew still gets every link. The refusal says which half did not happen, because a
-// run that mounted everything and installed nothing must not read as a finished machine.
+// A machine without brew still gets every link. The refusal is what keeps a half-done machine from
+// reading as a finished one.
 func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 	f := newFixture(t)
 	f.brew.without()
@@ -73,8 +72,8 @@ func TestAMachineWithoutBrewIsStillMountedAndSaysWhatItMissed(t *testing.T) {
 	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
-// Said out loud rather than passed over in silence. A skipped step that prints nothing reads exactly
-// like a step that was never reached, and every case in this suite but the ones above passes the flag.
+// A silent skip reads exactly like a step that was never reached, so the skip is said out loud. Most
+// of this package's cases pass the flag.
 func TestSkipBrewSaysItWasSkipped(t *testing.T) {
 	f := newFixture(t)
 
