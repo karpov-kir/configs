@@ -433,9 +433,9 @@ func runOver(t *testing.T, args ...string) (int, string, string) {
 	return run(args, &out, &errOut), out.String(), errOut.String()
 }
 
-// A tree holding one rule in two files. Nothing else this tool prints tells a caller a restatement
-// was found: exit 0 is what a clean tree gives and what a scan that read nothing would give too, so
-// the status and the headline are asserted together.
+// A tree holding one rule in two files. The headline is the only place this tool says a restatement
+// was found. Exit 0 is what a clean tree gives and what an empty scan gives too, so the status and
+// the headline are asserted together.
 func TestARuleStatedInTwoFilesIsReportedAndFailsTheRun(t *testing.T) {
 	root := t.TempDir()
 	const rule = "a shared rule stating several discriminating words plainly"
@@ -454,9 +454,9 @@ func TestARuleStatedInTwoFilesIsReportedAndFailsTheRun(t *testing.T) {
 	}
 }
 
-// The other half of the pair above, and the reason it is not enough alone: the same rule stated once
-// has to leave the run clean. Without this, a tool that failed every tree would satisfy the case
-// above.
+// The other half of the pair, and the reason the first case is short alone. The same rule stated
+// once has to leave the run clean. A tool that failed every tree would otherwise satisfy
+// TestARuleStatedInTwoFilesIsReportedAndFailsTheRun.
 func TestATreeWithNothingRestatedLeavesTheRunClean(t *testing.T) {
 	root := t.TempDir()
 	writeRule(t, root, "a/one.md", "a shared rule stating several discriminating words plainly")
@@ -470,9 +470,9 @@ func TestATreeWithNothingRestatedLeavesTheRunClean(t *testing.T) {
 	}
 }
 
-// The two ways a run cannot happen, and both are 2 rather than the 0 a clean tree exits. This is the
-// only cross-file restatement detector there is, so a scan that never ran must never reach a caller
-// as "nothing found".
+// The two ways a run cannot happen, and both are 2 where a clean tree exits 0. This is the only
+// cross-file restatement detector there is. A scan that never ran has to reach a caller as a
+// refusal, and an empty result would hide it.
 func TestARunThatCouldNotScanRefusesRatherThanReadingAsClean(t *testing.T) {
 	empty := t.TempDir()
 	if err := os.WriteFile(filepath.Join(empty, "notes.txt"), []byte("not markdown\n"), 0o600); err != nil {
@@ -501,16 +501,16 @@ func TestARunThatCouldNotScanRefusesRatherThanReadingAsClean(t *testing.T) {
 	}
 }
 
-// A partial read outranks the pair count. The restatement it did find is real and stays printed; what
-// the run cannot claim is that there are no others, and exit 1 would be read as the whole answer.
+// A partial read outranks the pair count. The restatement it did find is real and stays printed. The
+// run cannot claim there are no others, and exit 1 would be read as the whole answer.
 func TestAScanShownLessThanTheTreeExitsTwoEvenHavingFoundARestatement(t *testing.T) {
 	root := t.TempDir()
 	const rule = "a shared rule stating several discriminating words plainly"
 	writeRule(t, root, "a/one.md", rule)
 	writeRule(t, root, "b/two.md", rule)
 
-	// The control: without the unread path this same tree exits 1, so a 2 below comes from the path
-	// going unread rather than from the pair never having been found.
+	// The control. This same tree exits 1 with the unread path removed, so the 2 this case asserts
+	// comes from the path going unread. The pair was found either way.
 	if code, _, _ := runOver(t, root); code != 1 {
 		t.Fatalf("the fixture exits %d before anything is hidden, so this case proves nothing", code)
 	}

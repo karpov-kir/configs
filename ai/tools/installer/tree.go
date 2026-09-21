@@ -8,35 +8,39 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// tree is the filesystem a run writes through, and the one place a write is checked against the root
-// it is allowed to touch. Every mutating call goes through it; a write made with os directly is a
-// write the bound never saw.
+// tree is the filesystem a run writes through, and where a write is checked against the root it is
+// allowed to touch. Every mutating call goes through it. A write made with os directly is a write
+// the bound never saw.
 type tree struct {
 	// writeRoot is RunOptions.WriteRoot resolved physically. Empty is unbounded.
 	writeRoot string
 	onBreach  func(message string)
-	// linkCount is how many names a file has. A field because the answer it cannot give — a count
-	// nobody could read — is a state no filesystem here produces, and the write that would follow it
-	// shares somebody's private file.
+
+	// The answer this cannot give, an unreadable count, is a state no filesystem here produces, and
+	// the write that would follow it shares somebody's private file. That is why it is a field.
+
+	// linkCount is how many names a file has.
 	linkCount func(path string) (uint64, error)
 }
 
 func newTree(writeRoot string, onBreach func(message string)) *tree {
 	if writeRoot != "" {
-		// Resolved once, because a temp directory is handed back as /var/folders/… on macOS while /var
-		// is itself a symlink to /private/var. Comparing an unresolved root against resolved paths
-		// makes the check below refuse everything, and a guard that always fires gets deleted.
+		// The root is resolved once, because a temp directory is handed back as /var/folders/… on macOS
+		// and /var is itself a symlink to /private/var. An unresolved root compared against resolved
+		// paths makes contained refuse everything, and a guard that always fires gets deleted.
 		writeRoot = realDir(writeRoot)
 	}
 	return &tree{writeRoot: writeRoot, onBreach: onBreach, linkCount: statLinkCount}
 }
 
-// Whether this path may be written, asked before the write rather than noticed after it.
-//
-// The parent is resolved physically, following any symlink in it. A run leaves $home/.config/nvim
-// pointing into this checkout, and a later write at $home/.config/nvim/init.lua then lands in a real
-// config file in the working tree — which is the door a textual comparison of the path leaves open
-// and the one the incident in the package comment went through.
+// The parent is resolved physically, and any symlink in it is followed. A run leaves
+// $home/.config/nvim pointing into this checkout, and a later write at $home/.config/nvim/init.lua
+// then lands in a real config file in the working tree.
+
+// A textual comparison of the path leaves that door open, and the incident in the package comment
+// went through it.
+
+// Answers whether this path may be written. The question comes before the write.
 func (t *tree) contained(path string) error {
 	if t.writeRoot == "" {
 		return nil
@@ -58,16 +62,16 @@ func (t *tree) breach(path, reason string) error {
 	return errors.New(message)
 }
 
-// Link source at target, over a symlink already there.
-//
-// `ln -sfn`, minus the `-f` that would also unlink a regular file: the one target a link may be
-// written over is a symlink, which carries no data of its own, and the caller has already asked that
-// question. Clearing anything else here would put the deletion this package refuses to make behind a
-// name that reads as harmless.
-//
-// `-n` is the whole reason the old link is removed rather than written through: `ln -s X Y` where Y is
-// already a symlink to a directory creates the link INSIDE Y, which is how a stray link ends up in the
-// checkout.
+// `ln -sfn`, minus the `-f` that would also unlink a regular file. A link may be written over a
+// symlink alone, which carries no data of its own, and the caller has already asked that question. A
+// clearance of anything else here would put the deletion this package refuses to make behind a name
+// that reads as harmless.
+
+// `-n` is the whole reason the old link is removed instead of written through. `ln -s X Y` with Y
+// already a symlink to a directory creates the link INSIDE Y, and that is how a stray link ends up
+// in the checkout.
+
+// Links source at target, over a symlink already there.
 func (t *tree) symlink(source, target string) error {
 	if err := t.contained(target); err != nil {
 		return err
@@ -114,21 +118,23 @@ func (t *tree) appendLine(file, line string) error {
 	return handle.Close()
 }
 
-// The three ways replaceFile fails, held apart because each sends the reader somewhere different:
-// nowhere to put the new bytes, the new bytes could not be written, or the swap itself failed. Only
-// the first leaves nothing to clean up, and the second and third both leave the original as it was.
+// The three ways replaceFile fails, held apart because each sends the reader somewhere different.
+// There was nowhere to put the new bytes, the new bytes could not be written, or the swap failed.
+// The first has no temporary file to clean up, and the second and third both leave the original as
+// it was.
 var (
 	errNoTemporary = errors.New("could not create a temporary file")
 	errNotWritten  = errors.New("could not write the replacement")
 	errNotSwapped  = errors.New("could not swap the replacement in")
 )
 
-// Replace a file's contents through a temp file in its own directory, then rename. Same directory so
-// the rename is on one filesystem and therefore atomic: a killed run leaves the original untouched
-// rather than a half-written CLAUDE.md.
-//
-// The original's mode is carried over, so a file the human made executable or group-writable does not
-// silently come back as whatever the umask says.
+// The temp file goes in the same directory, so the rename is on one filesystem and therefore atomic.
+// A killed run leaves the original untouched, and a half-written CLAUDE.md stays impossible.
+
+// The original's mode is carried over, so a file the human made executable or group-writable does
+// not silently come back as whatever the umask says.
+
+// Replaces a file's contents through a temp file in its own directory, then renames.
 func (t *tree) replaceFile(file string, content []byte) error {
 	if err := t.contained(file); err != nil {
 		return err
@@ -157,18 +163,25 @@ func (t *tree) replaceFile(file string, content []byte) error {
 	return nil
 }
 
-// How many names this file has. A hardlinked file is neither a symlink nor a missing one, so nothing
-// else catches it — and the append path copies the file's existing contents into the replacement,
-// which for a link to somebody's private file copies that file into the project. The rename breaks
-// the link so the original is never modified, but the read has already happened, and this package has
-// no business reading a file its caller only named one name for.
-//
-// An answer that cannot be read is an error rather than one. A link count nobody established is the
-// case where writing might share someone's file, so it is the wrong place to assume the safe answer.
-// The shell reached that state routinely: `stat -c` is GNU's format flag and `-f` is BSD's, and on
-// Linux `stat -f` is --file-system, which prints a block of filesystem facts that a numeric
-// comparison silently reads as one link. Go asks the kernel, so the only way left is a filesystem
-// whose stat is not the platform's — which is why the field above is a seam.
+// A hardlinked file passes the symlink check and the existence check alike, so no other guard
+// catches it. The append path copies the file's existing contents into the replacement, so a link to
+// somebody's private file copies that file into the project.
+
+// The rename breaks the link, and the original is never modified. The read has already happened, and
+// this package has no business reading a file its caller named one name for.
+
+// An answer that cannot be read comes back as an error, and never as a count. An unestablished link
+// count is the case where writing might share someone's file. This is the wrong place to assume the
+// safe answer.
+
+// The shell reached that state routinely. `stat -c` is GNU's format flag and `-f` is BSD's. On Linux
+// `stat -f` is the filesystem flag, and it prints a block of facts a numeric comparison silently
+// reads as one link.
+
+// Go asks the kernel. The way left is a filesystem with a stat of its own, and that is why linkCount
+// is a seam.
+
+// Returns how many names this file has.
 func statLinkCount(path string) (uint64, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -190,9 +203,8 @@ func readLink(path string) (string, error) {
 	return os.Readlink(path)
 }
 
-// Whether this process may write to the file, which is access(2)'s answer and `[ -w ]`'s. Asked of
-// the kernel rather than read off the mode bits, because root ignores them and a capability grants
-// them without one.
+// Whether this process may write to the file, which is access(2)'s answer and `[ -w ]`'s. The kernel
+// is asked, because root ignores the mode bits and a capability grants write without them.
 func isWritable(path string) bool {
 	return syscall.Access(path, 0x2) == nil
 }

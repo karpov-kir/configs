@@ -105,7 +105,7 @@ func TestARootHoldingNoMarkdownRefuses(t *testing.T) {
 }
 
 // This tool takes exactly one root, and the two ways an argument list can fail to name one. A second
-// root silently measuring the first would report a tree nobody asked about at exit 0.
+// root silently measuring the first would report a tree the caller never asked about, at exit 0.
 func TestAnArgumentListThatNamesNoSingleRootIsARefusalWithTheUsageGrammar(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "caller.md", "# C\n")
@@ -120,8 +120,8 @@ func TestAnArgumentListThatNamesNoSingleRootIsARefusalWithTheUsageGrammar(t *tes
 	}
 }
 
-// A root that is not there reads nothing, and reading nothing is not a flat tree. Exit 0 here would
-// hand three skills a depth of 0 for a tree this never opened.
+// A missing root reads as an empty tree, and an empty read differs from a flat tree. Exit 0 here
+// would hand three skills a depth of 0 for a tree this never opened.
 func TestARootThatDoesNotExistRefuses(t *testing.T) {
 	code, out, errOut := runOver(t, filepath.Join(t.TempDir(), "absent"))
 	if code != 2 {
@@ -136,8 +136,8 @@ func TestARootThatDoesNotExistRefuses(t *testing.T) {
 }
 
 // Markdown with no citation between any of it. The tool measures that tree as flat and says so at
-// exit 0 — the same status a report exits with, which is why the depth figure and not the status is
-// what a caller reads. Told apart from the refusal above only by the number.
+// exit 0. A report exits with that same status, so the depth figure is what a caller reads. The
+// number is what tells this case apart from TestARootThatDoesNotExistRefuses.
 func TestATreeWithNoCitationIsMeasuredAsFlatRatherThanRefused(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "plain.md", "# Plain\n\n## A section nobody cites\n")
@@ -154,8 +154,8 @@ func TestATreeWithNoCitationIsMeasuredAsFlatRatherThanRefused(t *testing.T) {
 	}
 }
 
-// DEPTH is the longest path through the graph, so a chain of two hops has to come back as 2 and not
-// as the 1 a single edge gives. The paragraph above the figure has already been rewritten once; the
+// DEPTH is the longest path through the graph. A chain of two hops has to come back as 2, where a
+// single edge gives 1. The paragraph around the figure has already been rewritten once, and the
 // number is what survives that.
 func TestAChainOfTwoHopsReportsDepthTwo(t *testing.T) {
 	root := t.TempDir()
@@ -172,9 +172,9 @@ func TestAChainOfTwoHopsReportsDepthTwo(t *testing.T) {
 	}
 }
 
-// A root path a human really wrote: a space in it, and a character outside ASCII. Every path the tool
-// builds hangs off this one, so a root it mangles is measured somewhere else — and that reads as a
-// report of the tree it was given.
+// A root path a human really wrote: a space in it, and a character outside ASCII. Every path the
+// tool builds hangs off this one. A root it mangles is measured somewhere else, and the output still
+// reads as a report of the tree it was given.
 func TestARootPathHoldingASpaceAndANonAsciiCharacterIsMeasuredWhole(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "rôot with spaces")
 	write(t, root, "std/proto.md", "# P\n\n## Caller\n")

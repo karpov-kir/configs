@@ -1,22 +1,26 @@
-// Cases for the handoff gate. Every check is paired with its negative control: the clean draft passes,
-// and each case is that same draft broken in exactly one way. Without the pair, a gate that had
-// stopped reading the file would satisfy every refusal case and fail nothing.
-//
-// Nothing here forks git. The gate asks a repository four things — that the directory is a work tree,
-// whether the base commit resolves, whether the tree is dirty, and how `repo-key` abbreviates it — and
-// a `repotest.Fake` answers all four. That a real git answers them the way these cases assume is
-// `repo/exec_test.go`'s. What stays on disk is the directory itself and a HEAD under its git dir,
-// because the gate resolves the path a draft has to name and `repo-key` reads that HEAD to refuse a
-// path that is not a git dir. One repository serves the whole suite, so nothing here runs in parallel:
-// two cases would otherwise disagree about whether the tree is dirty.
-//
-// One guard has no case and is named rather than quietly absent. "could not resolve" sits behind a
-// successful IsDir, so reaching it needs the directory to disappear between two statements, and no
-// fixture worth building does that.
-//
-// Nothing here reads outside the module. The case that ran this gate over the shipped handoff template
-// is `ai/tools/shipped_handoff_template_test.go`, in the package `ai/gate.sh` forces: Go keys its test
-// cache on the module, so a case here would have answered `ok (cached)` over a template that changed.
+// Cases for the handoff gate. Every check is paired with its negative control. The clean draft
+// passes, and each case is that same draft broken in exactly one way. A gate that had stopped
+// reading the file would otherwise satisfy every refusal case and fail none of them.
+
+// No case here forks git. The gate asks a repository four things: that the directory is a work tree,
+// whether the base commit resolves, whether the tree is dirty, and how `repo-key` abbreviates it. A
+// `repotest.Fake` answers all four. That a real git answers them the way these cases assume is
+// `repo/exec_test.go`'s.
+
+// What stays on disk is the directory itself and a HEAD under its git dir. The gate resolves the
+// path a draft has to name, and `repo-key` reads that HEAD to refuse a path that is no git dir.
+
+// One repository serves the whole suite, so these cases run in sequence. Two cases in parallel would
+// disagree about whether the tree is dirty.
+
+// One guard is named here, with no case behind it. "could not resolve" sits behind a successful
+// IsDir, so reaching it needs the directory to disappear between two statements. No fixture worth
+// building does that.
+
+// No case here reads outside the module. The case that ran this gate over the shipped handoff
+// template is `ai/tools/shipped_handoff_template_test.go`, in the package `ai/gate.sh` forces. Go
+// keys its test cache on the module, and a case here would have answered `ok (cached)` over a
+// template that changed.
 package handoffcheck
 
 import (
@@ -43,13 +47,13 @@ const (
 	fixtureAbbrev = "HF"
 )
 
-// The base commit every fixture holds: twelve hex, the length a session writes an abbreviated SHA down
-// at, and distinct from the `0123456789ab` the cases below hand a repository that does not hold it.
+// The base commit every fixture holds: twelve hex, the length a session writes an abbreviated SHA
+// down at. It is distinct from the `0123456789ab` a case hands a repository that lacks it.
 const fixtureSHA = "9f2a1c0b7de4"
 
-// The one repository every case runs against, its resolved path, and the port answering for it. Built
-// once in TestMain, and nothing here changes what a later case reads except the dirty-tree pair, which
-// puts the tree back.
+// The single repository every case runs against, its resolved path, and the port answering for it.
+// TestMain builds it once. The dirty-tree pair is the only case that changes what a later case
+// reads, and it puts the tree back.
 var (
 	fixtureRepo string
 	fixturePath string
@@ -76,14 +80,16 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// newRepo is a directory the gate can be pointed at and the port that answers for it: a work tree
-// holding one commit, a clean tree, and a shared git dir whose parent name is what `repo-key`
-// abbreviates. Two things are real on disk and both have to be — the gate resolves the path a draft
-// must name, and `repo-key` refuses a git dir with no HEAD in it, which is how the no-abbreviation
-// case below is arranged.
-//
-// os.MkdirTemp hands back a symlinked path on macOS, so a draft quoting the path as created would not
-// match what the gate compares against.
+// newRepo is a directory the gate can be pointed at and the port that answers for it. That is a work
+// tree holding one commit, a clean tree, and a shared git dir whose parent name is what `repo-key`
+// abbreviates.
+
+// Two things are real on disk and both have to be. The gate resolves the path a draft must name, and
+// `repo-key` refuses a git dir with no HEAD in it. The case for a repository lacking an abbreviation
+// is arranged that way.
+
+// os.MkdirTemp hands back a symlinked path on macOS. A draft quoting the path as created then fails
+// to match what the gate compares against.
 func newRepo(dir string) (repoDir, resolved string, git *repotest.Fake, err error) {
 	git = repotest.New(dir)
 	if err = os.MkdirAll(git.Git, 0o755); err != nil {
@@ -703,7 +709,7 @@ func TestNoLineLeavesTheGateCarryingAControlByte(t *testing.T) {
 	if !strings.Contains(path, "\x1b") {
 		t.Skipf("the filesystem did not keep the escape in %q, so this proves nothing", path)
 	}
-	// Dirty, so `dirtyNote` speaks on every case below; no other case reads this repository.
+	// Dirty, so `dirtyNote` speaks on every case in this block. No other case reads this repository.
 	git.StatusLines = []string{"?? untracked.txt"}
 	for _, tc := range []struct {
 		name     string
@@ -804,14 +810,15 @@ func TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository(t *testing.T) {
 		[]string{"no repository named in: Where it starts"}, []string{"the title opens with"})
 }
 
-// The prefix is held against an abbreviation only where there is one. A directory the gate is told is
-// a work tree but that `repo-key` cannot name leaves the prefix unread, rather than refusing a draft
-// on a comparison the gate could not make.
-//
-// The repository answers every other question and still yields no abbreviation: its shared git dir is
-// a directory holding no HEAD, which is what `repo-key` refuses on. Arranged rather than found — this
-// case used to probe whether its temporary directory sat inside a clone and skip where it did, and a
-// skip proves nothing about the guard.
+// The prefix is held against an abbreviation only where there is one. A directory the gate is told
+// is a work tree but that `repo-key` cannot name leaves the prefix unread, and the draft survives a
+// comparison the gate could not make.
+
+// The repository answers every other question and still yields no abbreviation. Its shared git dir
+// is a directory with no HEAD in it, which is what `repo-key` refuses on.
+
+// The case arranges that state instead of looking for it. It used to probe whether its temporary
+// directory sat inside a clone and skip where it did, and a skip proves no point about the guard.
 func TestAPrefixIsUnreadWhereTheRepositoryHasNoAbbreviation(t *testing.T) {
 	dir, path, git, err := newRepo(filepath.Join(t.TempDir(), "unnameable"))
 	if err != nil {

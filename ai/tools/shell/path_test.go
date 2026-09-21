@@ -8,7 +8,7 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// A checkout reached through the bucket link, which is the shape every stub is invoked in: the
+// A checkout reached through the bucket link, which is the shape every stub is invoked in. The
 // installers mount `~/.kk-flavor` at a checkout's `ai/kk-flavor`, and the sibling scripts sit one
 // level above it. Answers the base, so a case can build the path it means and the answer it wants
 // from the same directory.
@@ -34,11 +34,12 @@ func checkoutThroughABucket(t *testing.T) string {
 }
 
 // The path a repository's post-checkout hook runs: through the bucket link and back out of it with
-// `..`. The bucket is a link into a checkout, so that `..` means the checkout's `ai/` and nothing
-// else — while cleaning it against the name it was reached by means the home directory, where no stub
-// has ever been. A resolution that cleans before it follows answers a path that does not exist, and
-// the hook then fails on every checkout.
-//
+// `..`. The bucket is a link into a checkout, so that `..` means the checkout's `ai/` alone.
+
+// The same `..` cleaned against the name it was reached by names the home directory instead, where
+// no stub has ever been. A resolution that cleans before it follows answers a path that is absent,
+// and the hook then fails on every checkout.
+
 // Both spellings, because argv[0] is whatever the human or the hook typed.
 func TestOwnDirectoryFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
 	base := checkoutThroughABucket(t)
@@ -60,13 +61,13 @@ func TestOwnDirectoryFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
 }
 
 // RealPath is realpath(1): absolute, and symlinks followed. Every caller records or compares the
-// answer, so a relative spelling that survives is a bug rather than a cosmetic difference — an
-// install registry entry reading `.` names a different directory for every later reader, and a guard
-// holding `.` against an absolute home never matches the home it is guarding.
-//
-// The `.kk-flavor/..` row is the one that separates this from filepath.Abs followed by
-// filepath.EvalSymlinks: Abs cleans that `..` away before anything follows the link, and answers a
-// directory that exists and is the wrong one.
+// answer, so a relative spelling that survives is a bug. An install registry entry reading `.` names
+// a different directory for every later reader. A guard holding `.` against an absolute home never
+// matches the home it is guarding.
+
+// The `.kk-flavor/..` row is what separates this from filepath.Abs followed by
+// filepath.EvalSymlinks. Abs cleans that `..` away before anything follows the link, and it answers
+// a directory that exists and is the wrong one.
 func TestRealPathIsAbsoluteAndPhysicalWhateverTheCallerTyped(t *testing.T) {
 	base := checkoutThroughABucket(t)
 	t.Chdir(base + "/home")
@@ -210,10 +211,12 @@ func TestFnmatchStarBacktracks(t *testing.T) {
 	}
 }
 
-// CanonicalDir answers the same question RealPath does, narrowed to a directory, so it has to answer
-// it the same way. The `..` row is the whole case: a bucket link into a checkout, stepped back out of
-// with `..`, names the checkout's own parent and nothing else — while cleaning that `..` against the
-// name the path was reached by names the home directory, which is a real directory and the wrong one.
+// CanonicalDir answers RealPath's question about a directory, so it has to answer it the same way.
+
+// The `..` row is the whole case. A bucket link into a checkout, stepped back out of with `..`,
+// names the checkout's `ai/` and that alone. The same `..` cleaned against the name the path was
+// reached by names the home directory, which is a real directory and the wrong one.
+
 // A containment test comparing against the wrong real directory refuses what it should admit.
 func TestCanonicalDirFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
 	base := checkoutThroughABucket(t)
@@ -235,12 +238,12 @@ func TestCanonicalDirFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
 	}
 }
 
-// IsWithin is the one containment test these tools make, and every copy of it answered the equality
-// case differently until they were folded together. Both sides arrive already resolved, so nothing
-// here cleans or follows anything: this is the comparison, not the resolution.
-//
+// IsWithin is the single containment test these tools make, and every copy of it answered the
+// equality case differently until they were folded together. Both sides arrive already resolved, so
+// this compares and never resolves.
+
 // The empty rows are the bug a single copy prevents. A resolver that could not answer hands back the
-// empty string, and `strings.HasPrefix(path, ""+"/")` is true for EVERY absolute path — so a guard
+// empty string. `strings.HasPrefix(path, ""+"/")` is then true for EVERY absolute path, and a guard
 // written that way admits the whole filesystem at exactly the moment it knows least.
 func TestIsWithinHoldsTheRootItselfAndRefusesWhatOnlySharesAPrefix(t *testing.T) {
 	for _, c := range []struct {
@@ -266,12 +269,12 @@ func TestIsWithinHoldsTheRootItselfAndRefusesWhatOnlySharesAPrefix(t *testing.T)
 	}
 }
 
-// The ancestor a write is judged by: the deepest thing above a path that a symlink could still
-// redirect, since the names below it do not exist yet and redirect nothing.
-//
-// A DIRECTORY, never merely a name that resolves. A regular file resolves perfectly well, and a walk
-// stopping there judges the write by something no write can ever land under — which is how a test
-// fixture guarding the same bound as the code can guard a different one.
+// The ancestor a write is judged by: the deepest point over a path that a symlink could still
+// redirect. The names under it exist nowhere yet, so none of them can redirect a write.
+
+// A DIRECTORY, and never merely a name that resolves. A regular file resolves perfectly well, and no
+// write can land under one. A walk stopping there judges the write by such a path, which is how a
+// test fixture guarding the same bound as the code can guard a different one.
 func TestNearestExistingParentClimbsToADirectoryAndResolvesIt(t *testing.T) {
 	base := checkoutThroughABucket(t)
 

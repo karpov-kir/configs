@@ -1,13 +1,15 @@
 package installer_test
 
 // The bound itself. Every other case in this package is written on the assumption that a run cannot
-// write outside the tree it was given, so that assumption needs cases of its own — including the
-// control, because a guard that refuses everything would satisfy the two refusals below and a guard
-// that refuses nothing would satisfy none of them while looking exactly as quiet.
-//
-// The root here is a subdirectory of the case's own temp directory, and the paths a case aims outside
-// it are still inside that temp directory. A broken guard then writes somewhere harmless and the
-// assertion catches it; aiming at a real path outside would make the negative control the incident.
+// write outside the tree it was given, and that assumption needs cases of its own.
+
+// The control is among them. A guard that refuses every write would satisfy the two refusal cases
+// here. A guard that refuses no write would fail them both, while looking exactly as quiet.
+
+// The root here is a subdirectory of the case's own temp directory, and the paths a case aims
+// outside it are still inside that temp directory. A broken guard then writes somewhere harmless and
+// the assertion catches it. A case aimed at a real path outside would make the negative control the
+// incident.
 
 import (
 	"os"
@@ -80,9 +82,9 @@ func TestTheBoundRefusesAWriteOutsideTheTreeItWasGiven(t *testing.T) {
 		}
 	})
 
-	// The control, and the load-bearing half: a guard that refused everything would pass both cases
-	// above, and every other case in this package would then be asserting against a run that writes
-	// nothing at all.
+	// The control, and the half that carries the rest. A guard that refused every write would pass
+	// both cases here, and every other case in this package would then assert against a run that
+	// writes no file at all.
 	t.Run("while a write inside the root goes through", func(t *testing.T) {
 		base, run, _ := newBoundedRun(t)
 		run.AddConfig(base+"/checkout/"+scriptName, base+"/sandbox/.zshrc")
@@ -98,8 +100,8 @@ func TestTheBoundRefusesAWriteOutsideTheTreeItWasGiven(t *testing.T) {
 	})
 }
 
-// An unbounded run is what an installer on a real machine is, and nothing in it may read as a breach —
-// otherwise the field that exists for the suites would change what production does.
+// An unbounded run is what an installer on a real machine is, and no write in it may read as a
+// breach. The field that exists for the suites would otherwise change what production does.
 func TestAnUnboundedRunRecordsNoBreach(t *testing.T) {
 	t.Parallel()
 	base := installertest.Physical(t, t.TempDir())

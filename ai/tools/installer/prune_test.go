@@ -1,11 +1,12 @@
 package installer_test
 
-// The mounts a run wrote and no longer has a source for. A skill renamed or deleted takes its source
-// directory with it, and nothing in the mount table names the old target any more — so link never sees
-// it, and the link left under the mount directory resolves into a directory no checkout has.
-//
-// It is the one deletion this package makes, so every case here is about the signature staying narrow:
-// what it takes, and the four shapes beside it that it must leave exactly where they are.
+// The mounts a run wrote whose source has gone. A skill renamed or deleted takes its source
+// directory with it, and the mount table stops naming the old target. Link never sees it. The link
+// left under the mount directory resolves into a directory no checkout has.
+
+// It is the single deletion this package makes, so every case here is about the signature staying
+// narrow. That means what it takes, and the four shapes beside it that it must leave exactly where
+// they are.
 
 import (
 	"strings"
@@ -36,20 +37,20 @@ func TestAMountWhoseSourceIsGoneIsDropped(t *testing.T) {
 	f.expectLinkTo(f.skillsMount()+"/kk-build", f.repo+"/skills/kk-build")
 }
 
-// The summary claims only what it checked, so each of these has to be left alone AND counted as
-// nothing: a run that removed one of them would still print the same line.
+// The summary claims only what it checked, so each of these has to be left alone AND left out of the
+// count. A run that removed one of them still prints the same line.
 func TestTheSweepLeavesEverythingItCannotProveItWrote(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	f.newSkill("kk-build")
 	f.MkdirAll(f.skillsMount())
-	// A relative link, which this package never writes: resolved against this process's working
-	// directory instead of against the link that holds it, `skills/kk-relative` would name some other
-	// tree's skills and be swept with the mount beside it.
+	// A relative link, which this package never writes. It resolves against this process's working
+	// directory, and the link that holds it goes unconsulted. `skills/kk-relative` would then name some
+	// other tree's skills and be swept with the mount beside it.
 	f.Symlink("skills/kk-relative", f.skillsMount()+"/kk-relative")
 	// A dangling link the human made themselves, pointing nowhere near the source root.
 	f.Symlink(f.base+"/a-skill-of-my-own", f.skillsMount()+"/hand-made")
-	// A dangling mount from another checkout — theirs to sweep, not this run's.
+	// A dangling mount from another checkout, which is theirs to sweep.
 	f.MkdirAll(f.base + "/another-checkout/skills")
 	f.Symlink(f.base+"/another-checkout/skills/kk-gone", f.skillsMount()+"/kk-gone")
 	// And a real directory somebody copied in.
@@ -83,13 +84,13 @@ func TestADryRunOverAStaleMountRemovesNothing(t *testing.T) {
 	f.expectSymlink(f.skillsMount() + "/kk-was-renamed")
 }
 
-// A source root the run cannot read, and one that resolves and holds nothing. Both leave every mount
-// of this checkout's dangling at once, so an ungated loop reads the machine's whole set as deleted and
-// takes it — then reports that nothing was mounted.
-//
-// The second is the one the loop can act on: an unreadable root leaves every mount's own source
-// unreadable too, so that arm is safe by accident. A root emptied by a half-finished checkout is not a
-// set of deletions anybody made.
+// A source root the run cannot read, and one that resolves and holds no source. Both leave every
+// mount of this checkout's dangling at once, so an ungated loop reads the machine's whole set as
+// deleted and takes it. It then reports an empty mount directory.
+
+// The second is the case the loop can act on. An unreadable root leaves every mount's own source
+// unreadable too, so that arm is safe by accident. A root emptied by a half-finished checkout is a
+// set of deletions no human made.
 func TestASourceRootThatSaysNothingStopsTheSweep(t *testing.T) {
 	t.Parallel()
 	newHomeWithAStaleMount := func(t *testing.T) *fixture {
@@ -130,14 +131,15 @@ func TestASourceRootThatSaysNothingStopsTheSweep(t *testing.T) {
 	})
 }
 
-// A skill directory name is text a branch chose, and the removal above quotes it straight back to the
-// terminal. `ESC[2K` erases the line it lands in and `ESC[1A` moves to the line above, so a name
-// carrying either can wipe the one record that a deletion happened, or the refusal beside it.
-//
-// Only ESC is exercised through a NAME: APFS refuses a filename that is not valid UTF-8, so a raw 0x9b
-// — the CSI an 8-bit terminal acts on, and the one byte the shell could not reach — cannot be spelled
-// as a directory here. It reaches a message through file content instead, in the audience case next
-// door.
+// A skill directory name is text a branch chose, and the removal message quotes it straight back to
+// the terminal. `ESC[2K` erases the line it lands in and `ESC[1A` moves the cursor up one line. A
+// name carrying either can wipe the sole record that a deletion happened, or the refusal beside it.
+
+// ESC alone is exercised through a NAME. APFS refuses a filename that is invalid UTF-8, so a raw
+// 0x9b cannot be spelled as a directory here. That byte is the CSI an 8-bit terminal acts on, and
+// the byte the shell could never reach.
+
+// A raw 0x9b reaches a message through file content instead, in the audience case next door.
 func TestAMountWhoseNameCarriesAControlByteStillReportsAsOneLine(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -147,8 +149,8 @@ func TestAMountWhoseNameCarriesAControlByteStillReportsAsOneLine(t *testing.T) {
 	f.newSkill(gone)
 	f.mountSkills([]string{"kk-stays", gone}, installer.RunOptions{})
 
-	// The control, and the load-bearing half: without it every assertion below is equally satisfied by
-	// a run that never mounted the name, and the case would be measuring nothing.
+	// The control, and the half that carries the rest. Every assertion that follows is otherwise
+	// equally satisfied by a run that never mounted the name, and the case would measure that instead.
 	f.expectSymlink(f.skillsMount() + "/" + gone)
 
 	f.RemoveAll(f.repo + "/skills/" + gone)

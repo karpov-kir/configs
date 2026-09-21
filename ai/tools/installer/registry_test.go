@@ -1,8 +1,9 @@
 package installer_test
 
-// Which projects this machine installed into. The load-bearing case is the self-healing one: a
-// registry that keeps naming a directory the human deleted makes an uninstall say another project
-// still needs the shared bucket, which is false and stops a human finishing a removal they meant.
+// Which projects this machine installed into. The case that carries the rest is the self-healing
+// one. A registry that keeps naming a directory the human deleted makes an uninstall say another
+// project still needs the shared bucket. That is false, and it stops a human finishing a removal
+// they meant.
 
 import (
 	"os"
@@ -49,8 +50,7 @@ func TestAProjectIsRecordedOnceHoweverOftenItIsInstalled(t *testing.T) {
 }
 
 // The whole reason reading and pruning are one call. A caller able to read without pruning gets the
-// stale answer, and the stale answer is the one that blocks a removal for a project that is not there
-// any more.
+// stale answer, and that answer blocks a removal for a project the machine has already lost.
 func TestAReadPrunesTheProjectsThatAreGone(t *testing.T) {
 	t.Parallel()
 	f, run := newRegistryFixture(t)
@@ -68,8 +68,8 @@ func TestAReadPrunesTheProjectsThatAreGone(t *testing.T) {
 	}
 }
 
-// A human who opens this file to see what is in it may well annotate it, and eating their note while
-// pruning dead projects is a poor answer to a question they did not ask.
+// A human who opens this file to see what is in it may well annotate it. A note eaten during a prune
+// of dead projects is a poor answer to a question they did not ask.
 func TestACommentIsNotReadBackAsAProjectAndSurvivesThePrune(t *testing.T) {
 	t.Parallel()
 	f, run := newRegistryFixture(t)
@@ -111,7 +111,7 @@ func TestForgettingAProjectIsIdempotent(t *testing.T) {
 	f.expectRefusals(run, 0)
 }
 
-// A missing registry is not an error: it is a machine that has installed into no project.
+// A missing registry is no error. It is a machine that has installed into no project.
 func TestAMachineWithNoRegistryReadsCleanAndForgetsCleanly(t *testing.T) {
 	t.Parallel()
 	f, run := newRegistryFixture(t)

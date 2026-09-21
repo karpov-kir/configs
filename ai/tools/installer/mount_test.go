@@ -1,9 +1,11 @@
 package installer_test
 
-// Linking, and the two rules that must not be weakened: a real file at a target is refused rather than
-// deleted, and a machine mounted from another checkout is left alone rather than moved here. The
-// hand-run form of the first is `rm -rf ~/.config/nvim && ln -s …`, and this package exists to not be
-// that — so a regression there is silent data loss on somebody's machine rather than a failing check.
+// Linking, and the two rules that must hold. A real file at a target is refused, and it survives. A
+// machine mounted from another checkout is left alone where it is.
+
+// The hand-run form of the first rule is `rm -rf ~/.config/nvim && ln -s …`, and this package exists
+// to replace that. A regression there is silent data loss on somebody's machine, and the check here
+// is what turns it into a failure instead.
 
 import (
 	"strings"
@@ -26,16 +28,16 @@ func TestAFreshMachineGetsEveryLink(t *testing.T) {
 	f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
 	f.expectLinkTo(f.home+"/.config/starship.toml", f.repo+"/starship/starship.toml")
 
-	// A parent the README creates by hand: ~/.config does not exist on a fresh machine, and a link into
-	// a missing directory fails rather than creating it.
+	// A parent the README creates by hand. ~/.config is absent on a fresh machine, and a link into a
+	// missing directory fails where it would have to create one.
 	t.Run("and a missing parent directory is created", func(t *testing.T) {
 		f.expectDir(f.home + "/.config")
 	})
 
-	// A machine with nothing mounted yet has nothing for the second-checkout guard to protect, so it
-	// must pass straight through. Asserted on the wording rather than on the exit, because a guard that
-	// printed nothing when it passes is indistinguishable from one that was never reached — and this
-	// one runs on every machine that is already set up.
+	// A machine with no mount yet leaves the second-checkout guard an empty table, so it must pass
+	// straight through. The assertion reads the wording, because a silent guard is
+	// indistinguishable from one that was never reached. This guard runs on every machine already set
+	// up.
 	t.Run("and the second-checkout guard passes rather than staying silent", func(t *testing.T) {
 		f.expectSaid("no mount on this machine comes from another checkout")
 	})
@@ -72,8 +74,8 @@ func TestALinkDifferingOnlyByATrailingSlashIsLeftAlone(t *testing.T) {
 	f.expectNotSaid("repointed " + f.home + "/.config/nvim")
 }
 
-// A symlink carries no data of its own, so repointing one loses nothing — it is the only target a link
-// may be written over, and a stale one is what an older layout leaves behind.
+// A symlink carries no data of its own, and a repoint therefore loses none. It is the single target
+// a link may be written over, and a stale one is what an older layout leaves behind.
 func TestAStaleSymlinkIsRepointedRatherThanRefused(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -89,9 +91,9 @@ func TestAStaleSymlinkIsRepointedRatherThanRefused(t *testing.T) {
 
 func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
 	t.Parallel()
-	// The README's hand-run form is `rm -rf ~/.config/nvim && ln -s …`. Doing that unattended destroys
-	// a real config. The body is asserted afterwards, so a version that refused AND deleted would still
-	// fail here.
+	// The README's hand-run form is `rm -rf ~/.config/nvim && ln -s …`, and unattended it destroys a
+	// real config. The body is asserted afterwards, and a version that refused AND deleted still fails
+	// here.
 	t.Run("a real directory at a target is refused and its contents survive", func(t *testing.T) {
 		f := newFixture(t)
 		f.MkdirAll(f.home + "/.config/nvim")
@@ -125,8 +127,8 @@ func TestARealTargetIsRefusedRatherThanDeleted(t *testing.T) {
 	})
 }
 
-// The vacuity case. Without it, a run over an incomplete checkout reports success having linked
-// nothing.
+// The vacuity case. It is what stops a run over an incomplete checkout from reporting success with
+// no link made.
 func TestASourceMissingFromTheCheckoutIsRefused(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -141,8 +143,8 @@ func TestASourceMissingFromTheCheckoutIsRefused(t *testing.T) {
 	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
-// The flag has to write nothing, or it is worse than not having it: someone checks with a dry run and
-// it is the run that changed their machine.
+// The flag has to leave the disk alone, or it is worse than absent. Someone checks with a dry run,
+// and the dry run is what changed their machine.
 func TestADryRunWritesNothingAtAll(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -157,14 +159,16 @@ func TestADryRunWritesNothingAtAll(t *testing.T) {
 	f.expectAbsent(f.home + "/.config")
 }
 
-// `${target%/*}` on `/.zshrc` is the empty string, not `/`, and computing nothing makes a run refuse
-// naming a parent it cannot print — sending the reader after a directory that was never the problem.
-// Both spellings refuse, so only the wording tells them apart.
-//
-// An empty $HOME is the only way a target lands at the filesystem root. The write never happens: the
-// run is bounded to the case's own tree, so the guard turns it away and names the parent it resolved,
-// which is the whole of what this case is about. Letting it through would leave a machine that can
-// write to / holding links at its filesystem root pointing into a temp directory.
+// `${target%/*}` on `/.zshrc` gives the empty string where `/` is wanted. A run that computed an
+// empty parent refuses while naming a parent it cannot print, sending the reader after a directory
+// that was never the problem. Both spellings refuse, so the wording is what tells them apart.
+
+// An empty $HOME is the single way a target lands at the filesystem root. The write never happens,
+// because the run is bounded to the case's own tree. The guard turns it away and names the parent it
+// resolved, which is the whole of what this case is about.
+
+// A write let through here would leave a machine that can write to / holding links at its filesystem
+// root pointing into a temp directory.
 func TestARootLevelTargetNamesTheRootAsItsParent(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)

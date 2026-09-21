@@ -1,9 +1,10 @@
 package installer_test
 
-// Which skills an install mounts, and the question that decides it: who each one is for, read from its
-// own frontmatter. Discovery rather than a list, so a skill added tomorrow is mounted without anyone
-// editing an installer — which is also why every case here counts what the fixture holds rather than a
-// number written down.
+// Which skills an install mounts, and the question that decides it. Each skill's own frontmatter
+// says who it is for.
+
+// Discovery, so a skill added tomorrow is mounted without anyone editing an installer. That is also
+// why every case here counts what the fixture holds, and never a number written down.
 
 import (
 	"strings"
@@ -14,8 +15,8 @@ import (
 
 const markedSkill = "---\nname: kk-ecosystem\ndescription: maintains this tree\naudience: maintainer\n---\n"
 
-// A tree holding one public skill and one marked for maintainers. Both sets are needed in every case:
-// a tier that excluded everything and one that excluded nothing each pass half of them.
+// A tree holding one public skill and one marked for maintainers. Both sets are needed in every
+// case, because a tier that excluded every skill and a tier that excluded none each pass half.
 func newSkillTree(t *testing.T) *fixture {
 	t.Helper()
 	f := newFixture(t)
@@ -38,8 +39,7 @@ func (f *fixture) discoverSkills(options installer.RunOptions, skills installer.
 }
 
 // Each maintainer-only skill costs every session context through its `description:`, which loads
-// whether or not the skill is ever invoked, so an install that is not maintaining the tree should not
-// carry them.
+// even for a skill that is never invoked. An install that maintains no tree should leave them out.
 func TestAMaintainerOnlySkillIsLeftOutUnlessItIsAskedFor(t *testing.T) {
 	t.Parallel()
 	t.Run("a default run mounts the public skill and skips the marked one", func(t *testing.T) {
@@ -69,9 +69,9 @@ func TestAMaintainerOnlySkillIsLeftOutUnlessItIsAskedFor(t *testing.T) {
 		}
 	})
 
-	// The tier a machine was installed with is written down nowhere, so an uninstall that re-applied
-	// the filter would build its removal table for the tier being asked for NOW: `--maintainer` in and
-	// plain out leaves exactly the marked skills mounted, reporting ok.
+	// The tier a machine was installed with is written down nowhere. An uninstall that re-applied the
+	// filter would build its removal table for the tier being asked for NOW. Pass `--maintainer` in
+	// and plain out, and exactly the marked skills stay mounted while the run reports ok.
 	t.Run("and an uninstall takes them whatever the flags say", func(t *testing.T) {
 		f := newSkillTree(t)
 		f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{Maintainer: true})
@@ -90,9 +90,9 @@ func TestAMaintainerOnlySkillIsLeftOutUnlessItIsAskedFor(t *testing.T) {
 	})
 }
 
-// The marker check answers "not marked" to a misspelling and to a skill that declared nothing, and
-// those mean opposite things — so the misspelling installs for everyone while whoever typed it
-// believes they marked it, on a machine where nothing looks wrong.
+// The marker check answers "not marked" to a misspelling and to a skill with an empty declaration,
+// and those two mean opposite things. The misspelling installs for everyone, whoever typed it
+// believes they marked it, and the machine looks healthy throughout.
 func TestAnAudienceNoReaderKnowsIsReportedAndStillMounted(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -105,15 +105,16 @@ func TestAnAudienceNoReaderKnowsIsReportedAndStillMounted(t *testing.T) {
 	f.expectRefusals(run, 1)
 	f.expectSaid("maintainr")
 	f.expectSaid("audience: maintainer")
-	// Mounting continues, so the tree behaves as it does today and the non-zero exit carries the news.
+	// The mount still happens, so the tree behaves as it does today and the non-zero exit carries the
+	// news.
 	f.expectLinkTo(f.skillsMount()+"/kk-typo", f.repo+"/skills/kk-typo")
 	if found.Found != 1 {
 		t.Errorf("discovery found %d skill(s), wanted 1", found.Found)
 	}
 }
 
-// The control. Without it the refusal above could be a discovery that refuses every skill it reads, and
-// the case would be measuring nothing.
+// The control. The refusal in the case before this one could otherwise be a discovery that refuses
+// every skill it reads, and the case would measure that instead.
 func TestTheSameTreeWithTheMarkerSpelledRightRefusesNothing(t *testing.T) {
 	t.Parallel()
 	f := newSkillTree(t)
@@ -125,11 +126,12 @@ func TestTheSameTreeWithTheMarkerSpelledRightRefusesNothing(t *testing.T) {
 }
 
 // The audience value is echoed back to whoever typed it, so it is text a branch chose reaching the
-// terminal — and unlike a skill's directory name it is file CONTENT, which is the one route a raw 0x9b
-// can take on a filesystem that refuses a filename that is not valid UTF-8.
-//
-// 0x9b is CSI as a single byte, which a terminal in 8-bit mode acts on. It is the byte the shell could
-// not reach: bash leaves it, and catching it needs the decoding a `[[:cntrl:]]` substitution cannot do.
+// terminal. It is file CONTENT, where a skill's directory name is a filename. That is the single
+// route a raw 0x9b can take on a filesystem that refuses an invalid UTF-8 filename.
+
+// 0x9b is CSI as a single byte, which a terminal in 8-bit mode acts on. It is the byte the shell
+// could never reach. Bash leaves it, and catching it needs the decoding a `[[:cntrl:]]` substitution
+// cannot do.
 func TestARawCsiInAnAudienceValueNeverReachesTheTerminal(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -140,8 +142,8 @@ func TestARawCsiInAnAudienceValueNeverReachesTheTerminal(t *testing.T) {
 
 	run, _ := f.discoverSkills(installer.RunOptions{}, installer.SkillMountOptions{})
 
-	// The control: without it the assertion below is equally satisfied by a run that never read the
-	// declaration at all.
+	// The control. The assertion that follows is otherwise equally satisfied by a run that never read
+	// the declaration at all.
 	f.expectRefusals(run, 1)
 	f.expectSaid("maintainr")
 	if strings.Contains(f.said(), csi) {
@@ -149,10 +151,12 @@ func TestARawCsiInAnAudienceValueNeverReachesTheTerminal(t *testing.T) {
 	}
 }
 
-// Finding no skill at all mounts nothing in silence, which is why a caller refuses on an empty table
-// and reads Found to say which of the two ways it got there. The exit is the same either way, so the
-// wording is the only thing telling a tree holding no skill from a tier that excluded every one it had
-// — and a false diagnosis sends the reader looking for files that are all there.
+// A pass that finds none writes no mount and stays silent about it. A caller refuses on an empty
+// table and reads Found to tell the two causes apart.
+
+// The exit is the same either way, and the wording alone separates a tree holding no skill from a
+// tier that excluded all it had. A false diagnosis sends the reader looking for files that are all
+// there.
 func TestDiscoveryTellsAnEmptyTreeFromATierThatExcludedEverything(t *testing.T) {
 	t.Parallel()
 	t.Run("a tree holding no skill finds none", func(t *testing.T) {

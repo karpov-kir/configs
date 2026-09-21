@@ -13,18 +13,19 @@ type unmountScan struct {
 	sourceRoot string
 }
 
+// A skill renamed or deleted takes its source directory with it, and the mount table stops naming
+// the old target. Link never sees it. The link left under `~/.claude/skills/` resolves into a
+// directory no checkout has. Only the run that would have written it can notice.
+
+// This is a deletion inside a package contracted to refuse one, so the signature is narrow. Only a
+// mount of this checkout's own matches: a symlink with an absolute value, and a parent directory
+// equal to the source root the caller named.
+
+// Everything else is left where it is, dangling or whole, and the summary claims only what it
+// checked. The signature cannot ask who wrote the link. ai/README.md documents a by-hand install
+// loop, and its links are identical to the ones written here.
+
 // AddUnmountScan declares a directory Mount sweeps for links whose source under sourceRoot is gone.
-//
-// A skill renamed or deleted takes its source directory with it, and nothing in the mount table names
-// the old target any more — so link never sees it, and the link left under `~/.claude/skills/`
-// resolves into a directory no checkout has. Only the run that would have written it can notice.
-//
-// It is a deletion, in a package whose contract is that it refuses rather than deletes, so the
-// signature is narrow enough that only a mount of this checkout's own matches: a symlink, whose value
-// is absolute, whose parent directory is the source root the caller named. Everything else is left
-// where it is, dangling or not, which is why the summary below claims only what it checked. The
-// signature cannot ask who wrote the link: ai/README.md documents a by-hand install loop whose links
-// are identical to the ones written here.
 func (r *Run) AddUnmountScan(directory, sourceRoot string) {
 	r.scans = append(r.scans, unmountScan{directory: directory, sourceRoot: sourceRoot})
 }
@@ -39,19 +40,22 @@ func (r *Run) pruneStaleMounts() {
 	}
 }
 
-// A root this checkout cannot read stops the scan before the loop. The loop would remove nothing there
-// in any case; what it would print is a clean bill of health over a directory the run never opened.
+// A root this checkout cannot read stops the scan before the loop. The loop would remove no mount
+// there in any case. What it would print is a clean bill of health over a directory the run never
+// opened.
 func (r *Run) unmountStale(scan unmountScan) {
 	rootReal := realDir(scan.sourceRoot)
 	if rootReal == "" {
 		r.Say("  " + scan.sourceRoot + " cannot be read, so no mount under " + scan.directory + " was checked")
 		return
 	}
-	// A root that resolves and holds nothing is the same hazard one step further in, and the one the
-	// loop can act on: every mount of this checkout's dangles at once, so the loop reads the machine's
-	// whole set as deleted and takes it. A source root emptied by a half-finished checkout is not a set
-	// of deletions anybody made. The caller's own emptiness check cannot stand in for this one — the
-	// scan runs inside Mount, so whatever a caller does about an empty root, it does afterwards.
+	// A root that resolves and holds no source is the same hazard one step further in, and the loop can
+	// act on it. Every mount of this checkout's dangles at once, so the loop reads the machine's whole
+	// set as deleted and takes it. A source root emptied by a half-finished checkout is a set of
+	// deletions no human made.
+
+	// The caller's own emptiness check cannot stand in for this one. The scan runs inside Mount, so
+	// whatever a caller does about an empty root, it does afterwards.
 	if !holdsSource(rootReal) {
 		r.Say("  " + scan.sourceRoot + " holds no source, so no mount under " + scan.directory + " was checked")
 		return
@@ -68,9 +72,9 @@ func (r *Run) unmountStale(scan unmountScan) {
 	}
 	stale := 0
 	for _, entry := range entries {
-		// A leading dot is passed over, because the shell glob this was ported from never offered one
-		// and a sweep that removes more than the one it replaced is the widening this scan's signature
-		// exists to prevent.
+		// A leading dot is passed over, because the shell glob this was ported from never offered one.
+		// A sweep wider than the glob it replaced is the widening this scan's signature exists to
+		// prevent.
 		if strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
@@ -79,8 +83,8 @@ func (r *Run) unmountStale(scan unmountScan) {
 			continue
 		}
 		value := linkValue(path)
-		// Absolute only, for the reason mountForeignRoot gives: a relative value resolves against the
-		// link's own directory, so resolving it here would resolve it against the wrong one.
+		// Absolute only, for the reason mountForeignRoot gives. A relative value resolves against the
+		// link's own directory, and a resolution made here lands against the wrong directory.
 		if !strings.HasPrefix(value, "/") {
 			continue
 		}

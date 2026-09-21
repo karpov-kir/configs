@@ -1,11 +1,11 @@
 package installer_test
 
-// Taking the mounts back out, over the same table the caller declared. Same table because a second
-// pass re-deriving what to remove drifts from what was installed, and drifts silently in the one
-// direction nobody notices: leaving things behind and reporting ok.
-//
+// Taking the mounts back out, over the same table the caller declared. Same table, because a second
+// pass re-deriving what to remove goes out of step with what was installed. It goes out of step in
+// the direction hardest to spot, leaving things behind and reporting ok.
+
 // The proof a target was written here is the whole subject: a symlink whose value resolves under this
-// checkout, and nothing else.
+// checkout, and no other shape.
 
 import (
 	"testing"
@@ -36,9 +36,9 @@ func TestUnmountRemovesWhatThisCheckoutWrote(t *testing.T) {
 	f.expectAbsent(f.home + "/.config/nvim")
 }
 
-// Declared above the mount table, an uninstall path that links every mount and then removes it leaves
-// the machine installed by the command that exists to uninstall it if anything interrupts between the
-// two — and a run over a clean machine reads like an install.
+// An uninstall path that links every mount and then removes it leaves the machine installed by the
+// command that exists to uninstall it, whenever anything interrupts between the two. A run over a
+// clean machine also reads like an install.
 func TestUnmountOverAMachineHoldingNothingLinksNothingOnTheWay(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -69,9 +69,9 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 		}
 	})
 
-	// A relative value resolves against THIS process's working directory, not the link's own, so
-	// ownership would be judged from somewhere the link never named — and a link reading `notmine`
-	// would resolve under the checkout and be deleted.
+	// A relative value resolves against THIS process's working directory instead of the link's own,
+	// and ownership then gets judged from somewhere the link never named. A link reading `notmine`
+	// resolves under the checkout and is deleted.
 	t.Run("and a relative link, which this never writes, is left alone", func(t *testing.T) {
 		f := newFixture(t)
 		f.Symlink("zsh/.zshrc", f.home+"/.zshrc")
@@ -97,8 +97,8 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 		f.expectRefusals(run, 1)
 	})
 
-	// A link resolving nowhere resolves to empty and falls through to the same refusal, which is right:
-	// its target is unknown, so its ownership is too.
+	// A link resolving nowhere resolves to empty and falls through to the same refusal. Its target is
+	// unknown, so its ownership is unknown too.
 	t.Run("and one resolving nowhere is left alone too", func(t *testing.T) {
 		f := newFixture(t)
 		f.Symlink(f.base+"/gone/zsh/.zshrc", f.home+"/.zshrc")

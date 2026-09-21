@@ -290,10 +290,11 @@ func (r report) writeTo(w io.Writer) {
 	fmt.Fprintln(w)
 }
 
-// One run, its three exit codes and everything printed on the way to them: 0 with no restatement, 1
-// with one, 2 whenever the scan was shown less than the tree. Written against writers and a status
-// rather than os.Stdout and os.Exit so a case can read the whole answer back — the codes ARE the
-// interface here, since every caller reads them and nothing else tells 1 from 2.
+// The signature takes writers and returns a status, so a case can read the whole answer back. The
+// codes ARE the interface here, since every caller reads them and they alone tell 1 from 2.
+
+// One run, its three exit codes and everything printed on the way to them. Exit 0 carries no
+// restatement, 1 carries one, and 2 says the scan was shown less than the tree.
 func run(args []string, out, errOut io.Writer) int {
 	if len(args) < 1 {
 		fmt.Fprintln(errOut, "usage: ruleecho.sh <root> [file ...]")

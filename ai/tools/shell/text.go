@@ -62,9 +62,9 @@ func isControlChar(char rune) bool {
 // CutBytes is `cut -c1-n` under LC_ALL=C, which is bytes. It bounds a message quoting a name the tree
 // chose, so the bound has to be on what is printed, not on what a locale calls a character.
 //
-// Callers want CutBytesMarked below, which is this cut plus a marker saying it happened. This one is
-// reached directly where the marker would be noise rather than information: dup-literals prints a
-// fixed-width column of literals, where every row is already understood to be a prefix.
+// Callers want CutBytesMarked, which is this cut plus a marker saying it happened. This one is
+// reached directly where the marker would read as noise. dup-literals prints a fixed-width column of
+// literals, and every row there is already understood to be a prefix.
 //
 // n is non-negative. A negative bound panics on the slice, and nothing guards it, by choice: every
 // caller passes a compile-time constant, so the input that reaches the panic does not exist. A guard

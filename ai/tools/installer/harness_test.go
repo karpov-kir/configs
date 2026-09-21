@@ -1,28 +1,35 @@
 package installer_test
 
 // The fixtures and assertions the case files beside it share.
-//
+
 // Every case gets a home of its own under t.TempDir(), and the run it drives is bounded to that same
-// tree. The cases here exercise the real linking logic, so a run leaves $home/.config/nvim pointing at
-// the fixture checkout — correct behaviour, and harmless while each case gets its own home. It stops
-// being harmless the moment two cases share one: the second case's write at $home/.config/nvim then
-// finds a live symlink into a checkout and goes straight through it into a real config file.
-//
-// That is not hypothetical. The shell harness this replaces once handed every case the same home. It
+// tree. The cases here exercise the real linking logic, so a run leaves $home/.config/nvim pointing
+// at the fixture checkout. That is correct behaviour, and harmless while each case gets its own
+// home.
+
+// It stops being harmless the moment two cases share one. The second case's write at
+// $home/.config/nvim then finds a live symlink into a checkout and goes straight through it into a
+// real config file.
+
+// That is no hypothesis. The shell harness this replaces once handed every case the same home. It
 // overwrote nvim/init.lua and starship/starship.toml in the working tree and left a stray symlink in
-// nvim/. The suite reported it, too — a case failed saying something had been written where nothing
-// should be — and the report was read as a harness bug without asking what the broken run had already
-// written to disk.
-//
-// So containment is asserted before each write rather than noticed after, on both sides: the fixture
-// writers below resolve a parent physically before touching it, and the run itself is built with
-// WriteRoot, which makes the package refuse the same way. expectContained is what reads the second
-// half back, and it fails the case as a guard rather than as a result.
-//
-// Fixtures are built with os.MkdirAll, os.WriteFile and os.Symlink, never by shelling out: a process
-// costs about 100ms on the machine these are written on, and file I/O costs nothing. Symlinks are the
-// substance of this package, so they are real ones on a real filesystem — an in-memory tree does not
-// model their semantics.
+// nvim/.
+
+// The suite reported it, too. A case failed saying something had been written where it should not
+// be, and the report was read as a harness bug. What the broken run had already written to disk went
+// unasked.
+
+// So containment is asserted before each write, on both sides. The fixture writers in this file
+// resolve a parent physically before touching it, and the run itself is built with WriteRoot, which
+// makes the package refuse the same way.
+
+// expectContained is what reads the second half back. It fails the case as a guard, and never as a
+// result.
+
+// Fixtures are built with os.MkdirAll, os.WriteFile and os.Symlink, with no shell process in
+// between. A process costs about 100ms on the machine these are written on, and file I/O costs
+// almost none of that. Symlinks are the substance of this package, so they are real ones on a real
+// filesystem. An in-memory tree fails to model their semantics.
 
 import (
 	"os"
@@ -55,10 +62,11 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-// The same tree with no checkout in it, for a case that never links anything — the region and registry
-// cases, which write into files a caller names. Building the sources anyway would cost every one of
-// them ten files to create and ten to tear down, and file I/O is what this suite's wall time is made
-// of now that nothing spawns.
+// The same tree, with no checkout in it. A case that makes no link uses it: the region and registry
+// cases, which write into files a caller names.
+
+// The sources built anyway would cost every such case ten files to create and ten to tear down. File
+// I/O is what this suite's wall time is made of now that no process spawns.
 func newBareFixture(t *testing.T) *fixture {
 	t.Helper()
 	writer := installertest.New(t)
@@ -69,10 +77,10 @@ func newBareFixture(t *testing.T) *fixture {
 	return f
 }
 
-// A checkout in the shape the second-checkout guard recognises: the installer under test at the root,
-// and the sources beside it. A fixture missing the installer would be turned away by the guard's last
-// condition and the case would be measuring that rather than what it named.
-//
+// A checkout in the shape the second-checkout guard recognises: the installer under test at the
+// root, and the sources beside it. A fixture missing the installer would be turned away by the
+// guard's last condition, and the case would then measure that instead of what it named.
+
 // The sources are the four shapes env/bootstrap.sh mounts: two files at the top of the home, a whole
 // directory, and a file whose parent directory does not exist yet.
 func (f *fixture) newCheckout(root string) string {
@@ -90,7 +98,7 @@ func (f *fixture) newCheckout(root string) string {
 	return root
 }
 
-// The mount table a case drives, declared against whichever checkout it is asked about.
+// The mount table a case drives. It is declared against whichever checkout the case asks about.
 func (f *fixture) declareMounts(run *installer.Run, repo string) {
 	run.AddConfig(repo+"/zsh/.zshrc", f.home+"/.zshrc")
 	run.AddConfig(repo+"/git/.gitconfig", f.home+"/.gitconfig")
@@ -98,8 +106,8 @@ func (f *fixture) declareMounts(run *installer.Run, repo string) {
 	run.AddConfig(repo+"/starship/starship.toml", f.home+"/.config/starship.toml")
 }
 
-// The run a case drives, with everything it did not name taken from the fixture. Out and WriteRoot are
-// the fixture's whatever a case says: a case that could print elsewhere is a case whose output nothing
+// The run a case drives, with everything it did not name taken from the fixture. Out and WriteRoot
+// are the fixture's whatever a case says. A case that could print elsewhere has output no assertion
 // reads, and one that could write elsewhere is the incident in this file's header.
 func (f *fixture) newRun(options installer.RunOptions) *installer.Run {
 	f.t.Helper()
@@ -174,9 +182,9 @@ func (f *fixture) expectContained(run *installer.Run) {
 
 // --- the fixture writers ----------------------------------------------------------------------
 
-// A fixture link dropped so another can take its place. Through the containment guard, because
-// refuseExistingSymlink deliberately will not let one be overwritten and that refusal is not a rule to
-// be worked around by reaching for os directly.
+// A fixture link dropped so another can take its place. It goes through the containment guard,
+// because refuseExistingSymlink deliberately leaves an existing symlink alone. That refusal is a
+// rule, and reaching for os directly would work around it.
 func (f *fixture) removeLink(path string) {
 	f.t.Helper()
 	f.ContainedParent(path)
@@ -233,9 +241,9 @@ func (f *fixture) expectSymlink(target string) {
 	}
 }
 
-// Nothing at the path at all. Lstat rather than Stat, because Stat follows the link and answers "not
-// there" for one that dangles — which is the shape a removal these cases assert about leaves behind
-// when it half happens.
+// An empty path, with no entry of any kind. Lstat, because Stat follows the link and answers "not
+// there" for one that dangles. That is the shape a half-done removal leaves behind, and these cases
+// assert about it.
 func (f *fixture) expectAbsent(path string) {
 	f.t.Helper()
 	if info, err := os.Lstat(path); err == nil {

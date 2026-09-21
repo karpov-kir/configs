@@ -1,15 +1,20 @@
 package installer_test
 
-// The second-checkout guard. A run derives its checkout from where the installer lives, so run from a
-// scratch clone it repoints every mount at the clone and reports "repointed" six times for an act
-// nobody authorised. Delete the clone afterwards — the entire point of a scratch clone — and the
-// human's next login has no shell config and no git config. link is right that a symlink carries no
-// data of its own; the damage is to the MOUNT, which is why the guard sits above link rather than
-// inside it, and why the stale-symlink and trailing-slash cases next door must stay green alongside
-// these. This repository is cloned routinely to verify published state, so this is a live hazard.
-//
-// The fixture is a second checkout mounted onto a home by running ITS table, so the mounts under test
-// are the ones the package really writes rather than a hand-made imitation of them.
+// The second-checkout guard. A run derives its checkout from where the installer lives. Run from a
+// scratch clone, it repoints every mount at the clone and reports "repointed" six times for an act
+// no human authorised.
+
+// Delete the clone afterwards, which is the entire point of a scratch clone, and the human's next
+// login is missing its shell config and its git config.
+
+// Link is right that a symlink carries no data of its own. The damage is to the MOUNT, and that is
+// why the guard sits in front of Link instead of inside it. It is also why the stale-symlink and
+// trailing-slash cases next door must stay green alongside these.
+
+// This repository is cloned routinely to verify published state, so this is a live hazard.
+
+// The fixture is a second checkout mounted onto a home by running ITS table, and the mounts under
+// test are the ones the package really writes. A hand-made imitation would test itself.
 
 import (
 	"testing"
@@ -43,15 +48,15 @@ func TestARunFromASecondCheckoutWritesNothing(t *testing.T) {
 	f.expectSaid("--relocate")
 	f.expectNotSaid(label + ": ok")
 
-	// The load-bearing half. A guard that refuses after repointing has still moved the machine, so the
-	// mounts are read back rather than the message being taken at its word.
+	// The half that carries the rest. A guard that refuses after repointing has still moved the
+	// machine, so the mounts are read back instead of the message being taken at its word.
 	f.expectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
 	f.expectLinkTo(f.home+"/.config/nvim", other+"/nvim")
 }
 
-// A dry run has to refuse as well. Unguarded it reports "would repoint" for all of them and exits 0,
-// which is the same lie one step earlier: someone checks with a dry run, reads ok, and runs it for
-// real.
+// A dry run has to refuse as well. With the guard gone it reports "would repoint" for all of them
+// and exits 0. That is the same lie one step earlier: someone checks with a dry run, reads ok, and
+// runs it for real.
 func TestADryRunFromASecondCheckoutRefusesRatherThanPreviewingTheMove(t *testing.T) {
 	t.Parallel()
 	f, other := newHomeMountedElsewhere(t)
@@ -66,9 +71,9 @@ func TestADryRunFromASecondCheckoutRefusesRatherThanPreviewingTheMove(t *testing
 	f.expectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
 }
 
-// The escape hatch, which has to exist or someone genuinely relocating their configs cannot. A flag of
-// its own rather than a member of the skip family every caller passes as a block, so it is not
-// something that rides along by habit — every case here reaches the guard without it.
+// The escape hatch, which has to exist or someone genuinely relocating their configs cannot. It is a
+// flag of its own, apart from the skip family every caller passes as a block, so habit alone never
+// carries it in. Every case here reaches the guard without it.
 func TestRelocateMovesTheMountsToThisCheckout(t *testing.T) {
 	t.Parallel()
 	f, other := newHomeMountedElsewhere(t)
@@ -84,9 +89,9 @@ func TestRelocateMovesTheMountsToThisCheckout(t *testing.T) {
 }
 
 // A machine mounted from two other checkouts at once, which is what half-moving one by hand leaves.
-// The guard reports per root, and a reader told about one of them and not the other moves that
-// checkout, re-runs, and is refused again by a root nobody named — so the case that matters is the
-// second one appearing, not the first.
+// The guard reports per root. A reader told about one root and left ignorant of the other moves that
+// checkout, re-runs, and meets a refusal from a root the first report never named. The case that
+// matters is the second root appearing.
 func TestTwoForeignCheckoutsAreBothNamed(t *testing.T) {
 	t.Parallel()
 	f, other := newHomeMountedElsewhere(t)
@@ -105,9 +110,9 @@ func TestTwoForeignCheckoutsAreBothNamed(t *testing.T) {
 	f.expectLinkTo(f.home+"/.gitconfig", third+"/git/.gitconfig")
 }
 
-// A checkout that no longer resolves is the aftermath of this very bug, or of a directory moved on
-// purpose. Repointing a dangling mount is the repair, so the guard must not stand in front of it — one
-// that refused here would leave the human's shell broken with no way to fix it from the repository.
+// A checkout that no longer resolves is the aftermath of this bug, or of a directory moved on
+// purpose. A dangling mount is repaired by repointing it, so the guard stands aside. A guard that
+// refused here would leave the human's shell broken, with no way to fix it from the repository.
 func TestAMountFromACheckoutThatIsGoneIsRepairedRatherThanRefused(t *testing.T) {
 	t.Parallel()
 	f, other := newHomeMountedElsewhere(t)
@@ -121,15 +126,16 @@ func TestAMountFromACheckoutThatIsGoneIsRepairedRatherThanRefused(t *testing.T) 
 	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
-// The three shapes a stale mount takes that are NOT a second checkout. Each is a link the stale-symlink
-// rule is right to repoint, and each would be refused by a guard that dropped one of its conditions —
-// refusing every machine that holds one unrelated config symlink, with nothing going red.
+// The three shapes a stale mount takes that are NOT a second checkout. Each is a link the
+// stale-symlink rule is right to repoint, and a guard that dropped one of its conditions would
+// refuse each of them. It would refuse every machine holding one unrelated config symlink, with no
+// case going red.
 func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 	t.Parallel()
-	// What a machine with an older dotfiles layout holds: a real directory that is not a checkout of
-	// this repository. The root resolves and the tail matches; only the missing installer holds them
-	// apart. The stale-symlink case next door uses a dangling link, so it is turned away a limb earlier
-	// and never reaches this test.
+	// What a machine with an older dotfiles layout holds: a real directory that is no checkout of this
+	// repository. The root resolves and the tail matches, and only the missing installer holds them
+	// apart. The stale-symlink case next door uses a dangling link, so it is turned away a step
+	// earlier and never reaches this test.
 	t.Run("a mount into an unrelated real directory is repointed", func(t *testing.T) {
 		f := newFixture(t)
 		f.MkdirAll(f.home + "/.config")
@@ -142,10 +148,10 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 		f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
 	})
 
-	// A mount naming a checkout's root rather than the config inside it. A run writes
-	// `<checkout>/nvim` and never `<checkout>`, so such a link is stale whatever the root turns out to
-	// be — and only the relative-path comparison holds the two apart, since the root here really is a
-	// second checkout and really does hold a copy of the installer.
+	// A mount naming a checkout's root instead of the config inside it. A run writes
+	// `<checkout>/nvim` and never a bare `<checkout>`, so such a link is stale whatever the root turns
+	// out to be. Only the relative-path comparison holds the two apart, since the root here really is
+	// a second checkout and really does hold a copy of the installer.
 	t.Run("and one naming a checkout directory rather than a file in it is repointed too", func(t *testing.T) {
 		f := newFixture(t)
 		other := f.newCheckout(f.base + "/other-repo")
@@ -158,9 +164,9 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 		f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
 	})
 
-	// A relative link value is not one this package wrote — every link it makes is absolute — and
-	// resolving a root out of one would resolve it against this process's working directory rather than
-	// the link's own. The link itself dangles, which is what makes it merely stale.
+	// A relative link value is one this package never wrote, since every link it makes is absolute. A
+	// root resolved out of one lands against this process's working directory, and the link's own
+	// directory goes unused. The link itself dangles, which is what makes it merely stale.
 	t.Run("and a relative link is repointed like any other stale link", func(t *testing.T) {
 		f := newFixture(t)
 		f.MkdirAll(f.home + "/.config")
@@ -173,10 +179,12 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 	})
 }
 
-// The same checkout named through a symlinked path. A temp directory is handed back as /var/folders/…
-// while /var is a symlink to /private/var, so this is the shape a real macOS mount takes — and a guard
-// comparing an unresolved root against a resolved checkout calls that checkout a stranger to itself and
-// refuses a machine that is mounted correctly. Both sides are resolved physically for that reason.
+// The same checkout named through a symlinked path. A temp directory is handed back as
+// /var/folders/…, and /var is a symlink to /private/var, so a real macOS mount takes this shape.
+
+// A guard comparing an unresolved root against a resolved checkout calls that checkout a stranger to
+// itself and refuses a machine that is mounted correctly. Both sides are resolved physically for
+// that reason.
 func TestAMountNamingTheRunningCheckoutThroughASymlinkedPathIsNotForeign(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -191,9 +199,9 @@ func TestAMountNamingTheRunningCheckoutThroughASymlinkedPathIsNotForeign(t *test
 	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
-// A reader told their two configs would move, and not that every skill moves with them, has not been
-// told the scale of what the run would do. Without this the bulk set could drop out of the count and
-// nothing would redden.
+// A reader told their two configs would move, and left to discover that every skill moves with them,
+// has missed the scale of what the run would do. The bulk set could otherwise drop out of the count
+// with no case going red.
 func TestABulkMountTakesPartInTheCountTheGuardReports(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
@@ -224,7 +232,7 @@ func TestABulkMountTakesPartInTheCountTheGuardReports(t *testing.T) {
 	}
 	f.expectSaid("6 mounts (4 configs and 2 skills)")
 	f.expectSaid("...and all 2 skills")
-	// The load-bearing half again: read back rather than taken at the message's word.
+	// The carrying half again: the mounts are read back, and the message's word is left aside.
 	f.expectLinkTo(f.home+"/.claude/skills/kk-build", other+"/skills/kk-build")
 
 	relocated := mountedFrom(f.repo, installer.RunOptions{Relocate: true})

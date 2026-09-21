@@ -1,24 +1,30 @@
-// Package handoffcheck is the gate under kk-handoff: it reads a drafted handoff prompt and refuses
-// the ones a fresh session cannot act on. A handoff prompt is the only thing the receiving session
-// gets — it opens its own tree and holds none of the conversation that produced the work — so every
-// scan here asks one question: can somebody act on this without asking the author anything.
-//
-// It is a library with a thin command beside it, for the reason eco-check states: the suite drives it
-// once per case, and a process spawn per case is what puts a suite over the time budget
-// testing.md sets. Nothing here
-// writes to os.Stdout or calls os.Exit. Run reports through the writers it is handed and returns the
-// code the command exits on, and every counter lives on the scan Run builds, so two runs in one
-// process cannot see each other's.
-//
-// Four things reach outside the draft, all read-only and all against the repository the caller names:
-// that the directory is a work tree, whether the base commit resolves, whether the tree is dirty, and
-// how `repo-key` abbreviates that clone. All four go through the one `repo.Git` Run is handed, so the
-// four answers are about one repository. The SHA handed to the port is re-checked for its hex-only
-// shape at the call, because that shape is the whole reason a token lifted out of a draft is safe to
-// pass. The abbreviation goes through repokey, so the prefix the title is held against is the same
-// string `repo-key.sh --abbrev` prints.
-//
+// A handoff prompt is all the receiving session gets. It opens its own tree and holds none of the
+// conversation that produced the work. Every scan here asks one question: can somebody act on this
+// without asking the author anything.
+
+// It is a library with a thin command beside it, for the reason eco-check states. The suite drives
+// it once per case, and a process spawn per case is what puts a suite over the time budget
+// testing.md sets.
+
+// No code here writes to os.Stdout or calls os.Exit. Run reports through the writers it is handed
+// and returns the code the command exits on. Every counter lives on the scan Run builds, so two runs
+// in one process cannot see each other's.
+
+// Four things reach outside the draft, all read-only and all against the repository the caller
+// names. They are whether the directory is a work tree, whether the base commit resolves, whether
+// the tree is dirty, and how repokey abbreviates that clone. All four go through the single
+// `repo.Git` Run is handed, so the four answers are about one repository.
+
+// The SHA handed to the port is re-checked for its hex-only shape at the call. That shape is the
+// whole reason a token lifted out of a draft is safe to pass.
+
+// The abbreviation goes through repokey, so the prefix the title is held against is the same string
+// `repo-key.sh --abbrev` prints.
+
 // `handoff-check.sh` in kk-handoff's scripts/ is the stub that reaches this binary.
+
+// Package handoffcheck is the gate under kk-handoff. It reads a drafted handoff prompt and refuses
+// the ones a fresh session cannot act on.
 package handoffcheck
 
 import (
@@ -147,8 +153,8 @@ const (
 // instruction rather than a smudge.
 //
 // Held here and nowhere else. A site added later cannot opt out of a printer, and a second guard at
-// the message would be one this one makes unobservable — no case could be written that fails without
-// it.
+// the message would sit unobservable behind this one. No case could be written that fails when that
+// second guard is missing.
 func printLine(w io.Writer, text string) {
 	fmt.Fprintln(w, shell.CutBytesMarked(shell.Oneline(text), lineWidthCap))
 }
@@ -160,8 +166,8 @@ func printLine(w io.Writer, text string) {
 // Returns 1 with findings, 0 when clean, and 2 when it could not run and said why on errOut. A 2
 // prints no findings, so a caller must never read it as a clean draft.
 //
-// git answers about repoDir and about nothing else, so the command has to hand it an adapter no
-// environment can redirect — `cmd/handoff-check/main.go` says why.
+// git answers about repoDir alone, so the command has to hand it an adapter no
+// environment can redirect. git reads GIT_DIR and GIT_COMMON_DIR before the directory it was handed.
 func Run(prog, draft, repoDir string, git repo.Git, out, errOut io.Writer) int {
 	die := func(format string, args ...any) int {
 		printLine(errOut, prog+": "+fmt.Sprintf(format, args...))
@@ -192,13 +198,15 @@ func Run(prog, draft, repoDir string, git repo.Git, out, errOut io.Writer) int {
 		return die("could not resolve: %s", repoDir)
 	}
 
-	// `repoDir` and not the working directory: the drafting session is often standing in another
-	// checkout. An error is no abbreviation and no finding — reportTitlePrefix says why.
-	//
-	// The gate's own port, never one repokey builds for itself. Two adapters can answer about two
+	// `repoDir`, because the drafting session is often standing in another checkout. An error yields
+	// no abbreviation. reportTitlePrefix says why that produces no finding either.
+
+	// The gate's own port, and never one repokey builds for itself. Two adapters can answer about two
 	// repositories, and the title would then be weighed against one clone while the base commit and
-	// the dirty count came from another. ResolveAbbrev wants an environment that cannot relocate git,
-	// which is why Run's doc puts that on whoever wires the port rather than on this call.
+	// the dirty count came from another.
+
+	// ResolveAbbrev wants an environment that cannot relocate git, and Run's doc puts that on whoever
+	// wires the port instead of on this call.
 	repoAbbrev, _ := repokey.ResolveAbbrev(git, repoDir)
 
 	s := newScan(repoPath, repoAbbrev)
@@ -497,9 +505,9 @@ func (s *scan) resolveBase(git repo.Git, repoDir string) {
 		if !isHex(sha) {
 			continue
 		}
-		// `^{commit}`, so a hex run naming a blob or a tree is not taken as a base. Both halves of the
-		// condition are load-bearing: the port answers a revision that names nothing with the empty
-		// string and no error, so `err == nil` alone would accept every hex token the draft held.
+		// `^{commit}`, so a hex run naming a blob or a tree is left out as a base. Both halves of the
+		// condition matter. The port answers an unresolvable revision with the empty string and a nil
+		// error, and `err == nil` alone would accept every hex token the draft held.
 		if id, err := git.Resolve(repoDir, sha+"^{commit}"); err == nil && id != "" {
 			return
 		}
@@ -509,7 +517,7 @@ func (s *scan) resolveBase(git repo.Git, repoDir string) {
 
 // dirtyNote is advisory, never a finding: some handoffs deliberately start from a committed base and
 // leave the caller's tree alone. The receiver cannot tell the two apart, and the human can. What is
-// printed is a file count, which is why it comes off `Status` — that listing is `-uall`, where git's
+// printed is a file count, which is why it comes off `Status`. That listing is `-uall`, and git's
 // default collapses a whole untracked directory into one line.
 func dirtyNote(git repo.Git, repoDir string) string {
 	entries, err := git.Status(repoDir)

@@ -1,8 +1,9 @@
 package installer_test
 
-// The region a run owns inside a file it does not. What is asserted here is the half no installer's
-// own suite can reach cheaply — the states of a target file, and the promise that nothing outside the
-// fences moves. A caller's suite covers which fences it passes and what body it writes.
+// The region a run owns inside a file it does not own. What is asserted here is the half an
+// installer's own suite reaches expensively: the states of a target file, and the promise that every
+// line outside the fences stays put. A caller's suite covers which fences it passes and what body it
+// writes.
 
 import (
 	"errors"
@@ -80,11 +81,12 @@ func TestRemovingTheRegionLeavesTheFileAsItWasFound(t *testing.T) {
 		f.expectFileBody(file, "Their own words.\n")
 	})
 
-	// The one-line file above cannot see this: removal holds back the blank line it added ahead of the
-	// fence, and holding it as the line itself is indistinguishable from holding nothing — so every
-	// blank line in a real, paragraphed file goes with the region. The whole file is compared, not
-	// grepped for its words: a grep for the paragraphs passes over a file whose paragraph breaks are
-	// gone.
+	// A one-line file cannot show this. Removal holds back the blank line it added ahead of the fence,
+	// and a hold stored as the line itself reads the same as an empty hold. Every blank line in a
+	// paragraphed file then goes with the region.
+
+	// The whole file is compared, and a grep for its words would pass over a file whose paragraph
+	// breaks are gone.
 	t.Run("and so does a paragraphed one", func(t *testing.T) {
 		const paragraphs = "# Project\n\nHow this works.\n\nAnd a second paragraph.\n"
 		f, file := newRegionFixture(t, paragraphs)
@@ -96,8 +98,8 @@ func TestRemovingTheRegionLeavesTheFileAsItWasFound(t *testing.T) {
 		f.expectFileBody(file, paragraphs)
 	})
 
-	// Absent is success, not a refusal — an uninstall run twice is a thing people do, and the second
-	// run has nothing to say beyond "already gone".
+	// Absent is success. An uninstall run twice is a thing people do, and the second run says "already
+	// gone" and stops there.
 	t.Run("and removing an absent region refuses nothing", func(t *testing.T) {
 		f, file := newRegionFixture(t, "Their own words.\n")
 		run := f.newRun(installer.RunOptions{})
@@ -109,9 +111,9 @@ func TestRemovingTheRegionLeavesTheFileAsItWasFound(t *testing.T) {
 	})
 }
 
-// Half a fence means something edited inside the region or truncated the file, and either way the span
-// a write would rewrite is no longer the span that was written. Guessing at its extent is how an
-// installer eats a paragraph the human wrote.
+// Half a fence means something edited inside the region or truncated the file, and the span a write
+// would rewrite is no longer the span that was written. An installer that guesses at its extent eats
+// a paragraph the human wrote.
 func TestHalfAFenceRefusesRatherThanGuessing(t *testing.T) {
 	t.Parallel()
 	const half = "Theirs.\n" + openFence + "\nstray\n"
@@ -153,8 +155,8 @@ func TestHalfAFenceRefusesRatherThanGuessing(t *testing.T) {
 
 func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 	t.Parallel()
-	// Writing through a symlink edits a file in a place the caller never named, which for an
-	// instruction file symlinked into a checkout means editing the checkout.
+	// A write through a symlink edits a file in a place the caller never named, and for an instruction
+	// file symlinked into a checkout that means editing the checkout.
 	t.Run("a symlinked target refuses and the file behind it is untouched", func(t *testing.T) {
 		f, real := newRegionFixture(t, "real\n")
 		link := f.base + "/link.md"
@@ -167,9 +169,9 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 		f.expectFileBody(real, "real\n")
 	})
 
-	// A missing file is refused rather than created: this is for regions inside files that already
-	// exist, and creating one here would let a typo in a path produce a plausible-looking new file in
-	// someone's repository.
+	// A missing file is refused instead of created. This is for regions inside files that already
+	// exist, and a file created here would let a typo in a path produce a plausible-looking new file
+	// in someone's repository.
 	t.Run("and a missing file refuses rather than being created", func(t *testing.T) {
 		f, _ := newRegionFixture(t, "unused\n")
 		run := f.newRun(installer.RunOptions{})
@@ -190,10 +192,10 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 		f.expectSaid("is not a regular file")
 	})
 
-	// A hardlink is neither a symlink nor a missing file, so nothing above catches it — and the append
-	// path copies the file's existing contents into the replacement, which for a link to somebody's
-	// private file copies that file into the project. The rename breaks the link so the original is
-	// never modified, but the read has already happened.
+	// A hardlink passes the symlink check and the existence check alike, so no earlier guard catches
+	// it. The append path copies the file's existing contents into the replacement, so a link to
+	// somebody's private file copies that file into the project. The rename breaks the link and the
+	// original stays as it was, and the read has already happened.
 	t.Run("and a hardlinked target refuses before reading it", func(t *testing.T) {
 		f, private := newRegionFixture(t, "secret\n")
 		hard := f.base + "/hard.md"
@@ -209,9 +211,9 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 		f.expectFileBody(private, "secret\n")
 	})
 
-	// A link count nobody established is the case where writing might share someone's file, so it is
-	// the wrong place to assume the safe answer. The shell reached this state routinely, through
-	// `stat`'s two incompatible format flags; here it is stubbed, because Go asks the kernel.
+	// An unestablished link count is the case where writing might share someone's file. This is the
+	// wrong place to assume the safe answer. The shell reached this state routinely, through `stat`'s
+	// two incompatible format flags. Here it is stubbed, because Go asks the kernel.
 	t.Run("and a link count that cannot be read refuses", func(t *testing.T) {
 		f, file := newRegionFixture(t, "secret\n")
 		run := f.newRun(installer.RunOptions{})
@@ -227,7 +229,7 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 }
 
 // A write that cannot land has to be counted as a refusal, or the run exits 0 reporting ok having
-// failed to write. The directory is stripped of write permission while the file inside it stays
+// failed to write. The directory is stripped of write permission and the file inside it stays
 // writable, so the file itself passes every guard and the temp file beside it is what fails.
 func TestAReplacementThatCannotLandIsCountedAsARefusal(t *testing.T) {
 	t.Parallel()
@@ -242,9 +244,9 @@ func TestAReplacementThatCannotLandIsCountedAsARefusal(t *testing.T) {
 		t.Fatalf("the fixture could not lock %s: %v", locked, err)
 	}
 	t.Cleanup(func() { os.Chmod(locked, 0o755) })
-	// Probed rather than assumed. Root ignores mode bits, and so does CAP_DAC_OVERRIDE without root and
-	// a filesystem that drops them — and there a 555 directory builds no refusal at all, leaving the
-	// case asserting against a write that happily succeeds.
+	// The case probes instead of assuming. Root ignores mode bits, and CAP_DAC_OVERRIDE ignores them
+	// too, on a filesystem that drops them. A 555 directory builds no refusal there, and the case
+	// would assert against a write that happily succeeds.
 	if syscall.Access(locked, 0x2) == nil {
 		t.Skip("this process can write into a mode-555 directory, so the replacement here cannot be made to fail")
 	}
