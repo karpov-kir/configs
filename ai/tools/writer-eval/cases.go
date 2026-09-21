@@ -22,8 +22,8 @@ type Case struct {
 	// before it keeps a claim. A `carried by <test>` label needs them. Without them the writer greps
 	// an empty set and keeps the claim, which the text in front of it asks for.
 	Tests string
-	// WantSummary and WantNote are what a case expects of each part, where it cares. Empty means the
-	// case is scored on the site alone.
+	// WantSummary and WantNote are what a case expects of each part, where it cares. An empty field
+	// leaves the case scored on the site alone.
 	WantSummary string
 	WantNote    string
 }

@@ -548,8 +548,8 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 	rate := float64(written) / float64(len(cases))
 	fmt.Fprintf(&out, "the writer wrote for %.0f%% of the set, against a floor of %.0f%%\n",
 		rate*100, plainWriteFloor*100)
-	// The parts split. A site is none only where both are, so a note lost to the summary's verdict is
-	// the thing this line exists to show.
+	// The parts split. A site is none only where both are. This line exists to show a note lost to
+	// the summary's verdict.
 	summaries, notes := 0, 0
 	for _, r := range parts {
 		if r.Summary == PartWritten {

@@ -23,10 +23,10 @@ type Return struct {
 	Block string
 	Terms []Audit
 	Verbs []Audit
-	// Summary and Note are the two part lines. Question 1 decides the summary alone and question 3
-	// runs whatever it answered, so a site is none only where both parts are. Reading one answer for
-	// the whole site is what declined every block a reviewer had kept: 37 of 37 and 15 of 15 stopped
-	// at question 1 without the facts file being opened.
+	// Summary and Note are the two part lines. Question 1 decides the summary. Question 3 runs
+	// whatever it answered, and a site is none only where both parts are. One answer for the whole
+	// site declined every block a reviewer had kept. Of those declines, 37 of 37 and 15 of 15 stopped
+	// at question 1, and the facts file stayed shut.
 	Summary  Part
 	Note     Part
 	Attempts int
