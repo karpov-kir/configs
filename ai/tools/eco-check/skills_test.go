@@ -7,16 +7,10 @@ import (
 )
 
 func TestSkillDirectory(t *testing.T) {
-	t.Run("fires on a skill directory holding no SKILL.md", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports(ecocheck.SkillDirWithoutSkillFile)
-	})
-
-	t.Run("fires when the frontmatter name is not the directory name", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports(ecocheck.SkillNameDirMismatch)
-	})
-
-	t.Run("fires on a SKILL.md carrying no description", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports(ecocheck.SkillWithoutDescription)
+	// One tree holds all three defects, one per skill directory, so one run answers for all three.
+	t.Run("fires on a directory with no SKILL.md, a mismatched name and a missing description", func(t *testing.T) {
+		newBrokenSkillDirs(t).reports(ecocheck.SkillDirWithoutSkillFile,
+			ecocheck.SkillNameDirMismatch, ecocheck.SkillWithoutDescription)
 	})
 
 	// A `name:` line in the body is not a declaration. The loader reads the frontmatter block, so a
@@ -41,16 +35,13 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 		return f
 	}
 
-	t.Run("names the file it could not read (control for the two below)", func(t *testing.T) {
-		newUnreadableSkill(t).reports(ecocheck.FileCouldNotBeRead)
-	})
-
-	t.Run("does not claim it declares an empty name", func(t *testing.T) {
-		newUnreadableSkill(t).doesNotReport(ecocheck.SkillNameDirMismatch)
-	})
-
-	t.Run("nor that it carries no description", func(t *testing.T) {
-		newUnreadableSkill(t).doesNotReport(ecocheck.SkillWithoutDescription)
+	// The refusal is the control for the two silences beside it: without it they hold over a run that
+	// never reached the file.
+	t.Run("names the file it could not read, claiming neither an empty name nor a missing description", func(t *testing.T) {
+		f := newUnreadableSkill(t)
+		output := f.run()
+		f.found(output, ecocheck.FileCouldNotBeRead)
+		f.absent(output, ecocheck.SkillNameDirMismatch, ecocheck.SkillWithoutDescription)
 	})
 }
 

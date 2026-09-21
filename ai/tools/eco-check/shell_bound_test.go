@@ -24,12 +24,8 @@ func newUnreadableStandard(t *testing.T) *fixture {
 }
 
 func TestUnreadableFileIsReportedNotSilentlySkipped(t *testing.T) {
-	t.Run("names a file the read could not open", func(t *testing.T) {
-		newUnreadableStandard(t).reports(ecocheck.FileCouldNotBeRead)
-	})
-
-	t.Run("and says it was not checked rather than leaving it to read as empty", func(t *testing.T) {
-		newUnreadableStandard(t).reports("it was NOT checked")
+	t.Run("names a file the read could not open, saying it was not checked", func(t *testing.T) {
+		newUnreadableStandard(t).reports(ecocheck.FileCouldNotBeRead, "it was NOT checked")
 	})
 
 	// It ranks with the tampered-check class, not with the references. Left at the default rank it
@@ -49,14 +45,10 @@ func TestOversizeFileIsReportedNotRead(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports a file past the read bound", func(t *testing.T) {
-		oversize(t).reports(ecocheck.FileTooLargeToScan)
-	})
-
 	// An unchecked file must never look like a checked one, so the finding has to say plainly that
 	// nothing read it.
-	t.Run("and says it was not checked rather than reading part of it", func(t *testing.T) {
-		oversize(t).reports("it was NOT checked")
+	t.Run("reports a file past the read bound, saying it was not checked", func(t *testing.T) {
+		oversize(t).reports(ecocheck.FileTooLargeToScan, "it was NOT checked")
 	})
 }
 
@@ -73,14 +65,10 @@ func TestOversizeBudgetFileIsReportedNotCounted(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports a budget file past the bound", func(t *testing.T) {
-		listed(t).reports(ecocheck.FileTooLargeToScan)
-	})
-
 	// Counted but unread is the shape that lies. The census line would carry a figure for a file
 	// nothing opened, so the finding says which of the two happened.
-	t.Run("and says it was not counted", func(t *testing.T) {
-		listed(t).reports("it was NOT counted")
+	t.Run("reports a budget file past the bound, saying it was not counted", func(t *testing.T) {
+		listed(t).reports(ecocheck.FileTooLargeToScan, "it was NOT counted")
 	})
 }
 
@@ -97,12 +85,10 @@ func TestOversizeFileIsNotReadByTheCallSiteScan(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports the file it did not search", func(t *testing.T) {
-		searched(t).reports("no call site in it was seen")
-	})
-
-	t.Run("while the scan itself is live on that tree", func(t *testing.T) {
-		searched(t).reports(noCallSite + "alpha — ")
+	// The second needle is the control: without it the first holds over a tree the call-site pass never
+	// ran on at all.
+	t.Run("reports the file it did not search, while the scan itself is live on that tree", func(t *testing.T) {
+		searched(t).reports("no call site in it was seen", noCallSite+"alpha — ")
 	})
 }
 
@@ -120,14 +106,10 @@ func TestUnreadableFileIsNotSearchedForCallSitesInSilence(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports the file it could not search", func(t *testing.T) {
-		searched(t).reports("no call site in it was seen")
-	})
-
-	// The control, and the thing that makes the fixture worth building: the unread file holds the one
-	// call site `alpha` has, so the run reports a subcommand as uncalled on evidence it never read.
-	// Both findings have to be there for a reader to tell those two facts apart.
-	t.Run("while still reporting the subcommand it could not find a site for", func(t *testing.T) {
-		searched(t).reports(noCallSite + "alpha — ")
+	// The second needle is the control, and the thing that makes the fixture worth building: the unread
+	// file holds the one call site `alpha` has, so the run reports a subcommand as uncalled on evidence
+	// it never read. Both findings have to be there for a reader to tell those two facts apart.
+	t.Run("reports the file it could not search, and the subcommand it could not find a site for", func(t *testing.T) {
+		searched(t).reports("no call site in it was seen", noCallSite+"alpha — ")
 	})
 }

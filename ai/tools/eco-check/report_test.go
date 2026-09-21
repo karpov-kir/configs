@@ -54,40 +54,30 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		f.reports(ecocheck.SyntaxError)
 	})
 
-	t.Run("shows a rank-1 finding under a flood of the gravest class", func(t *testing.T) {
-		newGravestClassFlood(t).reports(neverRan)
+	t.Run("shows a rank-1 finding under a flood of the gravest class, and says how many it withheld", func(t *testing.T) {
+		newGravestClassFlood(t).reports(neverRan, ecocheck.SuppressedMarker)
 	})
 
-	t.Run("and says how many of the flooding class it withheld", func(t *testing.T) {
-		newGravestClassFlood(t).reports(ecocheck.SuppressedMarker)
-	})
-
-	// The floor inside rank 5, the rank a branch under review picks the contents of. Without it, the
-	// class byte order puts first spends the whole budget and every other kind there prints nothing.
-	t.Run("shows every other rank-5 kind through a flood of one of them", func(t *testing.T) {
-		newFloodedRankFive(t).reports(ecocheck.DanglingLink, dangling, unresolved, noPosition,
-			unfamiliedSkill, ecocheck.SkillDirWithoutSkillFile, ecocheck.SkillWithoutDescription)
-	})
-
-	// The count is the flooding class's own: 45 raised, 33 shown once the other seven classes have
-	// taken their floor line. Subtracting the rank's cap instead prints 5, which every presence case
-	// above stays green over.
-	t.Run("and closes that class with a count of its own withheld findings", func(t *testing.T) {
-		newFloodedRankFive(t).reports("… and 12 " + ecocheck.SuppressedMarker)
-	})
-
-	// The second note on the same tree, over the class the floor left one line short of its two
-	// findings. One note per class, each counting itself. A single note for the rank would say 13 on
-	// both lines.
-	t.Run("and gives a second flooded class in that rank its own count", func(t *testing.T) {
-		newFloodedRankFive(t).reports("… and 1 " + ecocheck.SuppressedMarker)
-	})
-
-	// Exact, so the arithmetic is checkable: 54 findings, of which 41 print. That is the 40 rank 5's
-	// budget allows, plus the rank-3 mismatch taking one from its own. The two notes print beside
-	// them and are counted as neither.
-	t.Run("and reports the whole remainder on the trailing line", func(t *testing.T) {
-		newFloodedRankFive(t).reports("… 13 " + ecocheck.UnshownMarker)
+	// The floor inside rank 5, the rank a branch under review picks the contents of, and the three
+	// counts printed over the same tree. One run, because every one of them is a property of a single
+	// flooded report and rebuilding the fixture four times only risks the four copies drifting.
+	t.Run("shows every other rank-5 kind through a flood of one of them, counting what it withheld", func(t *testing.T) {
+		newFloodedRankFive(t).reports(
+			// Without the floor, the class byte order puts first spends the whole budget and every other
+			// kind in the rank prints nothing.
+			ecocheck.DanglingLink, dangling, unresolved, noPosition,
+			unfamiliedSkill, ecocheck.SkillDirWithoutSkillFile, ecocheck.SkillWithoutDescription,
+			// The count is the flooding class's own: 45 raised, 33 shown once the other seven classes
+			// have taken their floor line. Subtracting the rank's cap instead prints 5, which every
+			// presence needle above stays green over.
+			"… and 12 "+ecocheck.SuppressedMarker,
+			// The second note, over the class the floor left one line short of its two findings. One note
+			// per class, each counting itself. A single note for the rank would say 13 on both lines.
+			"… and 1 "+ecocheck.SuppressedMarker,
+			// The remainder, exact so the arithmetic is checkable: 54 findings, of which 41 print. That
+			// is the 40 rank 5's budget allows, plus the rank-3 mismatch taking one from its own. The two
+			// notes print beside them and are counted as neither.
+			"… 13 "+ecocheck.UnshownMarker)
 	})
 
 	// The remainder that is entirely the kind on screen: the note has to be right in that shape too.
@@ -98,11 +88,13 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		f.reports("… and 60 "+ecocheck.SuppressedMarker, "… 60 "+ecocheck.UnshownMarker)
 	})
 
-	// The number, not the presence of the line. The count has to be the class's own: subtracting the
+	// The numbers, not the presence of the lines. The class's count has to be its own: subtracting the
 	// rank's cap instead prints a plausible number for the flooding class and `-37` for this one, which
-	// is why every case above stays green over it.
+	// is why every case above stays green over it. The trailing line beside it counts neither of the
+	// tree's two notes as a finding.
 	t.Run("and counts a floored class's withheld findings against that class alone", func(t *testing.T) {
-		newDriftUnderAFloodOfItsRank(t).reports("… and 2 " + ecocheck.SuppressedMarker)
+		newDriftUnderAFloodOfItsRank(t).reports(
+			"… and 2 "+ecocheck.SuppressedMarker, "… 8 "+ecocheck.UnshownMarker)
 	})
 
 	// Tell a note from a finding by its printed text, and a committed path quoting the marker gets
@@ -122,12 +114,9 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 	// A file past the read bound is the plainest member of the tampered-check class — its own finding
 	// ends on "it was NOT checked" — and it went unranked, so it shared one budget with `dangling
 	// link:` and sorted below every one of them. 300 crafted links then hid an unread 8 MiB file
-	// completely: the report named no such file at all.
-	t.Run("shows a file past the read bound under a flood of link findings", func(t *testing.T) {
-		newOversizeUnderAFlood(t).reports(ecocheck.FileTooLargeToScan)
-	})
-
-	t.Run("and ranks it above that flood rather than inside it", func(t *testing.T) {
+	// completely: the report named no such file at all. Ordering rather than presence, for the reason
+	// `ranksAbove` gives; it fails on an absent finding too, so presence needs no case of its own.
+	t.Run("ranks a file past the read bound above a flood of link findings", func(t *testing.T) {
 		newOversizeUnderAFlood(t).ranksAbove(ecocheck.FileTooLargeToScan, ecocheck.DanglingLink)
 	})
 
@@ -140,10 +129,6 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		f.newMountPointingAt("idsd-gone", f.root+"/kk-flavor/skills/idsd-gone")
 		f.floodWithLinks(f.root+"/kk-flavor/standards/flood.md", 300, "[x](nope%03d.md)")
 		f.ranksAbove(ecocheck.MountWithoutASkill, ecocheck.DanglingLink)
-	})
-
-	t.Run("and counts neither of a two-note tree's notes as a finding", func(t *testing.T) {
-		newDriftUnderAFloodOfItsRank(t).reports("… 8 " + ecocheck.UnshownMarker)
 	})
 
 	// The same floor one rank up, where the findings are graver. Without it the drifted regions spend
@@ -162,13 +147,12 @@ func TestTheGravestFindingSurvivesAFlood(t *testing.T) {
 		newBasenameForgingAClass(t).reports(ecocheck.SharedRegionHasDrifted + "greet")
 	})
 
-	t.Run("shows a drifted shared region under a flood of another class in its rank", func(t *testing.T) {
-		newDriftUnderAFloodOfItsRank(t).reports(ecocheck.SharedRegionHasDrifted + "greet")
-	})
-
+	// A drifted shared region shown under a flood of another class in its rank — and left in that rank.
 	// A floor that reserved the line and then appended it below every rank would satisfy presence. It
-	// would also put the drift under the findings this report exists to rank it above.
-	t.Run("and leaves it in its own rank, above what that rank outranks", func(t *testing.T) {
+	// would also put the drift under the findings this report exists to rank it above, so ordering is
+	// what this asserts; `ranksAbove` fails on an absent finding too, so presence needs no case beside
+	// it.
+	t.Run("shows a drifted shared region in its own rank, above what that rank outranks", func(t *testing.T) {
 		newDriftUnderAFloodOfItsRank(t).ranksAbove(ecocheck.SharedRegionHasDrifted+"greet", noPosition)
 	})
 

@@ -558,14 +558,14 @@ func (f *fixture) parseCounts() (first, second int) {
 
 // The same two assertions against a second check of the same tree — what the run before it left
 // behind must not change what this one says.
-func (f *fixture) reportsOnASecondRun(needle string) {
+func (f *fixture) reportsOnASecondRun(needles ...string) {
 	f.t.Helper()
-	f.found(f.runTwice(), needle)
+	f.found(f.runTwice(), needles...)
 }
 
-func (f *fixture) doesNotReportOnASecondRun(needle string) {
+func (f *fixture) doesNotReportOnASecondRun(needles ...string) {
 	f.t.Helper()
-	f.absent(f.runTwice(), needle)
+	f.absent(f.runTwice(), needles...)
 }
 
 // The checker prints its budget lines before any finding, so a leak from a scan loop lands ahead of
@@ -594,15 +594,17 @@ func (f *fixture) ranksAbove(above, below string) {
 	}
 }
 
-// A finding built from text this checker did not choose, asserted twice over one fixture: that the
-// finding appears at all, and that no ESC reaches the output through it. The control is not optional —
-// without it the second half passes on a run that raised no finding.
+// A finding built from text this checker did not choose, asserted over ONE run of one fixture: that
+// the finding appears at all, and that no ESC reaches the output through it. The first half is not
+// optional — without it the second passes on a run that raised no finding. Both come off the same
+// output, so the two halves cannot end up describing two different runs, and the fixture is built
+// once.
 func assertNoControlByteEscapes(t *testing.T, what, finding string, build func(*testing.T) *fixture) {
-	t.Run("reports "+what+" (control for the case below)", func(t *testing.T) {
-		build(t).reports(finding)
-	})
-	t.Run("and no control byte from "+what+" reaches the output", func(t *testing.T) {
-		build(t).doesNotReport("\x1b")
+	t.Run("reports "+what+", and no control byte from it reaches the output", func(t *testing.T) {
+		f := build(t)
+		output := f.run()
+		f.found(output, finding)
+		f.absent(output, "\x1b")
 	})
 }
 

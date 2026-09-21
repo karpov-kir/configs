@@ -306,19 +306,16 @@ func TestTheFlagScanStaysWithinItsBounds(t *testing.T) {
 // NOT checked" and "it states no usage line" about one script. The second is a claim, and no run may
 // make one about content it refused to read.
 func TestAScriptTheFlagScanCouldNotRead(t *testing.T) {
-	t.Run("is not reported as one that states no usage line", func(t *testing.T) {
-		f := newRoot(t)
-		f.newFlagSuiteScript()
-		f.newScript("toy.sh", "#!/usr/bin/env bash\n#   usage: toy.sh [--gate]\n# tested by: toy-test.sh\ntrue")
-		f.writeOversize(f.root + "/kk-flavor/skills/toy.sh")
-		f.newCallSites("toy.sh --agent=claude")
-		output := f.run()
-		// The control: the refusal itself is reported, so the two absences below are absences from a
-		// run that did reach this script rather than from one that never saw it.
-		f.found(output, ecocheck.FileTooLargeToScan+f.root+"/kk-flavor/skills/toy.sh")
-		f.absent(output, noUsageLine)
-		f.absent(output, undocumentedFlag)
-	})
+	f := newRoot(t)
+	f.newFlagSuiteScript()
+	f.newScript("toy.sh", "#!/usr/bin/env bash\n#   usage: toy.sh [--gate]\n# tested by: toy-test.sh\ntrue")
+	f.writeOversize(f.root + "/kk-flavor/skills/toy.sh")
+	f.newCallSites("toy.sh --agent=claude")
+	output := f.run()
+	// The control: the refusal itself is reported, so the two absences below are absences from a
+	// run that did reach this script rather than from one that never saw it.
+	f.found(output, ecocheck.FileTooLargeToScan+f.root+"/kk-flavor/skills/toy.sh")
+	f.absent(output, noUsageLine, undocumentedFlag)
 }
 
 // The path half of a finding is the tree's own text, and a committed directory name carries whatever
