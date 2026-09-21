@@ -12,6 +12,8 @@ Read the code first and the facts file last. Open a site's facts file only when 
 
 ## Per site, three questions in order
 
+Open each site with the line `question 1: needed` or `question 1: none`. A reader then tells a site you declined from one you tried and could not write.
+
 1. **Is a comment needed?** Read the declaration, its signature, its body, and for an exported symbol its callers, found with `grep` over the repository. Answer `none` where the name, the parameters, the return type and the fields say what the symbol does. `none` is the default. A type whose fields say what it is gets no summary. A function whose name and parameters say what it lists, checks or returns gets no summary. Where the body is five lines or fewer, the reader reads the body. A summary there is written for a fact from outside the function: what a caller expects, what a format or a platform does, why a bound was chosen.
 
    Then strike, on the summary you are about to write and at any body length. List its content words. Strike each one that appears in the identifier, a parameter name, the return type or the body. A plural or a verb form counts as the same word. Strike also the verbs a summary opens with: checks, whether, returns, lists, says, gives, declares, holds, names, reads, writes, takes, yields, produces, provides, gets, sets. A summary with no word left is `none`. Probes for this question live in `~/.kk-flavor/workers/comment-writer/tests/summary-verdicts.md`.
@@ -53,7 +55,7 @@ Return the audit lines beside the block, one per line, as `term: <phrase> — id
 
 ## Check each block before you write it
 
-Run the edit lane's voice check over the block's text on stdin: `voice-check.sh --profile=prose -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `for the PR body`.
+Run the edit lane's voice check over the block's text on stdin: `voice-check.sh --profile=prose -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `for the PR body`. Show the two rewrites: `attempt 1: <the block> - <the finding>` and `attempt 2: <the block> - <the finding>`, one to a line, above the `none`. A `none` on a site where question 1 asked for a comment, with no two attempts under it, is a site you skipped, and your caller returns it to you.
 
 Then read the block once as the engineer opening this file for the first time, and restate it in one plain sentence. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `for the PR body`.
 

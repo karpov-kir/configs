@@ -23,6 +23,12 @@ type Return struct {
 	Block string
 	Terms []Audit
 	Verbs []Audit
+	// Answered and Needed carry what question 1 said, and Attempts counts the rewrites the writer
+	// showed. A none on a site question 1 called needed has to show two attempts, or the gate the
+	// writer runs over its own block is reading as permission to skip the site.
+	Answered bool
+	Needed   bool
+	Attempts int
 }
 
 // Audit is one classified word or phrase from the writer's return.
@@ -32,6 +38,8 @@ type Audit struct {
 }
 
 var auditLine = regexp.MustCompile(`(?i)^\s*(term|verb):\s*(.+?)\s+[—-]\s+(\w+)\s*$`)
+var questionLine = regexp.MustCompile(`(?i)^\s*question 1:\s*(needed|none)\s*$`)
+var attemptLine = regexp.MustCompile(`(?i)^\s*attempt \d+:`)
 var blockMarker = regexp.MustCompile(`^\s*(///|//|/\*\*|/\*|\*/|\*|#)\s?`)
 
 // ParseReturn reads the writer's answer. A line shaped as an audit entry is one, and every other
@@ -40,6 +48,15 @@ func ParseReturn(raw string) Return {
 	var out Return
 	var body []string
 	for _, line := range strings.Split(raw, "\n") {
+		if m := questionLine.FindStringSubmatch(line); m != nil {
+			out.Answered = true
+			out.Needed = strings.EqualFold(m[1], "needed")
+			continue
+		}
+		if attemptLine.MatchString(line) {
+			out.Attempts++
+			continue
+		}
 		if m := auditLine.FindStringSubmatch(line); m != nil {
 			entry := Audit{Word: strings.Trim(m[2], "`\"'"), Class: strings.ToLower(m[3])}
 			if strings.EqualFold(m[1], "term") {
@@ -158,6 +175,12 @@ func Judge(name string, want Expected, r Return) Verdict {
 	v := Verdict{Name: name, Want: want, Got: got}
 	if got == ExpectWritten {
 		v.Failures = Score(r)
+	}
+	// A none on a site question 1 called needed is a skipped rewrite unless the attempts are there to
+	// read. The writer says which site that is, so this reads presence and judges nothing.
+	if got == ExpectNone && r.Answered && r.Needed && r.Attempts < 2 {
+		v.Failures = append(v.Failures, Failure{"none-without-two-attempts",
+			fmt.Sprintf("%d attempt(s) shown", r.Attempts)})
 	}
 	return v
 }

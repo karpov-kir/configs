@@ -152,3 +152,37 @@ func TestTheScorerReadsAMultiLineBlock(t *testing.T) {
 		t.Errorf("a clean multi-line block failed %+v", got)
 	}
 }
+
+// A none on a site question 1 called needed is a skipped rewrite unless two attempts are there to
+// read. The writer names that site itself, so this reads presence.
+func TestANoneAfterQuestionOneSaidNeededShowsItsAttempts(t *testing.T) {
+	skipped := ParseReturn("question 1: needed\nnone\n")
+	if got := Judge("skipped", ExpectNone, skipped); got.Passed() {
+		t.Errorf("a none with no attempts passed: %+v", got)
+	}
+	tried := ParseReturn("question 1: needed\n" +
+		"attempt 1: /** The ledger settles it. */ - metaphor verb\n" +
+		"attempt 2: /** The ledger covers it. */ - metaphor verb\n" +
+		"none\n")
+	if tried.Attempts != 2 {
+		t.Fatalf("%d attempt(s) read, want 2", tried.Attempts)
+	}
+	if got := Judge("tried", ExpectNone, tried); !got.Passed() {
+		t.Errorf("a none after two attempts failed: %+v", got)
+	}
+	declined := ParseReturn("question 1: none\nnone\n")
+	if got := Judge("declined", ExpectNone, declined); !got.Passed() {
+		t.Errorf("a site question 1 declined needs no attempts: %+v", got)
+	}
+}
+
+// The question and attempt lines come out of the block the way the audit lines do.
+func TestTheQuestionAndAttemptLinesAreNotPartOfTheBlock(t *testing.T) {
+	r := ParseReturn("question 1: needed\n/** A closing period posts in the base currency. */\n")
+	if !r.Answered || !r.Needed {
+		t.Errorf("question 1 was not read: %+v", r)
+	}
+	if got := r.Text(); got != "A closing period posts in the base currency." {
+		t.Errorf("block text %q", got)
+	}
+}
