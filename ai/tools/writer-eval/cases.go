@@ -22,6 +22,10 @@ type Case struct {
 	// before it keeps a claim. A `carried by <test>` label needs them. Without them the writer greps
 	// an empty set and keeps the claim, which the text in front of it asks for.
 	Tests string
+	// WantSummary and WantNote are what a case expects of each part, where it cares. Empty means the
+	// case is scored on the site alone.
+	WantSummary string
+	WantNote    string
 }
 
 // ExpectRename is a site whose own identifier carries a coined compound. The writer returns the
@@ -73,6 +77,10 @@ func ParseCase(name, raw string) (Case, error) {
 			c.Why = value
 		case "labelled":
 			c.Label = value
+		case "summary":
+			c.WantSummary = strings.ToLower(value)
+		case "note":
+			c.WantNote = strings.ToLower(value)
 		default:
 			return c, fmt.Errorf("%s names an unknown field %q", name, key)
 		}
@@ -131,4 +139,21 @@ func ClassOf(r Return) Expected {
 		return ExpectNone
 	}
 	return ExpectWritten
+}
+
+// JudgeCase scores a return against a case, including what the case expects of each part. A case
+// that names no part expectation is scored on the site alone, the way it was before the parts split.
+func JudgeCase(c Case, r Return) Verdict {
+	v := Judge(c.Name, c.Expect, r)
+	want := func(field, label string, got Part) {
+		if field == "" {
+			return
+		}
+		if PartName(got) != field {
+			v.Failures = append(v.Failures, Failure{label + "-part", "wanted " + field + ", got " + PartName(got)})
+		}
+	}
+	want(c.WantSummary, "summary", r.Summary)
+	want(c.WantNote, "note", r.Note)
+	return v
 }

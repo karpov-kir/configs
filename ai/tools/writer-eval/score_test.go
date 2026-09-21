@@ -153,14 +153,14 @@ func TestTheScorerReadsAMultiLineBlock(t *testing.T) {
 	}
 }
 
-// A none on a site question 1 called needed is a skipped rewrite unless two attempts are there to
-// read. The writer names that site itself, so this reads presence.
-func TestANoneAfterQuestionOneSaidNeededShowsItsAttempts(t *testing.T) {
-	skipped := ParseReturn("question 1: needed\nnone\n")
+// A part the writer set out to write and then dropped is a skipped rewrite unless two attempts are
+// there to read. The writer names the parts itself, so this reads presence.
+func TestAPartDroppedAfterItWasNeededShowsItsAttempts(t *testing.T) {
+	skipped := ParseReturn("summary: needed\nnote: none\nnone\n")
 	if got := Judge("skipped", ExpectNone, skipped); got.Passed() {
-		t.Errorf("a none with no attempts passed: %+v", got)
+		t.Errorf("a dropped summary with no attempts passed: %+v", got)
 	}
-	tried := ParseReturn("question 1: needed\n" +
+	tried := ParseReturn("summary: needed\nnote: none\n" +
 		"attempt 1: /** The ledger settles it. */ - metaphor verb\n" +
 		"attempt 2: /** The ledger covers it. */ - metaphor verb\n" +
 		"none\n")
@@ -170,17 +170,31 @@ func TestANoneAfterQuestionOneSaidNeededShowsItsAttempts(t *testing.T) {
 	if got := Judge("tried", ExpectNone, tried); !got.Passed() {
 		t.Errorf("a none after two attempts failed: %+v", got)
 	}
-	declined := ParseReturn("question 1: none\nnone\n")
+	declined := ParseReturn("summary: none\nnote: none\nnone\n")
 	if got := Judge("declined", ExpectNone, declined); !got.Passed() {
-		t.Errorf("a site question 1 declined needs no attempts: %+v", got)
+		t.Errorf("a site with both parts none needs no attempts: %+v", got)
 	}
 }
 
-// The question and attempt lines come out of the block the way the audit lines do.
-func TestTheQuestionAndAttemptLinesAreNotPartOfTheBlock(t *testing.T) {
-	r := ParseReturn("question 1: needed\n/** A closing period posts in the base currency. */\n")
-	if !r.Answered || !r.Needed {
-		t.Errorf("question 1 was not read: %+v", r)
+// A note dropped after question 3 set out to write it is the same skipped rewrite as a summary's.
+// The two are counted apart, because a note lost to the summary's verdict is the defect the parts
+// were split to show.
+func TestANoteDroppedAfterItWasNeededShowsItsAttempts(t *testing.T) {
+	skipped := ParseReturn("summary: none\nnote: written\nnone\n")
+	failed := Judge("skipped", ExpectNone, skipped)
+	if failed.Passed() {
+		t.Errorf("a dropped note with no attempts passed: %+v", failed)
+	}
+	if !checkedBy(failed.Failures, "note-dropped-without-two-attempts") {
+		t.Errorf("the note's gate did not fire: %+v", failed.Failures)
+	}
+}
+
+// The part and attempt lines come out of the block the way the audit lines do.
+func TestThePartAndAttemptLinesAreNotPartOfTheBlock(t *testing.T) {
+	r := ParseReturn("summary: needed\nnote: none\n/** A closing period posts in the base currency. */\n")
+	if r.Summary != PartWritten || r.Note != PartNone {
+		t.Errorf("the part lines were not read: %+v", r)
 	}
 	if got := r.Text(); got != "A closing period posts in the base currency." {
 		t.Errorf("block text %q", got)

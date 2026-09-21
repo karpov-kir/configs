@@ -45,9 +45,7 @@ const evalRolls = 5
 // clear every roll. The writer judges a written block, so that one clears writtenFloor.
 //
 // The floors came apart after the steps that fixed every none case collapsed every written one. The
-// writer had moved from judging to refusing, and one number could not see that happen. The plain half of the eval is the next piece, and
-// its bound is absent with it, because a bar declared before the thing that measures it reads as
-// enforced.
+// writer had moved from judging to refusing, and one number could not see that happen.
 const labelledBar = "a none case on every roll, a written case on three of five"
 
 // writtenFloor is how many rolls a case the writer judges has to clear.
@@ -135,10 +133,11 @@ func prompt(t *testing.T, c Case) string {
 	}
 	out.WriteString("You have no tools here, so apply the worker's voice check by reading rather than " +
 		"by running it, and report a script you would have run as a finding you read for yourself.\n\n" +
-		"Answer with a line `question 1: needed` or `question 1: none`, then the block you would write " +
-		"above the declaration, or the single word none, or a line `rename: <what to rename>`. Where " +
-		"question 1 said needed and you still answer none, show the attempts first, one per line, as " +
-		"`attempt 1: <block> — <finding>`. Add your audit lines, one per line, as " +
+		"Answer with a line `summary: needed` or `summary: none`, a line `note: written` or " +
+		"`note: none`, then the block you would write above the declaration, or the single word none, " +
+		"or a line `rename: <what to rename>`. The site is none only where both parts are none. Where " +
+		"a part was needed and you answer none for it, show the attempts first, one per line, as " +
+		"`attempt 1: <part> — <finding>`. Add your audit lines, one per line, as " +
 		"`term: <phrase> — identifier|domain|plain` and `verb: <word> — literal|figure`. Answer with nothing else.")
 	return out.String()
 }
@@ -199,11 +198,19 @@ func TestWriterEval(t *testing.T) {
 					return
 				}
 				answers[i][roll] = strings.TrimSpace(raw)
-				rolls[i][roll] = Judge(c.Name, c.Expect, ParseReturn(raw))
+				rolls[i][roll] = JudgeCase(c, ParseReturn(raw))
 			}(i, roll, c)
 		}
 	}
 	wait.Wait()
+
+	var rows []dumped
+	for i, c := range cases {
+		for roll, answer := range answers[i] {
+			rows = append(rows, dumped{Case: c.Name, Roll: roll, Raw: answer})
+		}
+	}
+	dumpReturns(rows)
 
 	var out strings.Builder
 	fmt.Fprintf(&out, "\nwriter row: %s %s, %d case(s), %d roll(s) each\n\n",
@@ -287,6 +294,33 @@ func oneLine(text string) string {
 // ledgerEnv names a file this eval appends each run's per-case counts to. A per-case count at five
 // rolls still carries noise. A change is attributable where it is larger than the spread the ledger
 // shows across runs. Unset, the run reports itself alone.
+// dumpEnv names a file every raw return is appended to. A decline is classified from the writer's
+// own words, and a run that keeps only the verdict has thrown those away.
+const dumpEnv = "WRITER_EVAL_DUMP"
+
+type dumped struct {
+	Case string `json:"case"`
+	Roll int    `json:"roll"`
+	Raw  string `json:"raw"`
+}
+
+// dumpReturns appends this run's returns. It is best effort: a run that cannot write the dump still
+// reports its table, because the table is the thing the bar reads.
+func dumpReturns(rows []dumped) {
+	path := os.Getenv(dumpEnv)
+	if path == "" {
+		return
+	}
+	var held []dumped
+	if body, err := os.ReadFile(path); err == nil {
+		_ = json.Unmarshal(body, &held)
+	}
+	held = append(held, rows...)
+	if body, err := json.MarshalIndent(held, "", " "); err == nil {
+		_ = os.WriteFile(path, body, 0o644)
+	}
+}
+
 const ledgerEnv = "WRITER_EVAL_LEDGER"
 
 type pooled struct {
@@ -457,6 +491,8 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 		at = parsed
 	}
 	verdicts := make([]Verdict, len(cases))
+	raws := make([]string, len(cases))
+	parts := make([]Return, len(cases))
 	gate := make(chan struct{}, at)
 	var wait sync.WaitGroup
 	for i, c := range cases {
@@ -468,12 +504,21 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 			raw, err := callWriter(settings, prompt(t, c))
 			if err != nil {
 				verdicts[i] = Verdict{Name: c.Name, Got: "error"}
+				raws[i] = err.Error()
 				return
 			}
-			verdicts[i] = Judge(c.Name, c.Expect, ParseReturn(raw))
+			raws[i] = strings.TrimSpace(raw)
+			parsed := ParseReturn(raw)
+			parts[i] = parsed
+			verdicts[i] = JudgeCase(c, parsed)
 		}(i, c)
 	}
 	wait.Wait()
+	var rows []dumped
+	for i, c := range cases {
+		rows = append(rows, dumped{Case: c.Name, Raw: raws[i]})
+	}
+	dumpReturns(rows)
 
 	written, failed, declined := 0, 0, 0
 	byCheck := map[string]int{}
@@ -503,6 +548,19 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 	rate := float64(written) / float64(len(cases))
 	fmt.Fprintf(&out, "the writer wrote for %.0f%% of the set, against a floor of %.0f%%\n",
 		rate*100, plainWriteFloor*100)
+	// The parts split. A site is none only where both are, so a note lost to the summary's verdict is
+	// the thing this line exists to show.
+	summaries, notes := 0, 0
+	for _, r := range parts {
+		if r.Summary == PartWritten {
+			summaries++
+		}
+		if r.Note == PartWritten {
+			notes++
+		}
+	}
+	fmt.Fprintf(&out, "parts: %d summary(ies) and %d note(s) written over %d site(s)\n",
+		summaries, notes, len(cases))
 	var checks []string
 	for check := range byCheck {
 		checks = append(checks, fmt.Sprintf("%s %d", check, byCheck[check]))
