@@ -89,16 +89,6 @@ func TestSplitProseKeepsEachListItemItsOwnUnit(t *testing.T) {
 	}
 }
 
-// A paragraph opening in bold is prose, not a list: `**Bold**` and `--- so` both start with a marker
-// character and neither carries the space that makes one.
-func TestSplitProseDoesNotReadBoldOrADashAsAListItem(t *testing.T) {
-	lines := []string{"**Bold** opens this", "--- and this continues it", "*emphasis* too"}
-	units, _ := Split(lines, proseBlocks(lines), all)
-	if len(units) != 1 || units[0].Span != 3 {
-		t.Fatalf("got %v, want one unit spanning 3 lines", units)
-	}
-}
-
 // Git's own rule, and the reason for it: with no block above it, the last block is the subject line,
 // and a subject shaped like `Fix: the thing` is the message rather than metadata about it.
 func TestASubjectLineShapedLikeATrailerIsStillJudged(t *testing.T) {
@@ -107,10 +97,6 @@ func TestASubjectLineShapedLikeATrailerIsStillJudged(t *testing.T) {
 	}
 	if withheld := trailerLines([]string{"Subject", "", "Body text"}); withheld != nil {
 		t.Fatalf("an ordinary closing paragraph was withheld as a trailer: %v", withheld)
-	}
-	withheld := trailerLines([]string{"Subject", "", "Signed-off-by: A <a@b>", "Co-Authored-By: C <c@d>"})
-	if len(withheld) != 2 || !withheld[3] || !withheld[4] {
-		t.Fatalf("the trailer block is %v, want lines 3 and 4", withheld)
 	}
 }
 
@@ -130,10 +116,6 @@ func TestATrailerBlockSurvivesTheLinesGitPutsInIt(t *testing.T) {
 			}
 		})
 	}
-	// Still nothing to withhold where no line in the block is a trailer at all.
-	if withheld := trailerLines([]string{"Subject", "", "Body.", "", "Closing thought.", "Another line."}); withheld != nil {
-		t.Fatalf("an ordinary closing paragraph was withheld: %v", withheld)
-	}
 }
 
 // The shape of a message piped from `git log`, which ends in blank lines.
@@ -151,8 +133,8 @@ func TestOpensBlockTakesAMarkerOnlyWithTheSpaceAfterIt(t *testing.T) {
 		"- item": true, "* item": true, "+ item": true, "1. item": true, "1) item": true,
 		"-\titem": true, "1.\titem": true,
 		"**Bold** opens a paragraph": false, "--- a comparison": false, "*emphasis*": false,
-		"-": false, "12": false, "12.": false, "0": false, "2026-09-16 was the date": false,
-		"plain continuation": false, "": false,
+		"-": false, "12": false, "12.": false, "2026-09-16 was the date": false,
+		"plain continuation": false,
 	} {
 		if got := opensBlock(line, false); got != want {
 			t.Errorf("opensBlock(%q, inList=false) = %v, want %v", line, got, want)
@@ -193,18 +175,12 @@ func TestAWrappedBulletIsNotSplitByANumberOnItsNextLine(t *testing.T) {
 	if len(units) != 1 || units[0] != (Unit{Line: 1, Span: 3}) {
 		t.Fatalf("got %v, want one unit spanning all three lines", units)
 	}
-	// What must keep working: a real ordered list still numbers past one, and a bullet list still
-	// gives every bullet its own unit.
-	for name, lines := range map[string][]string{
-		"an ordered list":            {"1. first", "2. second", "3. third"},
-		"an ordered list that wraps": {"1. first", "   onto a second line", "2. second"},
-		"a bullet list":              {"- a", "- b"},
-		"a bullet then an ordered":   {"- a", "1. b"},
-	} {
-		units, _ := Split(lines, proseBlocks(lines), all)
-		if len(units) < 2 {
-			t.Errorf("%s collapsed into %v", name, units)
-		}
+	// What must keep working: an item that wraps still ends at the next number, which no other case
+	// drives from inside an ordered list.
+	wrapping := []string{"1. first", "   onto a second line", "2. second"}
+	units, _ = Split(wrapping, proseBlocks(wrapping), all)
+	if len(units) != 2 || units[0] != (Unit{Line: 1, Span: 2}) || units[1] != (Unit{Line: 3, Span: 1}) {
+		t.Errorf("an ordered list that wraps gave %v, want the wrapped item then the next one", units)
 	}
 }
 

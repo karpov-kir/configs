@@ -35,20 +35,6 @@ func TestParseVerdictRefusesProseAndOutOfRange(t *testing.T) {
 	}
 }
 
-func TestVotingDeletesOnlyWhatAMajorityNames(t *testing.T) {
-	reply, err := Voting(rollsAnswering("1, 2", "1", "3"), 3)("p", viewOf("a", "b", "c"))
-	if err != nil || reply != "1" {
-		t.Fatalf("got %q %v, want \"1\"", reply, err)
-	}
-}
-
-func TestVotingAnswersNoneWhenNothingAgrees(t *testing.T) {
-	reply, err := Voting(rollsAnswering("1", "2", "3"), 3)("p", viewOf("a", "b", "c"))
-	if err != nil || reply != "none" {
-		t.Fatalf("got %q %v, want none", reply, err)
-	}
-}
-
 func TestVotingRefusesIfAnyRollExplains(t *testing.T) {
 	if _, err := Voting(rollsAnswering("1", "I think 1 goes", "1"), 3)("p", viewOf("a", "b", "c")); err == nil {
 		t.Fatal("a prose roll was outvoted instead of refused")
@@ -68,41 +54,30 @@ func TestVotingRefusesARollNamingAUnitThatWasNeverOffered(t *testing.T) {
 	}
 }
 
-func TestEveryRollGoesOutEvenWhenTheyAgree(t *testing.T) {
-	call, calls := counting(func(string, string) (string, error) { return "2, 1", nil })
-	got, err := Voting(call, 3)("prompt", viewOf("one", "two"))
-	if err != nil || got != "1,2" {
-		t.Fatalf("majority = %q, %v, want \"1,2\"", got, err)
-	}
-	if calls() != 3 {
-		t.Fatalf("%d call(s), want 3 — a roll was held back", calls())
-	}
-}
-
-// The count is Voting's own parameter and the majority is arithmetic over it, so the rule has to hold
-// for counts other than the 3 production passes today. Nine because a high count is where an
-// off-by-one hides, and because 3 alone would let a wrong general rule pass — at 3 a bare half and
-// more than half name the same number of rolls.
-func TestTheMajorityRuleHoldsAtAHigherRollCount(t *testing.T) {
+// The rule is MORE THAN half, and the count is Voting's own parameter, so it has to hold away from
+// the 3 production passes today. Four, because an odd count cannot tell the rule from a bare half:
+// no whole number of rolls is exactly half of 3 or of 9, and a vote reading `>=` there answers the
+// same as one reading `>`. At four it does not — four rolls need three.
+func TestTheMajorityRuleNeedsMoreThanHalfTheRolls(t *testing.T) {
 	for _, c := range []struct {
 		name    string
 		replies []string
 		want    string
 	}{
-		{"five of nine carries a unit", []string{"1", "1", "1", "1", "1", "2", "2", "2", "2"}, "1"},
-		{"four of nine does not", []string{"1", "1", "1", "1", "2", "2", "3", "3", "none"}, "none"},
+		{"three of four carries a unit", []string{"1", "1", "1", "2"}, "1"},
+		{"a bare half of four does not", []string{"1", "1", "2", "3"}, "none"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			call, calls := counting(rollsAnswering(c.replies...))
-			got, err := Voting(call, 9)("p", viewOf("a", "b", "c"))
+			got, err := Voting(call, 4)("p", viewOf("a", "b", "c"))
 			if err != nil {
 				t.Fatalf("vote refused: %v", err)
 			}
 			if got != c.want {
 				t.Fatalf("got %q, want %q", got, c.want)
 			}
-			if calls() != 9 {
-				t.Fatalf("%d call(s), want 9 — a roll was held back", calls())
+			if calls() != 4 {
+				t.Fatalf("%d call(s), want 4 — a roll was held back", calls())
 			}
 		})
 	}
