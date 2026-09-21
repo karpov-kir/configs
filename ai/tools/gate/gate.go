@@ -152,7 +152,7 @@ func (g *gate) resolveRoot(root string) int {
 	return 0
 }
 
-// The five, or a table a suite handed over.
+// The six, or a table a suite handed over.
 //
 // `--full` is `-count=1` over everything, and the budget is a claim about a COLD run, so the run that
 // measures it must not answer out of Go's cache at all.
@@ -191,6 +191,10 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 		{id: "gotest", cmd: suite},
 		{id: "wiring", cmd: wiringCmd},
 		{id: "guide", cmd: "ECO_TOOLS_BUILD=1 ai/guide.sh --check"},
+		// The instruction tree's baseline, which is a ratchet and only goes down. It had one reader
+		// before it had a job: a sentence in a skill telling an agent to look at it, which is a document
+		// rather than a gate.
+		{id: "baseline", cmd: "ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh"},
 	}, 0
 }
 

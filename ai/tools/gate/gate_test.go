@@ -8,7 +8,7 @@
 //     other one to stay fast, and a gate that reports it as a warning has no budget.
 //
 // No case here runs a real check. The cases about the run loop, the report and the refusals drive the
-// gate through its checks-file seam, which reaches all three in milliseconds; the cases about the five
+// gate through its checks-file seam, which reaches all three in milliseconds; the cases about the six
 // themselves read the commands `plan` builds and never execute them. Running the real ones means
 // running the suite this file is part of.
 package gate
@@ -101,7 +101,7 @@ func (f *fixture) runCount(name string) int {
 	return len(body)
 }
 
-// The real five, as plan builds them for this machine. The cases below read a command out of these and
+// The real six, as plan builds them for this machine. The cases below read a command out of these and
 // never run one.
 func (f *fixture) planned(full bool) []check {
 	f.t.Helper()
@@ -113,7 +113,7 @@ func (f *fixture) planned(full bool) []check {
 	return checks
 }
 
-// One of the real five by id, for the cases that read a command and never run it.
+// One of the real six by id, for the cases that read a command and never run it.
 func (f *fixture) plannedCheck(id string) check {
 	f.t.Helper()
 	for _, c := range f.planned(false) {
