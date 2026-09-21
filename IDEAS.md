@@ -2,6 +2,48 @@
 
 Deferred proposals, not active agent instructions. Keep at most 20 open ideas; review and consolidate this backlog when the owner requests a review or before exceeding that limit.
 
+## 1x | 2026-09-21 | The gate's remaining spawns are its differentials, and cutting them costs proof
+
+The 100-second budget holds at 67-83s cold on a quiet-ish laptop and was measured at 102s with exit 1
+at load 12 by a second session. Two coverage-neutral cuts were proposed and both turn out to be
+unavailable. This entry records the measurement so the next reader does not re-derive it.
+
+**Where the spawns are.** 360 shell and git spawns across the suite, counted one package at a time
+with a PATH shim. `tree-fingerprint` holds 138 and `repo` 90, which is 63% between them. The rest are
+under 30 each.
+
+**The proposal was a seed built once and copied per case.** `tree-fingerprint` already calls
+`newFixture` exactly once for the whole file, and its cases are subtests over that one fixture. The
+138 spawns are one fixture of about 17, plus roughly 17 readings at about 5 git processes each. The
+readings are the cut, and the readings are the differential against real git.
+
+**Copying such a fixture is harder than it looks anyway.** It carries a linked worktree, and git
+stores absolute paths in `.git/worktrees/<name>/gitdir` and in the worktree's own `.git` file. A copy
+leaves those pointing at the original. The worktree cases would then read a tree that is not the one
+the case built, and pass or fail for a reason the case does not name.
+
+**The other proposal was sharing a build across the lock cases.** Those cases are about two processes
+contending for one `bin/<tool>.lock`, they run in parallel, and each takes its own tools directory.
+Sharing the build means sharing the contended state that is the subject.
+
+**What the differential has already caught**, which is what makes its resolution the product rather
+than an expense: the fake treating a pathspec as root-relative, where two subdirectory cases passed
+for the reason production would fail; and an adapter answering a listing from a subdirectory with that
+subtree in place of the commit.
+
+**The one cut still open** is the stamp double-run. `resolve.sh` runs `source-stamp.sh` in
+`built_from_this_source` and again before the build, and a run that waits on the lock takes it three
+times. Folding is safe in the conservative direction, because a stamp older than the source it is
+written beside makes the next run rebuild rather than serve. It is left because the value is computed
+on either side of a lock wait that can be minutes, and which moment the stamp describes is a
+correctness decision about the binary-and-stamp pairing a security review went through on the same
+day. Settle that question before folding it, not while.
+
+**So the open question is not which spawns to cut.** It is whether a wall-clock bound is the right
+shape on a machine that is never idle. The alternatives are a bound on spawns or CPU rather than wall
+clock, or accepting the number as a quiet-machine one and a red under two concurrent gates. Whoever
+picks should know that nothing is left to cut that does not cost proof.
+
 ## 1x | 2026-09-17 | What the 100-second gate left open
 
 Four things this branch measured and deferred. Three are now closed and are recorded here for the
