@@ -1261,11 +1261,9 @@ var placeableNames = map[string]bool{"camelcase": true, "srgb": true, "ios": tru
 	"tvos": true, "watchos": true, "iphone": true, "ipad": true, "javascript": true, "typescript": true}
 
 // bareIdentifiers finds a name a block uses without saying what it is. A reader who cannot place a
-// name reads the sentence as being about something else. The site's own declaration is exempt, since
-// the block sits on it, and an appositive places a name: `preferredSettlements, the allowed schemes`.
-//
-// It reached 37 of 304 notes on a sixty-file set before it landed. Its false positives are the terms
-// of art spelled the same way, which placeableNames holds.
+// name reads the sentence as being about something else. An appositive places one, and the site's own
+// declaration needs none. It reached 37 of 304 notes on a sixty-file set, and its false positives are
+// the terms of art in placeableNames, the list above.
 func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
 	var found []Finding
 	for at := b.start; at <= b.end && at <= len(lines); at++ {
