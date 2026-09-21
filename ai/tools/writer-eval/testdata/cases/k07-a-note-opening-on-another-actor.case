@@ -1,0 +1,11 @@
+expect: written
+note: written
+floor: 2
+why: the note opens on an actor the site does not name and uses a name the reader cannot place; Kirill on 2026-09-21: "This looks out of blue and hard to follow"; the expected form names the site's subject first and places the outside name with an appositive, and no check reaches this, so judgement decides it
+labelled: 2026-09-21
+--- code
+export function withOnlySettlement(source: SourceConfig, scheme: Settlement): SourceConfig {
+  return { ...source, settlements: [scheme] };
+}
+--- facts
+The ledger can choose a settlement that preferredSettlements does not name, so withOnlySettlement removes the others.

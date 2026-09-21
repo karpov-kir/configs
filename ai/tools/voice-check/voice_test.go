@@ -1413,3 +1413,45 @@ func TestTheBooleanCheckPassesOverAComparative(t *testing.T) {
 		t.Errorf("the guard silenced a true finding, which is the control for it")
 	}
 }
+
+// A name the block's own declaration spells needs no placing: the reader has it in front of them. A
+// name from elsewhere is placed by an appositive, or the reader cannot tell what it is.
+func TestABareIdentifierIsOnlyTheOneTheSiteDoesNotDeclare(t *testing.T) {
+	declared := []string{
+		"/** Drops a claim that dropStaleClaims no longer names. */",
+		"export function dropStaleClaims(book: Element): Element[] {",
+		"  return [];",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", declared, nil) {
+		if f.Check == checkBareIdent {
+			t.Errorf("reported %q, and the declaration under the block spells it", f.Text)
+		}
+	}
+	placed := []string{
+		"/** Drops a claim that preferredSettlements, the ledger's allowed schemes, no longer names. */",
+		"export function dropStaleClaims(book: Element): Element[] {",
+		"  return [];",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", placed, nil) {
+		if f.Check == checkBareIdent {
+			t.Errorf("reported %q, and an appositive places it", f.Text)
+		}
+	}
+	bare := []string{
+		"/** Drops a claim that preferredSettlements no longer names. */",
+		"export function dropStaleClaims(book: Element): Element[] {",
+		"  return [];",
+		"}",
+	}
+	found := false
+	for _, f := range voiceScanner().scanSource("f.ts", bare, nil) {
+		if f.Check == checkBareIdent && f.Text == "preferredSettlements" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("a name from elsewhere with nothing placing it was not reported")
+	}
+}

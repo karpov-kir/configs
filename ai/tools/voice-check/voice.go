@@ -108,6 +108,7 @@ const (
 	checkCounterfact   = "counterfactual-consequence"
 	checkAnthropo      = "anthropomorphism"
 	checkElidedVerb    = "elided-verb"
+	checkBareIdent     = "bare-identifier"
 	checkLongSentence  = "long-sentence"
 	checkClauseDepth   = "clause-depth"
 	checkDoubleNeg     = "double-negative"
@@ -117,7 +118,7 @@ const (
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
-	checkCounterfact, checkAnthropo, checkElidedVerb,
+	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon}
 
 var (
@@ -495,6 +496,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool) []
 	identifiers := identifierWordsOf(lines)
 	for _, b := range commentBlocksIn(lines, held) {
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
+		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(lines, b))...)
 		limit := voiceLongBlock
 		if b.isFileHeader(lines, held) {
 			limit = voiceLongHeader
@@ -1249,6 +1251,32 @@ func identifierWordsOf(lines []string) map[string]bool {
 	return out
 }
 
+// A camelCase name, and the comma that would place it.
+var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
+var reAppositiveTail = regexp.MustCompile(`^\s*,`)
+
+// bareIdentifiers finds a name a block uses without saying what it is. A reader who cannot place a
+// name reads the sentence as being about something else, which is the "out of the blue" complaint
+// with a name in it. The site's own declaration is exempt, since the block sits on it, and a name
+// followed by an appositive is placed: `preferredKeySystems, the source's list of allowed systems`.
+//
+// Measured at 37 of 304 notes on a sixty-file set before it landed. An acronym spelled like a
+// camelCase token, `sRGB`, is its false positive.
+func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
+	var found []Finding
+	for at := b.start; at <= b.end && at <= len(lines); at++ {
+		text := proseOf(lines[at-1])
+		for _, span := range reCamelToken.FindAllStringIndex(text, -1) {
+			token := text[span[0]:span[1]]
+			if declared[strings.ToLower(token)] || reAppositiveTail.MatchString(text[span[1]:]) {
+				continue
+			}
+			found = append(found, Finding{File: file, Line: at, Check: checkBareIdent, Text: token})
+		}
+	}
+	return found
+}
+
 // coinedIdentifiers finds a hyphenated compound in a block whose camelCase join the code spells. The
 // code invented the word and the prose took it, so the rename lane owns it. A compound the conf
 // names as the domain's passes. comment-census's README holds the measurement that seeds it.
@@ -1268,4 +1296,21 @@ func (s scanner) coinedIdentifiers(file string, b block, lines []string, identif
 		}
 	}
 	return found
+}
+
+// declaredAt is what the declaration under a block spells, which is the name a block may use without
+// placing it. The block sits on that declaration, so its reader has the name in front of them.
+func declaredAt(lines []string, b block) map[string]bool {
+	at := b.end + 1
+	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
+		at++
+	}
+	out := map[string]bool{}
+	if at > len(lines) {
+		return out
+	}
+	for _, word := range reIdentifierWord.FindAllString(lines[at-1], -1) {
+		out[strings.ToLower(word)] = true
+	}
+	return out
 }

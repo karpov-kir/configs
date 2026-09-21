@@ -62,3 +62,8 @@ export function claimFromPeriodBlindAnswer(book: Element): boolean {
 export function toEntries(set: Element): Element[] {
   return [];
 }
+
+/** Drops a claim that preferredSettlements, the ledger's list of allowed schemes, no longer names. */
+export function dropStaleClaims(book: Element): Element[] {
+  return [];
+}
