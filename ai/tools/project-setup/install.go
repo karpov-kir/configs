@@ -1,18 +1,12 @@
 // Package projectsetup mounts this repository's skills into one project, writes the two instruction
-// files and the ignore rules that go with them, and takes all of it back out again.
+// files and the ignore rules that go with them, and takes all of it back out again. The skills reach
+// the project through the shared ~/.kk-flavor bucket, and no mount names this checkout directly, so a
+// project holds a path every install of this flavor has.
 //
-//	usage: install-project.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--uninstall] <project>
-//
-// The skills reach the project through the shared ~/.kk-flavor bucket rather than through this
-// checkout directly, so a project holds one path that every install of this flavor has.
-//
-// Uninstall is a mode here rather than a program of its own, over the same table an install declares: a
-// second one re-deriving what to remove drifts from what was installed, and drifts in the one
-// direction nobody notices — leaving things behind and reporting ok.
-//
-// Nothing here reads the environment or runs a command directly. The home, the machine and git all
-// arrive as values, which is what lets a suite drive a worktree listing, a mise install and a whole
-// throwaway home without spawning anything.
+// Uninstall is a mode here, over the same table an install declares. A second program re-deriving what
+// to remove would disagree with what was installed, in the direction the human misses: things left
+// behind and a run reporting ok. The home, the machine and git arrive as values here, so a suite can
+// drive a throwaway home, a worktree listing and a mise install with no process spawned.
 package projectsetup
 
 import (
@@ -29,8 +23,9 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// Exit codes on the tools' shared vocabulary. 2 is a grammar this tool did not understand, so nothing
-// was attempted. 1 is something a human has to fix, and the report at the end of every run answers it.
+// Exit codes on the tools' shared vocabulary. 2 is a grammar this tool did not understand, so the run
+// stopped before its first write. 1 is something a human has to fix, and the report at the end of
+// every run answers it.
 const (
 	exitDone     = 0
 	exitBadUsage = 2
@@ -42,10 +37,10 @@ const label = "ai project install"
 // states: `usage: <basename>` is what eco-check's scans anchor on.
 const stubPath = "install-project.sh"
 
-// What the second-checkout guard looks for under a candidate root. A constant rather than the running
-// program's own name, because two entry points reach this code — the installer and the post-checkout
-// sync — and the mounts were written by the installer. A sync that looked for its own name would find
-// nothing and repoint another checkout's project mounts without a word.
+// What the second-checkout guard looks for under a candidate root. A constant, and never the running
+// program's own name, since two entry points reach this code: the installer and the post-checkout
+// sync. The mounts were written by the installer, and a sync that looked for its own name would find
+// none and repoint another checkout's project mounts in silence.
 const guardScriptName = "install-project.sh"
 
 const claudeAgent = "claude"
@@ -63,9 +58,9 @@ type Options struct {
 	// lives.
 	ConfigHome string
 	Machine    machine.Machine
-	// Git is ai/tools/repo's port, the one place these tools ask a git repository a question. This
-	// installer asks four of them — where a worktree's root is, which store its clone shares, what
-	// core.hooksPath says, and what `worktree list` names.
+	// Git is ai/tools/repo's port, the single place these tools ask a git repository a question. This
+	// installer asks four questions: a worktree's root, the store its clone shares, core.hooksPath, and
+	// what `worktree list` names.
 	Git repo.Git
 	// Mcp configures the project's own MCP client files. A port, because it is a whole tool of its own
 	// and what this installer decides is only what to do with the code it answers.
@@ -75,7 +70,7 @@ type Options struct {
 	WriteRoot string
 }
 
-// Mcp is the project MCP configuration, as the one question this installer asks of it.
+// Mcp is the project MCP configuration, as the single question this installer asks of it.
 type Mcp interface {
 	// Configure answers an exit code: 0 done, anything else a refusal the tool has already explained.
 	Configure(project, agent string, isDryRun, isUninstall bool) int
@@ -94,11 +89,10 @@ func perform(options Options) (*installer.Run, int) {
 	if hasStopped {
 		return nil, code
 	}
-	// Resolved before anything is written, so every path below and the registry entry all name the same
-	// directory however the caller spelled it. Absolute as well as symlink-free: `.` is what a human
-	// standing in the project types, and recorded as typed it names a different directory for every
-	// later reader of the registry. A project that is not there is refused rather than created: this
-	// installs into a repository someone already has.
+	// The project path is resolved before anything is written, so every later path and the registry
+	// entry name one directory however the caller spelled it. Absolute and symlink-free: `.` is what a
+	// human standing in the project types, and an entry recorded as typed means a different directory
+	// for every later reader. A missing project is refused: this installs into a repository someone has.
 	project, err := shell.RealPath(parsed.project)
 	if err != nil || !shell.IsDir(project) {
 		// The spelling as it was typed, because a reader sent after a path this rewrote is being sent
@@ -126,9 +120,9 @@ func newRun(options Options, parsed arguments) *invocation {
 	return run
 }
 
-// The machinery one pass writes through. Built here rather than once in newRun, because the install
-// path makes a second, throwaway pass: the mounts are surveyed against this checkout's own skill
-// directories before the sources are rewritten to reach through the bucket, and that survey is the
+// The machinery one pass writes through. It is built here and never once in newRun, because the
+// install path makes a second, throwaway pass. The mounts are surveyed against this checkout's own
+// skill directories before the sources are rewritten to reach through the bucket. That survey is the
 // only thing that can see a project still mounted from another checkout.
 func (run *invocation) newMountingRun(out io.Writer, isDryRun bool) *installer.Run {
 	return installer.NewRun(installer.RunOptions{
@@ -136,9 +130,9 @@ func (run *invocation) newMountingRun(out io.Writer, isDryRun bool) *installer.R
 		ScriptName: guardScriptName,
 		Label:      label,
 		BulkLabel:  "skills",
-		// Machine-wide, repointing these moves a human's whole configuration; here it moves one
-		// project's skills and nothing else, and a refusal saying "this machine's configuration" about
-		// one project is false in a way that teaches people to ignore it.
+		// Machine-wide, repointing these moves a human's whole configuration. Here it moves only one
+		// project's skills. A refusal saying "this machine's configuration" about one project is false
+		// in a way that teaches people to ignore it.
 		MountScopeLabel: run.project + "'s skills",
 		ConfigHome:      run.ConfigHome,
 		DryRun:          isDryRun,
@@ -159,8 +153,8 @@ type arguments struct {
 }
 
 // The third value says whether the run stops here — a refused invocation and a printed help both do,
-// and they exit differently. Read as a code alone, exit 0 from the help arm is indistinguishable from
-// "parsed fine, carry on", which is how an empty invocation reaches the filesystem.
+// and they exit differently. The code alone cannot tell exit 0 from the help arm apart from "parsed
+// fine, carry on", which is how an empty invocation reaches the filesystem.
 func parseArguments(self string, args []string, stderr io.Writer) (arguments, int, bool) {
 	parsed := arguments{}
 	for _, arg := range args {
@@ -225,10 +219,10 @@ func (run *invocation) do() int {
 }
 
 func (run *invocation) declareSkills(mounting *installer.Run) installer.SkillMounts {
-	// Maintainer-only skills are for maintaining this instruction tree and do nothing for a project
-	// that merely uses it, so a project install leaves them out unless asked. An uninstall takes them
-	// anyway: here the cost of leaving them behind is that the run also forgets the project, so nothing
-	// on the machine ever names them again.
+	// Maintainer-only skills are for maintaining this instruction tree, and a project that merely uses
+	// it has no use for them. A project install leaves them out unless asked. An uninstall takes them
+	// anyway, because the run also forgets the project, and after that the machine can no longer point
+	// at them.
 	return mounting.AddSkillMounts(installer.SkillMountOptions{
 		SkillsDirectory: run.Repo + "/kk-flavor/skills",
 		MountParent:     run.skillsMount,
@@ -237,10 +231,9 @@ func (run *invocation) declareSkills(mounting *installer.Run) installer.SkillMou
 	})
 }
 
-// Two ways to mount no skill, and they send a reader to different places: a skills directory with
-// nothing in it is a broken checkout, while a flag that excluded every skill it found is a flag doing
-// exactly what it says. The exit code is the same for both, so the wording is the only thing telling
-// them apart.
+// Two ways to mount no skill, and they send a reader to different places. An empty skills directory
+// is a broken checkout, while a flag that excluded every skill it found is a flag doing exactly what
+// it says. The exit code is the same for both, so the wording is the only thing telling them apart.
 func (run *invocation) emptyTableRefusal(found installer.SkillMounts) string {
 	if len(run.mounting.BulkMounts()) > 0 {
 		return ""
@@ -257,12 +250,12 @@ func (run *invocation) install(found installer.SkillMounts) int {
 		run.mounting.Say(fmt.Sprintf("  skipped  %d maintainer-only skill(s): %s",
 			len(found.SkippedNames), strings.Join(found.SkippedNames, " ")))
 	}
-	// Read before the ignore region is written, because writing one is what would bury the answer: a
-	// project already ignoring the whole agent directory covers this install and the project's own
-	// settings alike, and what to do about that is a decision for the human whose repository it is.
+	// The rule is read before the ignore region is written, because writing one would bury the answer.
+	// A project already ignoring the whole agent directory covers this install and the project's own
+	// settings alike. What to do about that is a decision for the human whose repository it is.
 	broadRule := run.broadAgentRule()
 
-	if !run.projectFilesWritable() || !run.projectSkillsWritable(run.mounting, run.project) {
+	if !run.projectFilesWritable() || !run.skillsMountWritable(run.mounting, run.project) {
 		return run.mounting.Report()
 	}
 	run.mounting.AddConfig(run.Repo+"/kk-flavor", run.Home+"/.kk-flavor")
@@ -284,9 +277,9 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	run.mounting.Say("project files")
 	run.writeIgnoreRules(broadRule)
 	if run.writeInstructions(run.instructionsFile, flavor.RegionBody) {
-		// The Claude file imports the shared one rather than carrying a second copy, so a project's two
-		// clients cannot drift apart. Only when the shared file landed: an import naming a file this run
-		// refused to write points at nothing.
+		// The Claude file imports the shared one and holds no second copy, so the two clients cannot
+		// disagree about the instructions. This runs only when the shared file landed: an import naming
+		// a file this run refused to write points at a file that is missing.
 		run.writeInstructions(run.claudeFile, claudeImport)
 	}
 	run.mounting.Say("registry")
@@ -294,13 +287,9 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	return run.mounting.Report()
 }
 
-// The survey, which has to happen before the mount sources are rewritten to reach through the bucket.
-// Rewritten, every source names ~/.kk-flavor rather than a checkout, so the second-checkout guard has
-// nothing to recognise — and a project still mounted from somebody else's clone would be silently
-// repointed here.
-//
-// Its own pass, printed only if it found something. A dry pass that printed regardless would put a
-// second account of every mount above the real one.
+// The survey, which has to run before the mount sources are rewritten to reach through the bucket.
+// After the rewrite every source names ~/.kk-flavor, so the second-checkout guard has no checkout to
+// recognise, and a project mounted from somebody else's clone is repointed in silence.
 func (run *invocation) surveyExistingMounts() bool {
 	var quiet bytes.Buffer
 	survey := run.newMountingRun(&quiet, true)
@@ -310,13 +299,15 @@ func (run *invocation) surveyExistingMounts() bool {
 	if len(survey.Refusals()) == 0 {
 		return true
 	}
+	// The survey's output is printed only when it found something. A dry pass that printed regardless
+	// would put a second account of every mount beside the real one.
 	io.Copy(run.Out, &quiet)
 	return false
 }
 
 // Mount, with every skill source rewritten to reach through the bucket. A project holds
-// ~/.kk-flavor/skills/<name>, which is the one path every install of this flavor has, rather than an
-// absolute path into whichever checkout happened to run the installer.
+// ~/.kk-flavor/skills/<name>, the single path every install of this flavor has, and never an absolute
+// path into whichever checkout happened to run the installer.
 func (run *invocation) mountThroughBucket(mounting *installer.Run, project string) bool {
 	bucket := run.Home + "/.kk-flavor"
 	if run.isDryRun {
@@ -326,8 +317,8 @@ func (run *invocation) mountThroughBucket(mounting *installer.Run, project strin
 		}
 		return true
 	}
-	// The bucket first and on its own, because every skill source below resolves through it: linking
-	// them against a bucket that could not be written would leave a project full of mounts pointing
+	// The bucket first and on its own, because every skill source below resolves through it. A link
+	// made against a bucket that could not be written would leave a project full of mounts pointing
 	// nowhere.
 	if !mounting.Link(run.Repo+"/kk-flavor", bucket) {
 		return false
@@ -335,9 +326,9 @@ func (run *invocation) mountThroughBucket(mounting *installer.Run, project strin
 	mounting.RewriteBulkSources(func(source string) string {
 		return bucket + "/skills/" + shell.BaseName(source)
 	})
-	// Scanned rather than listed, and scoped to what this checkout wrote: a skill renamed or deleted
-	// upstream leaves a mount nothing in the table names any more, so only the run that would have
-	// written it can notice.
+	// The mounts are scanned, and scoped to what this checkout wrote. A skill renamed or deleted
+	// upstream leaves a mount the table no longer names, and only the run that would have written it
+	// can notice.
 	mounting.AddUnmountScan(project+"/"+run.agentDirectory+"/skills", run.Repo+"/kk-flavor/skills")
 	mounting.Mount()
 	return true
@@ -348,15 +339,15 @@ func (run *invocation) uninstall() int {
 		run.mounting.Refuse("project MCP configuration needs attention; see the error above")
 		return run.mounting.Report()
 	}
-	if !run.projectSkillsWritable(run.mounting, run.project) {
+	if !run.skillsMountWritable(run.mounting, run.project) {
 		return run.mounting.Report()
 	}
 	run.mounting.Unmount()
 	run.disableWorktrees()
 
 	run.mounting.Say("project files")
-	// The other client's mounts are the reason these files stay: they are shared, and taking them out
-	// from under a client that is still installed would leave that client loading nothing.
+	// The other client's mounts are the reason these files stay. They are shared, and taking them out
+	// from under a client that is still installed would leave that client with no instructions to load.
 	if run.otherClientMounted() {
 		run.mounting.Say("  kept     shared project instructions: another client still uses them")
 	} else {
@@ -385,8 +376,9 @@ func (run *invocation) uninstall() int {
 	return run.mounting.Report()
 }
 
-// Whether the project still holds skills of this checkout's for the other client. Resolved rather than
-// string-compared, so a mount written through a differently-spelled but equivalent path still counts.
+// Whether the project still holds skills of this checkout's for the other client. Each link is
+// resolved on disk, and never string-compared, so a mount written through a differently-spelled but
+// equivalent path still counts.
 func (run *invocation) otherClientMounted() bool {
 	directory := run.project + "/" + run.otherAgentDirectory + "/skills"
 	entries, err := os.ReadDir(directory)
@@ -396,8 +388,8 @@ func (run *invocation) otherClientMounted() bool {
 	for _, entry := range entries {
 		target := shell.Join(directory, entry.Name())
 		value, err := os.Readlink(target)
-		// Absolute only: a relative value resolves against the link's own directory, so resolving it here
-		// would resolve it against the wrong one. Every link written here is absolute.
+		// Absolute only: a relative value resolves against the link's own directory, and resolving it
+		// here would use the wrong one. Every link written here is absolute.
 		if err != nil || !strings.HasPrefix(value, "/") {
 			continue
 		}

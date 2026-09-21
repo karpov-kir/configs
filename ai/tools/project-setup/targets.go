@@ -1,17 +1,15 @@
 package projectsetup
 
-// Where one client keeps what this installs inside a project, and what the ignore region around it is
-// fenced with. Resolved once at the top of a run, because every step after it reads several of these
-// and a step deriving its own would be a second answer to drift from this one.
-//
-// The two clients share the project's instruction files and have a skills directory and an ignore
-// region each — which is what lets one be installed and removed while the other stays.
+// Where one client keeps what this installs, and how the ignore region around it is fenced. A run
+// resolves these once at the top: every later step reads several of them, and a step deriving its own
+// would be a second answer that can disagree. The clients share the project's instruction files and
+// hold a skills directory and an ignore region each, which is what lets one go and the other stay.
 type targets struct {
 	agentDirectory      string
 	otherAgentDirectory string
 	skillsMount         string
-	// instructionsFile is the shared one both clients load; claudeFile imports it rather than carrying a
-	// second copy, so a project's two clients cannot drift apart.
+	// instructionsFile is the shared file both clients load. claudeFile imports it and holds no second
+	// copy, so the two clients cannot disagree about the instructions.
 	instructionsFile string
 	claudeFile       string
 	ignoreFile       string
@@ -19,7 +17,7 @@ type targets struct {
 	ignoreClose      string
 }
 
-// What the Claude file holds: an import of the shared instructions and nothing else of this run's.
+// What the Claude file holds of this run's: an import of the shared instructions, and that alone.
 const claudeImport = "@AGENTS.md"
 
 func newTargets(agent, project string) targets {
@@ -44,8 +42,8 @@ func newTargets(agent, project string) targets {
 	return built
 }
 
-// The rules that hide this client's mounts. Two prefixes rather than the whole skills directory: a
-// project's own skills live there too, and ignoring the directory would hide those from its history.
+// The rules that hide this client's mounts. Two prefixes cover them, since a project's own skills
+// live in that directory too and ignoring it whole would hide those from the project's history.
 func (t targets) ignoreBody() string {
 	return t.agentDirectory + "/skills/kk-*\n" + t.agentDirectory + "/skills/idsd-*"
 }

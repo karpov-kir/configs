@@ -1,20 +1,9 @@
 package projectsetup_test
 
-// The cases for the project install. What the mounting machinery does with a table — refusing a real
-// file, repointing a stale link, sweeping a mount whose source is gone, stopping at a second checkout —
-// is driven in ai/tools/installer's own suite against the same code. What is driven here is this
-// installer's own decisions: the two instruction files, the ignore region, the bucket the skills reach
-// through, the worktree setup, and the prerequisite.
-//
-// Every case gets a home and a project of its own under t.TempDir(), and the run it drives is bounded
-// to that same tree with WriteRoot. The shell suite this replaces once handed every case the same home:
-// a fixture write followed a live symlink into the checkout and overwrote real config files in the
-// working tree. So the bound is read back after every run, and a breach fails the case as a guard
-// rather than as a result.
-//
-// Nothing here spawns a process — not git, not mise, not the MCP tool. The shell suites this replaces
-// built a real repository per case, and on this machine a process costs about 100ms: they ran for 819
-// and 246 seconds.
+// The cases for the project install. ai/tools/installer's own suite drives what the mounting machinery
+// does with a table. That covers a refused real file, a repointed stale link, a swept mount whose
+// source is gone, and a stop at a second checkout. What is driven here: the two instruction files,
+// the ignore region, the bucket the skills reach through, the worktree setup, and the prerequisite.
 
 import (
 	"os"
@@ -55,6 +44,9 @@ type fixture struct {
 	err     strings.Builder
 }
 
+// Every case gets a home and a project of its own under t.TempDir(). No process is spawned here, for
+// git, mise or the MCP tool. The shell suites this replaces built a real repository per case, a
+// process costs about 100ms on this machine, and they ran for 819 and 246 seconds.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	writer := installertest.New(t)
@@ -63,8 +55,8 @@ func newFixture(t *testing.T) *fixture {
 		Writer: writer,
 		t:      t, base: base, repo: base + "/checkout/ai", home: base + "/home", project: base + "/project",
 		machine: fake.New().Add("mise", "brew"), mcp: &fakeMcp{},
-		// Per directory, so a project no case declared is no repository — the ordinary shape for a
-		// directory someone is merely trying this out in, and the one a single Root cannot express.
+		// Per directory, so a project a case left undeclared reads as no repository. That is the ordinary
+		// shape for a directory someone is merely trying this out in, and a single Root cannot express it.
 		git: repotest.New(base + "/project").PerDirectory(),
 	}
 	f.MkdirAll(f.home)
@@ -79,8 +71,8 @@ func (f *fixture) newCheckout(root string) {
 	f.t.Helper()
 	f.Write(root+"/"+guardScriptName, "#!/usr/bin/env bash\n")
 	// What the post-checkout hook runs, and what that stub reaches its binary through. Both are here
-	// because the hook is only written when both are, and a fixture checkout missing them would make
-	// every worktree case measure the guard instead of what it named.
+	// because the hook is only written when both are. A fixture checkout missing them would make every
+	// worktree case measure the guard instead of what it named.
 	f.Write(root+"/project-skills.sh", "#!/usr/bin/env bash\n")
 	f.MkdirAll(root + "/tools")
 	f.rewrite(root+"/tools/resolve.sh", "#!/usr/bin/env bash\n")
@@ -123,6 +115,9 @@ func (f *fixture) run(args ...string) int {
 		Err:        &f.err,
 		WriteRoot:  f.base,
 	})
+	// The shell suite this replaces handed every case the same home. A fixture write followed a live
+	// symlink into the checkout and overwrote real config files in the working tree. WriteRoot bounds
+	// the run to this fixture's own tree, and the bound is read back here after every run.
 	if run != nil {
 		if breaches := run.Breaches(); len(breaches) > 0 {
 			f.t.Fatalf("the run went for a path outside %s — %s\n"+
@@ -281,8 +276,8 @@ func (f *fixture) mounted(directory string) []string {
 
 // --- the fixture writers ------------------------------------------------------------------------
 
-// A second name for one file, which is neither a symlink nor a missing file — so nothing but a link
-// count catches a write about to land in a file this run was never told about.
+// A second name for one file. A symlink check and an existence check both pass it. Only a link count
+// catches a write about to land in a file this run was never told about.
 func (f *fixture) hardlink(source, target string) {
 	f.t.Helper()
 	f.ContainedParent(target)
@@ -301,10 +296,10 @@ func (f *fixture) rewrite(path, body string) {
 	}
 }
 
-// A directory this process cannot create a file in. Probed rather than assumed: root ignores the mode
-// bits and a filesystem can drop them, and a case that asserted against a directory it can still write
-// would pass for a reason other than its name. Skipped with that reason where the probe says so, which
-// is what ~/.kk-flavor/standards/testing.md asks of a fixture that denies access.
+// A directory this process cannot create a file in. The fixture probes it, since root ignores the mode
+// bits and a filesystem can drop them. A case that asserted against a directory it can still write
+// would pass for a reason other than its name. The case is skipped with that reason when the probe
+// still writes, and ~/.kk-flavor/standards/testing.md asks that of a fixture that denies access.
 func (f *fixture) closeToNewFiles(directory string) {
 	f.t.Helper()
 	f.ContainedParent(directory)
@@ -323,8 +318,8 @@ func (f *fixture) closeToNewFiles(directory string) {
 
 // --- the MCP tool, as a fake ------------------------------------------------------------------------
 
-// The project MCP tool is a whole tool with its own suite; what this installer decides is only what to
-// do with the code it answers, so that code is what a case sets.
+// The project MCP tool is a whole tool with its own suite. This installer decides only what to do
+// with the code it answers, so that code is what a case sets.
 type fakeMcp struct {
 	code  int
 	calls []string
@@ -344,8 +339,8 @@ func (m *fakeMcp) Configure(project, agent string, isDryRun, isUninstall bool) i
 
 // --- reading a usage line ---------------------------------------------------------------------------
 
-// The flags a usage line names. `--agent=claude|codex` is a selector rather than a flag, so both of
-// its spellings come back.
+// The flags a usage line names. `--agent=claude|codex` selects between two values, so both of its
+// spellings come back.
 var flagPattern = regexp.MustCompile(`--[a-z][a-z-]*(?:=[a-z|]+)?`)
 
 func flagsIn(line string) []string {

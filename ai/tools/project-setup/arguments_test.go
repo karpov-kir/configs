@@ -6,8 +6,8 @@ import (
 	projectsetup "configs/ai/tools/project-setup"
 )
 
-// There is no default client, in either direction: an install that guessed would configure the one the
-// human does not use, and an uninstall that guessed would leave the other one mounted.
+// There is no default client, in either direction. An install that guessed would configure the client
+// the human does not use, and an uninstall that guessed would leave the other one mounted.
 func TestEveryModeRefusesWithoutAnAgent(t *testing.T) {
 	for _, mode := range []string{"", "--uninstall", "--dry-run"} {
 		t.Run("with "+mode, func(t *testing.T) {
@@ -41,8 +41,8 @@ func TestNamingNoProjectIsRefused(t *testing.T) {
 	f.expectSaid("name the project directory")
 }
 
-// A project that is not there is refused rather than created: this installs into a repository someone
-// already has. The refusal names the project as it was typed, not the flag beside it.
+// A missing project is refused, and no directory is created: this installs into a repository someone
+// already has. The refusal names the project as it was typed, and leaves out the flag beside it.
 func TestAProjectThatIsNotThereIsNamedInTheRefusal(t *testing.T) {
 	f := newFixture(t)
 
@@ -70,11 +70,9 @@ func TestTwoProjectsAtOnceAreRefused(t *testing.T) {
 }
 
 // Every flag the parser accepts is one the usage line names, and no other. A flag added to the parser
-// and never written into the line is one no reader can find; one in the line the parser refuses sends a
-// reader to a run that exits 2.
-//
-// The parser is driven rather than read: a case that scanned the source for flag literals would agree
-// with the code however wrong the printed line is.
+// and left out of the line is one a reader can never find. A flag in the line the parser refuses sends
+// a reader to a run that exits 2. The case drives the parser, since a case that scanned the source for
+// flag literals would agree with the code however wrong the printed line is.
 func TestTheUsageLineNamesEveryFlagTheParserAccepts(t *testing.T) {
 	documented := flagsIn(projectsetup.Usage())
 	if len(documented) == 0 {
@@ -97,8 +95,8 @@ func TestTheUsageLineNamesEveryFlagTheParserAccepts(t *testing.T) {
 	}
 }
 
-// The flags this package's own parser has an arm for. Written here rather than scanned out of the
-// source, and held honest by the loop above driving each one.
+// The flags this package's own parser has an arm for. This list is written by hand, and
+// TestTheUsageLineNamesEveryFlagTheParserAccepts drives each entry to hold it honest.
 var acceptedFlags = []string{
 	"--agent=claude", "--agent=codex", "--dry-run", "--relocate", "--maintainer", "--uninstall",
 }

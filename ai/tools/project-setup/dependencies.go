@@ -2,14 +2,13 @@ package projectsetup
 
 import "configs/ai/tools/machine"
 
-// mise is the one prerequisite a project install has. It reuses a working installation or installs
-// only mise through an existing Homebrew; with neither, it says what to do and stops rather than
-// installing a package manager on somebody's machine to get at a runtime.
-//
-// Verified rather than assumed present: a mise on PATH that cannot answer `--version` is a broken
-// executable, and every step after this one would fail somewhere less obvious.
+// The install instructions this prints when it stops.
 const miseInstructions = "https://mise.jdx.dev/installing-mise.html"
 
+// Readies mise, the single prerequisite a project install has. A working one is reused, a missing one
+// installed through an existing Homebrew. With neither, this says what to do and stops: putting a
+// package manager on somebody's machine to reach a runtime is their decision. A mise on PATH is asked
+// for `--version` first, since one that cannot answer would break a later step somewhere less obvious.
 func (run *invocation) ensureDependencies() bool {
 	if run.Machine.HasCommand("mise") {
 		return run.verifyMise()
@@ -24,8 +23,8 @@ func (run *invocation) ensureDependencies() bool {
 		return true
 	}
 	run.mounting.Say("  installing mise with existing Homebrew")
-	// The auto-update suppressed, because an install of one formula that first updates every tap turns
-	// a project setup into a several-minute wait nobody asked for.
+	// The auto-update is suppressed, because an install of one formula that first updates every tap
+	// turns a project setup into a several-minute wait the human never asked for.
 	status := run.Machine.Run(machine.Command{
 		Name: "brew", Args: []string{"install", "mise"},
 		Env: []string{"HOMEBREW_NO_AUTO_UPDATE=1"}, Loud: true,

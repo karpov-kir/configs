@@ -17,8 +17,8 @@ func TestACodexInstallUsesItsOwnDirectoryAndTheSharedInstructions(t *testing.T) 
 	f.expectFileContains(f.project+"/CLAUDE.md", "How this project works.")
 }
 
-// A nonempty AGENTS.override.md shadows AGENTS.md, so a run that wrote the instructions anyway would
-// leave the project installed and nothing loading them.
+// A nonempty AGENTS.override.md shadows AGENTS.md. A run that wrote the instructions anyway leaves
+// the project installed with no client loading them.
 func TestCodexRefusesAShadowedProjectInstructionFile(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.project+"/AGENTS.override.md", "Project override instructions.\n")
@@ -38,7 +38,7 @@ func TestCodexRefusesItsOwnBroadIgnoreRule(t *testing.T) {
 	f.expectSaid("already ignores .agents/ wholesale")
 }
 
-// The two clients have a skills directory and an ignore region each, which is what lets one be removed
+// The two clients have a skills directory and an ignore region each. That is what lets one be removed
 // while the other stays. One shared region would make the first uninstall unhide the second client's
 // mounts.
 func TestUninstallingOneClientLeavesTheOthersMountsRulesAndRegistryEntry(t *testing.T) {
@@ -52,7 +52,7 @@ func TestUninstallingOneClientLeavesTheOthersMountsRulesAndRegistryEntry(t *test
 	f.expectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
 	f.expectFileContains(f.project+"/.gitignore", ".claude/skills/kk-*")
 	f.expectFileLacks(f.project+"/.gitignore", ".agents/skills/kk-*")
-	// The instructions and the import are shared, so they stay while a client still loads them.
+	// The instructions and the import are shared, so they stay for as long as a client loads them.
 	f.expectFileContains(f.project+"/AGENTS.md", "kk-flavor:begin")
 	f.expectFileContains(f.project+"/CLAUDE.md", "@AGENTS.md")
 	f.expectSaid("another client still uses them")
@@ -93,7 +93,7 @@ func TestALegacyClaudeOnlyRegionMigratesToTheSharedFile(t *testing.T) {
 	f.expectFileContains(f.project+"/AGENTS.md", "inject.md")
 }
 
-// A symlinked shared file is refused before either file is written — the checks on the project's own
+// A symlinked shared file is refused before either file is written. The checks on the project's own
 // files all run ahead of the first mount, so a run cannot leave a project half installed.
 func TestASymlinkedSharedFileIsRefusedBeforeEitherFileIsWritten(t *testing.T) {
 	f := newFixture(t)
@@ -106,9 +106,9 @@ func TestASymlinkedSharedFileIsRefusedBeforeEitherFileIsWritten(t *testing.T) {
 	f.expectAbsent(f.skillsMount("claude"))
 }
 
-// The import names the shared file, so writing it when the shared file could not be written points a
-// client at nothing. The one way to reach that is a shared file this run has to create and cannot:
-// every other failure is caught by the checks above, before the first mount.
+// The import names the shared file, and an import written after a failed shared write points a client
+// at a file that is missing. Only one path reaches that: a shared file this run has to create and
+// cannot. Every other failure is caught by projectFilesWritable, before the first mount.
 func TestAnUnwritableSharedFileLeavesNoImportBehind(t *testing.T) {
 	f := newFixture(t)
 	f.RemoveAll(f.project + "/CLAUDE.md")
@@ -122,8 +122,8 @@ func TestAnUnwritableSharedFileLeavesNoImportBehind(t *testing.T) {
 	f.expectCode(f.install("--agent=claude"), 1)
 
 	f.expectSaid("could not create " + f.project + "/AGENTS.md")
-	// And the import was never attempted. Read off what the run said rather than off the tree: the same
-	// directory refuses both files, so a run that went for the import anyway leaves the same tree behind
-	// and a second refusal nobody should be reading.
+	// And the import was never attempted. The run's own output answers this, since the tree cannot: the
+	// same directory refuses both files. A run that went for the import anyway leaves the same tree
+	// behind and a second refusal the reader should never see.
 	f.expectNotSaid("could not create " + f.project + "/CLAUDE.md")
 }

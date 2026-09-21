@@ -2,8 +2,9 @@ package projectsetup_test
 
 import "testing"
 
-// The post-checkout entry point restores the links one worktree should have, for whichever clients the
-// clone was installed for — read from the state the install left, never from a tier asked for now.
+// The post-checkout entry point restores the links one worktree should have, for whichever clients
+// the clone was installed for. The tier comes from the state the install left, and a tier asked for
+// now is ignored.
 func TestASyncMountsTheTierEachClientWasInstalledWith(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
@@ -36,8 +37,8 @@ func TestASyncWritesNoInstructionsAndNoIgnoreRules(t *testing.T) {
 	f.expectAbsent(f.project + "/.gitignore")
 }
 
-// A clone nothing was installed into has nothing to restore, and that is not a failure: git runs this
-// hook on every checkout of every repository the human has set up.
+// A clone this was never installed into has none to restore. That is a success: git runs this hook on
+// every checkout of every repository the human has set up.
 func TestASyncOverAClientlessCloneDoesNothingAndSucceeds(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()
@@ -55,8 +56,8 @@ func TestASyncOverSomethingThatIsNotAWorktreeSaysSo(t *testing.T) {
 	f.expectSaid("is not a Git worktree")
 }
 
-// A state file holding anything but the two words the install writes is one somebody edited or a write
-// that was interrupted. Guessing a tier from it would mount a set nobody chose.
+// A state file holding anything but the two words the install writes is one somebody edited, or a
+// write that was cut short. A tier guessed from it would mount a set the human never chose.
 func TestAStateFileNobodyCanReadStopsTheSync(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
@@ -68,8 +69,8 @@ func TestAStateFileNobodyCanReadStopsTheSync(t *testing.T) {
 	f.expectSaid("Invalid project skill setup")
 }
 
-// Run from a directory inside the worktree rather than its root — which is what a human doing this by
-// hand does, git's own hook running at the root notwithstanding.
+// Run from a directory inside the worktree. That is what a human doing this by hand does, while
+// git's own hook runs at the root.
 func TestASyncFromInsideTheWorktreeStillMountsAtItsRoot(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()

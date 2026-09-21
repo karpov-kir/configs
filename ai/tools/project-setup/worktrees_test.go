@@ -13,15 +13,14 @@ import (
 )
 
 // A project that is a git repository, with its shared git directory where this installer keeps its
-// state. Declared rather than built: `git init` plus a commit plus a `worktree add` is five processes,
+// state. The fixture declares it: `git init` plus a commit plus a `worktree add` is five processes,
 // and the shell suite this replaces spent 819 seconds on exactly that.
 func (f *fixture) asRepository() gitPathsFixture {
 	f.t.Helper()
 	common := f.project + "/.git"
 	f.MkdirAll(common)
 	f.git.Common = common
-	// The project alone; every other directory stays what PerDirectory makes it.
-	// The project alone; every other directory stays what PerDirectory makes it.
+	// The project alone. Every other directory stays what PerDirectory makes it.
 	f.git.WorktreeAt(f.project)
 	return gitPathsFixture{common: common, state: common + "/kk-flavor", hook: common + "/hooks/post-checkout"}
 }
@@ -41,13 +40,10 @@ func (f *fixture) newSibling(name string) string {
 	return sibling
 }
 
-// A project that is not a repository gets its skills and no worktree setup. That is the ordinary case
-// for a directory someone is trying this out in, so it must not be a refusal.
-//
-// The `.git` directory is there and git still answers nothing for it, which is not a contradiction: a
-// repository git refuses — dubious ownership, a gitdir pointer that leads nowhere — looks exactly like
-// this. It is here so the case turns on GIT's answer. Without it the directory being absent decides
-// the outcome on its own, and the case would pass with the port's refusal thrown away.
+// A project that is not a repository gets its skills, and the worktree setup is skipped: the ordinary
+// case for a directory someone is trying this out in. The `.git` directory is planted, and git still
+// refuses the project the way dubious ownership or a gitdir pointer leading nowhere does. An absent
+// `.git` would otherwise decide the outcome, and the port's refusal would go untested.
 func TestAProjectThatIsNotARepositoryStillGetsItsSkills(t *testing.T) {
 	f := newFixture(t)
 	f.MkdirAll(f.project + "/.git")
@@ -72,8 +68,8 @@ func TestAnInstallEnablesFutureWorktreesAndRecordsTheTier(t *testing.T) {
 	f.expectFileBody(paths.state+"/claude", "true\n")
 	f.expectFileContains(paths.common+"/info/exclude", ".claude/skills/kk-*")
 	// The write is executable code left in somebody else's repository, running on every checkout they
-	// make. A run that placed it without a word left them to discover it, while --dry-run had always
-	// promised the line — so the two runs disagreed about what an install does.
+	// make. A run that placed it without a word left them to discover it. --dry-run had always said it
+	// would enable these links, so the two runs disagreed about what an install does.
 	f.expectSaid("enabled  claude skill links for future worktrees: " + paths.hook)
 }
 
@@ -86,8 +82,8 @@ func TestAnInstallSyncsTheWorktreesThatAlreadyExist(t *testing.T) {
 	f.expectCode(f.install("--agent=claude"), 0)
 
 	f.expectLinkTo(sibling+"/.claude/skills/kk-build", f.home+"/.kk-flavor/skills/kk-build")
-	// And nothing at the user level: a project install never enables skills for every session on the
-	// machine, which is the machine-wide install and a different decision entirely.
+	// And the user level stays untouched: a project install never enables skills for every session on
+	// the machine, which is the machine-wide install and a different decision entirely.
 	f.expectAbsent(f.home + "/.claude")
 	f.expectAbsent(f.home + "/.agents")
 }
@@ -105,8 +101,8 @@ func TestAnExistingHookIsPreservedAndReportedWithTheRepair(t *testing.T) {
 	f.expectSaid(`project-skills.sh" --sync .`)
 }
 
-// An empty core.hooksPath counts as set: git then looks in the worktree root, so a hook written where
-// this installer puts one never runs, and a run reporting success would be promising links that never
+// An empty core.hooksPath counts as set, since git then looks in the worktree root. A hook written
+// where this installer puts one never runs, and a run reporting success promises links that fail to
 // arrive.
 func TestAnEmptyHooksPathIsStillAHookManagerAndIsReported(t *testing.T) {
 	f := newFixture(t)
@@ -131,8 +127,8 @@ func TestAHooksManagerElsewhereIsReportedAndNotOverridden(t *testing.T) {
 }
 
 // Everything this run would write inside the git directory is checked before the first write. A
-// symlink at any of them sends a write somewhere the repository never named — and a repository's own
-// files are not trusted input.
+// symlink at any of them sends a write somewhere the repository never named, and a repository's own
+// files count as untrusted.
 func TestASymlinkAnywhereInTheGitStorageIsRefused(t *testing.T) {
 	for _, planted := range []string{"kk-flavor", "kk-flavor/claude", "info/exclude", "hooks"} {
 		t.Run(planted, func(t *testing.T) {
@@ -149,8 +145,8 @@ func TestASymlinkAnywhereInTheGitStorageIsRefused(t *testing.T) {
 	}
 }
 
-// A hard link makes a write land in a file this run was never told about. Neither a symlink nor a
-// missing file, so nothing else catches it — the region writer's own link-count guard does.
+// A hard link makes a write land in a file this run was never told about. A symlink check and an
+// existence check both pass it, and the region writer's own link-count guard is what catches it.
 func TestHardlinkedGitStateIsRefusedAndTheOutsideFileSurvives(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
@@ -163,8 +159,8 @@ func TestHardlinkedGitStateIsRefusedAndTheOutsideFileSurvives(t *testing.T) {
 	f.expectFileBody(f.base+"/state-outside", "outside content\n")
 }
 
-// A listing this installer cannot read is a refusal, not a silent pass: the worktrees it would have
-// synced are exactly the ones nothing else will.
+// A listing this installer cannot read is a refusal, and a silent pass would be wrong: the worktrees
+// it would have synced are exactly the ones no other step reaches.
 func TestAWorktreeListingThatCannotBeReadIsARefusal(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()
@@ -196,8 +192,8 @@ func TestBareAndPrunableEntriesAreNeverWrittenInto(t *testing.T) {
 
 // A `.git/worktrees/` entry is a file anyone who can write the repository can forge, and it names the
 // directory this would then fill with symlinks and enable an agent inside. So the tree has to agree
-// that it is what the listing said, and its shared git directory has to be the one this run started
-// from.
+// that it is what the listing said, and its shared git directory has to be the same one this run
+// started from.
 func TestAForgedWorktreeEntryPointingAtAnotherRepositoryIsRefused(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()
@@ -212,7 +208,7 @@ func TestAForgedWorktreeEntryPointingAtAnotherRepositoryIsRefused(t *testing.T) 
 	f.expectAbsent(outsider + "/.claude")
 }
 
-// The user's home is never a project. Mounting skills there would enable them for every session on the
+// The user's home is never a project. Skills mounted there would be enabled for every session on the
 // machine, which is the machine-wide install and a different decision entirely.
 func TestAForgedEntryNamingTheUserHomeIsRefused(t *testing.T) {
 	f := newFixture(t)
@@ -265,15 +261,10 @@ func TestUninstallClearsTheSiblingsLinksAndTheSharedIgnoreRules(t *testing.T) {
 	f.expectAbsent(paths.state + "/claude")
 }
 
-// The hook is code this installer leaves in somebody's repository to run on every checkout, and what
-// it runs is this checkout's project-skills.sh — which is now a stub reaching a Go binary through
-// ai/tools/resolve.sh, where it used to be bash and nothing else. install-project.sh refused before
-// writing anything when its helpers were missing; that refusal is this, aimed at what the hook needs
-// now.
-//
-// The skills still mount. Only the hook is withheld, because only the future worktrees it would have
-// served are lost — and a run that refused everything would leave a project with no skills over a
-// file it never needed to read.
+// The hook is code this installer leaves in somebody's repository to run on every checkout. It runs
+// this checkout's project-skills.sh, a stub that now reaches a Go binary through ai/tools/resolve.sh
+// where it once needed bash alone. The skills still mount: only the future worktrees the hook would
+// have served are lost, and a full refusal would leave a project bare over a file it never read.
 func TestAHookIsNotWrittenWhenTheCheckoutCannotRunIt(t *testing.T) {
 	for _, c := range []struct{ name, missing, said string }{
 		{"the stub the hook runs", "project-skills.sh", "project-skills.sh is missing"},
@@ -293,8 +284,8 @@ func TestAHookIsNotWrittenWhenTheCheckoutCannotRunIt(t *testing.T) {
 	}
 }
 
-// A resolver that is there and cannot be run is the same finding as one that is absent: the hook fires
-// and nothing answers it. Probed rather than assumed, because root ignores the mode bits.
+// A resolver that is there and cannot be run is the same finding as one that is absent: the hook
+// fires and gets no answer. The case probes for it, because root ignores the mode bits.
 func TestAResolverThatCannotBeExecutedStopsTheHookToo(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
@@ -314,12 +305,9 @@ func TestAResolverThatCannotBeExecutedStopsTheHookToo(t *testing.T) {
 }
 
 // What the hook says when it fires in somebody's project and the checkout behind ~/.kk-flavor has
-// since lost its stub. Run rather than read: the body is bash, and the one thing worth holding is what
-// a human standing in an unrelated repository sees after `git checkout`.
-//
-// The old body handed the path straight to `bash`, which answered "No such file or directory" under
-// the hook's own name — a message that reads as this repository's hook being broken. It is the ai/
-// checkout that is incomplete, and the hook is the only thing in a position to say so.
+// since lost its stub. The case runs the body, since it is bash. The old body let `bash` answer "No
+// such file or directory" under the hook's own name, blaming a repository that is fine. The ai/
+// checkout is the incomplete one, and the hook is the only thing placed to say so.
 func TestTheHookBlamesTheFlavorCheckoutAndNotTheRepositoryItFiresIn(t *testing.T) {
 	bash, err := exec.LookPath("bash")
 	if err != nil {
@@ -350,9 +338,10 @@ func TestTheHookBlamesTheFlavorCheckoutAndNotTheRepositoryItFiresIn(t *testing.T
 	}
 }
 
-// A hook this installer wrote before the body changed is still this installer's own. Compared byte for
-// byte, an unrecognised hook is somebody else's: an install would refuse to touch it and an uninstall
-// would leave it behind, firing on every checkout of a project nothing is installed in any more.
+// A hook this installer wrote before the body changed is still this installer's own. Hooks are
+// compared byte for byte, so an unrecognised one is somebody else's. An install would refuse to touch
+// it and an uninstall would leave it behind, firing on every checkout of a project with no install
+// left.
 func TestTheHookThisInstallerWroteBeforeIsStillItsOwn(t *testing.T) {
 	t.Run("an install replaces it", func(t *testing.T) {
 		f := newFixture(t)

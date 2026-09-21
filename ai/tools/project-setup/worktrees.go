@@ -15,15 +15,15 @@ import (
 type gitPaths struct {
 	// common is the shared git directory, resolved physically.
 	common string
-	// state holds one file per client, whose content is the tier that client was installed with — the
-	// only place that tier is written down, and what a later sync reads to mount the same set.
+	// state holds one file per client, whose content is the tier that client was installed with. It is
+	// the only place that tier is written down, and a later sync reads it to mount the same set.
 	state string
 	hook  string
 }
 
-// The paths, or false where this project is not a readable git worktree at all. Not a refusal: a
-// project that is not a repository gets its skills and no worktree setup, which is the ordinary case
-// for a directory someone is trying this out in.
+// The paths, or false where this project is not a readable git worktree at all. That is a normal
+// outcome: a project that is no repository gets its skills, and the worktree setup is skipped. It is
+// the ordinary case for a directory someone is trying this out in.
 func (run *invocation) gitPaths(project string) (gitPaths, bool) {
 	common, err := run.Git.CommonDir(project)
 	if err != nil {
@@ -39,9 +39,9 @@ func (run *invocation) gitPaths(project string) (gitPaths, bool) {
 	return gitPaths{common: physical, state: physical + "/kk-flavor", hook: physical + "/hooks/post-checkout"}, true
 }
 
-// Everything this run would write inside the git directory, checked before the first write. A symlink
-// at any of them sends a write somewhere the repository never named; a hard link makes the write land
-// in a file this run was never told about, which is what the region writer's own guard catches.
+// Everything this run would write inside the git directory is checked before the first write. A
+// symlink at any of them sends a write somewhere the repository never named. A hard link makes the
+// write land in a file this run was never told about, and the region writer's own guard catches that.
 func (run *invocation) storageWritable(paths gitPaths) bool {
 	for _, path := range []string{paths.state, paths.state + "/" + run.agent, paths.common + "/info",
 		paths.common + "/info/exclude", paths.common + "/hooks"} {
@@ -85,28 +85,24 @@ func (run *invocation) enableWorktrees() {
 	run.writeHook(paths)
 }
 
-// Whether there is anything for the hook to run, asked before it is written rather than discovered on
-// somebody's next checkout.
-//
-// The hook runs this checkout's project-skills.sh through the shared bucket, and that stub reaches a
-// Go binary through ai/tools/resolve.sh — where it once needed bash and nothing else. An incomplete
-// checkout therefore buys the project a hook that fires on every checkout and can only fail.
-// install-project.sh refused before writing anything when its four helpers were missing; the helpers
-// are now these two, and this is that refusal.
-//
-// It withholds the HOOK and not the install. The skills this pass mounts are already in place and
-// reachable; what is lost is the future worktrees the hook would have served, and refusing those too
-// would leave a project with no skills over a file it never had to read.
+// Whether there is anything for the hook to run. This is asked before the hook is written, and the
+// alternative is somebody discovering the problem on their next checkout. Only the HOOK is withheld.
+// The skills this pass mounts are in place already, and what is lost is the future worktrees the hook
+// would have served. A refusal of those too would leave a project bare over a file it never had to read.
 func (run *invocation) hookCanRun() bool {
+	// The hook runs this checkout's project-skills.sh through the shared bucket, and that stub reaches
+	// a Go binary through ai/tools/resolve.sh where it once needed bash alone. An incomplete checkout
+	// therefore buys the project a hook that fires on every checkout and can only fail.
+	// install-project.sh already refused when its four helpers were missing, and this is that refusal.
 	stub := run.Repo + "/" + syncStubPath
 	if !shell.IsRegularFile(stub) {
 		run.mounting.Refuse(stub + " is missing, so no post-checkout hook was written — worktrees made " +
 			"later will have no skill links until this checkout is complete")
 		return false
 	}
-	// The resolver is asked for EXECUTABILITY, because that is what the stub asks of it and a stub that
-	// cannot run it says so and exits without running the tool. access(2) rather than the mode bits,
-	// since root ignores them and a capability grants them without one.
+	// The resolver is asked for EXECUTABILITY, because that is what the stub asks of it. A stub that
+	// cannot run the resolver says as much and exits without running the tool. access(2) answers that,
+	// since root ignores the mode bits and a capability grants them without one.
 	resolver := run.Repo + "/tools/resolve.sh"
 	switch {
 	case !shell.IsRegularFile(resolver):
@@ -121,14 +117,13 @@ func (run *invocation) hookCanRun() bool {
 	return true
 }
 
-// Whether this run may write the hook at all. Anything already there that this did not write is left
-// alone and reported with the command that does the same job by hand — the alternative is overwriting
-// somebody's hook, and a hook is code they run on every checkout.
-//
-// An empty core.hooksPath counts as set: git then looks in the worktree root, so a hook written where
-// this installer puts one never runs, and a run reporting success would be promising links that never
-// arrive.
+// Whether this run may write the hook at all. A hook this did not write is left alone, and reported
+// with the command that does the same job by hand. The alternative is overwriting code somebody runs
+// on every checkout.
 func (run *invocation) hookIsOursToWrite(paths gitPaths) bool {
+	// An empty core.hooksPath counts as set, since git then looks in the worktree root. A hook written
+	// where this installer puts one never runs, and a run reporting success promises links that fail to
+	// arrive.
 	_, isSet := run.Git.ConfigValue(run.project, "core.hooksPath")
 	existing, err := os.ReadFile(paths.hook)
 	isForeign := isSet || shell.IsSymlink(paths.hook) || (err == nil && !isOurHookBody(string(existing)))
@@ -140,8 +135,8 @@ func (run *invocation) hookIsOursToWrite(paths gitPaths) bool {
 	return false
 }
 
-// The tier this client was installed with, which is nowhere else on disk. A later sync reads it to
-// mount the same set rather than whatever tier the machine is asked for then.
+// The tier this client was installed with, which is nowhere else on disk. A later sync reads it and
+// mounts the same set, whatever tier the machine is asked for then.
 func (run *invocation) recordTier(paths gitPaths) bool {
 	if err := os.MkdirAll(paths.state, 0o755); err != nil {
 		run.mounting.Refuse("could not create " + paths.state)
@@ -159,8 +154,8 @@ func (run *invocation) recordTier(paths gitPaths) bool {
 }
 
 // The same ignore rules again, in the repository's own exclude file. The project's .gitignore is
-// committed and shared; this one is local, and it is what keeps the links out of a worktree whose
-// branch predates the install.
+// committed and shared. This file is local, and it keeps the links out of a worktree whose branch
+// predates the install.
 func (run *invocation) writeSharedIgnoreRules(paths gitPaths) bool {
 	exclude := paths.common + "/info/exclude"
 	if err := os.MkdirAll(shell.DirName(exclude), 0o755); err != nil {
@@ -185,10 +180,10 @@ func (run *invocation) writeHook(paths gitPaths) {
 		run.mounting.Refuse("could not enable " + paths.hook)
 		return
 	}
-	// Said on the way out, and naming the file. This is the one step that leaves executable code in
+	// The line is said on the way out, and it names the file. This step leaves executable code in
 	// somebody else's repository to run on every checkout they make, and a run that wrote it silently
-	// left them to find it. The dry run has always promised this line; withholding it from the real
-	// run is what made the promise a lie.
+	// left them to find it. The dry run has always said it would enable these links, so a silent real
+	// run made the dry run's promise a lie.
 	run.mounting.Say("  enabled  " + run.agent + " skill links for future worktrees: " + paths.hook)
 }
 
@@ -233,8 +228,8 @@ func (run *invocation) syncOtherWorktrees(paths gitPaths) {
 		return
 	}
 	for _, worktree := range listed {
-		// Neither a bare repository nor an entry git itself calls stale is a tree to write into, and a
-		// run that wrote into a prunable one would be acting on metadata git is about to drop.
+		// A bare repository is no tree to write into, and an entry git itself calls stale is none either.
+		// A run that wrote into a prunable one would be acting on metadata git is about to drop.
 		if worktree.Bare || worktree.Prunable {
 			continue
 		}
@@ -247,8 +242,8 @@ func (run *invocation) syncOtherWorktrees(paths gitPaths) {
 	}
 }
 
-// One worktree's own pass over the same table, with its own mounting run so a refusal in a sibling
-// does not become a refusal of the whole install without being named.
+// One worktree's own pass over the same table, with its own mounting run. A refusal in a sibling is
+// then named before it becomes a refusal of the whole install.
 func (run *invocation) syncTree(paths gitPaths, worktree, agent string, isMaintainer bool) bool {
 	tree := &invocation{
 		Options: run.Options,
@@ -260,13 +255,13 @@ func (run *invocation) syncTree(paths gitPaths, worktree, agent string, isMainta
 	}
 	tree.mounting = tree.newMountingRun(run.Out, run.isDryRun)
 
-	if !tree.isRealWorktreeOf(paths) || !tree.projectSkillsWritable(tree.mounting, worktree) {
+	if !tree.isRealWorktreeOf(paths) || !tree.skillsMountWritable(tree.mounting, worktree) {
 		return false
 	}
 	tree.declareSkills(tree.mounting)
-	// The emptiness check is the caller's here rather than the table's, and the wording is simpler than
-	// the installer's two: a sync mounts whatever the tier recorded at install time, so a table with
-	// nothing in it says the checkout lost its skills rather than that a flag excluded them.
+	// The emptiness check belongs to the caller here, and its wording is simpler than the installer's
+	// two. A sync mounts whatever the tier recorded at install time, so an empty table says the checkout
+	// lost its skills. No flag can have excluded them here.
 	if len(tree.mounting.BulkMounts()) == 0 {
 		tree.mounting.Refuse("no project skills found under " + run.Repo + "/kk-flavor/skills")
 		return false
@@ -284,18 +279,17 @@ func (run *invocation) syncTree(paths gitPaths, worktree, agent string, isMainta
 	return len(tree.mounting.Refusals()) == 0
 }
 
-// Whether this really is a worktree of the clone being installed into, asked of git and of the
-// filesystem rather than taken from the listing. A `.git/worktrees/` entry is a file anyone who can
-// write the repository can forge, and it names the directory this would then fill with symlinks and
-// enable an agent inside — so the tree has to agree that it is what the listing said, and its shared
-// git directory has to be the one this run started from.
+// Whether this really is a worktree of the clone being installed into. Git and the filesystem are both
+// asked. A `.git/worktrees/` entry is a file anyone who can write the repository can forge. It names
+// the directory this would fill with symlinks and enable an agent inside. The tree has to agree with
+// the listing, and its shared git directory has to be the same one this run started from.
 func (tree *invocation) isRealWorktreeOf(paths gitPaths) bool {
 	physical := shell.CanonicalDir(tree.project)
 	if physical == "" {
 		tree.mounting.Refuse(tree.project + " is not a readable Git worktree — no skills were changed")
 		return false
 	}
-	// The user's home is never a project. Mounting skills there would enable them for every session on
+	// The user's home is never a project. Skills mounted there would be enabled for every session on
 	// the machine, which is the machine-wide install and a different decision entirely.
 	if home := shell.CanonicalDir(tree.Home); home != "" && home == physical {
 		tree.mounting.Refuse(tree.project + " is the user home — project skill sync cannot enable user-level skills")

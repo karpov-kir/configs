@@ -6,7 +6,7 @@ import (
 	"configs/ai/tools/machine"
 )
 
-// A mise on PATH is verified rather than assumed: one that cannot answer `--version` is a broken
+// A mise on PATH is asked for `--version` before it counts: one that cannot answer is a broken
 // executable, and every step after this would fail somewhere less obvious.
 func TestAWorkingMiseSatisfiesThePrerequisiteWithoutTouchingBrew(t *testing.T) {
 	f := newFixture(t)
@@ -35,8 +35,8 @@ func TestABrokenMiseFailsReadinessWithoutChangingTheMachine(t *testing.T) {
 }
 
 // mise installed through an existing Homebrew, and only mise. The auto-update is suppressed because an
-// install of one formula that first updates every tap turns a project setup into a wait nobody asked
-// for.
+// install of one formula that first updates every tap turns a project setup into a wait the human
+// never asked for.
 func TestAMissingMiseIsInstalledThroughAnExistingBrew(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Present["mise"] = false
@@ -57,8 +57,8 @@ func TestAMissingMiseIsInstalledThroughAnExistingBrew(t *testing.T) {
 	f.expectSaid("ok       mise is available on PATH")
 }
 
-// With neither, it says what to do and stops rather than installing a package manager on somebody's
-// machine to get at a runtime.
+// With neither, it says what to do and stops: putting a package manager on somebody's machine to
+// reach a runtime is their decision.
 func TestNeitherMiseNorBrewStopsWithTheInstructions(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Present["mise"] = false
@@ -81,8 +81,8 @@ func TestAFailedBrewInstallIsNamedRatherThanPassedOver(t *testing.T) {
 	f.expectSaid("brew install mise failed")
 }
 
-// brew can exit 0 having put mise somewhere this shell cannot reach. Reported as the PATH problem it
-// is, because the install itself did not fail.
+// brew can exit 0 having put mise somewhere this shell cannot reach. This run reports the PATH
+// problem, because the install itself did not fail.
 func TestBrewSucceedingWithoutAReachableMiseGivesThePathRecovery(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Present["mise"] = false

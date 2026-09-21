@@ -10,9 +10,8 @@ import (
 )
 
 // The post-checkout entry point: restore the skill links one worktree should have, for whichever
-// clients this clone was installed for. It never installs dependencies or instructions — a checkout is
-// not an install, and a hook that rewrote a project's tracked files on every branch switch would be
-// unusable.
+// clients this clone was installed for. Dependencies and instructions stay untouched, because a
+// checkout is no install and a hook rewriting tracked files on every branch switch would be unusable.
 //
 //	usage: project-skills.sh --sync <worktree>
 const syncStubPath = "project-skills.sh"
@@ -54,8 +53,8 @@ func Sync(options SyncOptions) int {
 		fmt.Fprintf(options.Err, "%s is not a Git worktree\n", run.project)
 		return 1
 	}
-	// The worktree root rather than whatever directory inside it the hook was run from — git runs a
-	// post-checkout hook at the root, but a human running this by hand need not be standing there.
+	// The mount happens at the worktree root, whatever directory inside it the hook was run from. Git
+	// runs a post-checkout hook at the root, and a human running this by hand can stand anywhere.
 	root, err := options.Git.TopLevel(run.project)
 	if err != nil {
 		fmt.Fprintf(options.Err, "%s is not a Git worktree\n", run.project)
@@ -81,9 +80,9 @@ func Sync(options SyncOptions) int {
 	return code
 }
 
-// What one client's state file says the tier was. Three answers rather than two: a file holding
-// anything but the two words this writes is a file somebody edited or a write that was interrupted,
-// and guessing a tier from it would mount a set nobody chose.
+// What one client's state file says the tier was. The type carries three values for two tiers: a file
+// holding anything but the two words this writes is one somebody edited, or a write that was cut
+// short. A tier guessed from such a file would mount a set the human never chose.
 type tier int
 
 const (

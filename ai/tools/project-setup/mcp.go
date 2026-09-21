@@ -7,9 +7,9 @@ import (
 	"configs/ai/tools/repo"
 )
 
-// The project MCP tool, called in process rather than exec'd through its own stub. It is a whole tool
-// with its own suite; what reaches this installer is the exit code, which is the same contract the
-// shell had when it ran the stub — minus the process.
+// The project MCP tool as this installer reaches it: a call in this process. The shell exec'd the
+// tool's own stub and read its exit code, and that exit code is still the whole of what comes back.
+// The tool keeps its own suite.
 type mcpTool struct {
 	self       string
 	configsDir string
@@ -19,8 +19,8 @@ type mcpTool struct {
 	stderr     io.Writer
 }
 
-// NewMcp is the adapter a real run configures through. configsDir is the directory holding mcp.jsonc —
-// this installer's own, which is where the declaration that ships lives.
+// NewMcp is the adapter a real run configures through. configsDir holds mcp.jsonc: this installer's
+// own directory, carrying the declaration that ships.
 func NewMcp(self, configsDir, home string, stdout, stderr io.Writer) Mcp {
 	return mcpTool{self: self, configsDir: configsDir, home: home, git: repo.Exec{}, stdout: stdout, stderr: stderr}
 }
