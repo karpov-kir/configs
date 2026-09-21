@@ -407,9 +407,8 @@ func Measure(files [][]string) Report {
 			notes := b.Notes()
 			// A fact with no sentence saying what this code does about it reads out of the blue. The
 			// count is of note sections that are one sentence long.
-			// A bare fact is one sentence that adds nothing to itself. The rule exempts a fact whose
-			// subject is the site's declaration, and a consequence in a subordinate clause counts as
-			// said.
+			// A bare fact is one sentence that adds no more than itself. The rule exempts a fact whose
+			// subject is the site's declaration, and a consequence in a clause counts as said.
 			if len(notes) == 1 && !reCarriesConsequence.MatchString(notes[0]) {
 				if _, aboutSite := AboutThisCode(notes[0], words); !aboutSite {
 					bareFact.add(notes[0])
@@ -698,7 +697,8 @@ func BareIdentifiers(note string, declared map[string]bool) []string {
 }
 
 // reCarriesConsequence marks a sentence that says what follows from its fact, in a clause of its own
-// and not in a second sentence. The rule asks for the consequence, and a reader gets it either way.
+// where a second sentence would also serve. The rule asks for the consequence, and a reader gets it
+// either way.
 var reCarriesConsequence = regexp.MustCompile(`(?i)\b(so|because|since|which|where|when|unless|as)\b`)
 
 // opensOnASummaryVerb says whether a sentence begins the way a summary does, on its verb. Those are

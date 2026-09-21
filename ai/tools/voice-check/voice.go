@@ -680,8 +680,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 			for _, pattern := range SentenceShapes()[name] {
 				at := pattern.FindStringIndex(prose)
 				// `no` before a comparative is the ordinary word, as in "saying no more than itself".
-				// The check fired on its own documentation there, which is the one place a false
-				// positive announces itself.
+				// The check reported its own documentation there.
 				if at == nil || reComparativeTail.MatchString(prose[at[1]:]) {
 					continue
 				}

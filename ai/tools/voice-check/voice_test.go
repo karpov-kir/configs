@@ -1383,8 +1383,8 @@ func TestACompoundTheCodeDoesNotSpellIsNoRenameFinding(t *testing.T) {
 	}
 }
 
-// `no` before a comparative is the ordinary English word. The check fired on its own documentation,
-// which is where a false positive announces itself.
+// `no` before a comparative is the ordinary English word. The check reported its own documentation,
+// and a false positive announces itself there.
 func TestTheBooleanCheckPassesOverAComparative(t *testing.T) {
 	lines := []string{
 		"// A bare fact is one sentence saying no more than itself.",
