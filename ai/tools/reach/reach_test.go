@@ -56,7 +56,9 @@ const tool = "widget"
 var stampCommands = []string{"bash", "dirname", "find", "git", "sort", "cut"}
 
 // What resolve.sh calls on top of those. It runs source-stamp.sh, so it needs all of them as well.
-var resolveCommands = append([]string{"cat", "mkdir", "mv", "rm"}, stampCommands...)
+// `mkdir`, `rmdir` and `sleep` are the build lock: the directory is the mutex, and a run queued behind
+// another build of the same tool sleeps between attempts at it.
+var resolveCommands = append([]string{"cat", "mkdir", "mv", "rm", "rmdir", "sleep"}, stampCommands...)
 
 // A toolchain that writes the file `go build -o` names and compiles nothing. What the cases below turn
 // on is resolve.sh's decision to build and what it does with the result, and whether Go can compile a

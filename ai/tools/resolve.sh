@@ -39,6 +39,12 @@
 # A hash and not a timestamp, because the binary that has to be caught is one NEWER than the source
 # it disagrees with, and every downloaded release binary is. source-stamp.sh's header has the rest.
 #
+# A build takes bin/<tool>.lock and holds it over the stamping, the build, the move and the stamp write,
+# because two builds of one tool run at once: the gate runs its checks concurrently and every stub execs
+# this file. The move is atomic within the directory and the stamp write beside it is not, so without the
+# lock the binary of one build ends up beside the stamp of the other and is served as current. A lock is
+# broken on its age, because a build killed outright runs no trap of its own.
+#
 # Where the binary came from something else, or cannot be compared at all, and nothing here can
 # rebuild, it is served with a warning on stderr.
 #
@@ -197,12 +203,67 @@ command -v go >/dev/null 2>&1 ||
 
 mkdir -p "$tools/bin" || die "cannot create $tools/bin, so $tool did NOT run"
 
+# The stamping, the build, the move and the stamp write are one critical section per tool. The move is
+# atomic within the directory and the stamp write beside it is not, so two builds over source that changed
+# between them otherwise leave the binary of one beside the stamp of the other: the run after holds that
+# stamp against the source, finds it current, and serves the older binary at exit 0 in silence.
+#
+# `mkdir` is the mutex, because it is atomic on every filesystem this runs on. It is taken here rather than
+# at the top of the file: a binary already built from this source is served far above, so no warm
+# invocation of any stub reaches this line or pays anything for it.
+lock="$binary.lock"
+
+# How long a lock may go on existing before a waiter takes it for abandoned. A build of one of these tools
+# takes seconds, the trap below gives the lock up on every signal a shell can catch, and only a process
+# killed outright leaves one behind. Whole minutes, because `find -mmin` is what asking a file's age costs
+# without GNU stat. Waiting on it instead would wedge every session on the machine behind a lock nobody
+# holds.
+lock_abandoned_minutes=5
+
+# A waiter polls five times a second. There is nothing in bash 3.2 — which is still /bin/bash on macOS —
+# to wait on a directory being removed, and the fractional sleep both machines this runs on accept is what
+# keeps a queued tool off a whole second it did not need.
+waited=""
+while ! mkdir "$lock" 2>/dev/null; do
+  [ -d "$lock" ] || die "cannot create $lock, so $tool did NOT run"
+  if [ -n "$(find "$lock" -maxdepth 0 -mmin "+$lock_abandoned_minutes" 2>/dev/null)" ]; then
+    rmdir "$lock" 2>/dev/null || :
+  else
+    waited=1
+    sleep 0.2
+  fi
+done
+
+# The build that failed, and the one a signal stopped, both give the lock up here. `serve` does not: it
+# execs, and an exec runs no trap, so every path that reaches it gives the lock up on the line before.
+trap 'rmdir "$lock" 2>/dev/null || :' EXIT
+trap 'rmdir "$lock" 2>/dev/null || :; exit 2' HUP INT TERM
+
+release_lock() {
+  trap - EXIT HUP INT TERM
+  rmdir "$lock" 2>/dev/null || :
+}
+
+# The build this run waited for may be the one it needed, and past the lock the stamp says so. Compiling
+# the same source a second time is all that skipping this saves, and it is what every tool the gate
+# launches at once would otherwise pay. Never under ECO_TOOLS_BUILD=1: that flag is a caller saying the
+# bytes have to come from a build in this tree, and a stamp names the source rather than the bytes.
+if [ "${ECO_TOOLS_BUILD:-}" != 1 ] && [ -n "$waited" ] && [ -x "$binary" ] && built_from_this_source; then
+  release_lock
+  serve
+fi
+
 # A tool whose main lives under cmd/ keeps its library in `<tool>/`, so the suite can drive that
 # package without a process per case. One directory per tool under cmd/, never a `cmd/` inside each
 # tool: `go build -o <dir>/ ./...` names every binary after its own directory, so three mains in
 # directories all called `cmd` overwrite one another and the build stays green two tools short.
 package="./$tool/"
 [ -d "$tools/cmd/$tool" ] && package="./cmd/$tool/"
+
+# Taken from the source the compiler is about to read, and written after the move below. An edit landing
+# while the build runs would otherwise be stamped over bytes it never reached, which is the pair this lock
+# exists to prevent, one process wide. Stamping first errs the other way, toward a rebuild nobody needed.
+source_stamp="$("$tools/source-stamp.sh" "$tool")" || source_stamp=""
 
 # Built to a temp name and moved: `go build -o` writes in place, so two skills running at once would
 # let one exec what the other is half way through writing. The move stays in one directory, so atomic.
@@ -220,10 +281,11 @@ mv -f "$staging" "$binary" || {
 # What these bytes were built from, so the next run can hold them against the source without
 # rebuilding. A stamp that cannot be written is removed rather than left: an old one beside new bytes
 # is a wrong answer, and a missing one only costs the next run a rebuild.
-if source_stamp="$("$tools/source-stamp.sh" "$tool")"; then
+if [ -n "$source_stamp" ]; then
   printf '%s\n' "$source_stamp" >"$stamp" || rm -f "$stamp"
 else
   rm -f "$stamp"
 fi
 
+release_lock
 serve
