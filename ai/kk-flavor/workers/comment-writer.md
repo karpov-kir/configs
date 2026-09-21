@@ -88,3 +88,7 @@ After the verdict lines, one line each: `stale: <site>: <claim>`, `carried by <w
 - Read the facts file before question 3.
 - Run `git diff`, `git show` or `git log` over the change's range before question 3. The strip clears the tree and leaves the history, so a block you read there is the block you were sent to replace.
 - Change a line of code. A code change you want is a `rename:` or `carried by` line for the refactor lane.
+- Rewrite a block the strip left standing. The strip removes what you are there to replace, so a
+  block still in the file is one a check reads, and your words would take its reader's input away.
+- Put a blank line inside the block that opens a file. A header scan ends at the first line of
+  code, so the lines under the blank lose their reader, and the loss is silent.

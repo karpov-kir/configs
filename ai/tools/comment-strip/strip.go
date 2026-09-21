@@ -48,6 +48,16 @@ func FactsRequested(args []string) bool {
 // whole and stderr names it. Its removal changes what the code does.
 var directive = regexp.MustCompile(`^(eslint-|@ts-|prettier-|istanbul |biome-|tslint:|noqa|pylint:|type: |nolint|go:|\+build|#!|/// <reference|@jsx|c8 |v8 |webpack|@vitest-|@jest-|jscpd:)`)
 
+// These are the lines the checks in ai/tools/ read out of a comment. The list of directives holds
+// what a language's toolchain reads, and these are the same thing one layer in. The header spellings
+// cover the block opening the file, since eco-check's header scans read no further. A region marker
+// has a reader wherever it sits, so the strip keeps it there.
+var (
+	headerInput = regexp.MustCompile(`^(usage:|untested:)`)
+	suiteInput  = regexp.MustCompile(`[A-Za-z0-9_.-]+-test\.sh`)
+	regionInput = regexp.MustCompile(`^--- (end )?shared:[A-Za-z0-9_-]+ ---$`)
+)
+
 // echoable bounds a path this tool echoes back, the way every tool here bounds one. A path comes off
 // the command line, and a refusal naming it reaches a terminal.
 func echoable(arg string) string {
@@ -55,6 +65,12 @@ func echoable(arg string) string {
 }
 
 func isDirective(raw string) bool {
+	return directive.MatchString(commentText(raw))
+}
+
+// commentText is a comment line with its marker and the space around it taken off, which is the text
+// a reader of that line matches against.
+func commentText(raw string) string {
 	line := strings.TrimLeft(raw, shell.SpaceBytes)
 	for _, marker := range []string{"//", "/*", "*/", "*", "#"} {
 		if strings.HasPrefix(line, marker) {
@@ -62,16 +78,40 @@ func isDirective(raw string) bool {
 			break
 		}
 	}
-	return directive.MatchString(strings.TrimLeft(line, shell.SpaceBytes))
+	return strings.TrimRight(strings.TrimLeft(line, shell.SpaceBytes), shell.SpaceBytes)
+}
+
+// isToolInput says a check reads this line. `leading` says the line stands in the block opening the
+// file, and a header scan reads no further.
+func isToolInput(raw string, leading bool) bool {
+	text := commentText(raw)
+	if regionInput.MatchString(text) {
+		return true
+	}
+	return leading && (headerInput.MatchString(text) || suiteInput.MatchString(text))
 }
 
 func holdsDirective(lines []string, u readerjudge.Unit) bool {
+	leading := opensTheFile(lines, u)
 	for at := u.Line; at < u.Line+u.Span && at <= len(lines); at++ {
-		if isDirective(lines[at-1]) {
+		if isDirective(lines[at-1]) || isToolInput(lines[at-1], leading) {
 			return true
 		}
 	}
 	return false
+}
+
+// opensTheFile says a header scan reads this block. Blank lines and an interpreter line may precede
+// it, and code may not. A block further into the file carrying the same words is prose.
+func opensTheFile(lines []string, u readerjudge.Unit) bool {
+	for at := 1; at < u.Line && at <= len(lines); at++ {
+		line := strings.TrimSpace(lines[at-1])
+		if line == "" || strings.HasPrefix(line, "#!") {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 // Strip runs the grammar this file's header states. The facts directory must be empty or absent: a

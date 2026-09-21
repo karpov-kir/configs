@@ -49,6 +49,13 @@ One pair, so the shape is not in doubt:
 /** Exports written before v3 set no currency on the book or its entries, so those books read as unpriced. */
 ```
 
+A comment is prose to a reader and input to a check at the same time. A usage line, a test
+declaration and a shared-region marker live in a comment. That is where their reader looks. An edit
+made for the prose changes what a tool reads, so leave those lines alone.
+
+Keep the block that opens a file whole. A header scan ends at the first line of code. A blank line
+put inside that block takes the lines under it away from their reader, and the loss is silent.
+
 Comment form is also [human-writing.md](human-writing.md), which binds every outward text.
 
 ## Type Safety

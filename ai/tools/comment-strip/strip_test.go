@@ -61,6 +61,52 @@ func TestStripKeepsAComentTheToolchainReads(t *testing.T) {
 	}
 }
 
+// A comment is prose to a reader and input to a check at the same time. voice-check's block limit
+// asked for a header to be split, the split put a blank line through one, and two scripts stopped
+// reaching their binary in silence. A writer restores only the lines the strip showed it.
+func TestStripKeepsTheLinesThisRepositorysChecksRead(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{"a usage line in the header",
+			"#!/usr/bin/env bash\n# A note about the script.\n# usage: t.sh [--gate]\nset -eu\n# a note\ntrue\n",
+			"#!/usr/bin/env bash\n# A note about the script.\n# usage: t.sh [--gate]\nset -eu\ntrue\n"},
+		{"a test declaration in the header",
+			"#!/usr/bin/env bash\n# untested: a fixture.\nset -eu\n# a note\ntrue\n",
+			"#!/usr/bin/env bash\n# untested: a fixture.\nset -eu\ntrue\n"},
+		{"a named suite in the header",
+			"#!/usr/bin/env bash\n# Covered by t-test.sh beside it.\nset -eu\n# a note\ntrue\n",
+			"#!/usr/bin/env bash\n# Covered by t-test.sh beside it.\nset -eu\ntrue\n"},
+		// The markers and the text between them are one run of comment lines, so the whole region is the
+		// block that holds a marker and the whole region stays. A note under the region is its own block
+		// and goes, which is what the writer is there to replace.
+		{"a shared-region marker anywhere",
+			"#!/usr/bin/env bash\nset -eu\n# --- shared:tool-stub ---\n# The stub.\n# --- end shared:tool-stub ---\nstub\n# a note\ntrue\n",
+			"#!/usr/bin/env bash\nset -eu\n# --- shared:tool-stub ---\n# The stub.\n# --- end shared:tool-stub ---\nstub\ntrue\n"},
+		// The bound. A header scan ends at the first line of code, so a usage line under the code has
+		// no reader, and the writer may rewrite it as prose.
+		{"a usage line below the header is prose",
+			"#!/usr/bin/env bash\nset -eu\n# usage: t.sh [--gate]\ntrue\n",
+			"#!/usr/bin/env bash\nset -eu\ntrue\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "t.sh")
+			if err := os.WriteFile(path, []byte(c.source), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			var out, errOut strings.Builder
+			Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts"), path}, dir, noRepository, &out, &errOut)
+			got, _ := os.ReadFile(path)
+			if string(got) != c.want {
+				t.Fatalf("stripped file:\n%q\nwant\n%q", got, c.want)
+			}
+		})
+	}
+}
+
 func TestStripWithNothingToRemoveLeavesTheFileAndExitsClean(t *testing.T) {
 	source := "function a() {}\n"
 	dir := t.TempDir()

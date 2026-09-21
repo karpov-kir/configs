@@ -390,6 +390,28 @@ func (b block) isFileHeader(lines []string, held present) bool {
 	return true
 }
 
+// toolInputIn returns the first line of this block that a check reads, or "" where none does. A
+// comment is prose to a reader and input to a check at the same time, and this block is both.
+//
+// The scan covers the block opening the file, since a header scan reads no further. comment-strip
+// keeps these same lines, so both tools agree on the text carrying a second reader.
+func (b block) toolInputIn(lines []string) string {
+	for at := b.start; at <= b.end && at <= len(lines); at++ {
+		text := strings.TrimSpace(stripMarker(lines[at-1]))
+		if toolInputLine.MatchString(text) || namedSuite.MatchString(text) {
+			return shell.CutBytesMarked(shell.Oneline(text), 60)
+		}
+	}
+	return ""
+}
+
+// The spellings a check in ai/tools/ reads out of a file's opening comment block: a usage line, a
+// test declaration, and the name of the suite covering the script.
+var (
+	toolInputLine = regexp.MustCompile(`^(usage:|untested:)`)
+	namedSuite    = regexp.MustCompile(`[A-Za-z0-9_.-]+-test\.sh`)
+)
+
 // textLines is how long a block reads: the lines carrying prose. A `/**` and its closing `*/` carry no
 // words, and a doc tag line is a table of the signature rather than a sentence, so neither spends the
 // allowance. Counting tag lines made a six-parameter function's `@param` list a long block, which is
@@ -499,12 +521,19 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool) []
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
 		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(lines, b))...)
 		limit := voiceLongBlock
-		if b.isFileHeader(lines, held) {
+		header := b.isFileHeader(lines, held)
+		if header {
 			limit = voiceLongHeader
 		}
 		if n := b.textLines(lines); n > limit {
-			found = append(found, Finding{File: file, Line: b.start, Check: checkLongBlock,
-				Text: fmt.Sprintf("%d text lines, over %d", n, limit)})
+			text := fmt.Sprintf("%d text lines, over %d", n, limit)
+			// A split is the remedy this finding usually gets. Here it would put a blank line through
+			// the block, a header scan ends at that blank, and the lines under it reach no reader in
+			// silence. Two scripts lost their binary this way, so the finding rules the split out.
+			if read := b.toolInputIn(lines); header && read != "" {
+				text += fmt.Sprintf(" — a check reads %q here, so shorten this block and keep it whole", read)
+			}
+			found = append(found, Finding{File: file, Line: b.start, Check: checkLongBlock, Text: text})
 		}
 		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf))...)
 	}
