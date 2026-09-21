@@ -371,35 +371,6 @@ func (f *fixture) symlink(target, link string) {
 // Decline a case whose fixture is a path this process has to be refused, on a machine where mode 000
 // refuses nobody. `what` finishes the sentence, so the skip still names what could not be built here
 // rather than only the machine it was declined on.
-func skipUnlessModeDeniesRead(t *testing.T, what string) {
-	t.Helper()
-	if modeDeniesRead(t) {
-		return
-	}
-	t.Skip("this process reads a mode-000 path regardless of the mode (root, or CAP_DAC_OVERRIDE), so " + what)
-}
-
-// True when a mode of 000 actually stops this process reading. Probed rather than compared against
-// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
-// carry the bit behave the same way, and all three make a mode-000 fixture a file the tool reads
-// happily. ecostats' suite carries the same probe for the same reason; neither package can import the
-// other's test helpers.
-func modeDeniesRead(t *testing.T) bool {
-	t.Helper()
-	probe := t.TempDir() + "/probe"
-	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-	if err := os.Chmod(probe, 0o000); err != nil {
-		t.Fatalf("chmod probe: %v", err)
-	}
-	file, err := os.Open(probe)
-	if err != nil {
-		return true
-	}
-	file.Close()
-	return false
-}
 
 func (f *fixture) chmod(path string, mode os.FileMode) {
 	f.t.Helper()

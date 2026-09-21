@@ -31,6 +31,7 @@ import (
 	"testing"
 
 	ecoreport "configs/ai/tools/eco-report"
+	"configs/ai/tools/installertest"
 	"configs/ai/tools/repo"
 	"configs/ai/tools/repo/repotest"
 )
@@ -62,6 +63,10 @@ type fixture struct {
 	// table over a real seed repository, since applicability.go still runs one git command itself, but
 	// every question still comes through here.
 	fake *repotest.Fake
+
+	// The three queries a case asks of the tree it built. installertest.Tree owns that shape, and the
+	// answers are the same whichever suite asks: Lstat for what is there, Stat for what is a file.
+	tree *installertest.Tree
 
 	t    *testing.T
 	base string // scratch the case may write outside the repo into
@@ -104,6 +109,7 @@ func newRepoNamed(t *testing.T, name string) *fixture {
 	t.Helper()
 	base := t.TempDir()
 	f := &fixture{t: t, base: base, repo: base + "/" + name, asking: &sync.Mutex{}}
+	f.tree = installertest.NewIn(t, base)
 	// Pinned at a fixture directory holding no override, never left empty: empty falls back to the
 	// process's own $XDG_CONFIG_HOME, and this suite would then read the developer's real idsd.conf —
 	// passing on a machine that has one and failing on every machine that does not. The same rule

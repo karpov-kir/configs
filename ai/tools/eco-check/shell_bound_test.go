@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/runtest"
 )
 
 // A markdown file the walk reaches and the read cannot open. Root reads a mode-000 file whatever the
@@ -16,7 +17,7 @@ import (
 // rather than asserting against a file the checker reads happily.
 func newUnreadableStandard(t *testing.T) *fixture {
 	t.Helper()
-	skipUnlessModeDeniesRead(t, "an unreadable file cannot be built here")
+	runtest.SkipUnlessModeDeniesRead(t, "an unreadable file cannot be built here")
 	f := newRoot(t)
 	f.write(f.root+"/kk-flavor/standards/shut.md", "# Shut\n\n## One home\n")
 	f.chmod(f.root+"/kk-flavor/standards/shut.md", 0o000)
@@ -97,7 +98,7 @@ func TestOversizeFileIsNotReadByTheCallSiteScan(t *testing.T) {
 // site in it unseen, and the subcommands those sites answer for were reported as having none.
 func TestUnreadableFileIsNotSearchedForCallSitesInSilence(t *testing.T) {
 	searched := func(t *testing.T) *fixture {
-		skipUnlessModeDeniesRead(t, "an unreadable file cannot be built here")
+		runtest.SkipUnlessModeDeniesRead(t, "an unreadable file cannot be built here")
 		f := newRoot(t)
 		// A dispatch, or the call-site pass never runs and this case observes nothing.
 		f.newScript("d.sh", "#!/usr/bin/env bash\n# untested: fixture\ncase \"${1:-}\" in\n  alpha)\n    true\n    ;;\nesac")

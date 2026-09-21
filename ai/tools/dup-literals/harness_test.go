@@ -17,22 +17,22 @@ import (
 	"testing"
 
 	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/runtest"
 )
 
 type fixture struct {
-	t      *testing.T
-	dir    string
-	git    *repotest.Fake
-	patch  strings.Builder
-	stdout strings.Builder
-	stderr strings.Builder
-	code   int
+	*runtest.Output
+	t     *testing.T
+	dir   string
+	git   *repotest.Fake
+	patch strings.Builder
+	code  int
 }
 
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	dir := t.TempDir()
-	return &fixture{t: t, dir: dir, git: repotest.New(dir)}
+	return &fixture{Output: runtest.NewOutput(t), t: t, dir: dir, git: repotest.New(dir)}
 }
 
 // added says what git would print for these lines arriving in one file, and appends it to the patch
@@ -75,51 +75,8 @@ func (f *fixture) run(args ...string) {
 }
 
 func (f *fixture) runWith(cfg Config, args ...string) {
-	f.stdout.Reset()
-	f.stderr.Reset()
-	f.code = Run("dup-literals.sh", args, f.dir, f.git, cfg, &f.stdout, &f.stderr)
-}
-
-func (f *fixture) expectCode(want int) {
-	f.t.Helper()
-	if f.code != want {
-		f.t.Errorf("exit %d, wanted %d\nstdout: %s\nstderr: %s", f.code, want, f.stdout.String(), f.stderr.String())
-	}
-}
-
-func (f *fixture) expectStdoutHas(want string) {
-	f.t.Helper()
-	if !strings.Contains(f.stdout.String(), want) {
-		f.t.Errorf("wanted %q on stdout, got: %s", want, f.stdout.String())
-	}
-}
-
-func (f *fixture) expectStdoutLacks(unwanted string) {
-	f.t.Helper()
-	if strings.Contains(f.stdout.String(), unwanted) {
-		f.t.Errorf("%q appears on stdout: %s", unwanted, f.stdout.String())
-	}
-}
-
-func (f *fixture) expectNoStdout() {
-	f.t.Helper()
-	if f.stdout.Len() != 0 {
-		f.t.Errorf("expected nothing on stdout, got: %s", f.stdout.String())
-	}
-}
-
-func (f *fixture) expectStderrHas(want string) {
-	f.t.Helper()
-	if !strings.Contains(f.stderr.String(), want) {
-		f.t.Errorf("wanted %q on stderr, got: %s", want, f.stderr.String())
-	}
-}
-
-func (f *fixture) expectStderrLacks(unwanted string) {
-	f.t.Helper()
-	if strings.Contains(f.stderr.String(), unwanted) {
-		f.t.Errorf("%q appears on stderr: %s", unwanted, f.stderr.String())
-	}
+	f.Reset()
+	f.code = Run("dup-literals.sh", args, f.dir, f.git, cfg, &f.Out, &f.Err)
 }
 
 func repeated(char rune, n int) string { return strings.Repeat(string(char), n) }

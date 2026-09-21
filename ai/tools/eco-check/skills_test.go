@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/runtest"
 )
 
 func TestSkillDirectory(t *testing.T) {
@@ -28,7 +29,7 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 	// The mounted skill's SKILL.md carries no frontmatter at all, so readable it raises both findings.
 	// That is what makes the two silences below a refusal rather than a compliant fixture.
 	newUnreadableSkill := func(t *testing.T) *fixture {
-		skipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
+		runtest.SkipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
 		f := newRoot(t)
 		f.newMountedSkill("kk-drive")
 		f.chmod(f.root+"/kk-flavor/skills/kk-drive/SKILL.md", 0o000)
@@ -69,7 +70,7 @@ func TestAnUnreadableSkillFileIsNotCountedAsADescriptionThatWasRead(t *testing.T
 	})
 
 	t.Run("drops the one it could not read out of what it claims to have measured", func(t *testing.T) {
-		skipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
+		runtest.SkipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
 		f := newTwoSkills(t)
 		f.chmod(f.root+"/kk-flavor/skills/kk-beta/SKILL.md", 0o000)
 		// The total still counts it: the skill is in the tree, which is what that number says.

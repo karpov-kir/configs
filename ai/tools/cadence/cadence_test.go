@@ -20,7 +20,6 @@
 package cadence
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
@@ -30,6 +29,7 @@ import (
 
 	"configs/ai/tools/repo"
 	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/runtest"
 )
 
 var fixedNow = time.Date(2026, 9, 3, 14, 30, 0, 0, time.UTC)
@@ -44,12 +44,11 @@ func daysAgo(n int) string { return fixedNow.AddDate(0, 0, -n).Format(dateLayout
 // --- fixtures --------------------------------------------------------------------------------
 
 type fixture struct {
-	repo   string // the working tree the caller stands in
-	state  string // where the record belongs
-	git    *repotest.Fake
-	stdout bytes.Buffer
-	stderr bytes.Buffer
-	code   int
+	*runtest.Output
+	repo  string // the working tree the caller stands in
+	state string // where the record belongs
+	git   *repotest.Fake
+	code  int
 }
 
 // newRepo, the fixture builder, returns a working tree with a git dir under it and a port answering
@@ -60,7 +59,7 @@ func newRepo(t *testing.T) *fixture {
 	if err := git.OnDisk(); err != nil {
 		t.Fatalf("could not build a fixture repo: %v — stopping, since the case reads one", err)
 	}
-	return &fixture{repo: git.Root, state: filepath.Join(git.Git, recordName), git: git}
+	return &fixture{Output: runtest.NewOutput(t), repo: git.Root, state: filepath.Join(git.Git, recordName), git: git}
 }
 
 // newNeutral, a second fixture builder, answers as git does outside any repository, for the cases
@@ -71,7 +70,7 @@ func newNeutral(t *testing.T) *fixture {
 	dir := t.TempDir()
 	git := repotest.New(dir)
 	git.Fail["TopLevel"] = errors.New("not a git repository")
-	return &fixture{repo: dir, git: git}
+	return &fixture{Output: runtest.NewOutput(t), repo: dir, git: git}
 }
 
 func (f *fixture) run(args ...string) {
@@ -84,13 +83,9 @@ func (f *fixture) runFrom(dir string, args ...string) {
 }
 
 func (f *fixture) runAsking(git repo.Git, dir string, args ...string) {
-	f.stdout.Reset()
-	f.stderr.Reset()
-	f.code = Run("cadence.sh", args, dir, git, clock, &f.stdout, &f.stderr)
+	f.Reset()
+	f.code = Run("cadence.sh", args, dir, git, clock, &f.Out, &f.Err)
 }
-
-// both channels, for the cases that only care that a phrase appeared somewhere.
-func (f *fixture) out() string { return f.stdout.String() + f.stderr.String() }
 
 // record writes a stamp, then reads it back: a write that produced nothing would leave the code on
 // its never-offered path, which is a `due`, and the due cases would pass without the record they are
@@ -121,36 +116,6 @@ func (a *askedFrom) CommonDir(dir string) (string, error) {
 
 // --- assertions ------------------------------------------------------------------------------
 
-func (f *fixture) expectCode(t *testing.T, want int) {
-	t.Helper()
-	if f.code != want {
-		t.Errorf("exit %d, wanted %d — output: %s", f.code, want, f.out())
-	}
-}
-
-func (f *fixture) expectOut(t *testing.T, want string) {
-	t.Helper()
-	if !strings.Contains(f.out(), want) {
-		t.Errorf("wanted %q in: %s", want, f.out())
-	}
-}
-
-func (f *fixture) expectNotOut(t *testing.T, unwanted string) {
-	t.Helper()
-	if strings.Contains(f.out(), unwanted) {
-		t.Errorf("%q appears in: %s", unwanted, f.out())
-	}
-}
-
-// Exit 2 means nothing was determined, so anything left on stdout is what a caller capturing the
-// verdict reads as one.
-func (f *fixture) expectNoStdout(t *testing.T) {
-	t.Helper()
-	if f.stdout.Len() != 0 {
-		t.Errorf("expected nothing on stdout, got: %s", f.stdout.String())
-	}
-}
-
 // --- the four ways it cannot run ---------------------------------------------------------------
 
 // All four exit 2, and 2 is "undetermined", never "not due". A caller that reached the usage path and
@@ -159,22 +124,22 @@ func TestUsage(t *testing.T) {
 	t.Run("no arguments exit 2", func(t *testing.T) {
 		f := newNeutral(t)
 		f.run()
-		f.expectCode(t, 2)
-		f.expectOut(t, "usage: cadence.sh audit {due|asked}")
+		f.ExpectCode(f.code, 2)
+		f.ExpectSaid("usage: cadence.sh audit {due|asked}")
 		// The grammar alone presents `due` and `asked` as two spellings of one query, and a caller
 		// probing it rewrites the record it was asking about. The warning is the only thing at the
 		// point of the mistake that says so, so it is part of the contract rather than decoration.
-		f.expectOut(t, "'asked' OVERWRITES it with today's date")
+		f.ExpectSaid("'asked' OVERWRITES it with today's date")
 		// Exit 2 is undetermined, so anything left on stdout is what a caller capturing the verdict
 		// reads as one.
-		f.expectNoStdout(t)
+		f.ExpectNoOut()
 	})
 
 	t.Run("an unknown topic exits 2 and prints the usage", func(t *testing.T) {
 		f := newNeutral(t)
 		f.run("bogus", "due")
-		f.expectCode(t, 2)
-		f.expectOut(t, "usage:")
+		f.ExpectCode(f.code, 2)
+		f.ExpectSaid("usage:")
 	})
 
 	// The action is dispatched behind the topic, so these two need the repository the record is
@@ -183,14 +148,14 @@ func TestUsage(t *testing.T) {
 	t.Run("a topic with no action exits 2 and prints the usage", func(t *testing.T) {
 		f := newRepo(t)
 		f.run("audit")
-		f.expectCode(t, 2)
-		f.expectOut(t, "usage:")
+		f.ExpectCode(f.code, 2)
+		f.ExpectSaid("usage:")
 	})
 
 	t.Run("an unknown action exits 2", func(t *testing.T) {
 		f := newRepo(t)
 		f.run("audit", "bogus")
-		f.expectCode(t, 2)
+		f.ExpectCode(f.code, 2)
 	})
 }
 
@@ -199,10 +164,10 @@ func TestUsage(t *testing.T) {
 func TestOutsideAnyRepository(t *testing.T) {
 	f := newNeutral(t)
 	f.run("audit", "due")
-	f.expectCode(t, 2)
-	f.expectOut(t, "not inside a git repository")
-	f.expectNotOut(t, "not due:")
-	f.expectNoStdout(t)
+	f.ExpectCode(f.code, 2)
+	f.ExpectSaid("not inside a git repository")
+	f.ExpectNotSaid("not due:")
+	f.ExpectNoOut()
 }
 
 // --- the record's own three answers -------------------------------------------------------------
@@ -210,9 +175,9 @@ func TestOutsideAnyRepository(t *testing.T) {
 func TestNeverOfferedIsDue(t *testing.T) {
 	f := newRepo(t)
 	f.run("audit", "due")
-	f.expectCode(t, 0)
-	f.expectOut(t, "no audit has ever been offered")
-	f.expectNotOut(t, "not due:")
+	f.ExpectCode(f.code, 0)
+	f.ExpectSaid("no audit has ever been offered")
+	f.ExpectNotSaid("not due:")
 }
 
 // Recording, and the record's effect. The write is asserted through the next `due` as well as through
@@ -220,8 +185,8 @@ func TestNeverOfferedIsDue(t *testing.T) {
 func TestRecordingAnOffer(t *testing.T) {
 	f := newRepo(t)
 	f.run("audit", "asked")
-	f.expectCode(t, 0)
-	f.expectOut(t, "recorded the audit offer on "+today())
+	f.ExpectCode(f.code, 0)
+	f.ExpectSaid("recorded the audit offer on " + today())
 
 	body, err := os.ReadFile(filepath.Join(f.repo, ".git", recordName))
 	if err != nil {
@@ -236,9 +201,9 @@ func TestRecordingAnOffer(t *testing.T) {
 	}
 
 	f.run("audit", "due")
-	f.expectCode(t, 1)
-	f.expectOut(t, "not due:")
-	f.expectOut(t, "0 days ago")
+	f.ExpectCode(f.code, 1)
+	f.ExpectSaid("not due:")
+	f.ExpectSaid("0 days ago")
 }
 
 // The interval, both sides of it.
@@ -247,27 +212,27 @@ func TestTheInterval(t *testing.T) {
 		f := newRepo(t)
 		f.record(t, daysAgo(6))
 		f.run("audit", "due")
-		f.expectCode(t, 1)
+		f.ExpectCode(f.code, 1)
 		// The elapsed count is the package's arithmetic, not this suite's.
-		f.expectOut(t, "6 days ago")
-		f.expectOut(t, "interval 7 days")
+		f.ExpectSaid("6 days ago")
+		f.ExpectSaid("interval 7 days")
 	})
 
 	t.Run("the seventh day is due", func(t *testing.T) {
 		f := newRepo(t)
 		f.record(t, daysAgo(7))
 		f.run("audit", "due")
-		f.expectCode(t, 0)
-		f.expectOut(t, "7 days ago")
-		f.expectNotOut(t, "not due:")
+		f.ExpectCode(f.code, 0)
+		f.ExpectSaid("7 days ago")
+		f.ExpectNotSaid("not due:")
 	})
 
 	t.Run("past the interval is due", func(t *testing.T) {
 		f := newRepo(t)
 		f.record(t, daysAgo(8))
 		f.run("audit", "due")
-		f.expectCode(t, 0)
-		f.expectNotOut(t, "not due:")
+		f.ExpectCode(f.code, 0)
+		f.ExpectNotSaid("not due:")
 	})
 }
 
@@ -278,8 +243,8 @@ func TestATrailingLineStillResolves(t *testing.T) {
 			t.Fatalf("could not write the fixture record: %v", err)
 		}
 		f.run("audit", "due")
-		f.expectCode(t, 0)
-		f.expectOut(t, "30 days ago")
+		f.ExpectCode(f.code, 0)
+		f.ExpectSaid("30 days ago")
 	})
 
 	// A record written where lines end CRLF — a Windows editor, a checkout with autocrlf. The date is
@@ -291,9 +256,9 @@ func TestATrailingLineStillResolves(t *testing.T) {
 			t.Fatalf("could not write the fixture record: %v", err)
 		}
 		f.run("audit", "due")
-		f.expectCode(t, 0)
-		f.expectOut(t, "30 days ago")
-		f.expectNotOut(t, "which is no YYYY-MM-DD date")
+		f.ExpectCode(f.code, 0)
+		f.ExpectSaid("30 days ago")
+		f.ExpectNotSaid("which is no YYYY-MM-DD date")
 	})
 }
 
@@ -305,11 +270,11 @@ func TestAFutureStampIsUndetermined(t *testing.T) {
 	f := newRepo(t)
 	f.record(t, daysAgo(-1))
 	f.run("audit", "due")
-	f.expectCode(t, 2)
-	f.expectOut(t, "later than today")
-	f.expectNotOut(t, "not due:")
-	f.expectOut(t, "this is not a 'not due'")
-	f.expectNoStdout(t)
+	f.ExpectCode(f.code, 2)
+	f.ExpectSaid("later than today")
+	f.ExpectNotSaid("not due:")
+	f.ExpectSaid("this is not a 'not due'")
+	f.ExpectNoOut()
 }
 
 func TestARecordThatIsNoDate(t *testing.T) {
@@ -347,10 +312,10 @@ func TestARecordThatIsNoDate(t *testing.T) {
 			f := newRepo(t)
 			f.record(t, tc.stamp)
 			f.run("audit", "due")
-			f.expectCode(t, 2)
-			f.expectOut(t, "which is no YYYY-MM-DD date")
-			f.expectNotOut(t, "not due:")
-			f.expectNoStdout(t)
+			f.ExpectCode(f.code, 2)
+			f.ExpectSaid("which is no YYYY-MM-DD date")
+			f.ExpectNotSaid("not due:")
+			f.ExpectNoOut()
 		})
 	}
 }
@@ -363,15 +328,15 @@ func TestARecordThatCannotBeRead(t *testing.T) {
 		t.Fatalf("could not put a directory at the record's path: %v", err)
 	}
 	f.run("audit", "due")
-	f.expectCode(t, 2)
-	f.expectOut(t, "could not be read")
-	f.expectNotOut(t, "not due:")
+	f.ExpectCode(f.code, 2)
+	f.ExpectSaid("could not be read")
+	f.ExpectNotSaid("not due:")
 
 	// The write failing is the other half; writeRefused carries why the caller has to be told.
 	f.run("audit", "asked")
-	f.expectCode(t, 2)
-	f.expectOut(t, "was NOT recorded")
-	f.expectOut(t, "the next run will offer again")
+	f.ExpectCode(f.code, 2)
+	f.ExpectSaid("was NOT recorded")
+	f.ExpectSaid("the next run will offer again")
 }
 
 // --- which repository the record belongs to -----------------------------------------------------
@@ -389,7 +354,7 @@ func TestRecordingFromASubdirectory(t *testing.T) {
 	watched := &askedFrom{Fake: f.git}
 
 	f.runAsking(watched, deep, "audit", "asked")
-	f.expectCode(t, 0)
+	f.ExpectCode(f.code, 0)
 	if len(watched.dirs) != 1 || watched.dirs[0] != f.repo {
 		t.Errorf("the shared git dir was asked about %v, wanted the working tree root %s and nothing "+
 			"else — asked about the caller's own subdirectory, the record lands in a .git beside the "+
@@ -397,7 +362,7 @@ func TestRecordingFromASubdirectory(t *testing.T) {
 	}
 
 	f.runAsking(watched, deep, "audit", "due")
-	f.expectCode(t, 1)
+	f.ExpectCode(f.code, 1)
 }
 
 // A linked worktree shares the repository, so it shares the record. `--git-dir` and `--git-path`
@@ -411,11 +376,11 @@ func TestALinkedWorktreeSeesTheMainTreesRecord(t *testing.T) {
 	worktree.Common = f.git.Git
 
 	f.run("audit", "asked")
-	f.expectCode(t, 0)
+	f.ExpectCode(f.code, 0)
 
 	f.runAsking(worktree, linked, "audit", "due")
-	f.expectCode(t, 1)
-	f.expectOut(t, "not due:")
+	f.ExpectCode(f.code, 1)
+	f.ExpectSaid("not due:")
 }
 
 // The record is per repository, not per machine. One shared date would silence the audit everywhere
@@ -423,10 +388,10 @@ func TestALinkedWorktreeSeesTheMainTreesRecord(t *testing.T) {
 func TestASecondRepositoryHasItsOwnRecord(t *testing.T) {
 	first := newRepo(t)
 	first.run("audit", "asked")
-	first.expectCode(t, 0)
+	first.ExpectCode(first.code, 0)
 
 	second := newRepo(t)
 	second.run("audit", "due")
-	second.expectCode(t, 0)
-	second.expectOut(t, "no audit has ever been offered")
+	second.ExpectCode(second.code, 0)
+	second.ExpectSaid("no audit has ever been offered")
 }

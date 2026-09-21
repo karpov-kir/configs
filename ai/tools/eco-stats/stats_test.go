@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"configs/ai/tools/runtest"
 	"configs/ai/tools/shell"
 )
 
@@ -241,7 +242,7 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 	// right — the mounted-outside scan really did go short — so what these cases pin is the location,
 	// not the status.
 	t.Run("an unreadable mounted skill is described as outside the root, not under it", func(t *testing.T) {
-		skipUnlessModeDeniesRead(t, "a mounted skill it cannot read cannot be built here")
+		runtest.SkipUnlessModeDeniesRead(t, "a mounted skill it cannot read cannot be built here")
 		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two\n")
 		f.newUnreadableMountedSkill()
@@ -272,7 +273,7 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 	// The other side of that branch, or the fix above is satisfied by a tool that never says "under
 	// the root" at all — and an unreadable path inside the tree really is under it.
 	t.Run("while an unreadable path inside the tree is still described as under the root", func(t *testing.T) {
-		skipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
+		runtest.SkipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
 		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two three\n")
 		f.mkdirAll(f.root + "/kk-flavor/shut")
@@ -290,7 +291,7 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 	// Both at once, which is the arm neither case above reaches: one message has to carry two
 	// locations, and the split has to be the right way round.
 	t.Run("and a run short on both counts them apart", func(t *testing.T) {
-		if !modeDeniesRead(t) || !modeDeniesDirList(t) {
+		if !runtest.ModeDeniesRead(t) || !runtest.ModeDeniesDirList(t) {
 			t.Skip("this process reads through mode 000 (root, or CAP_DAC_OVERRIDE), so neither half of this fixture can be built here")
 		}
 		f := newRoot(t)
@@ -366,33 +367,6 @@ func TestASkillMountedFromOutsideTheTreeIsReportedApart(t *testing.T) {
 // than per case: four cases below skip on the directory probe alone, and spelled out at each of them
 // the same probe was explained three different ways — so a reader grepping one skip found some of the
 // cases it silenced. ecocheck's suite carries the read half under this same name.
-func skipUnlessModeDeniesDirList(t *testing.T, what string) {
-	t.Helper()
-	if modeDeniesDirList(t) {
-		return
-	}
-	t.Skip("this process lists a mode-000 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so " + what)
-}
-
-// True when a mode of 000 actually stops this process listing a directory. The directory twin of
-// modeDeniesRead, and probed for the same reason: root and CAP_DAC_OVERRIDE both read it happily, and
-// a case that assumed otherwise would assert against a tree the tool scans whole.
-func modeDeniesDirList(t *testing.T) bool {
-	t.Helper()
-	probe := t.TempDir() + "/probe"
-	if err := os.MkdirAll(probe, 0o755); err != nil {
-		t.Fatalf("mkdir probe: %v", err)
-	}
-	if err := os.WriteFile(probe+"/inner.md", []byte("alpha\n"), 0o644); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-	if err := os.Chmod(probe, 0o000); err != nil {
-		return false
-	}
-	t.Cleanup(func() { _ = os.Chmod(probe, 0o755) })
-	_, err := os.ReadDir(probe)
-	return err != nil
-}
 
 // A directory the walk cannot list takes its whole subtree out of every figure, and it does so in the
 // shape of a smaller tree — every figure printed at full confidence, with nothing saying which of them
@@ -407,7 +381,7 @@ func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
 	// tree, so the shut directory is met twice — the count is how many paths went unread, not how many
 	// times one was looked at, and refuseOversize keeps the same rule.
 	t.Run("exits 2, marks the report short, and names the path once", func(t *testing.T) {
-		skipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
+		runtest.SkipUnlessModeDeniesDirList(t, "a subtree it cannot reach cannot be built here")
 		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two three\n")
 		f.mkdirAll(f.root + "/kk-flavor/shut")
@@ -448,7 +422,7 @@ func TestAnUnlistableDirectoryIsNotMeasuredAsASmallerTree(t *testing.T) {
 // and, worse, it is not a refusal, so the tier's words go missing with no row withheld.
 func TestAReadAlwaysTargetOutOfReachIsNotReportedMissing(t *testing.T) {
 	t.Run("refuses it rather than calling it absent, so the tier's shortfall withholds the row", func(t *testing.T) {
-		skipUnlessModeDeniesDirList(t, "a target out of reach cannot be built here")
+		runtest.SkipUnlessModeDeniesDirList(t, "a target out of reach cannot be built here")
 		f := newRoot(t)
 		f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n")
 		f.write(f.root+"/kk-flavor/standards/core.md", "alpha beta gamma\n")
@@ -520,34 +494,6 @@ func newOversizeBudgetFile(t *testing.T) *fixture {
 }
 
 // The file twin of skipUnlessModeDeniesDirList, above.
-func skipUnlessModeDeniesRead(t *testing.T, what string) {
-	t.Helper()
-	if modeDeniesRead(t) {
-		return
-	}
-	t.Skip("this process reads a mode-000 file regardless of the mode (root, or CAP_DAC_OVERRIDE), so " + what)
-}
-
-// True when a mode of 000 actually stops this process reading. Probed rather than compared against
-// uid 0: root is the common case, but CAP_DAC_OVERRIDE without root and a filesystem that does not
-// carry the bit behave the same way, and all three make the fixture below a file the tool reads
-// happily. Answering by observation means this needs no list of the environments that lie.
-func modeDeniesRead(t *testing.T) bool {
-	t.Helper()
-	probe := t.TempDir() + "/probe"
-	if err := os.WriteFile(probe, []byte("alpha\n"), 0o644); err != nil {
-		t.Fatalf("write probe: %v", err)
-	}
-	if err := os.Chmod(probe, 0o000); err != nil {
-		t.Fatalf("chmod probe: %v", err)
-	}
-	file, err := os.Open(probe)
-	if err != nil {
-		return true
-	}
-	file.Close()
-	return false
-}
 
 // The `isReadable` limb of the refusal: a regular file, in the root, that the process cannot open.
 // Root reads a mode-000 file regardless of the mode, so on a root runner this condition does not
@@ -557,7 +503,7 @@ func modeDeniesRead(t *testing.T) bool {
 // newRefusedBudgetFile, and only the limb that is genuinely unreachable goes unasserted.
 func newUnreadableBudgetFile(t *testing.T) *fixture {
 	t.Helper()
-	skipUnlessModeDeniesRead(t, "a budget file it cannot read cannot be built here — the refusal stays covered by the directory fixture beside this one")
+	runtest.SkipUnlessModeDeniesRead(t, "a budget file it cannot read cannot be built here — the refusal stays covered by the directory fixture beside this one")
 	f := newRoot(t)
 	f.write(f.root+"/kk-flavor/inject.md", "# Flavor\n\n## Read always\n\n- [core](standards/core.md)\n")
 	f.write(f.root+"/kk-flavor/standards/core.md", "alpha beta gamma\n")
@@ -606,7 +552,7 @@ func TestACutMessageSaysThatItWasCut(t *testing.T) {
 	// goes red over a checker that did exactly the right thing. newBase, the test helper in
 	// harness_test.go, is what keeps the prefix out of it.
 	t.Run("an unreadable path whose message runs past the bound is marked", func(t *testing.T) {
-		skipUnlessModeDeniesDirList(t, "a path it cannot read cannot be built here")
+		runtest.SkipUnlessModeDeniesDirList(t, "a path it cannot read cannot be built here")
 		f := newRoot(t)
 		f.write(f.root+"/CLAUDE.md", "one two three\n")
 		shut := f.root + "/kk-flavor/" + strings.Repeat("s", overEveryMessageBound)

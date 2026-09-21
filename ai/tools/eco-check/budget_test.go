@@ -9,6 +9,7 @@ import (
 
 	ecocheck "configs/ai/tools/eco-check"
 	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/runtest"
 	"configs/ai/tools/shell"
 )
 
@@ -182,7 +183,7 @@ func TestATraversalReadAlwaysTargetIsNotStatted(t *testing.T) {
 // detectors disagreeing about what a permission failure means is the hazard rather than the wording.
 func TestAnUnreachableReadAlwaysTargetIsRefusedNotCalledAbsent(t *testing.T) {
 	newUnreachable := func(t *testing.T) *fixture {
-		skipUnlessModeDeniesRead(t, "an unreachable target cannot be built here")
+		runtest.SkipUnlessModeDeniesRead(t, "an unreachable target cannot be built here")
 		f := newRoot(t)
 		shut := f.root + "/kk-flavor/standards/shut"
 		f.mkdirAll(shut)
@@ -324,7 +325,7 @@ func newSymlinkedImport(t *testing.T) *fixture {
 // reads happily.
 func newUnreadableImport(t *testing.T) *fixture {
 	t.Helper()
-	skipUnlessModeDeniesRead(t, "an unreadable file at the mount cannot be built here")
+	runtest.SkipUnlessModeDeniesRead(t, "an unreadable file at the mount cannot be built here")
 	f := newRootImporting(t, "FOO.md")
 	f.write(f.home+"/.claude/FOO.md", "one two three\n")
 	f.chmod(f.home+"/.claude/FOO.md", 0o000)

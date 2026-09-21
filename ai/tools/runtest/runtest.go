@@ -58,3 +58,44 @@ func (o *Output) ExpectCode(got, want int) {
 		o.t.Errorf("the run exited %d, wanted %d. It said:\n%s", got, want, o.Said())
 	}
 }
+
+// Some cases are about which stream carried the text. A report written to stderr and a refusal
+// written to stdout are both defects, and Said cannot tell either of them from a correct run. These
+// read one stream, and quote both when they fail, since the text is usually in the other one.
+
+func (o *Output) ExpectOut(want string) {
+	o.t.Helper()
+	if !strings.Contains(o.Out.String(), want) {
+		o.t.Errorf("stdout never said %q. stdout:\n%s\nstderr:\n%s", want, o.Out.String(), o.Err.String())
+	}
+}
+
+func (o *Output) ExpectNotOut(unwanted string) {
+	o.t.Helper()
+	if strings.Contains(o.Out.String(), unwanted) {
+		o.t.Errorf("stdout said %q, which it must not. stdout:\n%s", unwanted, o.Out.String())
+	}
+}
+
+func (o *Output) ExpectErr(want string) {
+	o.t.Helper()
+	if !strings.Contains(o.Err.String(), want) {
+		o.t.Errorf("stderr never said %q. stderr:\n%s\nstdout:\n%s", want, o.Err.String(), o.Out.String())
+	}
+}
+
+func (o *Output) ExpectNotErr(unwanted string) {
+	o.t.Helper()
+	if strings.Contains(o.Err.String(), unwanted) {
+		o.t.Errorf("stderr said %q, which it must not. stderr:\n%s", unwanted, o.Err.String())
+	}
+}
+
+// ExpectNoOut is for a run whose whole answer is its exit code. Anything on stdout there is read by a
+// caller as the report, so the empty stream is the assertion.
+func (o *Output) ExpectNoOut() {
+	o.t.Helper()
+	if o.Out.String() != "" {
+		o.t.Errorf("stdout carried %q, and this run answers with its exit code", o.Out.String())
+	}
+}
