@@ -46,10 +46,7 @@ func Blocks(lines []string) []Block {
 		if joined == "" {
 			continue
 		}
-		next := u.Line + u.Span
-		for next <= len(lines) && strings.TrimSpace(lines[next-1]) == "" {
-			next++
-		}
+		next := declarationUnder(lines, u.Line+u.Span)
 		over := next <= len(lines) && declaration.MatchString(lines[next-1])
 		out = append(out, Block{Line: u.Line, Span: u.Span, Text: joined, OverDecl: over, Sentences: Sentences(joined)})
 	}
@@ -576,13 +573,28 @@ const bodyWindow = 40
 
 var camelBreak = regexp.MustCompile(`([a-z0-9])([A-Z])`)
 
+// declarationUnder is the line the code under a block starts on, given the line the block ends after.
+// Blank lines and further comment lines are walked past. Two blocks with a blank line between them
+// are ordinary, and a walk stopping on the second reads its prose as the first one's declaration.
+func declarationUnder(lines []string, after int) int {
+	at := after
+	for at <= len(lines) {
+		line := strings.TrimLeft(lines[at-1], " \t")
+		if line != "" && !commentLine.MatchString(line) {
+			break
+		}
+		at++
+	}
+	return at
+}
+
+// A line that carries comment text, in the languages the census reads.
+var commentLine = regexp.MustCompile(`^(//|/\*|\*|#)`)
+
 // DeclarationWords collects the stems the declaration under a block spells: its identifier split at
 // its camel humps, its parameter names, its return type and its body.
 func DeclarationWords(lines []string, b Block) map[string]bool {
-	at := b.Line + b.Span
-	for at <= len(lines) && strings.TrimSpace(lines[at-1]) == "" {
-		at++
-	}
+	at := declarationUnder(lines, b.Line+b.Span)
 	out := map[string]bool{}
 	depth, seenBrace := 0, false
 	for i := at; i <= len(lines) && i < at+bodyWindow; i++ {

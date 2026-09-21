@@ -729,7 +729,7 @@ func TestTheBarAndTheVoiceCheckAgreeOnBlockLength(t *testing.T) {
 		t.Errorf("the bar reported a one-sentence summary over a tag list as %d long block(s)", counted.longBlocks)
 	}
 	lines := strings.Split(strings.TrimSuffix(tagged, "\n"), "\n")
-	if found := (scanner{profile: ProfileComment}).scanSource("f.go", lines, nil); hasCheck(found, checkLongBlock) {
+	if found := (scanner{profile: ProfileComment}).scanSource("f.go", lines, nil, nil); hasCheck(found, checkLongBlock) {
 		t.Error("the voice check reported the same block long, so the two disagree")
 	}
 
@@ -737,7 +737,7 @@ func TestTheBarAndTheVoiceCheckAgreeOnBlockLength(t *testing.T) {
 	if counted := statsOf(prose); counted.longBlocks != 1 {
 		t.Errorf("the bar reported %d long block(s) over five prose lines, want 1", counted.longBlocks)
 	}
-	if found := (scanner{profile: ProfileComment}).scanSource("f.go", strings.Split(strings.TrimSuffix(prose, "\n"), "\n"), nil); !hasCheck(found, checkLongBlock) {
+	if found := (scanner{profile: ProfileComment}).scanSource("f.go", strings.Split(strings.TrimSuffix(prose, "\n"), "\n"), nil, nil); !hasCheck(found, checkLongBlock) {
 		t.Error("the voice check did not report five prose lines long, so the two disagree")
 	}
 }
