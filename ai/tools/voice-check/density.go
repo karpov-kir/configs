@@ -37,9 +37,12 @@ const (
 // changed with how the binary was reached would leave that test no fixed text to compare.
 const stubName = "voice-check.sh"
 
-// Every form the binary takes, in the order it takes them. The pathspec half is real: a bare path is
-// refused where a revision belongs, and one after `--` narrows the scan to it.
-const usage = "usage: " + stubName + " [--density | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]"
+// Every form a caller writes by hand, in the order the binary takes them. The pathspec half is real: a
+// bare path is refused where a revision belongs, and one after `--` narrows the scan to it.
+//
+// The stub's header states this line word for word, and a case holds the two together, so a flag added
+// here is added there in the same edit.
+const usage = "usage: " + stubName + " [--density | --per-file | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. A finding goes to stdout bare. A note goes to
 // stderr under the tool's name, and the rest of the package writes there through this type alone. The

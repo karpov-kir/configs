@@ -3,7 +3,7 @@
 # which sentences are written in the register the rule forbids. With `--density` it reports how many
 # comment lines the set carries beside the host repository's own rate.
 #
-#   usage: voice-check.sh [--density | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
 #   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread (default 262144)

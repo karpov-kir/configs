@@ -34,51 +34,36 @@ done < <(find ai/kk-flavor/standards ai/kk-flavor/workers ai/kk-flavor/skills ai
   -name '*.md' 2>/dev/null | sort)
 [ "${#files[@]}" -gt 0 ] || { echo "voice-baseline: no instruction file was found — exit 2" >&2; exit 2; }
 
-# Each file is measured on its own, and each run's own summary line is what is read. The report
-# truncates its findings at a display cap. A count of printed lines would undercount any file that
-# runs past it, and one run over every file at once hits that cap long before the last file.
+# One run reads every file and prints a count for each. One run per file was the gate's slowest check
+# at 102 seconds over 72 files, and about 1.3 of those seconds were the checker reading. This machine's
+# security agent inspects every exec, and the rest of that minute was the 72 launches.
 
-# The runs go concurrently, in batches. Sequentially this was the gate's slowest check at 102 seconds
-# over 72 files, most of the whole budget and most of it process startup. Each run reads one file and
-# shares no state with the others, so they can all go at once.
-
-# This batches with `wait` and fills an indexed array, because macOS ships bash 3.2 and lacks
-# `wait -n` and associative arrays.
-
-# Exit 2 from a run is fatal here. It means that run failed to measure, and its empty summary would
-# otherwise read as a file with no findings. That reads as a count under the baseline, and the
-# regenerate path would then write the zero in as the new floor.
+# `--per-file` prints counts, so the display cap that truncates a report of findings does not apply.
 measured=()
-work="$(mktemp -d "${TMPDIR:-/tmp}/voice-baseline.XXXXXX")" || {
-  echo "voice-baseline: no temp directory, so nothing was measured — exit 2" >&2; exit 2; }
-trap 'rm -rf "$work"' EXIT
-batch="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 8)"
+reported=()
+status=0
+report="$("$check" --profile=instruction --per-file "${files[@]}")" || status=$?
+while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  measured+=("${line%% *}")
+  reported+=("${line#* }")
+done <<<"$report"
+
+# Each count is read back against the file it was asked for, at the same position. A run that stopped
+# early leaves the files after it with no line, and a count of zero there sits under the baseline. The
+# regenerate path would write that zero in as the new floor, so a run refusing to measure is fatal.
 i=0
 while [ "$i" -lt "${#files[@]}" ]; do
-  j=0
-  while [ "$j" -lt "$batch" ] && [ "$i" -lt "${#files[@]}" ]; do
-    (
-      # The run's own status comes off the substitution. PIPESTATUS there reports the assignment, a
-      # one-element pipeline. It read 0 whatever the checker did, and the exit-2 guard never fired.
-      status=0
-      summary="$("$check" --profile=instruction "${files[$i]}" 2>&1 >/dev/null)" || status=$?
-      summary="$(printf '%s' "$summary" | grep -o 'instruction profile: [0-9]* finding' || true)"
-      [ "$status" = 2 ] && { printf 'refused\n' >"$work/$i"; exit 0; }
-      n="${summary//[!0-9]/}"
-      printf '%s\n' "${n:-0}" >"$work/$i"
-    ) &
-    i=$((i + 1)); j=$((j + 1))
-  done
-  wait
-done
-i=0
-while [ "$i" -lt "${#files[@]}" ]; do
-  n="$(cat "$work/$i" 2>/dev/null || true)"
-  [ "$n" = refused ] || [ -z "$n" ] && {
+  counted=""
+  if [ "$i" -lt "${#reported[@]}" ] && [ "${reported[$i]}" = "${files[$i]}" ]; then
+    case "${measured[$i]}" in ''|*[!0-9]*) ;; *) counted=1 ;; esac
+  fi
+  [ -n "$counted" ] || {
     echo "voice-baseline: $check did not measure ${files[$i]}, so this is not a clean run — exit 2" >&2; exit 2; }
-  measured+=("$n")
-  i=$((i + 1))
+  i=$(( i + 1 ))
 done
+[ "$status" = 2 ] && {
+  echo "voice-baseline: $check refused the run, so no count here is a measurement — exit 2" >&2; exit 2; }
 
 # Rewritten from what the tree measures now, which belongs in the same change that lowered a count.
 # A later change spends slack the baseline still records, and the count never reaches the floor it

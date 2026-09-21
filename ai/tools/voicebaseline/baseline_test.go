@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -230,10 +229,9 @@ func TestRegenerateKeepsTheBaselineFilesOwnHeader(t *testing.T) {
 	}
 }
 
-// The script measures its files in concurrent batches and reads the results back by index. The order
-// the runs finish in can differ from the order the counts are paired with their files. Every file here
-// reports a count no other file reports. A result read back against the wrong file lands on a number
-// that file is not recorded at, and the run turns from a pass into a refusal.
+// One run reports every file, and the script pairs each line with the file it asked for at that
+// position. Every file here reports a count no other file reports. A line read back against the wrong
+// file lands on a number that file is not recorded at, and the run turns from a pass into a refusal.
 
 // The second half is the control. A tree standing against its baseline is also what a script that
 // paired no file at all would produce. The same tree is run again against a baseline whose counts have
@@ -261,11 +259,10 @@ func TestEachCountIsHeldAgainstTheFileItWasMeasuredFrom(t *testing.T) {
 	}
 }
 
-// More instruction files than one batch holds, each measuring something no other one measures. The
-// batch width is the processor count, the number the script asks getconf for. One full batch and a few
-// files after it crosses the boundary on any machine, at the least cost in launches.
+// A dozen instruction files, each measuring something no other one measures. A count paired with the
+// wrong file then lands on a number that file is not recorded at, and the comparison says so.
 func spread() []measurement {
-	measured := make([]measurement, runtime.NumCPU()+3)
+	measured := make([]measurement, 12)
 	for i := range measured {
 		// Zero padded, so that the order `sort` puts the files in is the order the counts were built in.
 		measured[i] = measurement{name: fmt.Sprintf("file%03d.md", i), count: i + 1}
@@ -300,23 +297,25 @@ func newRoot(t *testing.T, measured ...measurement) string {
 }
 
 // A checker answering from the table its case wrote, and reading no file. What a case measures is the
-// comparison, and never the real checker's opinion of a fixture file. The summary goes to stderr,
-// where the real checker prints it.
+// comparison, and never the real checker's opinion of a fixture file. It walks its arguments and
+// prints a count and a path for each, which is what `--per-file` does.
+
+// A file it refuses exits 2 there and then, leaving the files after it with no line. The real checker
+// stops at the path it could not read, and the script has to name that path.
 
 // Each branch matches on the path's last component. A file whose name ends in another's would
 // otherwise take that other one's answer.
 func newStub(measured []measurement) string {
 	stub := strings.Builder{}
-	stub.WriteString("#!/usr/bin/env bash\ncase \"$*\" in\n")
+	stub.WriteString("#!/usr/bin/env bash\nfor one in \"$@\"; do\n  case \"$one\" in\n")
 	for _, one := range measured {
-		answer := fmt.Sprintf("echo \"voice-check.sh: instruction profile: %d finding(s) over 1 file(s).\" >&2",
-			one.count)
+		answer := fmt.Sprintf("echo \"%d $one\"", one.count)
 		if one.count == refuses {
 			answer = "exit 2"
 		}
-		stub.WriteString(fmt.Sprintf("  */%s) %s ;;\n", one.name, answer))
+		stub.WriteString(fmt.Sprintf("    */%s) %s ;;\n", one.name, answer))
 	}
-	stub.WriteString("esac\n")
+	stub.WriteString("  esac\ndone\n")
 	return stub.String()
 }
 
