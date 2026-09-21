@@ -19,6 +19,11 @@ type Case struct {
 	Label  string
 	Code   string
 	Facts  string
+	// Callers is the call sites a grep over the repository finds, each under the path of the file it
+	// sits in. Question 1 reads an exported symbol's callers, and question 3's consequence names what
+	// a caller does to the site's result. A writer shown no callers reads every caller as hypothetical
+	// and leaves the consequence out, which is what a run did on 2026-09-21 at a site with two.
+	Callers string
 	// Tests is what the change set's tests hold about this site. Question 3 greps them for a fact
 	// before it keeps a claim. A `carried by <test>` label needs them. Without them the writer greps
 	// an empty set and keeps the claim, which the text in front of it asks for.
@@ -32,6 +37,11 @@ type Case struct {
 	// note saying it must match another states what is owed, and only that one tells a reader who
 	// changes one side that they owe the other.
 	Keeps []string
+	// Bars is the wording the block may not carry, as alternatives of which none may appear. It holds a
+	// shape a review already rejected at this site. A rule the writer reads can be rewritten, and a
+	// rewrite that reverses the reason for an earlier fix would let the rejected shape back without
+	// anything noticing. The case is what notices.
+	Bars []string
 	// Floor overrides how many rolls this case has to clear. A case no step decides is the writer
 	// judging, and three mechanisms have now failed to reach the two that carry this field.
 	Floor int
@@ -55,6 +65,24 @@ var expectedClasses = map[string]Expected{
 const codeSection = "--- code"
 const factsSection = "--- facts"
 const testsSection = "--- tests"
+const callersSection = "--- callers"
+
+// splitSections cuts a case body at its marker lines. The first piece belongs to the section the
+// caller names, and every marker after it opens the next.
+func splitSections(first, body string) map[string]string {
+	out := map[string]string{}
+	name, held := first, []string(nil)
+	for _, line := range strings.Split(body, "\n") {
+		if trimmed := strings.TrimRight(line, " \t"); strings.HasPrefix(trimmed, "--- ") {
+			out[name] = strings.Join(held, "\n")
+			name, held = trimmed, nil
+			continue
+		}
+		held = append(held, line)
+	}
+	out[name] = strings.Join(held, "\n")
+	return out
+}
 
 // ParseCase reads one case file. A header line names a field, and the two sections carry the text.
 func ParseCase(name, raw string) (Case, error) {
@@ -63,14 +91,19 @@ func ParseCase(name, raw string) (Case, error) {
 	if !found {
 		return c, fmt.Errorf("%s holds no %q section", name, codeSection)
 	}
-	code, facts, found := strings.Cut(rest, factsSection+"\n")
-	if !found {
+	sections := splitSections(codeSection, rest)
+	for marker := range sections {
+		if marker != codeSection && marker != factsSection && marker != testsSection && marker != callersSection {
+			return c, fmt.Errorf("%s names an unknown section %q", name, marker)
+		}
+	}
+	if _, found := sections[factsSection]; !found {
 		return c, fmt.Errorf("%s holds no %q section", name, factsSection)
 	}
-	facts, tests, _ := strings.Cut(facts, testsSection+"\n")
-	c.Code = strings.TrimSpace(code)
-	c.Facts = strings.TrimSpace(facts)
-	c.Tests = strings.TrimSpace(tests)
+	c.Code = strings.TrimSpace(sections[codeSection])
+	c.Facts = strings.TrimSpace(sections[factsSection])
+	c.Tests = strings.TrimSpace(sections[testsSection])
+	c.Callers = strings.TrimSpace(sections[callersSection])
 	if c.Code == "" {
 		return c, fmt.Errorf("%s shows the writer no code", name)
 	}
@@ -104,6 +137,15 @@ func ParseCase(name, raw string) (Case, error) {
 			}
 			if len(c.Keeps) == 0 {
 				return c, fmt.Errorf("%s names no wording to keep", name)
+			}
+		case "bars":
+			for _, wording := range strings.Split(value, "|") {
+				if trimmed := strings.TrimSpace(wording); trimmed != "" {
+					c.Bars = append(c.Bars, strings.ToLower(trimmed))
+				}
+			}
+			if len(c.Bars) == 0 {
+				return c, fmt.Errorf("%s names no wording to bar", name)
 			}
 		case "floor":
 			count, err := strconv.Atoi(value)
@@ -199,6 +241,11 @@ func JudgeCase(c Case, r Return) Verdict {
 		if !kept {
 			v.Failures = append(v.Failures, Failure{"dropped-the-obligation",
 				"the block keeps none of: " + strings.Join(c.Keeps, ", ")})
+		}
+	}
+	for _, wording := range c.Bars {
+		if r.Block != "" && strings.Contains(strings.ToLower(r.Text()), wording) {
+			v.Failures = append(v.Failures, Failure{"wrote-the-barred-shape", "the block carries " + wording})
 		}
 	}
 	return v
