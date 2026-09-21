@@ -86,6 +86,81 @@ func TestABlockThatDropsTheObligationFails(t *testing.T) {
 	}
 }
 
+// The block a reviewer sent back on 2026-09-21 states the mechanism twice and leaves out the callers
+// that make the copy worth having. Its own words carry a removal verb. A floor asking for that verb
+// passes the block, so k11 asks for the caller or the walk over the result.
+func TestTheBlockThatStatesTheMechanismTwiceFails(t *testing.T) {
+	cases, err := LoadCases(casesDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var k11 Case
+	for _, c := range cases {
+		if strings.HasPrefix(c.Name, "k11") {
+			k11 = c
+		}
+	}
+	if len(k11.Keeps) == 0 {
+		t.Fatalf("k11 names no wording to keep, so its floor asks for nothing")
+	}
+	sentBack := Return{Summary: PartNone, Note: PartWritten, Block: "/**\n" +
+		" * The returned array is a copy of a LiveEntryView, which stops listing an entry the book has removed.\n" +
+		" * The copy still holds that entry.\n */"}
+	if JudgeCase(k11, sentBack).Passed() {
+		t.Errorf("the block a reviewer sent back cleared k11")
+	}
+	named := Return{Summary: PartNone, Note: PartWritten, Block: "/**\n" +
+		" * A LiveEntryView stops listing an entry as soon as the book removes it.\n" +
+		" * toEntries copies it, so a caller iterating the result still reaches every entry.\n */"}
+	if v := JudgeCase(k11, named); !v.Passed() {
+		t.Errorf("a block naming the caller's walk failed k11: %v", v.Failures)
+	}
+}
+
+// A rule the writer reads can be rewritten, and the rewrite of 2026-09-21 reverses the fix that a
+// review asked for on the site k07 holds. The case is what keeps the rejected shape from returning,
+// so the field it does that with is pinned here.
+func TestABlockCarryingTheBarredShapeFails(t *testing.T) {
+	c := Case{Name: "k07", Expect: ExpectWritten, Bars: []string{"can choose"}}
+	returned := Return{Block: "// The ledger can choose a settlement preferredSettlements leaves out.",
+		Summary: PartNone, Note: PartWritten}
+	if JudgeCase(c, returned).Passed() {
+		t.Errorf("the shape the review rejected passed")
+	}
+	other := Return{Block: "// preferredSettlements, the ledger's allowed schemes, leaves a source's own scheme out.",
+		Summary: PartNone, Note: PartWritten}
+	if v := JudgeCase(c, other); !v.Passed() {
+		t.Errorf("a block clear of the barred wording failed: %v", v.Failures)
+	}
+}
+
+// Question 1 reads an exported symbol's callers, and question 3's consequence names what one does to
+// the result. The writer here has no repository to grep. The callers reach it through the case and
+// the prompt alone.
+func TestACaseCarriesItsCallersSeparatelyFromItsCode(t *testing.T) {
+	raw := "expect: written\nwhy: a site with callers\n--- code\nexport function f() {}\n" +
+		"--- callers\n// helpers/Closing.ts\nf();\n--- facts\nA library drops an entry.\n"
+	c, err := ParseCase("k-callers", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(c.Code, "Closing.ts") {
+		t.Errorf("the callers landed in the code the writer is shown: %q", c.Code)
+	}
+	if !strings.Contains(c.Callers, "f();") {
+		t.Errorf("the callers section went missing: %q", c.Callers)
+	}
+	if c.Facts != "A library drops an entry." {
+		t.Errorf("the facts read %q", c.Facts)
+	}
+	if !strings.Contains(prompt(t, c), "A grep over the repository finds these call sites") {
+		t.Errorf("the prompt shows the writer no callers")
+	}
+	if _, err := ParseCase("k-typo", strings.Replace(raw, "--- callers", "--- calers", 1)); err == nil {
+		t.Errorf("a misspelt section name parsed, and its lines would join the code")
+	}
+}
+
 func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
 	cases, err := LoadCases(casesDir)
 	if err != nil {
@@ -119,7 +194,7 @@ func TestNoCaseCarriesTheReviewedCodebasesWords(t *testing.T) {
 	barred := []string{"codec", "fairplay", "widevine", "playready", "drm", "dash", "bitmovin",
 		"player", "manifest", "adaptationset", "representation", "mimetype", "cenc", "cbcs"}
 	for _, c := range cases {
-		body := strings.ToLower(c.Code + " " + c.Facts + " " + c.Why)
+		body := strings.ToLower(strings.Join([]string{c.Code, c.Facts, c.Why, c.Tests, c.Callers}, " "))
 		for _, word := range barred {
 			if strings.Contains(body, word) {
 				t.Errorf("%s carries %q from the reviewed codebase, and this repository is public", c.Name, word)
@@ -165,6 +240,10 @@ func prompt(t *testing.T, c Case) string {
 	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
 		strings.Join(census.IdentifierWords(strings.Split(c.Code, "\n")), " "))
+	if c.Callers != "" {
+		fmt.Fprintf(&out, "=== the callers ===\nA grep over the repository finds these call sites and no "+
+			"other:\n\n```ts\n%s\n```\n\n", c.Callers)
+	}
 	if c.Tests != "" {
 		fmt.Fprintf(&out, "=== the change set's tests ===\nQuestion 3 greps these for a fact's nouns:\n\n"+
 			"```ts\n%s\n```\n\n", c.Tests)
