@@ -32,6 +32,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -59,7 +60,11 @@ var stampCommands = []string{"bash", "dirname", "find", "git", "sort", "cut"}
 // What resolve.sh calls on top of those. It runs source-stamp.sh, so it needs all of them as well.
 // `mkdir`, `rmdir` and `sleep` are the build lock: the directory is the mutex, and a run queued behind
 // another build of the same tool sleeps between attempts at it.
-var resolveCommands = append([]string{"cat", "mkdir", "mv", "rm", "rmdir", "sleep"}, stampCommands...)
+// Clipped, so every append below copies rather than writing into a slot this slice still owns.
+// Two of those appends run on parallel cases. It is not a race at twelve commands, because a
+// slice at its own capacity reallocates; it becomes one at seventeen, where Go hands the append
+// spare room and two callers write the same slot.
+var resolveCommands = slices.Clip(append([]string{"cat", "mkdir", "mv", "rm", "rmdir", "sleep"}, stampCommands...))
 
 // A toolchain that writes the file `go build -o` names and compiles no source. What the cases here
 // turn on is resolve.sh's decision to build and what it does with the result. Whether Go can compile a

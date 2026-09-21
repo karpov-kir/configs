@@ -154,7 +154,7 @@ releases_state() { # <owner/name>
   fi
 }
 
-# The suite in ai/tools/reach/ sources this file to reach the functions above, so sourcing stops
+# The suite in ai/tools/reach/ sources this file for the functions it defines, so sourcing stops
 # here. Only a direct run downloads anything.
 if [ "${BASH_SOURCE[0]}" != "${0}" ]; then
   return 0
@@ -202,8 +202,48 @@ release_repo="$(origin_repo "$origin_url")" ||
 tools="$(shipped_tools "$workflow")"
 [ -n "$tools" ] || die "the workflow at $workflow lists no tools, so there is nothing to install"
 
+# A tool lands as two writes: an `mv` into bin/, atomic within the directory, and a stamp written
+# beside it, which is not. resolve.sh builds into that same pair. Every skill stub execs it, so an
+# install can meet a build already under way.
+
+# The pair torn either way is read as current afterwards. resolve.sh holds the stamp against the source,
+# finds it matches, and execs a binary the stamp does not describe at exit 0.
+
+# `mkdir` is the mutex, at bin/<tool>.lock, which is the path and the bound resolve.sh already uses. Two
+# names for one critical section would let each script write over the other while both held a lock.
+lock_abandoned_minutes=5
+held_lock=""
+
+# Takes one tool's lock, breaking one no live process can still hold. A build or an install of one tool
+# takes seconds. Every signal a shell can catch runs a trap that gives the lock up, so a lock past the
+# bound belongs to a process killed outright. A waiter that sat it out would wedge every session on
+# this machine.
+
+# The age is asked with `find -mmin`, in whole minutes: macOS ships bash 3.2 and no GNU stat.
+take_lock() { # <lock directory>
+  while ! mkdir "$1" 2>/dev/null; do
+    [ -d "$1" ] || die "cannot create $1, so nothing was installed"
+    if [ -n "$(find "$1" -maxdepth 0 -mmin "+$lock_abandoned_minutes" 2>/dev/null)" ]; then
+      rmdir "$1" 2>/dev/null || :
+    else
+      sleep 0.2
+    fi
+  done
+  held_lock="$1"
+}
+
+release_lock() {
+  [ -n "$held_lock" ] || return 0
+  rmdir "$held_lock" 2>/dev/null || :
+  held_lock=""
+}
+
 staging="$(mktemp -d)" || die "cannot create a staging directory"
-trap 'rm -rf "$staging"' EXIT
+# A run a signal stopped gives the lock up here, and a refusal on any path below gives it up through
+# EXIT. The shell dies from an uncaught signal without running its EXIT trap, so the second line covers
+# what the first cannot.
+trap 'release_lock; rm -rf "$staging"' EXIT
+trap 'release_lock; rm -rf "$staging"; exit 2' HUP INT TERM
 
 # One `gh` call for every asset this platform needs plus the checksums, so a partial release fails
 # here rather than half way through installing.
@@ -288,10 +328,20 @@ for tool in $tools; do
 done
 
 for tool in $tools; do
+  binary="$here/bin/$tool"
   chmod 755 "$staging/$tool-$suffix"
-  mv -f "$staging/$tool-$suffix" "$here/bin/$tool" ||
+  # The move and the stamp write beside it are one critical section per tool, for the reason the lock's
+  # own header gives. The chmod is outside it, because the file it marks is still in the staging
+  # directory.
+  take_lock "$binary.lock"
+  mv -f "$staging/$tool-$suffix" "$binary" ||
     die "could not move $tool into $here/bin — the install is incomplete"
-  printf '%s\n' "$(recorded_sha256 "$staging/STAMPS" "$tool")" >"$here/bin/$tool.stamp" ||
-    die "$tool is installed but its source stamp could not be written to $here/bin/$tool.stamp — the install is incomplete"
-  printf 'install.sh: installed %s\n' "$here/bin/$tool"
+  # A stamp that cannot be written is removed. An old stamp beside the bytes just moved in is a wrong
+  # answer, and a missing stamp costs the next run a rebuild.
+  printf '%s\n' "$(recorded_sha256 "$staging/STAMPS" "$tool")" >"$binary.stamp" || {
+    rm -f "$binary.stamp"
+    die "$tool is installed but its source stamp could not be written to $binary.stamp — the install is incomplete"
+  }
+  release_lock
+  printf 'install.sh: installed %s\n' "$binary"
 done
