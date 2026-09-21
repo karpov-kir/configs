@@ -6,9 +6,11 @@ import (
 )
 
 // A case that builds an unreadable path is building a condition the running process may not have.
-// Root reads a mode-000 file happily, and so does a process holding CAP_DAC_OVERRIDE, and so does a
-// filesystem that does not carry the bit. The condition is probed here rather than compared against
-// uid 0, so this needs no list of the environments that lie.
+// Root reads a mode-000 file happily. So does a process holding CAP_DAC_OVERRIDE, and so does a
+// filesystem that leaves the bit off.
+//
+// These probe for the condition. A comparison against uid 0 would need a list of every environment
+// that behaves this way, and a probe answers for all of them at once.
 
 // SkipUnlessModeDeniesRead leaves the case standing where a mode of 000 stops this process reading,
 // and skips it elsewhere naming what went unasserted.
@@ -30,8 +32,8 @@ func SkipUnlessModeDeniesDirList(t *testing.T, what string) {
 	t.Skip("this process lists a mode-000 directory regardless of the mode (root, or CAP_DAC_OVERRIDE), so " + what)
 }
 
-// ModeDeniesRead and ModeDeniesDirList are the probes themselves, for a case needing both answers at
-// once and its own wording for the skip.
+// ModeDeniesRead and ModeDeniesDirList are the probes themselves. One case needs both answers at
+// once, and it words its own skip.
 func ModeDeniesRead(t *testing.T) bool {
 	t.Helper()
 	probe := t.TempDir() + "/probe"
@@ -58,8 +60,8 @@ func ModeDeniesDirList(t *testing.T) bool {
 	if err := os.WriteFile(probe+"/inner.md", []byte("alpha\n"), 0o644); err != nil {
 		t.Fatalf("write probe: %v", err)
 	}
-	// A chmod that will not take says the mode is no guard here, which is the same answer as a listing
-	// that succeeds. The cleanup puts the bit back, so t.TempDir can remove the tree.
+	// A chmod that will not take leaves the mode guarding this directory in name only, and a listing
+	// that succeeds says the same. The cleanup puts the bit back, so t.TempDir can remove the tree.
 	if err := os.Chmod(probe, 0o000); err != nil {
 		return false
 	}

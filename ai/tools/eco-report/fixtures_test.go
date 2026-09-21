@@ -55,7 +55,8 @@ func (f *fixture) appendTo(path, content string) {
 }
 
 // An absent file reads as empty here. Every caller compares the body, and none of them separates the
-// two cases, so Body's second answer is dropped at this one place rather than at 140.
+// two cases, so Body's second answer is dropped once at this place. The alternative is 140 call
+// sites each dropping it.
 func (f *fixture) read(path string) string {
 	f.t.Helper()
 	body, _ := f.tree.Body(path)

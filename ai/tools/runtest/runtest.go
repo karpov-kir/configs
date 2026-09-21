@@ -1,10 +1,10 @@
 // Package runtest is what a suite reads back from a run it drove: the two streams it was handed, and
 // the exit code it answered.
 //
-// It sits apart from any one tool's fixtures because the assertion is the same wherever a tool prints
-// and exits, and a suite with no installer in it cannot reach for a package named after one. Nothing
-// about a home, a checkout or a mount belongs here — ai/tools/installertest holds that, and builds on
-// this.
+// It sits apart from any one tool's fixtures. The assertion is the same wherever a tool prints and
+// exits, and a suite with no installer in it cannot reach for a package named after one.
+//
+// A home, a checkout and a mount belong in ai/tools/installertest, which builds on this.
 package runtest
 
 import (
@@ -51,7 +51,7 @@ func (o *Output) ExpectNotSaid(unwanted string) {
 	}
 }
 
-// ExpectCode quotes what the run printed, because an exit code alone says nothing about why.
+// ExpectCode quotes what the run printed. An exit code alone leaves the reader to guess the cause.
 func (o *Output) ExpectCode(got, want int) {
 	o.t.Helper()
 	if got != want {
