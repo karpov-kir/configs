@@ -24,8 +24,8 @@ type Return struct {
 	Terms []Audit
 	Verbs []Audit
 	// Answered and Needed carry what question 1 said, and Attempts counts the rewrites the writer
-	// showed. A none on a site question 1 called needed has to show two attempts. Otherwise the gate
-	// the writer runs over its own block reads as permission to skip the site.
+	// showed. A none on a site question 1 called needed has to show two attempts. The gate the writer
+	// runs over its own block otherwise reads as permission to skip the site.
 	Answered bool
 	Needed   bool
 	Attempts int

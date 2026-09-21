@@ -253,7 +253,7 @@ func TestStripCountsEveryLineTheTrimTook(t *testing.T) {
 }
 
 // The writer's audit classifies a noun as the code's own word by looking it up in this file. The
-// brief named it before any code wrote it, and a writer following the audit then classified every
+// brief named the file before any code wrote it. A writer following the audit then classified every
 // noun as none of the three and rewrote until it declined the site.
 func TestStripWritesTheIdentifierWordsBesideTheFacts(t *testing.T) {
 	dir := t.TempDir()

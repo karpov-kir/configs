@@ -126,7 +126,7 @@ func prompt(t *testing.T, c Case) string {
 	fmt.Fprintf(&out, "=== the site ===\nThe file holds this code, with every comment block already removed:\n\n"+
 		"```ts\n%s\n```\n\nThe facts file for the site holds:\n\n%s\n\n", c.Code, c.Facts)
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
-	// thing. A run that withheld it would measure a writer whose audit can classify nothing.
+	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
 		strings.Join(census.IdentifierWords(strings.Split(c.Code, "\n")), " "))
 	if c.Tests != "" {

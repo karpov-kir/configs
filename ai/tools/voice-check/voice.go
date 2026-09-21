@@ -612,21 +612,19 @@ func participialPhrase(read string) []int {
 
 // scanSegment is every check over one segment, and the only place a check runs. One function, so the
 // three profiles cannot drift into reading the same sentence differently.
-// The three shapes a reviewer read twice as confusing, each counted on sixty files of reviewed code
-// before it became a check: a consequence about code that does not exist at 14 of 304 notes, a
-// boolean written as a person at 3 of 711 sentences, a verb the sentence borrows from an earlier
-// clause at 1 of 711. comment-census holds the counts and the samples behind them.
+// Three shapes a reviewer read as confusing, each counted on sixty files of reviewed code before it
+// became a check. comment-census holds the counts and the samples behind them.
 //
-// They read comments alone. The counts above were taken over comment blocks, and a rule file writes
-// about these shapes rather than in them.
+// They read comments alone, because the counts were taken over comment blocks. A rule file writes
+// about these shapes, and writing about one is not writing in it.
 var (
-	// `so ... would` describes a call nobody makes, and the reader inverts it to learn what this code
-	// does.
+	// A consequence about code that does not exist. The reader inverts it to learn what this code
+	// does. 14 of 304 notes.
 	reSoWould = regexp.MustCompile(`(?i)\bso\b[^.]*\b(would|could)\b`)
 
-	// A boolean written as a person answering. `yes` takes modifiers between the article and the
-	// word, because the sentence that prompted this said "a scheme-blind yes". `no` stays adjacent,
-	// since it is the determiner in "no row" and in "no longer".
+	// A boolean written as a person answering, at 3 of 711 sentences. The first form takes modifiers
+	// between the article and the word: the sentence that prompted this rule put two there. The
+	// second stays adjacent, because that word is a determiner in "no row" and in "no longer".
 	reAnthropomorphic = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\b(a|an|the|its|their|his|her|our|your)\s+(?:[a-z][a-z-]*\s+){0,2}yes\b`),
 		regexp.MustCompile(`(?i)\b(a|an|the|its|their|his|her|our|your)\s+no\b`),
@@ -634,12 +632,12 @@ var (
 		regexp.MustCompile(`(?i)\banswers?\s+(yes|no)\b`),
 	}
 
-	// A verb the sentence borrows from a clause before it, which the reader has to supply again.
+	// A verb the sentence borrows from a clause before it, which the reader supplies again. 1 of 711.
 	reElidedVerb = regexp.MustCompile(`(?i)\b(as|than|like|so)\s+(the|a|an|its|their)\s+\w+\s+(does|do|did)\b`)
 )
 
-// SentenceShapes are the three comment-only checks, exported so comment-census counts the same
-// patterns this scan fires on. One definition, two readers.
+// SentenceShapes are the three comment-only checks, exported so comment-census counts the patterns
+// this scan fires on. One definition, two readers.
 func SentenceShapes() map[string][]*regexp.Regexp {
 	return map[string][]*regexp.Regexp{
 		checkCounterfact: {reSoWould},
