@@ -355,6 +355,7 @@ type Report struct {
 	SoBoth    Tally
 	Restating Tally
 	Spelled   Tally
+	ShownBy   Tally
 }
 
 // Measure counts every shape over the files handed to it. A file is a name and its lines. The name
@@ -380,18 +381,25 @@ func Measure(files [][]string) Report {
 	soBoth := &Tally{Name: "of those, also counterfactual"}
 	restating := &Tally{Name: "restates-code"}
 	spelled := &Tally{Name: "compound-the-code-spells"}
+	shownBy := &Tally{Name: "note-shown-by-the-body"}
 	counterfactual := Shapes()[2]
 
 	for _, lines := range files {
 		blocks := Blocks(lines)
 		identifiers := Identifiers(lines, blocks)
 		for _, b := range blocks {
-			summary, ok := b.Summary()
-			if !ok {
-				continue
+			words := DeclarationWords(lines, b)
+			if summary, ok := b.Summary(); ok {
+				if survived, hadContent := Restates(summary, words); hadContent && len(survived) == 0 {
+					restating.add(summary)
+				}
 			}
-			if survived, hadContent := Restates(summary, DeclarationWords(lines, b)); hadContent && len(survived) == 0 {
-				restating.add(summary)
+			// The keep test's first drop, as a step: a claim whose every content word the declaration
+			// already spells is shown by the body. Counted before it lands, like every rule here.
+			for _, note := range b.Notes() {
+				if survived, hadContent := Restates(note, words); hadContent && len(survived) == 0 {
+					shownBy.add(note)
+				}
 			}
 		}
 		rep.Blocks += len(blocks)
@@ -461,6 +469,7 @@ func Measure(files [][]string) Report {
 	rep.SoBoth = *soBoth
 	rep.Restating = *restating
 	rep.Spelled = *spelled
+	rep.ShownBy = *shownBy
 	rep.SoUnnamed = *soUnnamed
 	return rep
 }
