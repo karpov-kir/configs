@@ -1,10 +1,11 @@
 expect: written
 note: written
-why: a fact standing alone reads out of the blue; Kirill on 2026-09-21 called the same shape "Same", after calling its neighbour "This looks out of blue and hard to follow"; the second sentence says what this code does about the fact
+why: the value sits in the table this block stands on, so the note anchors on the table; a fact standing alone reads out of the blue; Kirill on 2026-09-21 called the same shape "Same", after calling its neighbour "This looks out of blue and hard to follow"; the second sentence says what this code does about the fact
 labelled: 2026-09-21
 --- code
-export function knownSchemeNames(clearing: Clearing): string[] {
-  return SCHEME_NAMES[clearing] ?? [];
-}
+export const SCHEME_NAMES: Record<Settlement, string[]> = {
+  [Settlement.DirectCash]: ['direct-cash', 'direct-cash-legacy'],
+  [Settlement.EscrowCredit]: ['escrow-credit'],
+};
 --- facts
 The audit framework probes its own scheme names, and `direct-cash-legacy` is not among them.

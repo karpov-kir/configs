@@ -51,6 +51,12 @@ type Audit struct {
 }
 
 var auditLine = regexp.MustCompile(`(?i)^\s*(term|verb):\s*(.+?)\s+[—-]\s+(\w+)\s*$`)
+
+// The lines a writer returns beside its block: what it dropped and where that went. They are the
+// return's own bookkeeping, and reading one as prose scored a correct `carried by` as a written
+// block. Three of l07's five rolls answered correctly and one was counted.
+var verdictLine = regexp.MustCompile(`(?i)^\s*(shown by the body|carried by [^:]*|stale|for the pr body|invariant diverged|about this code):`)
+
 var summaryLine = regexp.MustCompile(`(?i)^\s*summary:\s*(needed|none)\s*$`)
 var noteLine = regexp.MustCompile(`(?i)^\s*note:\s*(written|none)\s*$`)
 var attemptLine = regexp.MustCompile(`(?i)^\s*attempt \d+:`)
@@ -78,6 +84,9 @@ func ParseReturn(raw string) Return {
 		}
 		if attemptLine.MatchString(line) {
 			out.Attempts++
+			continue
+		}
+		if verdictLine.MatchString(line) {
 			continue
 		}
 		if m := auditLine.FindStringSubmatch(line); m != nil {
