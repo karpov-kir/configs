@@ -259,8 +259,8 @@ func shifted(measured []measurement) []measurement {
 //
 // The script is read through this process. `go test`'s cache then keys on the bytes of the thing under
 // test, and a cached green is a real run.
-// The script takes its root as the last argument, and this suite's cases name the rest. Building the
-// command is local for that reason. Running it is runtest's.
+// The script takes its root as the last argument, and this suite's cases name the rest. That argument
+// shape is local to this suite, so the command is built here and handed to runtest to run.
 func runOver(t *testing.T, root string, arguments ...string) runtest.Run {
 	t.Helper()
 	command := exec.Command(runtest.Bash(t),

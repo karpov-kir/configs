@@ -250,8 +250,8 @@ func indent(text string) string {
 // leaves the whole of every bound for the case's own content to spend. A case that wants a root long
 // enough to spend a bound grows one itself.
 
-// The bound the paragraph above states, held by a case instead of by prose. A helper reaching back for
-// t.TempDir passes every other case in this file and reintroduces the defect that cost the CI leg.
+// The byte budget a fixture root gets. A case holds it, because a helper reaching back for t.TempDir
+// passes every other case in this file and brings back the defect that cost the CI leg.
 const maxFixtureRootBytes = 24
 
 // The bound is read under a long TMPDIR as well as the ambient one, and that second leg is the point.
@@ -260,9 +260,9 @@ const maxFixtureRootBytes = 24
 // os.MkdirTemp appends a run of eight to ten digits, so a root wobbles by two bytes inside the budget.
 // The two legs are compared on length and never on sameness.
 func TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines(t *testing.T) {
-	// t.TempDir makes one directory per test and numbers the rest inside it, so newBase would answer out
-	// of a tree already pinned to the ambient TMPDIR and the moved TMPDIR would go unread. The second
-	// leg is what this case is for, which is why os.MkdirTemp is here.
+	// t.TempDir makes one directory per test and numbers the rest inside it. A base built that way sits
+	// in a tree already pinned to the ambient TMPDIR, and the second leg's moved TMPDIR goes unread.
+	// That leg is what this case is for, which is why os.MkdirTemp is here.
 	long, err := os.MkdirTemp("/tmp", strings.Repeat("d", 120))
 	if err != nil {
 		t.Fatalf("building the long temp path this case moves TMPDIR to: %v", err)

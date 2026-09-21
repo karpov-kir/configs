@@ -145,9 +145,9 @@ func TestTheSentenceCeilingCountsTheNoteAndNotTheSummary(t *testing.T) {
 	if checkedBy(Score(twoNoSummary), "over-the-sentence-ceiling") {
 		t.Errorf("two note sentences reached the ceiling")
 	}
-	// Three sentences with no summary to drop. This is the one shape that separates the summary-aware
-	// trim from an unconditional one: the two cases above answer the same either way, so a scorer that
-	// stopped counting the note apart from the summary passes them both.
+	// Three sentences with no summary to drop. This shape separates the summary-aware trim from an
+	// unconditional one. The two rows before it answer alike under either trim, so a scorer
+	// that stopped counting the note apart from the summary passes both of them.
 	threeNoSummary := ParseReturn("summary: none\nnote: written\n/** One. Two. Three. */")
 	if !checkedBy(Score(threeNoSummary), "over-the-sentence-ceiling") {
 		t.Errorf("three note sentences with no summary did not reach the ceiling")
