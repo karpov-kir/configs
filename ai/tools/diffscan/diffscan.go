@@ -87,11 +87,10 @@ func resolvesAsRevision(git repo.Git, cwd, arg string) bool {
 	return err == nil && id != ""
 }
 
-// Diff is the change set's raw diff, HEAD standing in where the caller named no revision. The flags
-// the parser keys off belong to `repo.Exec.Patch`, with the reason each one is there; the default is
-// what stays here, because it is policy rather than a property of git. `git diff` naming nothing
-// diffs against the INDEX, so a scan taking git's own default reports a clean tree over every change
-// already staged.
+// Diff is the change set's raw diff, with HEAD standing in where the caller named no revision. The
+// flags the parser keys off belong to `repo.Exec.Patch`, with the reason for each, and the default
+// stays here because it is policy. `git diff` with no revision diffs against the INDEX, so a scan
+// taking git's own default reports a clean tree over every change already staged.
 func Diff(git repo.Git, cwd string, revisions []string) ([]byte, error) {
 	named, pathspec := RevisionsNamed(revisions)
 	if len(named) == 0 {
@@ -209,9 +208,8 @@ func headerPath(field string) string {
 // added. Only reached when the caller named no revisions: with revisions the caller asked about two
 // commits, and a file in neither is not what they asked about.
 func (r *Result) WalkUntracked(git repo.Git, cwd string, opts Options, visit func(AddedLine)) error {
-	// The port names an untracked file from the working tree ROOT rather than from cwd, so the root is
-	// what it is opened against — TestAnUntrackedFileIsScannedFromASubdirectory holds what the other
-	// join costs.
+	// The port names an untracked file from the working tree ROOT, so the root is what each file is
+	// opened against. TestAnUntrackedFileIsScannedFromASubdirectory holds what the other join costs.
 	root, err := git.TopLevel(cwd)
 	if err != nil {
 		return err

@@ -1,8 +1,8 @@
-// The infrastructure level: the one suite in this module that runs a real git.
+// The infrastructure level, and the only suite in this module that runs a real git.
 //
-// Everything else drives repotest.Fake, so this file is the only thing holding the port's answers to
-// git's. It builds ONE repository and asks every question of it, because the cost here is the spawn
-// and not the assertion: a repository per case would multiply that by the number of questions.
+// Everything else drives repotest.Fake, and this file is where the port's answers are held to git's.
+// It builds ONE repository and asks every question of it, because the spawn is the cost here and the
+// assertion is not. A repository per case would multiply that spawn by the number of questions.
 // testing.md rule 6 — a real binary reaches an infrastructure-level test, one per adapter.
 package repo_test
 
@@ -17,8 +17,8 @@ import (
 	"configs/ai/tools/repo"
 )
 
-// One repository, one linked worktree, one commit and a dirty tree over it: the shapes every method
-// below needs, built once.
+// One repository, one linked worktree, one commit and a dirty tree over it, built once for every case
+// in this file.
 type fixture struct {
 	t        *testing.T
 	root     string
@@ -63,13 +63,13 @@ func newFixture(t *testing.T) fixture {
 	mustRun(t, root, "git", "commit", "-qm", "second")
 	f.head = strings.TrimSpace(capture(t, root, "git", "rev-parse", "HEAD"))
 
-	// Left in the working tree and never committed, so the untracked and status answers have something
-	// to find. A name with a non-ASCII byte, because that is the one git C-quotes without `-z`.
+	// These stay in the working tree and go uncommitted, so the untracked and status answers have
+	// something to find. One name carries a non-ASCII byte, which is what git C-quotes without `-z`.
 	write(t, filepath.Join(root, "sundæ.txt"), "loose\n")
 	write(t, filepath.Join(root, "ignored", "build.out"), "generated\n")
 	write(t, filepath.Join(root, "odd\nname.out"), "newline in the name\n")
 	// One untracked file inside pkg/, so a listing asked from that subdirectory has something to name
-	// and the cases below can tell "confined to pkg/" from "the whole tree".
+	// and a case can tell "confined to pkg/" from "the whole tree".
 	write(t, filepath.Join(root, "pkg", "loose.txt"), "loose in pkg\n")
 
 	mustRun(t, root, "git", "worktree", "add", "-q", f.linked, "-b", "other")
@@ -89,7 +89,7 @@ func TestTheAdapterAnswersGit(t *testing.T) {
 	t.Run("a worktree git means to prune", f.prunableWorktree)
 	t.Run("a refusal carries what git said", f.refusal)
 	t.Run("what the reader's own config cannot move", f.readerConfig)
-	// Last, because it writes to the index every case above reads.
+	// Last, because it writes to the index every other case reads.
 	t.Run("staging", f.staging)
 }
 
@@ -119,8 +119,8 @@ func (f fixture) paths(t *testing.T) {
 		t.Errorf("GitDir and CommonDir both answered %q from a linked worktree, so nothing here tells "+
 			"a worktree's own store from the one its clone shares", own)
 	}
-	// A linked worktree's HEAD is not under the common dir, which is why this is asked rather than
-	// joined.
+	// A linked worktree's HEAD is not under the common dir, which is why the port asks git for the
+	// path.
 	if got := f.str(f.git.GitPath(f.linked, "HEAD")); !strings.HasPrefix(got, own) {
 		t.Errorf("GitPath(HEAD) from a linked worktree = %q, wanted it under that worktree's git dir %s", got, own)
 	}
@@ -130,7 +130,7 @@ func (f fixture) revisions(t *testing.T) {
 	if got := f.str(f.git.Resolve(f.root, "HEAD")); got != f.head {
 		t.Errorf("Resolve(HEAD) = %q, wanted %s", got, f.head)
 	}
-	// The answer the whole port rests on: a revision naming nothing is the empty string and NOT an
+	// The answer the whole port rests on: a revision git cannot find is the empty string and NOT an
 	// error. Every caller reads that as "no commit yet", and an error there would turn a fresh
 	// repository into a refusal.
 	got, err := f.git.Resolve(f.root, "no-such-ref")
@@ -152,9 +152,9 @@ func (f fixture) listings(t *testing.T) {
 	if slices.Contains(tracked, "gone.txt") {
 		t.Errorf("Tracked named gone.txt, which the second commit removed: %v", tracked)
 	}
-	// Root-relative from a subdirectory, and CONFINED to it. `ls-files` prints paths relative to where
-	// git ran unless it is told otherwise, and a caller joining those against the root would open files
-	// that do not exist; it also lists only what sits under that directory, which is why a caller
+	// Root-relative from a subdirectory, and CONFINED to it. `ls-files` prints paths relative to the
+	// directory git ran in unless it is told otherwise, and a caller joining those against the root
+	// opens files that are absent. It also lists only what sits under that directory, and a caller
 	// wanting the whole tree asks at the root.
 	fromSub := f.list(f.git.Tracked(filepath.Join(f.root, "pkg")))
 	if !slices.Equal(fromSub, []string{"pkg/moved.txt"}) {
@@ -163,10 +163,10 @@ func (f fixture) listings(t *testing.T) {
 	if narrowed := f.list(f.git.Tracked(f.root, "pkg")); !slices.Equal(narrowed, []string{"pkg/moved.txt"}) {
 		t.Errorf("Tracked under the pathspec pkg = %v, wanted only pkg/moved.txt", narrowed)
 	}
-	// A pathspec is relative to the directory git ran in, never to the root: `moved.txt` asked from
-	// pkg/ names pkg/moved.txt, and `pkg` asked from pkg/ names pkg/pkg and matches nothing. A stand-in
-	// reading the same spec from the root answers the opposite for both, so a case about running from a
-	// subdirectory would pass in the suite and fail in production.
+	// A pathspec is relative to the directory git ran in. `moved.txt` asked from pkg/ names
+	// pkg/moved.txt, and `pkg` asked from pkg/ names pkg/pkg and matches no file. A stand-in reading the
+	// same spec from the root answers the opposite for both. A case about running from a subdirectory
+	// then passes in the suite and fails in production.
 	if named := f.list(f.git.Tracked(filepath.Join(f.root, "pkg"), "moved.txt")); !slices.Equal(named, []string{"pkg/moved.txt"}) {
 		t.Errorf("Tracked from pkg/ under the pathspec moved.txt = %v, wanted pkg/moved.txt", named)
 	}
@@ -175,13 +175,13 @@ func (f fixture) listings(t *testing.T) {
 	}
 
 	untracked := f.list(f.git.Untracked(f.root))
-	// The non-ASCII name is the case: without `-z` and core.quotePath=false git prints it C-quoted and
-	// the caller reads a name no file has.
+	// The non-ASCII name is the case: git prints it C-quoted where `-z` and core.quotePath=false are
+	// missing, and the caller then reads a name no file has.
 	if !slices.Contains(untracked, "sundæ.txt") {
 		t.Errorf("Untracked did not name sundæ.txt as it is spelt on disk: %v", untracked)
 	}
-	// `--exclude-standard` is why: an untracked path git ignores is not in this listing at all, so a
-	// caller need not filter one out and a stand-in offering one hands it work git never gives it.
+	// `--exclude-standard` is why: an untracked path git ignores stays out of this listing. A caller
+	// filters none of them out, and a stand-in offering one hands it work git never gives it.
 	if slices.Contains(untracked, "ignored/build.out") {
 		t.Errorf("Untracked named an ignored file: %v", untracked)
 	}
@@ -222,9 +222,8 @@ func (f fixture) changes_(t *testing.T) {
 	}
 	mustRun(t, f.root, "git", "config", "--unset", "diff.relative")
 
-	// A diff's PATHSPEC is relative to the directory git ran in, where the comparison itself is not: the
-	// case above named added.txt from pkg/, and `moved.txt` here names pkg/moved.txt while `pkg` names
-	// pkg/pkg and matches nothing.
+	// A diff's PATHSPEC is relative to the directory git ran in, and the comparison itself is
+	// whole-tree. `moved.txt` here names pkg/moved.txt, and `pkg` names pkg/pkg and matches no file.
 	if named := f.list(f.git.Changed(filepath.Join(f.root, "pkg"), []string{f.previous, f.head}, []string{"moved.txt"})); !slices.Equal(named, []string{"pkg/moved.txt"}) {
 		t.Errorf("Changed from pkg/ under the pathspec moved.txt = %v, wanted pkg/moved.txt", named)
 	}
@@ -247,8 +246,8 @@ func (f fixture) changes_(t *testing.T) {
 	if got := byPath["gone.txt"]; got.Status != "D" {
 		t.Errorf("ChangedWithStatus calls gone.txt %q, wanted D", got.Status)
 	}
-	// An absent side is git's all-zero mode and all-zero object id, and a caller reading either as a
-	// value asks for an object that is not there or records a mode no file had.
+	// An absent side is git's all-zero mode and all-zero object id. A caller reading either as a value
+	// asks for a missing object, or records a mode no file had.
 	if got := byPath["added.txt"]; got.OldMode != "" || got.OldBlob != "" {
 		t.Errorf("an added file came back with the base-side mode %q and blob %q, and it has no base "+
 			"side: git spells that all-zero, which reads as a value", got.OldMode, got.OldBlob)
@@ -257,7 +256,7 @@ func (f fixture) changes_(t *testing.T) {
 		t.Errorf("a deleted file came back with the new-side mode %q and blob %q", got.NewMode, got.Blob)
 	}
 	// Both modes, because a file that was executable at the base and is a regular file now holds the
-	// same bytes on both sides — no content check recovers that it changed.
+	// same bytes on both sides. No content check recovers that it changed.
 	mustRun(t, f.root, "git", "update-index", "--chmod=+x", "kept.txt")
 	mode := f.changes(f.git.ChangedWithStatus(f.root, []string{"--cached"}, []string{"kept.txt"}))
 	if len(mode) != 1 || mode[0].OldMode == mode[0].NewMode {
@@ -285,7 +284,7 @@ func (f fixture) changes_(t *testing.T) {
 	}
 
 	// The patch, and the four anchors a parser reads it by. Each is something the reader's own git
-	// config can move, so each is asserted rather than trusted to the flag being present in the source.
+	// config can move, so each assertion reads the patch itself.
 	patch := string(f.body(f.git.Patch(f.root, []string{f.previous, f.head}, nil)))
 	for _, anchor := range []string{"diff --git ", "+++ b/pkg/moved.txt", "@@ ", "+after"} {
 		if !strings.Contains(patch, anchor) {
@@ -323,14 +322,14 @@ func (f fixture) batchContent(t *testing.T) {
 
 	// In the order asked, absent paths passed over. A caller indexes the answers by its own list, so an
 	// answer arriving out of order attaches one file's content to another file's name. The absent path
-	// holding a NEWLINE is the case that breaks a reader taking one line as one answer: git echoes an
-	// unresolvable name back verbatim, so every object after it would be read from the wrong offset.
+	// holding a NEWLINE is the case that breaks a reader taking one line as one answer. git echoes an
+	// unresolvable name back verbatim, and every object after it then reads from the wrong offset.
 	want := []string{"kept.txt", "empty.txt", "odd\nname.txt", "pkg/moved.txt"}
 	if !slices.Equal(visited, want) {
 		t.Fatalf("ContentsAt visited %q, wanted %q", visited, want)
 	}
-	// Held empty, and it arrives as an answer rather than as silence — the one thing that tells it from
-	// a path the revision does not hold, which a caller counting files has to distinguish.
+	// A file the commit holds EMPTY arrives as an answer, and a path the commit lacks arrives as
+	// silence. A caller counting files tells the two apart on that difference.
 	if got, seen := body["empty.txt"]; !seen || got != "" {
 		t.Errorf("a file the commit holds empty came back as (%q, %v), wanted (\"\", true)", got, seen)
 	}
@@ -341,9 +340,9 @@ func (f fixture) batchContent(t *testing.T) {
 		t.Errorf("the path holding a newline came back as %q", got)
 	}
 
-	// The cap, and the oversized object is asked for FIRST: git writes its bytes whether or not the
-	// caller wants them, so a reader that does not step over exactly them reads the next file's content
-	// as this one's.
+	// The cap, and the oversized object is asked for FIRST. git writes its bytes whether the caller
+	// wants them or not, and a reader stepping over the wrong count reads the next file's content as
+	// this one's.
 	var capped []string
 	if err := f.git.ContentsAt(f.root, f.previous, []string{"pkg/moved.txt", "kept.txt"}, int64(len("one\n")), func(path string, _ []byte) {
 		capped = append(capped, path)
@@ -354,8 +353,8 @@ func (f fixture) batchContent(t *testing.T) {
 		t.Errorf("under a %d-byte cap ContentsAt visited %q, wanted only the file at or under it", len("one\n"), capped)
 	}
 
-	// Nothing asked is not a refusal, and it spawns nothing: a caller with an empty set has nothing
-	// wrong with it.
+	// An empty list is a legal call and spawns no process. A caller with an empty set has made no
+	// mistake.
 	if err := f.git.ContentsAt(f.root, f.previous, nil, 1<<20, func(string, []byte) {
 		t.Error("ContentsAt over no paths visited something")
 	}); err != nil {
@@ -371,9 +370,9 @@ func (f fixture) ignores(t *testing.T) {
 	if ignored["kept.txt"] {
 		t.Errorf("Ignored called the tracked kept.txt ignored: %v", ignored)
 	}
-	// git's own reading of a tree, which is the whole reason these tools ask rather than matching
-	// patterns themselves. A TRACKED file matching an ignore rule is not ignored — a list written in Go
-	// would say it is, and every caller filtering on that would drop a committed file from its scan.
+	// git's own reading of a tree, which is the whole reason these tools ask git about ignores. A
+	// TRACKED file matching an ignore rule is not ignored. A list written in Go would say it is, and
+	// every caller filtering on that would drop a committed file from its scan.
 	if ignored["tracked-but-matched.out"] {
 		t.Errorf("Ignored called the tracked tracked-but-matched.out ignored, and git does not: a "+
 			"caller filtering on this drops a file every commit carries: %v", ignored)
@@ -389,7 +388,7 @@ func (f fixture) ignores(t *testing.T) {
 	if !ignored["odd\nname.out"] {
 		t.Errorf("Ignored lost the path holding a newline, so a caller reads two names no file has: %v", ignored)
 	}
-	// Matching nothing is check-ignore's exit 1, and an adapter reading that as a failure would turn
+	// A match on no path is check-ignore's exit 1, and an adapter reading that as a failure would turn
 	// every clean tree into a refusal.
 	none, err := f.git.Ignored(f.root, []string{"kept.txt"})
 	if err != nil || len(none) != 0 {
@@ -427,10 +426,9 @@ func (f fixture) worktreeList(t *testing.T) {
 	}
 }
 
-// Prunable is git's own verdict on an entry, not a guess from the filesystem: an installer writing
-// into a worktree git is about to drop would be acting on metadata rather than on a checkout. The
-// directory is removed here and `worktree prune` deliberately not run, which is exactly the window a
-// post-checkout sync runs in.
+// Prunable is git's own verdict on an entry. An installer writing into a worktree git is about to drop
+// would be acting on metadata that git discards. The directory is removed here and `worktree prune`
+// stays unrun, which is the window a post-checkout sync runs in.
 func (f fixture) prunableWorktree(t *testing.T) {
 	gone := filepath.Join(filepath.Dir(f.root), "throwaway")
 	mustRun(t, f.root, "git", "worktree", "add", "-q", gone, "-b", "throwaway")
@@ -456,10 +454,10 @@ func (f fixture) prunableWorktree(t *testing.T) {
 	mustRun(t, f.root, "git", "worktree", "prune")
 }
 
-// Unset and set-to-empty are different answers, and they mean opposite things to the one caller that
-// asks: core.hooksPath set empty sends git looking for hooks in the worktree root, so a hook written
-// where an installer puts one never runs. git spells both as a non-zero exit with nothing on stdout,
-// so only `--get`'s exit code separates them.
+// Unset and set-to-empty are different answers, and they mean opposite things to the caller that asks.
+// core.hooksPath set empty sends git to the worktree root for hooks, and the installed hook never
+// runs. git spells both as a non-zero exit with an empty stdout, so only `--get`'s exit code separates
+// them.
 func (f fixture) configValue(t *testing.T) {
 	if value, isSet := f.git.ConfigValue(f.root, "core.hooksPath"); isSet || value != "" {
 		t.Errorf("ConfigValue over an unset key = (%q, %v), wanted (%q, false)", value, isSet, "")
@@ -476,8 +474,8 @@ func (f fixture) configValue(t *testing.T) {
 }
 
 // Two spellings of one directory, which is what /var being a symlink to /private/var on macOS makes of
-// every path here. Compared by identity where both exist; a worktree whose directory is gone has no
-// identity left, so its name is compared after the one resolution that can still be made.
+// every path here. Both paths are compared by identity where both exist. A worktree whose directory is
+// gone has no identity left, and its name is compared after the resolution that can still be made.
 func sameName(left, right string) bool {
 	if left == right {
 		return true
@@ -498,23 +496,21 @@ func (f fixture) staging(t *testing.T) {
 	if !strings.Contains(staged, "sundæ.txt") {
 		t.Errorf("after Add, the index holds %q — the path was not staged", staged)
 	}
-	// Nothing to stage is not a refusal: `git add --` with no path exits non-zero, and a caller with an
-	// empty set has nothing wrong with it.
+	// An empty list is a legal call. `git add --` with no path exits non-zero. A caller with an empty
+	// set has made no mistake.
 	if err := f.git.Add(f.root, nil); err != nil {
 		t.Errorf("Add over no paths = %v, wanted nil", err)
 	}
 }
 
-// git's own words reach the caller. A refusal summarised here sends its reader looking for a cause
-// this process already had in hand.
 // The two properties a caller's own repository configuration would otherwise decide. Both are held
-// here because both are the adapter's to keep: they were being held only by one tool's cases, where a
-// second tool reaching git through this file would not have been covered by them at all.
+// here because both are the adapter's to keep, and one tool's cases held them before. A second tool
+// reaching git through this file would have gone uncovered.
 func (f fixture) readerConfig(t *testing.T) {
-	// A textconv filter renders a file rather than reading it, and the attribute that turns one on is
+	// A textconv filter hands back its rendering of a file, and the attribute that turns one on is
 	// written by whoever wrote the branch. A caller measuring content would then be measuring the
-	// filter's output. `cat` is the filter, so a conversion that happened at all is visible as the
-	// marker never reaching the caller.
+	// filter's output. The filter is a `sed` substitution, so a conversion that happened at all
+	// replaces the marker the case wrote.
 	write(t, filepath.Join(f.root, ".gitattributes"), "converted.txt diff=rot\n")
 	write(t, filepath.Join(f.root, "converted.txt"), "raw bytes\n")
 	mustRun(t, f.root, "git", "add", ".gitattributes", "converted.txt")
@@ -524,9 +520,9 @@ func (f fixture) readerConfig(t *testing.T) {
 		t.Errorf("Show returned %q, which is the reader's filter rendering the file rather than the file", got)
 	}
 
-	// A file called HEAD makes `git diff HEAD` ambiguous, and git refuses rather than guessing. The
-	// branch under review can commit that file, so a patch that did not end in `--` would be a scan any
-	// branch could switch off for everyone reading it.
+	// A file called HEAD makes `git diff HEAD` ambiguous, and git refuses the command. The branch under
+	// review can commit that file, and a patch missing its `--` is then a scan any branch can switch
+	// off for everyone reading it.
 	write(t, filepath.Join(f.root, "HEAD"), "a file, not the revision\n")
 	mustRun(t, f.root, "git", "add", "HEAD")
 	mustRun(t, f.root, "git", "commit", "-qm", "a file called HEAD")
@@ -536,6 +532,8 @@ func (f fixture) readerConfig(t *testing.T) {
 	}
 }
 
+// A refusal carries git's own words, and a summary here would send its reader looking for a cause this
+// process already had in hand.
 func (f fixture) refusal(t *testing.T) {
 	_, err := f.git.Show(f.root, f.head, "no/such/file.txt")
 	if err == nil {
@@ -546,8 +544,8 @@ func (f fixture) refusal(t *testing.T) {
 	}
 }
 
-// A tool run from a git hook is given GIT_DIR, and git reads that before the directory it was handed —
-// so without this the tool answers about the hook's repository whatever it was asked about.
+// A tool run from a git hook is given GIT_DIR, and git reads that before the directory it was handed.
+// Without the stripping the tool answers about the hook's repository whatever it was asked about.
 func TestAnInheritedGitDirDoesNotDecideTheRepository(t *testing.T) {
 	f := newFixture(t)
 	other := filepath.Join(t.TempDir(), "other")
@@ -560,8 +558,9 @@ func TestAnInheritedGitDirDoesNotDecideTheRepository(t *testing.T) {
 			"asked about, %s", got, filepath.Join(f.root, ".git"))
 	}
 
-	// The control. Without the stripping the same call answers about the other repository, so the
-	// assertion above is measuring the stripping and not a git that ignores the variable.
+	// The control. Without the stripping the same call answers about the other repository, so the case
+	// is measuring the stripping itself. A git that ignored the variable would pass the first case for
+	// free.
 	inheriting := repo.Exec{Env: append(os.Environ(), "GIT_DIR="+stray)}
 	if got, err := inheriting.CommonDir(f.root); err == nil && sameFile(t, got, filepath.Join(f.root, ".git")) {
 		t.Errorf("an inherited GIT_DIR changed nothing, so the case above holds no property of "+
@@ -569,10 +568,9 @@ func TestAnInheritedGitDirDoesNotDecideTheRepository(t *testing.T) {
 	}
 }
 
-// The adapter's answers, unwrapped. Methods rather than one generic function, because a call whose
-// arguments are another call's results may carry nothing else — and a method's receiver is not an
-// argument, while a *testing.T parameter would be. Go has no generic methods, so there is one per
-// answer shape.
+// The adapter's answers, unwrapped. These are methods, because a call taking another call's results as
+// arguments may carry no other argument. A method's receiver is no argument, and a *testing.T
+// parameter would be one. Go has no generic methods, so there is one per answer shape.
 func (f fixture) str(value string, err error) string {
 	f.t.Helper()
 	if err != nil {
@@ -621,8 +619,8 @@ func (f fixture) set(value map[string]bool, err error) map[string]bool {
 	return value
 }
 
-// Compared by identity, not by spelling: /var is a symlink to /private/var on macOS, so git's answer
-// and the path the fixture built differ as strings over one directory.
+// Two paths are compared by identity, since spellings differ. /var is a symlink to /private/var on
+// macOS, so git's answer and the path the fixture built differ as strings over one directory.
 func sameFile(t *testing.T, left, right string) bool {
 	t.Helper()
 	leftInfo, err := os.Stat(left)

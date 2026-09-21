@@ -1,20 +1,12 @@
 // Package repotest is the in-memory repository the suites drive instead of forking git.
 //
-// It answers from a table. It does NOT model git: there is no revision grammar here, no index, no
-// merge. A case says what git would answer and the code under test is driven against that, which is
-// the only way a fake can disagree with the production code rather than agree with itself
-// (`ai/kk-flavor/standards/testing.md` rule 5). What could disagree with real git is the one adapter,
-// `repo.Exec`, and `repo/exec_test.go` drives that against a real repository.
-//
-// A path is repository-relative, exactly as git prints one. Content is held per revision, with the
-// empty revision meaning the working tree.
-//
-// The `dir` every method takes is the directory git would have run in, and it is NOT decoration: a
-// pathspec is relative to it, and `ls-files` asked from a subdirectory lists only what sits under that
-// directory. prefixOf below is where dir turns into a repository-relative prefix.
-//
-// Safe for concurrent use. Suites run cases with t.Parallel() and a case may drive two invocations
-// against one table, so every method here takes the lock.
+// It answers from a table and does NOT model git: the revision grammar, the index and merging are all
+// absent. A case says what git would answer, and the code under test is driven against that. A fake built
+// any other way agrees with itself (`testing.md` rule 5). repo.Exec is what could disagree with real git,
+// and `repo/exec_test.go` drives it against one. A path is repository-relative, and content is held per
+// revision, the empty one meaning the working tree. The `dir` every method takes is the directory git
+// would have run in, and it is NOT decoration. It is safe for concurrent use: a case may drive two
+// invocations against one table under t.Parallel(), so every method here takes the lock.
 package repotest
 
 import (
@@ -30,12 +22,12 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// WorkTree is the revision name for what is on disk rather than in a commit. Spelt as the empty
-// string because that is what repo.Git's callers pass for it.
+// WorkTree is the revision name for what is on disk. It is the empty string, because that is what
+// repo.Git's callers pass for it.
 const WorkTree = ""
 
-// Fake answers repo.Git from what a case put in it. The zero value is an empty repository at "/repo"
-// with no commit; New gives it a root and the usual answers.
+// Fake answers repo.Git from what a case put in it. The zero value is an empty repository with an
+// empty root, and New gives it a root and the usual answers.
 type Fake struct {
 	// Every answer and every builder below takes this, so a case may drive two invocations against one
 	// table. It guards the fields too: a builder called while another goroutine reads is the same race.
@@ -45,43 +37,41 @@ type Fake struct {
 	Root string
 	// Git is what GitDir answers, and CommonDir too unless Common is set.
 	Git string
-	// Common is the store linked worktrees share; empty means Git.
+	// Common is the store linked worktrees share, and empty means Git.
 	Common string
 	// PrefixByDir is what a directory's path below Root is, for a case that spells its directories some
-	// way prefixOf cannot read. Left empty, every directory under Root places itself.
+	// way prefixOf cannot read. Every directory under Root places itself while this is empty.
 	PrefixByDir map[string]string
-	// Trees is what git answers PER DIRECTORY, for a suite driving more than one of them: a sibling
-	// worktree, a subdirectory that answers its worktree's root, a forged `.git/worktrees/` entry
-	// naming an unrelated clone. NIL, which is how New leaves it, means every directory is the one
-	// repository Root and Common describe — what all but one suite drives. PerDirectory below turns it
-	// on, and a directory then ABSENT from it is no repository at all, which is the failure
-	// `rev-parse` gives and the only way a case says so about one directory and not another.
+	// Trees is what git answers PER DIRECTORY, for a suite driving a sibling worktree, a subdirectory that
+	// answers its worktree's root, or a forged `.git/worktrees/` entry naming another clone. NIL means
+	// every directory is the single repository Root and Common describe, and New leaves it NIL.
+	// PerDirectory turns it on, and a directory ABSENT from it then gets `rev-parse`'s own failure.
 	Trees map[string]Tree
 	// Config answers ConfigValue. A key PRESENT here is set whatever its value, including the empty
-	// string; a key absent is unset. The two are opposite answers rather than degrees of one.
+	// string, and a key absent is unset. The two are opposite answers.
 	Config map[string]string
 
 	// Revs maps a revision name to the files it holds. Revs[WorkTree] is the working tree.
 	Revs map[string]map[string]string
-	// Refs resolves a revision name to an object id. A name absent here resolves to nothing, which is
-	// what `rev-parse --verify --quiet` answers for an unborn HEAD.
+	// Refs resolves a revision name to an object id. A name absent here resolves to the empty string,
+	// which is what `rev-parse --verify --quiet` answers for an unborn HEAD.
 	Refs map[string]string
 	// Bases answers MergeBase, keyed "left\x00right" and consulted in both orders.
 	Bases map[string]string
 
-	// UntrackedPaths are present in the working tree and not in the index. One that IgnoredPaths covers
-	// leaves the Untracked listing, because `--exclude-standard` is on it.
+	// UntrackedPaths are present in the working tree, with the index holding none of them. One that
+	// IgnoredPaths covers leaves the Untracked listing, because `--exclude-standard` is on it.
 	UntrackedPaths []string
-	// IgnoredPaths are what git would ignore, and Sources says which rule said so.
+	// IgnoredPaths are what git would ignore, and Sources names the rule behind each.
 	IgnoredPaths []string
 	Sources      map[string]string
-	// Changes answers ChangedWithStatus for one spelling of the revisions, verbatim, where a case's
-	// subject is something the derived comparison below cannot know: a mode, or which blob a side held.
-	// The key is the revisions joined by a space.
+	// Changes answers ChangedWithStatus for one spelling of the revisions, verbatim, for a case whose
+	// subject the derived comparison cannot know: a mode, or the blob a side held. The key is the
+	// revisions joined by a space.
 	Changes map[string][]repo.Change
 	// PatchText is what Patch answers, verbatim — the diff a case says git would print. NOT derived
-	// from Revs: deriving it would put a diff implementation in this fake, and a suite driven by that
-	// would be agreeing with the fake rather than with git.
+	// from Revs: a derivation would put a diff implementation in this fake, and a suite driven by that
+	// agrees with the fake.
 	PatchText string
 	// PatchByRevisions answers Patch for one spelling of the revisions, where a case drives more than
 	// one change set. The key is the revisions joined by a space, and PatchText answers anything absent.
@@ -104,8 +94,8 @@ type Fake struct {
 }
 
 // Tree is what git answers about one directory: the working tree root it sits in, and the store its
-// clone shares. Both are spelled out — a tree that inherited either would make the one case this
-// exists for, a directory belonging to a DIFFERENT clone, unable to say so.
+// clone shares. Both are spelled out, because a tree that inherited either could not name a directory
+// belonging to a DIFFERENT clone.
 type Tree struct {
 	Root   string
 	Common string
@@ -113,8 +103,8 @@ type Tree struct {
 
 var _ repo.Git = (*Fake)(nil)
 
-// New is an empty repository rooted at root with one commit, so the common case — a tool that refuses
-// where there is no commit — needs no setup to get past. Commit("HEAD", …) fills it.
+// New is an empty repository rooted at root with one commit. A tool that refuses an empty history then
+// needs no setup to get past. Commit("HEAD", …) fills it.
 func New(root string) *Fake {
 	return &Fake{
 		Root:        root,
@@ -129,10 +119,10 @@ func New(root string) *Fake {
 	}
 }
 
-// PerDirectory makes every answer about a directory a declared one. From here a directory none of the
-// builders below has named is NO repository, which is what a project someone is merely trying a tool
-// out in looks like — and a suite driving several trees has no way to say that while one Root answers
-// for every directory it is asked about.
+// PerDirectory makes every answer about a directory a declared one. A directory none of the builders
+// has named is then NO repository, which is what a project someone is merely trying a tool out in
+// looks like. One Root answering for every directory leaves a suite driving several trees unable to
+// say that.
 func (f *Fake) PerDirectory() *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -143,8 +133,8 @@ func (f *Fake) PerDirectory() *Fake {
 }
 
 // WorktreeAt declares one worktree of this clone: git answers for the directory, it shares this
-// fake's store, and `worktree list` names it. Called after Common is set, since that is the store it
-// records.
+// fake's store, and `worktree list` names it. A case calls this after Common is set, since that is the
+// store it records.
 func (f *Fake) WorktreeAt(dir string) *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -154,8 +144,8 @@ func (f *Fake) WorktreeAt(dir string) *Fake {
 }
 
 // ForeignWorktreeAt is a directory git answers for that belongs to a DIFFERENT clone, listed among
-// this one's worktrees — what a forged `.git/worktrees/` entry naming an unrelated repository looks
-// like from here. The store it names is the whole tell, so it is the caller's to spell.
+// this one's worktrees. A forged `.git/worktrees/` entry naming an unrelated repository looks like
+// this from here. The store it names is the whole tell, so the caller spells it.
 func (f *Fake) ForeignWorktreeAt(dir, common string) *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -164,8 +154,8 @@ func (f *Fake) ForeignWorktreeAt(dir, common string) *Fake {
 	return f
 }
 
-// TreeAt is a directory INSIDE a worktree, which `rev-parse` answers that worktree's root for. Not
-// added to the listing: git lists worktrees, never the directories under them.
+// TreeAt is a directory INSIDE a worktree, which `rev-parse` answers that worktree's root for. It
+// stays out of the listing, because git lists worktrees and leaves the directories under them out.
 func (f *Fake) TreeAt(dir, root string) *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -232,8 +222,8 @@ func (f *Fake) AddUntracked(names ...string) *Fake {
 }
 
 // Ignore marks paths ignored, with source as what `check-ignore -v` would print for each. A path the
-// working tree also TRACKS is not ignored however this is called: git does not call a tracked file
-// ignored, and isIgnored is where that is decided.
+// working tree also TRACKS stays unignored however this is called, because git does not call a tracked
+// file ignored. isIgnored is where that is decided.
 func (f *Fake) Ignore(source string, names ...string) *Fake {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -248,7 +238,7 @@ func (f *Fake) Ignore(source string, names ...string) *Fake {
 }
 
 // A stand-in for a git object id: forty hex characters derived from the name, so two revisions differ
-// and one revision is stable across calls. Nothing here depends on it being git's own hash.
+// and one revision is stable across calls. No caller here depends on it being git's own hash.
 func objectID(of string) string {
 	sum := sha1.Sum([]byte(of))
 	return hex.EncodeToString(sum[:])
@@ -282,7 +272,7 @@ func (f *Fake) CommonDir(dir string) (string, error) {
 func (f *Fake) ConfigValue(dir, key string) (string, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	// No error to give: "unset" is an answer here, and Fail has nothing to say about it.
+	// No error to give: "unset" is an answer here, and Fail has no say over it.
 	_ = f.note("ConfigValue")
 	value, isSet := f.Config[key]
 	return value, isSet
@@ -300,7 +290,7 @@ func (f *Fake) treeOf(dir string) (Tree, error) {
 	return tree, nil
 }
 
-// The store this clone shares, which is the git dir itself unless a case gave the clone one.
+// The store this clone shares. It is the git dir itself unless a case gave the clone one.
 func (f *Fake) sharedDir() string {
 	if f.Common != "" {
 		return f.Common
@@ -382,9 +372,9 @@ func (f *Fake) Untracked(dir string, pathspec ...string) ([]string, error) {
 	if err := f.note("Untracked"); err != nil {
 		return nil, err
 	}
-	// `--exclude-standard` is on this listing, so an ignored path is not in it at all. A case stating a
-	// path both untracked and ignored gets git's answer rather than its own, and a caller is never
-	// handed a file to filter out that git would not have named.
+	// `--exclude-standard` is on this listing, so an ignored path stays out of it. A case stating a path
+	// both untracked and ignored gets git's answer, and a caller is never handed a file git would have
+	// left out.
 	var names []string
 	for _, name := range f.UntrackedPaths {
 		if !f.isIgnored(name) {
@@ -409,7 +399,7 @@ func (f *Fake) NamesAt(dir, rev string) ([]string, error) {
 }
 
 // The changed set is what the two sides hold, compared. A case names the revisions it drives with and
-// fills them through Commit; the empty revision list compares the working tree against HEAD, which is
+// fills them through Commit. The empty revision list compares the working tree against HEAD, which is
 // what git does.
 func (f *Fake) Changed(dir string, revisions, pathspec []string) ([]string, error) {
 	f.mu.Lock()
@@ -453,9 +443,9 @@ func (f *Fake) ChangedWithStatus(dir string, revisions, pathspec []string) ([]re
 	return kept, nil
 }
 
-// What a derived change calls a file. A case whose subject is a mode — a `.md` that was executable at
-// the base, a symlink that became a regular file — states the change itself through Changes rather
-// than letting this derive one, because this fake holds content and knows nothing about modes.
+// What a derived change calls a file. This fake holds content and knows no modes. A case whose subject
+// is a mode states the change itself through Changes: a `.md` that was executable at the base, or a
+// symlink that became a regular file.
 const ordinaryFileMode = "100644"
 
 // Two revisions' file maps compared, which is all a diff is to the code under test: a status letter
@@ -549,12 +539,10 @@ func (f *Fake) Show(dir, rev, name string) ([]byte, error) {
 	return []byte(body), nil
 }
 
-// The revision's table, read in the order the paths were asked. A path the revision does not hold is
-// passed over and so is one over the cap, which is how a case drives the difference between a file
-// that is not there and one the revision holds empty.
-//
-// visit runs with the lock RELEASED, so a caller whose visit asks this fake another question is
-// answered rather than deadlocked.
+// ContentsAt reads the revision's table in the order the paths were asked. A path the revision does
+// not hold is passed over, and so is one over the cap. That is how a case drives the difference
+// between a missing file and one the revision holds empty. visit runs with the lock RELEASED, so a
+// caller asking this fake another question from inside visit gets an answer.
 func (f *Fake) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit func(string, []byte)) error {
 	found, err := f.contentsAt(rev, paths, maxBytes)
 	if err != nil {
@@ -628,9 +616,9 @@ func (f *Fake) IgnoreSource(dir, name string) (string, error) {
 	if err := f.note("IgnoreSource"); err != nil {
 		return "", err
 	}
-	// Empty where nothing ignores the path, which is `check-ignore`'s exit 1 — and a tracked path is
-	// one of those however a rule reads, so a case marking a committed file ignored gets the empty
-	// answer git gives.
+	// `check-ignore` exits 1 for a path no rule ignores, and this returns empty there. A tracked path
+	// counts as one of those however a rule reads, so a case marking a committed file ignored gets
+	// git's empty answer.
 	if !f.isIgnored(name) {
 		return "", nil
 	}
@@ -658,7 +646,7 @@ func (f *Fake) Add(dir string, paths []string) error {
 
 // dir as a repository-relative prefix, slash-terminated and empty at the root — git's own
 // `rev-parse --show-prefix`. A case that spells its directories some other way states them in
-// PrefixByDir, which wins here; a directory this cannot place under Root is read as the root.
+// PrefixByDir, which wins here. A directory this cannot place under Root is read as the root.
 func (f *Fake) prefixOf(dir string) string {
 	if prefix, stated := f.PrefixByDir[dir]; stated {
 		return prefix
@@ -692,7 +680,7 @@ func (f *Fake) diffPathspec(dir string, pathspec []string) []string {
 }
 
 // Each spec resolved against the directory git ran in, which is what makes `pkg` asked from inside
-// pkg/ name pkg/pkg and match nothing.
+// pkg/ name pkg/pkg and match no file.
 func rootedPathspec(prefix string, pathspec []string) []string {
 	rooted := make([]string, 0, len(pathspec))
 	for _, spec := range pathspec {
@@ -708,9 +696,9 @@ func rootedPathspec(prefix string, pathspec []string) []string {
 	return rooted
 }
 
-// What git would ignore, which is not the same as what a rule matches: a TRACKED path is never
-// ignored whatever rule covers it, and `check-ignore` says so — exec_test.go holds that against a real
-// git. A caller filtering on the other answer drops a file every commit carries.
+// What git would ignore, which differs from what a rule matches. A TRACKED path is never ignored
+// whatever rule covers it, and `check-ignore` says so. exec_test.go holds that against a real git. A
+// caller filtering on the other answer drops a file every commit carries.
 func (f *Fake) isIgnored(name string) bool {
 	if _, tracked := f.Revs[WorkTree][name]; tracked {
 		return false

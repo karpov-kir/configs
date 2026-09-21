@@ -13,29 +13,24 @@ import (
 	"strings"
 )
 
-// Exec answers by running git. It is what every command in this module wires in; only the suites
+// Exec answers by running git. Every command in this module wires it in, and only the suites
 // substitute anything else.
-//
-// Env, when set, replaces the child's environment entirely. Two callers need it and for opposite
-// reasons: eco-report points HOME at the invocation's own, because git reads its global config from
-// there and a run given another HOME must not answer from the caller's; repo-key strips GIT_DIR and
-// GIT_WORK_TREE, because git reads the repository's location from the environment before it reads the
-// directory it was handed, so a hook in a linked worktree would key its own clone.
 type Exec struct {
+	// Env replaces the child's whole environment when it is set. eco-report points HOME at the
+	// invocation's own, because git reads its global config from there and a run given another HOME
+	// would answer from the caller's. repo-key strips GIT_DIR and GIT_COMMON_DIR, because git reads the
+	// repository's location out of the environment before it reads the directory it was handed.
 	Env []string
 }
 
-// Git is the interface Exec satisfies. Stated as an assignment so the compiler reports a drift here
-// rather than at the first caller that wires one in.
+// Git is the interface Exec satisfies. The assignment makes the compiler report a mismatch here,
+// ahead of the first caller that wires one in.
 var _ Git = Exec{}
 
-// Every call goes through here, so the flags that must never be left off are left off nowhere.
-//
-//   - `-C dir` rather than cmd.Dir, so the path appears in the error git prints.
-//   - `core.quotePath=false` with `-z`: without either, a path holding a non-ASCII byte comes back
-//     C-quoted or newline-split, and the caller reads a name no file has.
-//   - `--no-ext-diff` and `--no-textconv` on anything that diffs: both are things the reader's own git
-//     config can turn on, and either makes the answer a property of the machine.
+// Every git call goes through here, so the two flags every call needs are set in one place.
+// `-C dir` stands in for cmd.Dir, and git then prints the path in its own error text.
+// `core.quotePath=false` joins the `-z` each listing passes. Drop either one, and a path holding a
+// non-ASCII byte comes back C-quoted or newline-split, and the caller reads a name no file has.
 func (e Exec) run(dir string, args ...string) ([]byte, error) {
 	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "core.quotePath=false"}, args...)...)
 	if e.Env != nil {
@@ -58,7 +53,8 @@ func gitError(args []string, said string, err error) error {
 	return fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 }
 
-// The one-line answers. Trailing newline off, since every caller of these wants the value.
+// Returns a one-line answer with the trailing newline taken off, because every caller of these wants
+// the value.
 func (e Exec) line(dir string, args ...string) (string, error) {
 	out, err := e.run(dir, args...)
 	return strings.TrimRight(string(out), "\n"), err
@@ -97,8 +93,8 @@ func (e Exec) Prefix(dir string) (string, error) {
 	return e.line(dir, "rev-parse", "--show-prefix")
 }
 
-// git exits non-zero when the key is unset, which is the whole of what separates "unset" from "set to
-// the empty string" — and those two mean opposite things to the caller.
+// git exits non-zero when the key is unset, and that exit code is all that separates unset from set to
+// the empty string. The two mean opposite things to the caller.
 func (e Exec) ConfigValue(dir, key string) (string, bool) {
 	value, err := e.line(dir, "config", "--get", key)
 	if err != nil {
@@ -107,13 +103,13 @@ func (e Exec) ConfigValue(dir, key string) (string, bool) {
 	return value, true
 }
 
-// `--quiet`, so a revision naming nothing is the empty answer git gives rather than an error. An
-// unborn HEAD reaches here on every fresh repository, and the callers all read it as "no commit yet".
-// `--end-of-options` so a revision beginning with a dash is a revision and not a flag.
+// `--quiet` turns a revision git cannot find into the empty answer, in place of an error. An unborn
+// HEAD reaches here on every fresh repository, and the callers all read the empty answer as "no commit
+// yet". `--end-of-options` keeps a revision that begins with a dash from being read as a flag.
 func (e Exec) Resolve(dir, rev string) (string, error) {
 	out, err := e.run(dir, "rev-parse", "--verify", "--quiet", "--end-of-options", rev)
 	if err != nil {
-		// Exit 1 with nothing on stdout is `--quiet`'s way of saying the revision names nothing.
+		// Exit 1 with an empty stdout is how `--quiet` says the revision resolves to no object.
 		var exit *exec.ExitError
 		if errors.As(err, &exit) && exit.ExitCode() == 1 && strings.TrimSpace(string(out)) == "" {
 			return "", nil
@@ -154,6 +150,8 @@ func (e Exec) Changed(dir string, revisions, pathspec []string) ([]string, error
 	return e.listing(dir, append(args, pathspecArgs(pathspec)...)...)
 }
 
+// `--no-ext-diff` and `--no-textconv` go on every diff here. The reader's own git config can turn
+// either on, and the answer then becomes a property of their machine.
 func (e Exec) ChangedWithStatus(dir string, revisions, pathspec []string) ([]Change, error) {
 	args := []string{"diff", "--raw", "-z", "--no-renames", "--no-ext-diff", "--no-textconv",
 		"--no-color", "--no-relative"}
@@ -166,8 +164,8 @@ func (e Exec) ChangedWithStatus(dir string, revisions, pathspec []string) ([]Cha
 }
 
 // `--raw -z` alternates a colon-led metadata record and the path it belongs to, both NUL-terminated.
-// The record is `:<srcmode> <dstmode> <srcsha> <dstsha> <status>`, so the destination blob and the
-// letter come out of one call and a caller needs no second listing to read the new content.
+// The record is `:<srcmode> <dstmode> <srcsha> <dstsha> <status>`, so one call gives the destination
+// blob and the status letter. A caller reads the new content with no second listing.
 func parseRawDiff(out string) ([]Change, error) {
 	fields := strings.Split(out, "\x00")
 	var changes []Change
@@ -187,9 +185,9 @@ func parseRawDiff(out string) ([]Change, error) {
 		if len(parts) < 5 {
 			return nil, fmt.Errorf("git printed a raw diff record of %d field(s), wanted 5: %q", len(parts), record)
 		}
-		// git spells "this side does not exist" as an all-zero mode and an all-zero object id, which
-		// reads as a value rather than as an absence. Emptied here so a caller cannot mistake one for a
-		// real mode or ask for an object that is not there.
+		// git spells an absent side as an all-zero mode and an all-zero object id, and both read as
+		// values. The port empties both, so a caller cannot mistake one for a real mode or ask for an
+		// object git does not hold.
 		changes = append(changes, Change{
 			Status:  parts[4],
 			Path:    fields[i],
@@ -202,28 +200,22 @@ func parseRawDiff(out string) ([]Change, error) {
 	return changes, nil
 }
 
-// `--text`, and it is the load-bearing flag: one NUL byte in a file, or a `* -diff` attribute written
-// by whoever wrote the branch, collapses the body to "Binary files … differ" and a scan reading this
-// exits 0 over a real hit. `--src-prefix`/`--dst-prefix` against `diff.noprefix`, `--no-color` against
-// `color.diff=always`, `--no-ext-diff` against an external driver, and the `core.quotePath=false`
-// `run` already supplies against a non-ASCII path arriving C-quoted — each is a parser's anchor that
-// the reader's own config would otherwise move.
-//
-// `--find-renames` is the one flag here that is not a parser anchor: it asks git to report a moved
-// file as the rename it is, so a scan counting added lines is not handed the whole file as new work
-// somebody wrote. Without it a rename reads as a delete and an add, and every line of the moved file
-// lands in whatever the caller is measuring.
-//
-// No default revision here. "What HEAD means when the caller named nothing" is the caller's policy,
-// and a port that decided it would be answering a question nobody asked.
+// Patch is the change set as unified diff text, with no default revision: what HEAD means for a caller
+// that named none is the caller's policy. `--find-renames` reports a moved file as the rename it is. A
+// rename otherwise arrives as a delete and an add, with every line of the moved file counted as new
+// work.
 func (e Exec) Patch(dir string, revisions, pathspec []string) ([]byte, error) {
+	// `--text` keeps the body readable. One NUL byte in a file collapses it to "Binary files … differ",
+	// and a `* -diff` attribute in the branch's own `.gitattributes` collapses it as well. A scan over
+	// that body finds no added lines and exits 0 over a real hit. The prefix, colour and ext-diff flags
+	// hold the parser's other anchors against `diff.noprefix`, `color.diff=always` and a diff driver.
 	args := []string{"diff", "--no-ext-diff", "--no-textconv", "--no-color", "--no-relative",
 		"--text", "--src-prefix=a/", "--dst-prefix=b/", "--find-renames"}
 	args = append(args, revisions...)
 	return e.run(dir, append(args, pathspecArgs(pathspec)...)...)
 }
 
-// An all-zero mode or object id is git's way of saying the side is absent, not a value to use.
+// An all-zero mode or object id is how git spells an absent side, and this returns "" for it.
 func presentOrEmpty(field string) string {
 	if strings.Trim(field, "0") == "" {
 		return ""
@@ -245,30 +237,26 @@ func (e Exec) Status(dir string) ([]string, error) {
 	return entries, nil
 }
 
-// `--no-textconv`, and it is load-bearing in the same way the patch flags are: a `diff` attribute with
-// a textconv filter behind it is written by whoever wrote the branch, and with it on, what comes back
-// is the filter's rendering rather than the file's bytes. Every caller here is reading content to
-// measure or to compare, so a reader's own config deciding what they measure is the defect. It also
-// reverses what this call used to do, which was to ASK for the conversion.
+// `--no-textconv` keeps the answer the file's own bytes. A `diff` attribute with a textconv filter
+// behind it comes from whoever wrote the branch, and git with that filter on returns the filter's
+// rendering of the file. Every caller here reads content to measure or to compare, and the reader's
+// own config must not decide what they measure.
 func (e Exec) Show(dir, rev, path string) ([]byte, error) {
 	return e.run(dir, "show", "--no-textconv", rev+":"+path)
 }
 
-// One process for the whole list. `cat-file --batch` reads object names on stdin and answers in the
-// order it was asked, so the caller's own slice is the index into what comes back.
-//
-// `-z` on the input, because a path holding a newline would otherwise arrive as two object names and
-// neither names a file. It moves the input side only; `-Z`, which moves both, wants a newer git than
-// macOS ships, and the output side needs no help because every terminator this reads is one git wrote.
-//
-// No `--batch-check` pass ahead of it. That would learn every size from a second process to save
-// piping the occasional oversized blob, and a spawn on this machine costs more than the piping does —
-// the header `--batch` prints before each object already carries the size, which is what lets one pass
-// step over a large one instead of handing it over.
+// ContentsAt reads the whole list in one process. `cat-file --batch` takes object names on stdin and
+// answers in the order it was asked, so the caller's own slice is the index into what comes back. A
+// `--batch-check` pass ahead of it would learn every size from a second process, and a spawn on this
+// machine costs more than piping the occasional oversized blob costs.
 func (e Exec) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit func(string, []byte)) error {
 	if len(paths) == 0 {
 		return nil
 	}
+	// `-z` on the input, because a path holding a newline would otherwise arrive as two object names and
+	// neither of them names a file. It moves the input side alone, and `-Z` moves both but wants a newer
+	// git than macOS ships. The output side needs no help, since every terminator read here is one git
+	// wrote.
 	args := []string{"cat-file", "--batch", "-z"}
 	cmd := exec.Command("git", append([]string{"-C", dir, "-c", "core.quotePath=false"}, args...)...)
 	if e.Env != nil {
@@ -278,8 +266,8 @@ func (e Exec) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit 
 	for _, path := range paths {
 		asked.WriteString(rev + ":" + path + "\x00")
 	}
-	// A buffer rather than a pipe written here: os/exec copies a non-file stdin from a goroutine of its
-	// own, and writing the list inline would deadlock against a git already blocked on a full stdout.
+	// The list goes into a buffer, since os/exec copies a non-file stdin from a goroutine of its own. An
+	// inline write would deadlock against a git already blocked on a full stdout.
 	cmd.Stdin = &asked
 	var said bytes.Buffer
 	cmd.Stderr = &said
@@ -292,8 +280,8 @@ func (e Exec) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit 
 	}
 	readErr := readBatch(bufio.NewReader(out), paths, maxBytes, visit)
 	if readErr != nil {
-		// Drained before waiting: git blocks on a stdout nobody is reading, and Wait would then never
-		// return.
+		// The pipe is drained before Wait, because git blocks on a stdout that goes unread and Wait
+		// would then never return.
 		_, _ = io.Copy(io.Discard, out)
 	}
 	if err := cmd.Wait(); err != nil {
@@ -302,8 +290,9 @@ func (e Exec) ContentsAt(dir, rev string, paths []string, maxBytes int64, visit 
 	return readErr
 }
 
-// One answer per path asked, read in that order. An object git is about to write arrives as its header,
-// its bytes and one terminator; a path the revision does not hold arrives as the header alone.
+// readBatch takes one answer per path, in the order the paths were asked. An object git is about to
+// write arrives as its header, its bytes and one terminator. A path the revision does not hold arrives
+// as the header alone. The size in that header is what lets one pass step over a large object.
 func readBatch(from *bufio.Reader, paths []string, maxBytes int64, visit func(string, []byte)) error {
 	for _, path := range paths {
 		kind, size, err := batchHeader(from)
@@ -313,8 +302,8 @@ func readBatch(from *bufio.Reader, paths []string, maxBytes int64, visit func(st
 		if kind == "" {
 			continue
 		}
-		// Both branches consume the terminator git writes after the bytes, so the next header begins
-		// where the next path's answer does. An object stepped over is still written in full.
+		// Both branches consume the terminator git writes after the bytes, so the next header lands at
+		// the start of the next path's answer. An object stepped over is still written in full.
 		if kind != "blob" || size > maxBytes {
 			if _, err := io.CopyN(io.Discard, from, size+1); err != nil {
 				return fmt.Errorf("git cat-file --batch, stepping over the answer for %q: %w", path, err)
@@ -331,9 +320,9 @@ func readBatch(from *bufio.Reader, paths []string, maxBytes int64, visit func(st
 }
 
 // A header is `<object id> SP <type> SP <size>`, or the name echoed back with " missing" after it. The
-// echo carries the path VERBATIM, newline and all, so a reader taking one line as one header loses its
-// place for every object after an absent path with an odd name — hence lines until one of the two
-// shapes ends. An empty type is that absence.
+// echo carries the path VERBATIM, newline and all. A reader taking one line as one header would lose
+// its place after an absent path with an odd name. This reads lines until one of the two shapes ends,
+// and an empty type is that absence.
 func batchHeader(from *bufio.Reader) (kind string, size int64, err error) {
 	for {
 		line, readErr := from.ReadString('\n')
@@ -355,8 +344,8 @@ func batchHeader(from *bufio.Reader) (kind string, size int64, err error) {
 	}
 }
 
-// Long enough to be a hash and hexadecimal: the one thing in a header that a fragment of an echoed
-// path will not look like.
+// A header's first field is long enough to be a hash and hexadecimal, which no fragment of an echoed
+// path looks like.
 func isObjectID(field string) bool {
 	return len(field) >= 40 && strings.Trim(field, "0123456789abcdef") == ""
 }
@@ -374,8 +363,8 @@ func (e Exec) Blob(dir, id string) ([]byte, int64, error) {
 	return content, size, err
 }
 
-// Every path in one call. `check-ignore` exits 1 when it matched nothing, which is an answer and not a
-// failure, so only exit 2 and above reaches the caller as one.
+// Every path in one call. `check-ignore` exits 1 where it matched no path, and that is an answer. Only
+// exit 2 and above reaches the caller as a failure.
 func (e Exec) Ignored(dir string, paths []string) (map[string]bool, error) {
 	ignored := map[string]bool{}
 	if len(paths) == 0 {
@@ -402,7 +391,7 @@ func (e Exec) Ignored(dir string, paths []string) (map[string]bool, error) {
 	return ignored, nil
 }
 
-// Empty and no error where the path is not ignored, which is `check-ignore`'s exit 1.
+// `check-ignore` exits 1 for a path no rule ignores. This returns empty with a nil error there.
 func (e Exec) IgnoreSource(dir, path string) (string, error) {
 	out, err := e.run(dir, "check-ignore", "-v", path)
 	if err != nil {
@@ -432,7 +421,7 @@ func (e Exec) Worktrees(dir string) ([]Worktree, error) {
 				one.Head = strings.TrimPrefix(line, "HEAD ")
 			case line == "bare":
 				one.Bare = true
-			// git writes `prunable <reason>`, so the prefix and not the whole word.
+			// git writes `prunable <reason>`, so this matches on the prefix.
 			case strings.HasPrefix(line, "prunable"):
 				one.Prunable = true
 			}
@@ -452,9 +441,9 @@ func (e Exec) Add(dir string, paths []string) error {
 	return err
 }
 
-// `--` goes on whether or not a pathspec follows it. Without it, a file called HEAD in the working
-// tree makes `git diff HEAD` ambiguous, and the branch under review can commit that file and switch
-// the tool off for everyone reviewing it.
+// `--` goes on whether or not a pathspec follows it. A file called HEAD in the working tree otherwise
+// makes `git diff HEAD` ambiguous. The branch under review can commit that file and switch the tool
+// off for everyone reviewing it.
 func pathspecArgs(pathspec []string) []string {
 	return append([]string{"--"}, pathspec...)
 }
@@ -474,21 +463,15 @@ func (e Exec) listing(dir string, args ...string) ([]string, error) {
 	return names, nil
 }
 
-// WithoutGitLocation is the caller's environment with the two variables that relocate git's idea of
-// the repository removed. git reads them before it reads the directory it was handed, so a process run
-// from a git hook — which is given them — would otherwise answer about the hook's repository whatever
-// directory it was asked about, and a consumer keying a directory off that answer would create, write
-// and later remove directories under the wrong name.
-//
-// Exactly two. GIT_WORK_TREE moves `--show-toplevel` but not the store, and a tool asked about a
-// directory inside a work tree its caller declared is being asked the question its caller meant.
-// GIT_OBJECT_DIRECTORY and GIT_DISCOVERY_ACROSS_FILESYSTEM name no other repository either: discovery
-// across a mount boundary still has to land on an ancestor that genuinely holds the path. Stripping
-// any of them would read as a guard while guarding nothing.
-//
-// GIT_CEILING_DIRECTORIES stays on purpose. Set on the repository's own root it stops discovery rather
-// than redirecting it, so honouring it costs a refusal and never a wrong answer.
+// WithoutGitLocation returns the caller's environment with the two variables that relocate git's idea
+// of the repository taken out. git reads them before the directory it was handed, so a tool run from a
+// hook answers about the hook's repository whatever directory it was asked about. A consumer keying a
+// directory name off that answer creates, writes and later removes directories under the wrong name.
 func WithoutGitLocation(environ []string) []string {
+	// Exactly two. GIT_WORK_TREE moves `--show-toplevel` and leaves the store alone, so a caller declaring
+	// a work tree gets the question it meant. GIT_OBJECT_DIRECTORY and GIT_DISCOVERY_ACROSS_FILESYSTEM
+	// name no other repository, since discovery still lands on an ancestor that holds the path.
+	// GIT_CEILING_DIRECTORIES only stops discovery, so honouring it costs a refusal.
 	relocates := map[string]bool{"GIT_DIR": true, "GIT_COMMON_DIR": true}
 	kept := make([]string, 0, len(environ))
 	for _, entry := range environ {

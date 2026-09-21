@@ -28,7 +28,7 @@ func countedLines(t *testing.T, walk func(*Result, func(AddedLine)) error) (map[
 }
 
 // A repository whose untracked files are on disk as well as in the listing. bodyToScan opens each one,
-// so a case that only listed them would be measuring the open failing.
+// and a case that only listed them measures the open failing.
 func untrackedRepo(t *testing.T, files map[string]string) (*repotest.Fake, string) {
 	t.Helper()
 	root := t.TempDir()
@@ -96,10 +96,10 @@ func TestARealControlByteIsStillBinary(t *testing.T) {
 	}
 }
 
-// The port names an untracked file from the working tree ROOT, never from the directory the scan was
-// asked about. Opened against that directory instead, every file in a run from a subdirectory fails to
-// open and lands in SkippedUnread: the scan covers nothing and still exits clean, which is the one
-// outcome the denominator exists to make impossible.
+// The port names an untracked file from the working tree ROOT, and the directory the scan was asked
+// about does not name it. A run from a subdirectory that opened each file against that directory fails
+// on every one of them, and they all land in SkippedUnread. The scan then covers no file and still
+// exits clean, which is the outcome the denominator exists to make impossible.
 func TestAnUntrackedFileIsScannedFromASubdirectory(t *testing.T) {
 	root := t.TempDir()
 	fake := repotest.New(root)
@@ -142,8 +142,8 @@ func TestRevisionsNamedSeparatesThemFromPathspecs(t *testing.T) {
 	}
 }
 
-// What this package hands the port, which nothing the port hands back reflects: a patch is answered
-// verbatim, so a case reading the answer could not tell a dropped pathspec from a kept one.
+// patchAsked records what this package hands the port. A patch comes back verbatim, and a case reading
+// the answer cannot tell a dropped pathspec from a kept one.
 type patchAsked struct {
 	*repotest.Fake
 	revisions, pathspec []string
@@ -154,9 +154,9 @@ func (p *patchAsked) Patch(dir string, revisions, pathspec []string) ([]byte, er
 	return p.Fake.Patch(dir, revisions, pathspec)
 }
 
-// The whole point of the split. That `git diff HEAD -- a.go` then shows a staged change and leaves the
-// rest of the tree out is git's own behaviour, and `repo/exec_test.go` drives Patch against a real
-// repository for it; what belongs here is which revisions and pathspecs this package asks with.
+// The whole point of the split. `git diff HEAD -- a.go` then shows a staged change and leaves the rest
+// of the tree out, which is git's own behaviour that `repo/exec_test.go` drives Patch for. What
+// belongs here is which revisions and pathspecs this package asks with.
 func TestAPathspecScanStillDefaultsToHead(t *testing.T) {
 	asked := &patchAsked{Fake: repotest.New("/repo")}
 
@@ -182,8 +182,8 @@ func TestAPathspecScanStillDefaultsToHead(t *testing.T) {
 }
 
 // An argument that is BOTH a path on disk and a revision is the whole reason the scan asks git before
-// refusing one. Refused, a legal invocation is turned away; accepted without asking, `git diff <path>`
-// diffs against the INDEX and the scan runs over a change set nobody asked about.
+// refusing one. A refusal turns a legal invocation away. A scan that skips the question sends
+// `git diff <path>` against the INDEX, and it then runs over a change set the caller never named.
 func TestAPathIsRefusedOnlyWhereItNamesNoRevision(t *testing.T) {
 	root := t.TempDir()
 	fake := repotest.New(root)
