@@ -69,9 +69,9 @@ func TestABlockThatDropsTheObligationFails(t *testing.T) {
 	}
 }
 
-// The block a reviewer sent back on 2026-09-21 states the mechanism twice and says nothing about the
-// callers that make the copy worth having. Its own words carry a removal verb, so a floor asking for
-// one would pass it, and k11 asks for the caller or the walk over the result instead.
+// The block a reviewer sent back on 2026-09-21 states the mechanism twice and leaves out the callers
+// that make the copy worth having. Its own words carry a removal verb. A floor asking for that verb
+// passes the block, so k11 asks for the caller or the walk over the result.
 func TestTheBlockThatStatesTheMechanismTwiceFails(t *testing.T) {
 	cases, err := LoadCases(casesDir)
 	if err != nil {
@@ -117,9 +117,9 @@ func TestABlockCarryingTheBarredShapeFails(t *testing.T) {
 	}
 }
 
-// Question 1 reads an exported symbol's callers and question 3's consequence names what one does to
-// the result. The writer here runs with no repository to grep, so the callers reach it only where
-// the case carries them and the prompt prints them.
+// Question 1 reads an exported symbol's callers, and question 3's consequence names what one does to
+// the result. The writer here has no repository to grep. The callers reach it through the case and
+// the prompt alone.
 func TestACaseCarriesItsCallersSeparatelyFromItsCode(t *testing.T) {
 	raw := "expect: written\nwhy: a site with callers\n--- code\nexport function f() {}\n" +
 		"--- callers\n// helpers/Closing.ts\nf();\n--- facts\nA library drops an entry.\n"
