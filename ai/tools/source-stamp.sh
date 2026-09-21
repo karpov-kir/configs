@@ -4,6 +4,8 @@
 #
 #   usage: source-stamp.sh <tool>     # <tool> is a directory name under ai/tools
 #
+# tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
+
 # Content, because nothing else survives the trip from the build machine to this one. git does not
 # preserve mtimes, and a release binary is written into bin/ long after the checkout it lands in, so a
 # timestamp reads a stale binary as fresh. The revision Go embeds — `go version -m`, readable even
@@ -17,12 +19,10 @@
 # much costs only a rebuild the next run would make anyway. `_test.go` is the one exclusion, because
 # no test file reaches a binary.
 #
-# go.mod is at the repository root, above this directory, so the listing starts there and not here. One
-# declared offset rather than a search upward, for the reason resolve.sh gives about the stubs: a walk
-# finds whatever ancestor happens to carry a go.mod, which on a machine that keeps checkouts inside one
-# another is a different module.
-#
-# tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
+# go.mod sits at the repository root, two levels up from ai/tools/, so the listing starts at the root.
+# The offset is declared here for the reason resolve.sh gives about the stubs. A walk upward finds
+# whatever ancestor happens to carry a go.mod, and this machine keeps checkouts inside checkouts, so
+# that ancestor can be a different module.
 set -euo pipefail
 
 die() {
@@ -34,7 +34,7 @@ die() {
 tools="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so no source can be found"
 
-# How far the module root sits above this directory. resolve.sh declares the same offset, and the two
+# The module root, as an offset from this directory. resolve.sh declares the same offset, and the two
 # have to move together.
 module="$tools/../.."
 
@@ -45,9 +45,9 @@ case "$tool" in
   "" | *[!a-z0-9-]*) die "'$tool' is not a tool name — expected lowercase letters, digits and dashes" ;;
 esac
 
-# macOS ships shasum, most Linux images ship sha256sum, and a release is stamped on one and read on
-# the other — so this rests on the two writing a digest and a name the same way, which the Go suite
-# in ai/tools/reach/ asserts.
+# macOS ships shasum and most Linux images ship sha256sum. A release is stamped on one and read on
+# the other, so the two have to write a digest and a name the same way.
+# The Go suite in ai/tools/reach/ checks that they do.
 if command -v shasum >/dev/null 2>&1; then
   hasher=(shasum -a 256)
 elif command -v sha256sum >/dev/null 2>&1; then
@@ -63,14 +63,20 @@ fi
 
 [ -f "$module/go.mod" ] || die "no go.mod at $module, so the source of $tool cannot be stamped"
 
-# Sorted under LC_ALL=C and named relatively to the module root, so the same source stamps the same on
-# the release runner and on the machine that installs what it built. git holds the list inside a
-# checkout: `git ls-files` stops at a nested repository's edge, so the worktrees a machine keeps inside
-# its checkout are out by git's own rule and not by an ignore entry anyone can edit away. `--others`,
-# because source written and not staged yet has to move the stamp or the binary built before it reads as
-# current. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte. Outside a checkout the
-# walk is all there is, pruning bin/ and dist/ for the binaries and `.git` for holding no Go; both
-# spellings name every file `./…`, so an unchanged tree stamps as it did when this only walked.
+# The list is sorted under LC_ALL=C and named relative to the module root. The same source then stamps
+# the same on the release runner and on the machine that installs what it built.
+
+# git holds the list inside a checkout. `git ls-files` stops at a nested repository's edge, so the
+# worktrees a machine keeps inside its checkout fall out by git's own rule. An ignore entry would do
+# the same job and anyone can edit one away.
+
+# `--others` is passed because source that is written but still unstaged has to move the stamp. A
+# binary built before that source would otherwise read as current. `-z` is passed because git
+# C-quotes a path holding a quote or a non-ASCII byte.
+
+# Outside a checkout the walk is all there is. It prunes bin/ and dist/ for the binaries and `.git`
+# for holding no Go. Both spellings name every file `./…`, so an unchanged tree stamps as it did when
+# this only walked.
 sources=()
 while IFS= read -r -d '' path; do
   sources+=("./${path#./}")

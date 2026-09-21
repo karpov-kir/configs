@@ -1,28 +1,28 @@
 // Cases for the layer that puts a Go binary within reach of a checkout holding none: `resolve.sh`,
 // `source-stamp.sh` and `install.sh` beside this package. The `# --- shared:tool-stub ---` region every
 // skill script carries to call the first of them is covered by `ai/tools/stub_reach_test.go` instead,
-// for the reason that file's header gives. Nothing here reads the checkout at all: every case builds
-// its own fixture, so what one measures is the shape it declared and not the tree it ran in.
-//
-// Those three stay shell and cannot become anything else. They run before there is a binary to run, so
-// a Go build of them could not execute until after it had executed. Their cases live here for the
-// reason `ai/tools/mcp_env_test.go`'s do: what each one measures is what a bash script did on a
-// machine shaped a particular way, and nothing in Go can answer that without running the script. So
-// the exec stays, and only the exec — every fixture is built in process, every case runs in parallel,
-// and a fake toolchain stands where the subject is resolve.sh's decision to build rather than Go's
-// compiler.
-//
+// for the reason that file's header gives. No case here reads the checkout at all. Every case builds
+// its own fixture, so what one measures is the shape it declared, whatever tree it ran in.
+
+// Those three stay shell. They run before there is a binary to run, and a Go build of them would have
+// to execute before it could be executed. What each one measures is what a bash script did on a
+// machine shaped a particular way, and Go can answer that only by running the script.
+
+// Their cases live here for the reason `ai/tools/mcp_env_test.go`'s do. So the exec stays, and only the
+// exec. Every fixture is built in process, every case runs in parallel, and a fake toolchain stands
+// wherever the subject is resolve.sh's decision to build, and never Go's compiler.
+
 // What that replaces: four shell suites, 280 assertions, 247 seconds and 1,887 commands, nearly all of
-// it fixture plumbing — a real `go build` per staleness case, a 22-tool release per install case, and a
-// process for each of the sourced-function rows. This package and the stub cases named above answer 134
-// cases in 469 commands, counted through the same PATH shim, and about half a minute.
-//
-// The six cases `--run` added cost four commands between them: the stub region they cover shed a `cat`
-// and a `git rev-parse` per launch when the resolver took the exec over, and the launches here paid for
+// it fixture plumbing. A real `go build` per staleness case, a 22-tool release per install case, and a
+// process for each of the sourced-function rows. This package and the stub cases answer 134 cases in
+// 469 commands, counted through the same PATH shim, and about half a minute.
+
+// The six cases `--run` added cost four commands between them. The stub region they cover shed a `cat`
+// and a `git rev-parse` per launch when the resolver took the exec over. The launches here paid for
 // most of the new ones.
-//
-// The floor under that number is one launch per claim: what a script did on a machine shaped a
-// particular way can only be measured by running it there, and the rest of each launch's cost is the
+
+// The floor under that number is one launch per claim. What a script did on a machine shaped a
+// particular way can only be measured by running it there. The rest of each launch's cost is the
 // commands the script itself calls.
 package reach
 
@@ -44,15 +44,16 @@ const (
 )
 
 // The tool every fixture ships source for. A directory name is all a tool is to these scripts, so the
-// name carries nothing.
+// name itself carries no meaning.
 const tool = "widget"
 
-// Exactly what source-stamp.sh calls, and nothing spare: an entry nothing uses would let a new
-// dependency land in the script without a case going red, and it would also skip a case on a machine
-// the script runs fine on. `bash` is here because the shebang is `#!/usr/bin/env bash` and env looks it
-// up on PATH; the hasher is chosen per machine, so it is added where the fixture is built. Both `git`
-// and `find` belong here, because the script asks git for its file list inside a checkout and walks
-// where there is none.
+// Exactly what source-stamp.sh calls, and no spare entry. An unused entry would let a new dependency
+// land in the script without a case going red. It would also skip a case on a machine the script runs
+// fine on.
+
+// `bash` is here because the shebang is `#!/usr/bin/env bash` and env looks it up on PATH. The hasher
+// is chosen per machine, so the fixture adds it at build time. Both `git` and `find` belong here,
+// because the script asks git for its file list inside a checkout and walks a tree with no checkout.
 var stampCommands = []string{"bash", "dirname", "find", "git", "sort", "cut"}
 
 // What resolve.sh calls on top of those. It runs source-stamp.sh, so it needs all of them as well.
@@ -60,13 +61,15 @@ var stampCommands = []string{"bash", "dirname", "find", "git", "sort", "cut"}
 // another build of the same tool sleeps between attempts at it.
 var resolveCommands = append([]string{"cat", "mkdir", "mv", "rm", "rmdir", "sleep"}, stampCommands...)
 
-// A toolchain that writes the file `go build -o` names and compiles nothing. What the cases below turn
-// on is resolve.sh's decision to build and what it does with the result, and whether Go can compile a
-// fixture is neither: a real build per case is most of the minute the shell suite took. The pid goes
-// into the bytes, so "this binary was rewritten" is readable from the file rather than from its mtime.
-//
+// A toolchain that writes the file `go build -o` names and compiles no source. What the cases here
+// turn on is resolve.sh's decision to build and what it does with the result. Whether Go can compile a
+// fixture is a separate question, and a real build per case is most of the minute the shell suite took.
+
+// The pid goes into the bytes, so "this binary was rewritten" is readable from the file itself and
+// never from its mtime.
+
 // It prints on stdout, because resolve.sh sends the build's own chatter to stderr and keeps stdout for
-// the path a caller execs. A toolchain that printed nothing would let that redirect be deleted with
+// the path a caller execs. A toolchain that printed no line would let that redirect be deleted with
 // every case still green.
 const fakeToolchain = `#!/bin/sh
 printf 'fake toolchain: building %s\n' "$*"
@@ -88,29 +91,29 @@ echo 'fake toolchain: this source does not compile' >&2
 exit 1
 `
 
-// A stamper that runs and fails, printing nothing. On stdout alone that is byte for byte what a stamp
-// nobody could compute looks like, so its exit status is the only thing telling the two apart.
+// A stamper that runs and fails, printing no line. On stdout alone that is byte for byte what a stamp
+// that could not be computed looks like, so its exit status is the only thing telling the two apart.
 const failingStamper = "#!/bin/sh\nexit 1\n"
 
 // An executable file standing in for a binary somebody else built — a release asset, or a tool since
 // renamed. resolve.sh serves any runnable regular file in bin/, so a fixture needs no build to have one.
 const foreignBinary = "#!/bin/sh\nexit 0\n"
 
-// A binary that says how it was launched, for the `--run` cases: one line of its own, its arguments one
-// per line, and an exit status no success or refusal of resolve.sh's shares.
-//
-// It cannot report its argv[0], and no fixture here can: `exec -a NAME file` puts NAME in the execve
+// A binary that says how it was launched, for the `--run` cases. One line of its own, its arguments
+// one per line, and an exit status no success or refusal of resolve.sh's shares.
+
+// It cannot report its argv[0], and no fixture here can. `exec -a NAME file` puts NAME in the execve
 // argv, and the kernel then hands a `#!` file to its interpreter as `sh file …`, dropping NAME on the
-// way. A real binary does see it, which is why that half is `ai/tools/stub_reach_test.go`'s ledger
-// case — a whole stub, a real Go binary, and the write whose destination argv[0] decides.
+// way. A real binary does see it. That half is `ai/tools/stub_reach_test.go`'s ledger case: a whole
+// stub, a real Go binary, and the write whose destination argv[0] decides.
 const reportingBinary = `#!/bin/sh
 printf 'the tool ran\n'
 for argument in "$@"; do printf 'argument=%s\n' "$argument"; done
 exit 7
 `
 
-// The first line reportingBinary prints. Cases hold the WHOLE of stdout against this and the arguments:
-// under `--run` that stream is the tool's, and a path or a warning on it is a line every caller of
+// The first line reportingBinary prints. Cases hold the WHOLE of stdout against this and the arguments.
+// Under `--run` that stream is the tool's, and a path or a warning on it is a line every caller of
 // every stub would have to learn to drop.
 const reportingMark = "the tool ran\n"
 
@@ -118,18 +121,17 @@ const reportingMark = "the tool ran\n"
 // cannot be satisfied by resolve.sh succeeding or refusing.
 const reportingExit = 7
 
-// What one launch of a script came back with. stdout and stderr are kept apart because several cases
-// turn on a warning being audible on stderr while stdout carries the path a caller execs and nothing
-// else.
+// What one launch of a script came back with. stdout and stderr are kept apart, because several cases
+// turn on a warning being audible on stderr. stdout carries the path a caller execs, and no other line.
 type outcome struct {
 	stdout string
 	stderr string
 	code   int
 }
 
-// Whether either stream holds the wording. A refusal is asserted on what it says and never on its exit
-// code alone: every refusal these scripts have exits 2, so the code says one happened and never which,
-// and a case reading the code alone passes on whatever the fixture broke first.
+// Whether either stream holds the wording. A refusal is asserted on what it says, and never on its
+// exit code alone. Every refusal these scripts have exits 2, so the code says one happened and leaves
+// the cause open. A case reading the code alone passes on whatever the fixture broke first.
 func (o outcome) said(wording string) bool {
 	return strings.Contains(o.stdout, wording) || strings.Contains(o.stderr, wording)
 }
@@ -138,13 +140,13 @@ func (o outcome) String() string {
 	return fmt.Sprintf("exit %d\nstdout: %s\nstderr: %s", o.code, o.stdout, o.stderr)
 }
 
-// A command ready to launch, with an environment of its own: HOME under this case's own temp directory
-// because these scripts reach tools that read and write beneath it, and PATH named by the caller
-// because half the cases here are about a machine missing `go` or a way to hash a file.
-//
-// The working directory is an empty one nothing in the fixture knows about. Every script here finds its
-// own directory from `BASH_SOURCE`, and reaching one from cwd instead is the defect the stubs exist to
-// stop, so no case is given a cwd that could hide it.
+// A command ready to launch, with an environment of its own. HOME sits under this case's own temp
+// directory, because these scripts reach tools that read and write beneath it. PATH is named by the
+// caller, because half the cases here are about a machine missing `go` or a way to hash a file.
+
+// The working directory is an empty one, unknown to every part of the fixture. Every script here finds
+// its own directory from `BASH_SOURCE`, and reaching one from cwd instead is the defect the stubs exist
+// to stop. No case is given a cwd that could hide it.
 func newLaunch(t *testing.T, script, path string, arguments ...string) *exec.Cmd {
 	t.Helper()
 	home := t.TempDir()
@@ -158,10 +160,10 @@ func newLaunch(t *testing.T, script, path string, arguments ...string) *exec.Cmd
 	return command
 }
 
-// A refusal, held to the wording only its own cause produces. Every refusal these scripts have exits 2,
-// so the code says one happened and never which: a case asserting the code alone passes on whatever the
-// fixture broke first while its name claims the cause. `command not found` is a stripped PATH killing
-// the script before it reaches any check at all, which no case here ever means.
+// Asserts a refusal carries the wording only its own cause produces. Every refusal these scripts have
+// exits 2, so the code says one happened and leaves the cause open. A case asserting the code alone
+// passes on whatever the fixture broke first while its name claims the cause. `command not found` is a
+// stripped PATH killing the script before it reaches any check at all, which no case here ever means.
 func expectRefusal(t *testing.T, got outcome, wording string) {
 	t.Helper()
 	if got.code != 2 {
@@ -179,8 +181,8 @@ func expectRefusal(t *testing.T, got outcome, wording string) {
 	}
 }
 
-// A binary served: exit 0, and stdout carrying that path and nothing else. The whole of stdout, because
-// a caller execs what it reads — a build log or a warning on that stream is a string nobody can run.
+// A binary served: exit 0, and stdout carrying that path alone. The whole of stdout, because a caller
+// execs what it reads, and a build log or a warning on that stream is a string no shell can run.
 func expectServed(t *testing.T, got outcome, binary string) {
 	t.Helper()
 	if got.code != 0 || got.stdout != binary+"\n" {
@@ -188,9 +190,8 @@ func expectServed(t *testing.T, got outcome, binary string) {
 	}
 }
 
-// One launch. A script that could not be started at all is fatal rather than a failed case: every case
-// here is a launch, so it would otherwise fail for a reason that has nothing to do with the guard it
-// names.
+// One launch. A script that could not be started at all is fatal here. Every case here is a launch,
+// and a failed case would otherwise report a reason far from the guard it names.
 func launch(t *testing.T, command *exec.Cmd) outcome {
 	t.Helper()
 	var out, err strings.Builder
@@ -224,11 +225,12 @@ func runnable(t *testing.T, script string) string {
 }
 
 // A directory every fixture is built under, resolved physically. macOS reaches a temp directory through
-// a symlinked /var, and these scripts write executables. The incident behind this: a harness bug once
-// handed every case the same HOME, followed a live symlink into the checkout, and overwrote real config
-// files in the working tree — the suite reported it, and the report was read as a harness bug without
-// anyone asking what the run had already written. Resolving here is what lets sandboxed() below refuse a
-// path before anything is written to it rather than after.
+// a symlinked /var, and these scripts write executables.
+
+// The incident behind this: a harness bug once handed every case the same HOME, followed a live symlink
+// into the checkout, and overwrote real config files in the working tree. The suite reported it, and
+// the report was read as a harness bug. What the run had already written went unasked. The resolution
+// happens here, so sandboxed() can refuse a path before anything is written to it.
 func newSandbox(t *testing.T) string {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
@@ -238,9 +240,9 @@ func newSandbox(t *testing.T) string {
 	return dir
 }
 
-// A fixture path, refused unless it really lies inside the sandbox. Called before the directory is
-// built and before any script writes into it: afterwards the write has already landed, and what these
-// scripts write is executable files.
+// A fixture path, refused unless it really lies inside the sandbox. Callers reach it before the
+// directory is built and before any script writes into it. Afterwards the write has already landed,
+// and what these scripts write is executable files.
 func sandboxed(t *testing.T, sandbox, path string) string {
 	t.Helper()
 	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
@@ -255,10 +257,10 @@ func sandboxed(t *testing.T, sandbox, path string) string {
 	return path
 }
 
-// Where the scripts sit inside a fixture checkout, the same distance below the module root that
-// `ai/tools` sits below this repository's. The depth is part of the subject and not decoration: both
-// scripts reach go.mod by a declared offset, so a fixture holding it beside them would measure a shape
-// nothing ships and stay green over an offset that no longer points at anything.
+// Where the scripts sit inside a fixture checkout, at the same depth under the module root that
+// `ai/tools` has in this repository. The depth is part of the subject here. Both scripts reach go.mod
+// by a declared offset. A fixture holding go.mod beside them would measure a shape the repository
+// never ships, and stay green over an offset that points nowhere.
 func toolsIn(root string) string {
 	return filepath.Join(root, "ai", "tools")
 }
@@ -284,7 +286,7 @@ func newToolsDir(t *testing.T, sandbox, name string) string {
 
 // A checkout that ships binaries and no Go source, which is the shape a skill mounted from a
 // source-less checkout has. No go.mod above it either, which is what tells that shape apart from a
-// checkout holding an orphan binary. The resolver is still here, or there would be nothing to run.
+// checkout holding an orphan binary. The resolver is still here, or there would be no tool to run.
 func newSourcelessDir(t *testing.T, sandbox, name string) string {
 	t.Helper()
 	dir := toolsIn(sandboxed(t, sandbox, filepath.Join(sandbox, name)))
@@ -302,7 +304,7 @@ func copyScripts(t *testing.T, dir string) {
 	}
 }
 
-// A binary in the fixture's bin/, written rather than built: resolve.sh serves any runnable regular file
+// A binary in the fixture's bin/, written straight to disk. resolve.sh serves any runnable regular file
 // it finds there, so the cases about serving one need no toolchain at all.
 func placeBinary(t *testing.T, tools, name, body string, mode os.FileMode) string {
 	t.Helper()
@@ -333,16 +335,16 @@ func newPathDir(t *testing.T, sandbox, name string, commands ...string) string {
 	return dir
 }
 
-// A PATH with everything the staleness check needs and no `go`: a machine that installed a release
-// rather than one with no POSIX utilities. Strip the hasher too and resolve.sh takes the "could not
-// compare" branch instead of the one most cases here are about.
+// A PATH with everything the staleness check needs and no `go`. This stands for a machine that
+// installed a release, and the POSIX utilities are all still there. Strip the hasher too and
+// resolve.sh takes the "could not compare" branch instead of the branch most cases here are about.
 func newReleasePath(t *testing.T, sandbox, name string) string {
 	t.Helper()
 	return newPathDir(t, sandbox, name, append(resolveCommands, hasher(t))...)
 }
 
 // The same PATH with a toolchain on it. `chmod` comes with it because the fake toolchain marks what it
-// writes executable, which the real one does for itself.
+// writes executable. The real toolchain does that for itself.
 func newBuildPath(t *testing.T, sandbox, name, toolchain string) string {
 	t.Helper()
 	dir := newPathDir(t, sandbox, name, append(resolveCommands, hasher(t), "chmod")...)

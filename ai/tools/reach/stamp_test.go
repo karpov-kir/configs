@@ -1,14 +1,13 @@
-// Cases for source-stamp.sh. What must not be weakened is which source a tool's stamp covers: a stamp
-// blind to a file the tool compiles is a binary reported as current after that file changed.
+// Cases for source-stamp.sh. The coverage set is what must hold: a stamp blind to a file the tool
+// compiles is a binary reported as current after that file changed.
 //
-// The set is every non-test Go file in the module plus go.mod, and never a per-tool subset — a directory
-// that cmd/ holds a main for looks like that tool's private source and can still be a library this one
-// imports. A subset that guesses wrong goes blind in silence, which is the defect the script exists to
-// end, while covering too much costs only a rebuild the next run would have made anyway.
+// The set is every Go file in the module that is not a test, plus go.mod. A directory that cmd/ holds
+// a main for looks like that tool's private source and can still be a library this tool imports. A
+// subset that guesses wrong goes blind in silence, and covering too much costs only a rebuild the next
+// run would have made anyway.
 //
-// Each row edits a copy of the fixture rather than the fixture itself. The stamp names its files
-// relatively, so two copies of one module stamp alike wherever they sit, and a copy per row is what lets
-// the rows run at once instead of editing and undoing in turn.
+// Each row edits its own copy of the fixture. The stamp names its files relatively, so two copies of
+// one module stamp alike wherever they sit, and the rows run at once with no edit to undo.
 package reach
 
 import (
@@ -18,15 +17,15 @@ import (
 	"testing"
 )
 
-// The module shape this repository has: a tool with its own main, a tool whose main sits under cmd/ with
-// its library beside it, and a package both of them compile against.
+// The module shape this repository has. A tool with its own main, a tool whose main sits under cmd/
+// with its library beside it, and a package both of them compile against.
 const (
 	ownMain   = tool
 	cmdMain   = "gadget"
 	sharedPkg = "common"
 )
 
-// What a stamp is, so a case can tell one from a script that printed nothing.
+// The length of a stamp, so a case can tell one from the empty output of a script that failed.
 const stampLength = 64
 
 func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
@@ -51,9 +50,9 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 			moves: true,
 		},
 		{
-			// A library that cmd/ backs is still one this tool may import — eco-report imports
-			// tree-fingerprint, which cmd/tree-fingerprint also backs — so a stamp that skipped it would
-			// serve the old binary and say nothing.
+			// A library that cmd/ backs is still one this tool may import. eco-report imports
+			// tree-fingerprint, which cmd/tree-fingerprint also backs. A stamp that skipped it would serve
+			// the old binary in silence.
 			name: "an edit to a package outside the tool's own directory moves it",
 			edit: func(t *testing.T, module string) {
 				appendLine(t, filepath.Join(toolsIn(module), sharedPkg, sharedPkg+".go"))
@@ -88,9 +87,9 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 			moves: false,
 		},
 		{
-			// The control the six rows above rest on: a copy nothing touched stamps the same as the
-			// baseline. Without it every "moves the stamp" row passes against a script answering a fresh
-			// number each run, and every "leaves it alone" row against one answering nothing at all.
+			// The control the other six rows rest on: an untouched copy stamps the same as the baseline.
+			// A script answering a fresh number each run passes every "moves the stamp" row, and a script
+			// printing an empty stamp passes every "leaves it alone" row.
 			name:  "control: an untouched copy of the same source stamps the same",
 			edit:  func(t *testing.T, module string) {},
 			moves: false,
@@ -110,13 +109,14 @@ func TestTheStampCoversEveryNonTestSourceFileInTheModule(t *testing.T) {
 	}
 }
 
-// A checkout kept inside the module — a linked worktree, a vendored clone — holds Go source that is not
-// this module's, and a walk of the filesystem cannot tell the two apart: this repository is developed on
-// a machine carrying eight such worktrees, where that walk saw 758 source files against the 243 the
-// repository tracks. `git ls-files` stops at a nested repository's edge, which is what keeps them out.
-//
-// The second half is the control. Asserting only that the stamp did not move is satisfied by a stamp
-// that sees nothing at all, so the same file where no repository of its own covers it has to move it.
+// A checkout kept inside the module, a linked worktree or a vendored clone, holds Go source that is
+// not this module's. A walk of the filesystem cannot tell the two apart. This repository is developed
+// on a machine carrying eight such worktrees, where that walk saw 758 source files against the 243 the
+// repository tracks.
+
+// `git ls-files` stops at a nested repository's edge, and that is what keeps them out. The second half
+// of the case is the control. A stamp that read an empty file set would also leave the stamp still.
+// The same stray file written into the module itself has to move it.
 func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -140,12 +140,12 @@ func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
 	}
 }
 
-// A file that is Go source and compiles into nothing, since no case here builds. Written into the module
-// and into the checkout nested inside it, so that where it lands is the only difference between them.
+// A file that is Go source. No case here builds it. It is written into the module and into the
+// checkout nested inside it, so its location is the only difference between the two.
 const straySource = "package main\n\nvar Stray = 1\n"
 
-// A git repository at this path, with nothing added to it: source-stamp.sh lists untracked files as well
-// as tracked ones, so an init is the whole of what a fixture needs in order to be a checkout.
+// A git repository at this path, with no file added to it. source-stamp.sh lists untracked files as
+// well as tracked ones, so an init is all a fixture needs in order to be a checkout.
 func newRepository(t *testing.T, dir string) {
 	t.Helper()
 	if output, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
@@ -153,10 +153,10 @@ func newRepository(t *testing.T, dir string) {
 	}
 }
 
-// The guard on the coverage set. A per-tool subset would make these two disagree, and the way such a
-// subset goes wrong is silent: it drops a directory the tool really imports and stops noticing edits
-// there. Whatever narrows the set again has to fail here first — and with this held, a row above asked
-// from one tool says the same about every other.
+// The guard on the coverage set. A per-tool subset would make these two disagree, and such a subset
+// goes wrong in silence: it drops a directory the tool really imports and stops noticing edits there.
+// Whatever narrows the set again has to fail here first. With this case held, a row asked from one
+// tool says the same about every other.
 func TestEveryToolInTheModuleStampsTheSameSourceAlike(t *testing.T) {
 	t.Parallel()
 	module := newModule(t, newSandbox(t), "shared")
@@ -204,7 +204,7 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 		refusal string
 	}{
 		{
-			// A machine with neither hasher says so rather than answering with an empty stamp.
+			// A machine with neither hasher says so, and the refusal keeps an empty stamp off stdout.
 			name:  "the machine has no way to hash a file",
 			asked: []string{ownMain},
 			path: func(t *testing.T, sandbox string) string {
@@ -213,7 +213,7 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 			refusal: "no shasum or sha256sum",
 		},
 		{
-			// A mistyped name, refused rather than answered with the module's hash.
+			// A mistyped name is refused, and the module's hash is what it would otherwise get.
 			name:    "the name is not a tool in this module",
 			asked:   []string{"absent"},
 			refusal: "no source for absent",
@@ -257,8 +257,8 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 	}
 }
 
-// A module shaped like this repository's: go.mod at the root, every tool's source under the tools
-// directory below it, and the stamper under test beside that source. The `_test.go` file is here
+// A module shaped like this repository's: go.mod at the root, every tool's source in the tools
+// directory under it, and the stamper under test beside that source. The `_test.go` file is here
 // because one row turns on its absence from the stamp.
 func newModule(t *testing.T, sandbox, name string) string {
 	t.Helper()
@@ -274,8 +274,8 @@ func newModule(t *testing.T, sandbox, name string) string {
 	return module
 }
 
-// The stamp a module answers for one tool, with the two ways it can fail to be one refused here rather
-// than compared as a value: a stamp read off a failed run is an empty string, and two of those agree.
+// The stamp a module answers for one tool. The two ways it can fail to be a stamp are refused here,
+// because a stamp read off a failed run is an empty string, and two of those agree.
 func stampOf(t *testing.T, module, name string) string {
 	t.Helper()
 	sandbox := filepath.Dir(module)
@@ -283,7 +283,7 @@ func stampOf(t *testing.T, module, name string) string {
 	if stamped.code != 0 {
 		t.Fatalf("stamping %s exited %d, so nothing this case compares is a stamp\n%v", name, stamped.code, stamped)
 	}
-	// One line and nothing else, or resolve.sh compares a hash with a log line stuck to it.
+	// Exactly one line, or resolve.sh compares a hash with a log line stuck to it.
 	if strings.Count(stamped.stdout, "\n") != 1 || !strings.HasSuffix(stamped.stdout, "\n") {
 		t.Fatalf("stdout carried %q rather than one line of stamp", stamped.stdout)
 	}

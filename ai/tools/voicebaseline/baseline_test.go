@@ -1,11 +1,13 @@
-// Cases for voice-baseline.sh, the ratchet holding the instruction tree to ai/kk-flavor/voice-baseline.txt.
-// What must not be weakened is that it refuses in both directions: a file over its line has risen, and one
-// under it has left slack a later change would spend. A suite proving only that a clean tree passes goes
-// green against a script whose comparison is absent, so every row drives both.
+// Cases for the ratchet script that holds each instruction file to a recorded count. The script under
+// test and the record it reads are the two paths the const block names.
 //
-// The subject is what bash did on a tree shaped a particular way, which only a launch can answer. Every
-// fixture is built in process — instruction files, a baseline, a stub checker answering from a table the
-// case writes — and the script is copied in through this process, so the test cache keys on its bytes.
+// What must hold is that it refuses in both directions. A file over its line has risen, and a file
+// under its line has left slack a later change would spend. A suite proving only that a clean tree
+// passes goes green against a script with no comparison in it, so every row drives both.
+//
+// The subject is what bash did on a tree shaped a particular way, which only a launch can answer.
+// Every fixture is built in process: instruction files, a baseline, a stub checker answering from a
+// table the case writes. The script is copied in by this process, so the test cache keys on its bytes.
 package voicebaseline
 
 import (
@@ -20,7 +22,7 @@ import (
 )
 
 // The script under test, and the paths a checkout holds it and everything it reads at. The fixture
-// carries the script at its shipped depth, so the offset it climbs to find a root still points at one.
+// carries the script at its shipped depth, so the offset it walks up to find a root still points at one.
 const (
 	script          = "../../kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh"
 	scriptInRoot    = "ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh"
@@ -29,7 +31,7 @@ const (
 	standardsInRoot = "ai/kk-flavor/standards"
 )
 
-// The two instruction files most rows need. A name carries nothing beyond telling the stub's branches
+// The two instruction files most rows need. A name here does one job: it tells the stub's branches
 // apart.
 const (
 	alpha = "alpha.md"
@@ -39,8 +41,8 @@ const (
 // The first line of every fixture baseline, which the file keeps across a regeneration.
 const fixtureHeader = "# fixture\n"
 
-// A count that makes the stub exit 2 instead of reporting. The real checker exits 2 when it could not
-// measure, and that is a different fact from a file with no findings.
+// A count that makes the stub exit 2 instead of reporting. The real checker exits 2 where a
+// measurement failed, and that is a different fact from a file with no findings.
 const refuses = -1
 
 // What the stub checker answers for one instruction file.
@@ -85,7 +87,7 @@ func TestEveryWayATreeStandsAgainstItsBaseline(t *testing.T) {
 			says:     "every one on its line",
 		},
 		{
-			// The change that raised the count is the one that repairs it, so a rise cannot be left
+			// The change that raised the count is the change that repairs it, so a rise cannot be left
 			// for a later change to find.
 			name:     "a file over its line is refused",
 			alpha:    5,
@@ -95,7 +97,7 @@ func TestEveryWayATreeStandsAgainstItsBaseline(t *testing.T) {
 			says:     "over its baseline of 3",
 		},
 		{
-			// A fall is refused too: the baseline still records slack the tree no longer has, and a
+			// A fall is refused too: the baseline still records slack the tree has given up, and a
 			// later change spends it without ever reaching the floor it already stood on.
 			name:     "a file under its line is refused",
 			alpha:    1,
@@ -133,8 +135,8 @@ func TestEveryWayATreeStandsAgainstItsBaseline(t *testing.T) {
 	}
 }
 
-// Exit 2 says the check did not run, which a caller may never read as a pass. Each row names its own
-// cause, because the code alone says one of these happened and never which.
+// Exit 2 says the check did not run. A caller may never read that as a pass. Each row names its own
+// cause, because the code alone says one of these happened and leaves the cause open.
 func TestEveryWayTheRatchetDidNotRunExitsTwoAndNamesIt(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
@@ -164,9 +166,9 @@ func TestEveryWayTheRatchetDidNotRunExitsTwoAndNamesIt(t *testing.T) {
 			says: "not executable",
 		},
 		{
-			// A run that exits 2 measured nothing, and its empty summary otherwise reads as a file with
-			// no findings. That is a count under its baseline, which --regenerate then writes in as the
-			// new floor: a check that did not run, recorded as an improvement.
+			// A run that exits 2 measured no file. Its empty summary otherwise reads as a file with no
+			// findings. That is a count under its baseline, which --regenerate then writes in as the new
+			// floor. A check that did not run becomes an improvement on the record.
 			name: "a checker that refuses to measure a file did not run",
 			arrange: func(t *testing.T) string {
 				root := newRoot(t, measurement{alpha, refuses}, measurement{beta, 1})
@@ -192,9 +194,9 @@ func TestEveryWayTheRatchetDidNotRunExitsTwoAndNamesIt(t *testing.T) {
 	}
 }
 
-// Regeneration belongs in the same change that lowered a count, so what it writes has to be what the tree
-// measures now — and the tree has to stand against it afterwards, or the floor was written from something
-// other than the counts just taken.
+// Regeneration belongs in the same change that lowered a count, so what it writes has to be what the
+// tree measures now. The tree has to stand against it afterwards, or the floor was written from
+// something other than the counts just taken.
 func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 	t.Parallel()
 	root := newRoot(t, measurement{alpha, 4}, measurement{beta, 2})
@@ -213,8 +215,8 @@ func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 	}
 }
 
-// The header carries what the file is for, and a regeneration that dropped it would leave the ratchet as
-// a bare list of numbers nobody can read.
+// The header carries what the file is for, and a regeneration that dropped it would leave the ratchet
+// as a bare list of numbers, unreadable to anyone.
 func TestRegenerateKeepsTheBaselineFilesOwnHeader(t *testing.T) {
 	t.Parallel()
 	root := newRoot(t, measurement{alpha, 1}, measurement{beta, 1})
@@ -228,15 +230,15 @@ func TestRegenerateKeepsTheBaselineFilesOwnHeader(t *testing.T) {
 	}
 }
 
-// The script measures its files in concurrent batches and reads the results back by index, so the order
-// the runs finish in is not the order the counts are paired with their files. Every file here reports a
-// count no other file reports: a result read back against the wrong file then lands on a number that
-// file is not recorded at, and the pass below becomes a refusal.
-//
-// The second half is the control. A tree standing against its baseline is also what a script that paired
-// nothing at all would produce, so the same tree is run again against a baseline whose counts have been
-// moved one file along — which is what a mispairing looks like from outside — and every file has to come
-// back off its line.
+// The script measures its files in concurrent batches and reads the results back by index. The order
+// the runs finish in can differ from the order the counts are paired with their files. Every file here
+// reports a count no other file reports. A result read back against the wrong file lands on a number
+// that file is not recorded at, and the run turns from a pass into a refusal.
+
+// The second half is the control. A tree standing against its baseline is also what a script that
+// paired no file at all would produce. The same tree is run again against a baseline whose counts have
+// been moved one file along. That is what a mispairing looks like from outside, and every file has to
+// come back off its line.
 func TestEachCountIsHeldAgainstTheFileItWasMeasuredFrom(t *testing.T) {
 	t.Parallel()
 	measured := spread()
@@ -259,9 +261,9 @@ func TestEachCountIsHeldAgainstTheFileItWasMeasuredFrom(t *testing.T) {
 	}
 }
 
-// More instruction files than one batch holds, each measuring something no other one measures. The batch
-// width is the processor count, which is the number the script asks getconf for, so one full batch and a
-// few files after it is what crosses the boundary on any machine at the least cost in launches.
+// More instruction files than one batch holds, each measuring something no other one measures. The
+// batch width is the processor count, the number the script asks getconf for. One full batch and a few
+// files after it crosses the boundary on any machine, at the least cost in launches.
 func spread() []measurement {
 	measured := make([]measurement, runtime.NumCPU()+3)
 	for i := range measured {
@@ -271,7 +273,7 @@ func spread() []measurement {
 	return measured
 }
 
-// The same files with every count moved to the file after it, which is what a batch read back out of
+// The same files with every count moved to the file after it. That is what a batch read back out of
 // order does to a tree where no two files measure alike.
 func shifted(measured []measurement) []measurement {
 	moved := make([]measurement, len(measured))
@@ -281,11 +283,11 @@ func shifted(measured []measurement) []measurement {
 	return moved
 }
 
-// A fixture checkout: an instruction file per measurement, a stub checker answering for each of them, and
-// the script itself at the depth it ships at. No baseline, because one case is about its absence.
+// A fixture checkout: an instruction file per measurement, a stub checker answering for each of them,
+// and the script itself at the depth it ships at. No baseline, because one case is about its absence.
 //
-// The script is read through this process rather than left where it lies, so that `go test`'s cache keys
-// on the bytes of the thing under test and a cached green is a real run.
+// The script is read through this process. `go test`'s cache then keys on the bytes of the thing under
+// test, and a cached green is a real run.
 func newRoot(t *testing.T, measured ...measurement) string {
 	t.Helper()
 	root := t.TempDir()
@@ -297,11 +299,11 @@ func newRoot(t *testing.T, measured ...measurement) string {
 	return root
 }
 
-// A checker answering from the table its case wrote instead of reading anything, so what a case measures
-// is the comparison and never the real checker's opinion of a fixture file. The summary goes to stderr,
+// A checker answering from the table its case wrote, and reading no file. What a case measures is the
+// comparison, and never the real checker's opinion of a fixture file. The summary goes to stderr,
 // where the real checker prints it.
-//
-// Each branch matches on the path's last component, because a file whose name ends in another's would
+
+// Each branch matches on the path's last component. A file whose name ends in another's would
 // otherwise take that other one's answer.
 func newStub(measured []measurement) string {
 	stub := strings.Builder{}
@@ -340,9 +342,9 @@ func baselineLine(count int, name string) string {
 	return fmt.Sprintf("%d %s/%s", count, standardsInRoot, name)
 }
 
-// One launch of the fixture's own copy of the script over its root. The working directory is an empty one
-// the fixture knows nothing about: the script is handed its root and finds everything else from there, and
-// a cwd inside the fixture would hide a path it had reached the wrong way.
+// One launch of the fixture's own copy of the script over its root. The working directory is an empty
+// one, unknown to every part of the fixture. The script is handed its root and finds everything else
+// from there, and a cwd inside the fixture would hide a path it had reached the wrong way.
 func runOver(t *testing.T, root string, arguments ...string) outcome {
 	t.Helper()
 	command := exec.Command(filepath.Join(root, scriptInRoot), append(arguments, root)...)
@@ -364,9 +366,9 @@ func runOver(t *testing.T, root string, arguments ...string) outcome {
 }
 
 // Whether a cleared execute bit really denies this process. Root ignores mode bits, and the behaviour
-// under test is the executability check itself, so none of the paths that deny every user stands in for
-// it — they are refused a limb earlier and never reach the check. Where the bit does not deny, the case
-// is declined by name rather than asserted.
+// under test is the executability check itself. None of the paths that deny every user stands in for
+// it, because they are refused a limb earlier and never reach the check. Where the bit does not deny,
+// the case is declined by name.
 func requireExecuteBitDenies(t *testing.T) {
 	t.Helper()
 	denied := filepath.Join(t.TempDir(), "denied.sh")
@@ -399,8 +401,8 @@ func read(t *testing.T, path string) string {
 	return string(body)
 }
 
-// The path to the script, refused loudly where it cannot be run: every case here is a launch, so one that
-// could not start would fail for a reason that has nothing to do with the guard it names.
+// The path to the script, refused loudly where it cannot be run. Every case here is a launch, and a
+// launch that could not start would fail for a reason far from the guard it names.
 func runnable(t *testing.T, path string) string {
 	t.Helper()
 	resolved, err := filepath.Abs(path)

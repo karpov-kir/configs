@@ -1,14 +1,14 @@
-// Cases for resolve.sh. Three of them must not be weakened.
-//
+// Cases for resolve.sh. Three things here must hold.
+
 // A binary is served only while it was built from the source beside it, and the comparison is over
-// content: the binary that has to be caught is one NEWER than the source it disagrees with, which is
-// what every downloaded release binary is.
-//
+// content. The binary that has to be caught is one NEWER than the source it disagrees with, and every
+// downloaded release binary is.
+
 // A binary from somewhere else, or one that cannot be compared at all, is served WITH a warning on
 // stderr. Silence there is the defect.
-//
-// And every failure exits 2 and names what did not happen. These tools report findings, so exit 0 with
-// none is what a clean tree looks like, and a tool that could not run must never reach a caller as
+
+// Every failure exits 2 and names what did not happen. These tools report findings, so exit 0 with
+// none is what a clean tree looks like. A tool that failed to run must never reach a caller as
 // silence.
 package reach
 
@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-// The wording each arm of the warning uses, read here rather than restated at three call sites.
+// The wording each arm of the warning uses. Three call sites read it from here.
 const (
 	builtElsewhere = "may not be the code you are reading"
 	notCompared    = "could NOT be compared"
@@ -29,8 +29,8 @@ const (
 // The negative control the whole file rests on: with source and a toolchain, resolve.sh does reach a
 // binary. Without it every refusal below would pass against a resolver that only ever exits 2.
 //
-// The second launch is the reason a release install needs no Go at all, and the third is what keeps the
-// first branch a preference rather than the only path.
+// The second launch is the reason a release install needs no Go at all. The third shows that the
+// build path works too, so the first branch is a preference.
 func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -51,8 +51,8 @@ func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T
 	release := newReleasePath(t, sandbox, "no-go")
 	served := launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), release, tool))
 	expectServed(t, served, binary)
-	// The control every warning case rests on: a binary resolve.sh built from this source says nothing at
-	// all on the run after. Without it each of those passes against a resolver that warns about every
+	// The control every warning case rests on: a binary resolve.sh built from this source draws no
+	// warning on the run after. Without it each of those passes against a resolver that warns about every
 	// binary it serves.
 	if served.stderr != "" {
 		t.Errorf("a binary built from the source beside it was served with a warning, so the cases below "+
@@ -70,8 +70,8 @@ func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T
 }
 
 // What this catches: someone edits the Go, and every run afterwards measures the previous build while
-// reading exactly like a run against the edit. Asserted on the binary's own bytes, because a resolver
-// that served the stale one prints the same path this one does.
+// reading exactly like a run against the edit. The assertion is on the binary's own bytes, because a
+// resolver that served the stale one prints the same path this one does.
 func TestAnEditedSourceIsRebuiltRatherThanServedFromTheBuildBeforeIt(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -93,10 +93,10 @@ func main() { _ = "edited" }
 	}
 }
 
-// The case that decides why the stamp is content and not a timestamp: a binary NEWER than the source it
-// disagrees with. Every release install has that shape, because the asset lands long after the checkout
-// it lands in, and a timestamp comparison reads it as fresh — silently, on the very machine that has no
-// toolchain to rebuild with and find out.
+// The case that decides why the stamp is content, and why a timestamp will not do: a binary NEWER than
+// the source it disagrees with. Every release install has that shape, because the asset lands long
+// after the checkout it lands in. A timestamp comparison reads it as fresh, in silence, on the machine
+// that has no toolchain to rebuild with and find out.
 func TestABinaryNewerThanTheSourceItDisagreesWithIsServedWithTheDoubtOnStderr(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -115,8 +115,8 @@ func main() { _ = "edited" }
 	if err := os.Chtimes(binary, now, now); err != nil {
 		t.Fatalf("touching the fixture binary: %v — the newer-binary case was never set up", err)
 	}
-	// The control: the binary really is newer than every source beside it. Were it not, a timestamp check
-	// would catch this case too and the case would no longer be about content at all.
+	// The control: the binary really is newer than every source beside it. An older binary would be caught
+	// by a timestamp check too, and the case would stop being about content.
 	newest := modified(t, binary)
 	for _, source := range []string{filepath.Join(tools, tool, "main.go"), filepath.Join(moduleIn(tools), "go.mod")} {
 		if !modified(t, source).Before(newest) {
@@ -134,16 +134,16 @@ func main() { _ = "edited" }
 	}
 }
 
-// A binary that cannot be compared at all is served with that said, because a check that did not run is
-// not a clean one. Three ways the question goes unanswered, each of which a resolver could serve in
-// silence and look identical doing it.
+// A binary that cannot be compared at all is served with that said. A check that did not run is a
+// different thing from a clean one. Three ways the question goes unanswered, each of which a resolver
+// could serve in silence and look identical doing it.
 func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
 		name string
 		// Builds the fixture and returns the tools directory, the name to resolve and the PATH to run on.
 		fixture func(t *testing.T, sandbox string) (tools, name, path string)
-		// Wording beyond the shared "could NOT be compared", where this cause names its own reason.
+		// The wording beyond the shared "could NOT be compared", where this cause names its own reason.
 		also string
 	}{
 		{
@@ -156,9 +156,10 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 			also: "no shasum or sha256sum",
 		},
 		{
-			// A stamper that runs and fails prints no hash, and on its output alone that is byte for byte
-			// what a matching stamp looks like: its exit status is the only thing separating them. A shim
-			// rather than a broken tree, because what has to be exercised is the stamper answering badly.
+			// A stamper that runs and fails prints no hash. On its output alone that is byte for byte what a
+			// matching stamp looks like, and its exit status is the only thing separating them. The fixture
+			// uses a shim, because what has to be exercised is the stamper answering badly, and a broken tree
+			// would exercise something else.
 			name: "the stamper runs and fails",
 			fixture: func(t *testing.T, sandbox string) (string, string, string) {
 				tools := newToolsDir(t, sandbox, "bad-stamper-tools")
@@ -168,11 +169,13 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 			},
 		},
 		{
-			// An orphan: a binary from a tool since renamed, or one nothing here put there. bin/ is
-			// gitignored, so it appears in no diff and no `git status`, and answering "built from this
-			// source" for it serves it at exit 0 in silence — the one way a binary nobody can account for
-			// keeps being exec'd over the human's repositories. What says it is an orphan rather than a
-			// source-less checkout is the module file, which this fixture has and the case below does not.
+			// An orphan: a binary from a tool since renamed, or one that no part of this repository put
+			// there. bin/ is gitignored, so a diff and a `git status` both pass over it.
+
+			// A resolver answering "built from this source" for it serves it at exit 0 in silence. That is
+			// how a binary no human can account for keeps being exec'd over their repositories. The module
+			// file is what tells an orphan from a checkout that ships no Go source. This fixture has one, and
+			// the other case has none.
 			name: "the checkout ships source and none of it is this tool's",
 			fixture: func(t *testing.T, sandbox string) (string, string, string) {
 				tools := newToolsDir(t, sandbox, "orphan-tools")
@@ -199,9 +202,9 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 	}
 }
 
-// A checkout that ships a binary and no Go source at all: there is nothing to compare it against, and
-// saying so on every run would be noise nobody on that machine could act on. The pair with the orphan
-// row above is what separates the two shapes — this one has no go.mod, that one has.
+// A checkout that ships a binary and no Go source at all. There is no source to compare it against,
+// and a warning on every run would be noise the machine's owner cannot act on. The orphan row is the
+// other half of the pair: that case has a go.mod, and this one has none.
 func TestABinaryWithNoSourceBesideItWarnsAboutNothing(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -217,9 +220,9 @@ func TestABinaryWithNoSourceBesideItWarnsAboutNothing(t *testing.T) {
 	}
 }
 
-// A stale stamp beside new bytes is the defect this whole scheme exists to end, reintroduced one layer
-// in: the next run reads it as "built from this source" and serves without rebuilding. So a stamp that
-// cannot be written is removed rather than left, and the run after reports the gap.
+// A stale stamp beside new bytes is the defect this whole scheme exists to end, one layer in. The next
+// run reads it as "built from this source" and serves without rebuilding. A stamp that cannot be
+// written is removed, and the run after reports the gap.
 func TestABuildWhoseStamperFailsLeavesNoStampRatherThanThePreviousBuilds(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -278,8 +281,8 @@ func TestEveryWayTheToolCannotBeReachedExitsTwoAndSaysItDidNotRun(t *testing.T) 
 			alsoSays: "no source at",
 		},
 		{
-			// Distinct from the row above because the fix is different, and because this is the one that
-			// would otherwise read as clean on every machine without Go.
+			// A row of its own, because the fix differs. This is also the case that would otherwise read as
+			// clean on every machine without Go.
 			name: "the source is here and the machine has no toolchain",
 			fixture: func(t *testing.T, sandbox string) (string, string) {
 				return newToolsDir(t, sandbox, "no-toolchain"), newReleasePath(t, sandbox, "no-go")
@@ -288,9 +291,9 @@ func TestEveryWayTheToolCannotBeReachedExitsTwoAndSaysItDidNotRun(t *testing.T) 
 			alsoSays: "unchecked, not clean",
 		},
 		{
-			// A half-finished install: the file arrived without its exec bit. Reported and not built over,
-			// because building needs Go — papering over it works on a developer's machine and fails on the
-			// install's.
+			// A half-finished install: the file arrived without its exec bit. resolve.sh reports it, because
+			// building over it needs Go, and papering over it works on a developer's machine and fails on
+			// the install's.
 			name: "the binary arrived without its exec bit",
 			fixture: func(t *testing.T, sandbox string) (string, string) {
 				tools := newToolsDir(t, sandbox, "not-executable")
@@ -301,8 +304,8 @@ func TestEveryWayTheToolCannotBeReachedExitsTwoAndSaysItDidNotRun(t *testing.T) 
 			alsoSays: "did not complete",
 		},
 		{
-			// `-x` alone is true for a directory, so without the regular-file test this path would be
-			// handed to the caller to exec.
+			// `-x` alone is true for a directory. Without the regular-file test this path reaches the caller
+			// to exec.
 			name: "a directory sits where the binary goes",
 			fixture: func(t *testing.T, sandbox string) (string, string) {
 				tools := newToolsDir(t, sandbox, "directory")
@@ -347,10 +350,10 @@ func TestEveryWayTheToolCannotBeReachedExitsTwoAndSaysItDidNotRun(t *testing.T) 
 	}
 }
 
-// A tool name is a directory name here, so anything that could climb out of the tools directory or name
-// something other than a plain entry is refused before it reaches a path. Each of these also fails to be
-// a tool that exists, so the refusal has to be the name check's own: with that check deleted the
-// resolver still exits 2 on both, saying the checkout ships neither source nor binary.
+// A tool name is a directory name here. Anything that can reach outside the tools directory, or name
+// something other than a plain entry, is refused before it reaches a path. Each of these also fails to
+// be a tool that exists, so the refusal has to be the name check's own. With that check deleted, the
+// resolver still exits 2 on both, saying the checkout ships no source or binary.
 func TestANameThatCouldBecomeSomethingOtherThanADirectoryIsRefusedAsAName(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
@@ -379,10 +382,12 @@ func TestANameThatCouldBecomeSomethingOtherThanADirectoryIsRefusedAsAName(t *tes
 
 // `--run` is the spelling every stub takes, and it owns what the stub region used to do line by line.
 // Three properties at once, because a resolver that dropped any of them would still look like it
-// worked: the binary is REPLACED into, so its own exit status is what a caller sees; its arguments
-// arrive whole and in order; and stdout carries what the tool printed and nothing else, which is why
-// the whole stream is asserted rather than searched. The fourth — argv[0] — is stub_reach_test.go's,
-// for the reason reportingBinary states.
+// worked.
+
+// The binary is REPLACED into, so its own exit status is what a caller sees. Its arguments arrive
+// whole and in order. stdout carries exactly what the tool printed, which is why the whole stream is
+// asserted. A search would pass over an extra line. The fourth property, argv[0], is
+// stub_reach_test.go's, for the reason reportingBinary states.
 func TestRunExecsTheBinaryAndLeavesItsOutputAlone(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -403,9 +408,9 @@ func TestRunExecsTheBinaryAndLeavesItsOutputAlone(t *testing.T) {
 	}
 }
 
-// A tool invoked with no arguments at all is the common case, not the odd one, and an empty array under
-// `set -u` is unbound in the bash macOS still ships as /bin/bash. Without the guard for it this is the
-// launch that dies before the exec, and every case above passes while no stub can be run bare.
+// A tool invoked with no arguments at all is the common case here. An empty array under `set -u` is
+// unbound in the bash macOS still ships as /bin/bash. Without the guard for it this is the launch that
+// dies before the exec, and every other case passes while a bare stub stays broken.
 func TestRunExecsTheBinaryWhenThereIsNothingToForward(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -425,7 +430,7 @@ func TestRunExecsTheBinaryWhenThereIsNothingToForward(t *testing.T) {
 
 // Under `--run` a refusal is all the caller gets, so it has to be the same refusal print mode gives:
 // exit 2, naming what did not happen. A resolver that exec'd something on this path, or exited 0 having
-// run nothing, would hand every stub's caller a clean tree.
+// run no tool, would hand every stub's caller a clean tree.
 func TestRunRefusesTheSameWayAndNeverExecsAnything(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []struct {
@@ -439,8 +444,8 @@ func TestRunRefusesTheSameWayAndNeverExecsAnything(t *testing.T) {
 			says:  "ships neither",
 		},
 		{
-			// The argv[0] is not optional: without it the resolver would exec the binary under its own
-			// path, and every tool would then write into ai/tools instead of its skill directory.
+			// argv[0] is required. Without it the resolver execs the binary under its own path, and every
+			// tool then writes into ai/tools instead of its skill directory.
 			name:  "no argv0 to exec under",
 			asked: []string{"--run", tool},
 			says:  "usage: resolve.sh --run",

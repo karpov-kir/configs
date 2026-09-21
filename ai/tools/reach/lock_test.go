@@ -1,19 +1,20 @@
-// Cases for the one thing resolve.sh does that another copy of resolve.sh can be doing at the same
-// moment: building a tool. Every stub execs this script and the gate runs its checks concurrently, so two
-// builds of one tool inside a single checkout are reachable today — one run of the root package's suite
-// rebuilt `ai/tools/bin/rule-echo` and `ai/tools/bin/model-policy` while other cases were launching the
-// stubs that exec the resolver.
-//
-// What must not be weakened: the binary in bin/ and the stamp beside it describe the same build. The move
-// is atomic within the directory and the stamp write beside it is not, so two builds over source that
-// changed between them can leave the binary of one beside the stamp of the other. The run after reads
-// that stamp against the source, finds it current, and serves the older binary at exit 0 in silence,
-// which is the exact failure the stamp exists to prevent.
-//
-// The interleavings here are forced, never waited for. The PATH fixture's own `go`, `mv` and `sleep` write
-// and wait on marker files, so each case hands the script an ordering and measures what it did with it. A
-// case that cannot get the ordering it needs says so and measures nothing, rather than passing on whatever
-// order the machine happened to produce.
+// Cases for the thing resolve.sh does that another copy of resolve.sh can be doing at the same moment:
+// building a tool. Every stub execs this script and the gate runs its checks concurrently, so two
+// builds of one tool inside a single checkout are reachable today. One run of the root package's suite
+// rebuilt `ai/tools/bin/rule-echo` and `ai/tools/bin/model-policy` while other cases were launching
+// the stubs that exec the resolver.
+
+// What must hold: the binary in bin/ and the stamp beside it describe the same build. The move is
+// atomic within the directory, while the stamp write beside it is not. Two builds over source that
+// changed between them can then leave the binary of one beside the stamp of the other.
+
+// The run after reads that stamp against the source, finds it current, and serves the older binary at
+// exit 0 in silence. That is the failure the stamp exists to prevent.
+
+// The interleavings here are forced, and no case waits for one to happen. The PATH fixture's own `go`,
+// `mv` and `sleep` write and wait on marker files, so each case hands the script an ordering and
+// measures what it did with it. A case that cannot get the ordering it needs says so and reports no
+// measurement. Whatever order the machine happened to produce never passes as a result.
 package reach
 
 import (
@@ -28,9 +29,9 @@ import (
 	"time"
 )
 
-// The source the second build compiles, written into the tree between the two builds. Which of the two a
-// served binary came from is readable from its own bytes, because the toolchain below copies the source it
-// compiled into what it writes.
+// The source the second build compiles. The case writes it into the tree between the two builds. A
+// served binary names its own generation in its bytes, because the fixture toolchain copies the source
+// it compiled into what it writes.
 const laterSource = `package main
 
 func main() { _ = "the later source" }
@@ -39,7 +40,7 @@ func main() { _ = "the later source" }
 const laterMark = `"the later source"`
 
 // What every fixture binary here carries, whichever source built it. A case reads it before comparing
-// bytes: a binary carrying no source at all would make the comparison below vacuous.
+// bytes: a binary carrying no source at all would make that comparison vacuous.
 const anySourceMark = "func main()"
 
 // The files a case and the shims on its PATH signal each other with.
@@ -52,19 +53,21 @@ const (
 )
 
 // How long a shim waits for its release, and how long a case waits for an ordering to arrive. Both are
-// bounds on a hang and not delays anything pays in the ordinary run: every wait here ends when the marker
-// it names is written, microseconds after the writer writes it. They are this wide because what waits is
-// a process on a machine already running the rest of this package in parallel, and a bound that expires
-// under load reports a script that no longer takes the ordering, which would be a lie.
+// bounds on a hang. Every wait here ends when the marker it names is written, microseconds after the
+// writer writes it, so the ordinary run pays neither bound.
+
+// They are this wide because what waits is a process on a machine already running the rest of this
+// package in parallel. A bound that expires under load reports a script that no longer takes the
+// ordering, and that report would be a lie.
 const (
 	shimPoll         = "0.02"
 	shimPolls        = 1500
 	orderingDeadline = 30 * time.Second
 )
 
-// A toolchain that copies the source it compiled into the binary it writes, so a case can read which
-// generation of the source the binary beside a stamp came from. `go build -o <staging> ./<tool>/` names the
-// package last, and every fixture keeps one source file inside it.
+// A toolchain that copies the source it compiled into the binary it writes. A case can then read the
+// generation of the source that the binary beside a stamp came from. `go build -o <staging> ./<tool>/`
+// names the package last, and every fixture keeps one source file inside it.
 //
 // The hook at the end is where a case orders the build from.
 const recordingToolchain = `#!/bin/sh
@@ -82,15 +85,15 @@ cat "${package}main.go" >>"$out"
 chmod 755 "$out"
 %s`
 
-// A binary and a stamp that name the same build, or the wording for the pair that does not. Read here
-// rather than restated, because it is the one claim this file exists for.
+// A binary and a stamp that name the same build, or the wording for the pair that does not. Every case
+// reads it from here, because it is the single claim this file exists for.
 const tornPair = "the stamp beside %s names the source in the tree while the binary beside it was built " +
 	"from the source that came before the edit, so every run after this one reads that pair as current and " +
 	"serves the older binary at exit 0 in silence"
 
-// Two builds of one tool, the second landing entirely inside the first. The first compiles the source the
-// tree held when it started and is let out only after the second has moved its own binary into bin/, which
-// is the ordering that pairs one build's bytes with the other's stamp.
+// Two builds of one tool, the second landing entirely inside the first. The first compiles the source
+// the tree held when it started, and is let out only after the second has moved its own binary into
+// bin/. That ordering pairs one build's bytes with the other's stamp.
 func TestABuildLandingInsideAnotherLeavesNoBinaryBesideTheOtherBuildsStamp(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -101,7 +104,7 @@ func TestABuildLandingInsideAnotherLeavesNoBinaryBesideTheOtherBuildsStamp(t *te
 
 	// The first build stops inside its compile, holding whatever a build of this tool holds.
 	first := newBuildPath(t, sandbox, "first-build", pausesInsideTheBuild(t, signals))
-	// The second stops between its move and its stamp write, which is where the pair can be torn. Its
+	// The second stops between its move and its stamp write, the point where the pair can be torn. Its
 	// `sleep` says instead when it is queued behind the first build, since a build that never reaches its
 	// move is what waiting for a lock looks like from here.
 	second := newBuildPath(t, sandbox, "second-build", fmt.Sprintf(recordingToolchain, ""))
@@ -137,12 +140,13 @@ func TestABuildLandingInsideAnotherLeavesNoBinaryBesideTheOtherBuildsStamp(t *te
 	}
 }
 
-// A build killed while it holds the lock must not wedge the tool for every session after it. Two kinds of
-// kill, because the lock is given up two different ways: a signal the shell can catch runs the trap that
-// removes it, and one it cannot leaves the lock behind for its age to settle.
-//
-// The hour below is written onto the lock rather than waited out. What a waiter needs is a lock old enough
-// that no build could still be inside it, and a case that measured that by waiting would be the slowest in
+// A build killed while it holds the lock must not wedge the tool for every session after it. Two kinds
+// of kill, because the lock is given up two different ways. A signal the shell can catch runs the trap
+// that removes it. A signal it cannot catch leaves the lock behind for a later run to break on its
+// age.
+
+// The hour is written onto the lock, and no case waits it out. What a waiter needs is a lock old enough
+// that no build could still be inside it. A case that measured that by waiting would be the slowest in
 // this package by two orders of magnitude.
 func TestABuildKilledWhileItHoldsTheLockLeavesTheToolReachable(t *testing.T) {
 	t.Parallel()
@@ -187,9 +191,9 @@ func TestABuildKilledWhileItHoldsTheLockLeavesTheToolReachable(t *testing.T) {
 	expectServed(t, served, binary)
 }
 
-// A run that finds the lock held waits for it and then serves what the build it waited for wrote, rather
-// than compiling the same source a second time. The toolchain on this PATH refuses, so a run that built
-// anything at all refuses with it.
+// A run that finds the lock held waits for it and then serves what the build it waited for wrote. It
+// compiles no source of its own. The toolchain on this PATH refuses, so a run that built anything at
+// all refuses with it.
 func TestARunThatWaitedForALockServesThatBuildAndMakesNoneOfItsOwn(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
@@ -227,8 +231,8 @@ func TestARunThatWaitedForALockServesThatBuildAndMakesNoneOfItsOwn(t *testing.T)
 	}
 }
 
-// The first build's hook: it says it is inside its compile and stays there until the case lets it out,
-// which is what puts the second build's whole run inside this one's.
+// The first build's hook: it says it is inside its compile and stays there until the case lets it out.
+// That is what puts the second build's whole run inside this one's.
 func pausesInsideTheBuild(t *testing.T, signals string) string {
 	t.Helper()
 	return fmt.Sprintf(recordingToolchain,
@@ -245,23 +249,24 @@ func pausesAfterTheMove(t *testing.T, signals string) string {
 		awaitsMarker(t, filepath.Join(signals, moveRelease)))
 }
 
-// A `sleep` that says a run is waiting before it sleeps. resolve.sh sleeps only where it is queued behind
-// another build of the same tool, so this marker is what tells "waited its turn" from "built anyway".
+// A `sleep` that says a run is waiting before it sleeps. resolve.sh sleeps only when it is queued
+// behind another build of the same tool, so this marker is what tells "waited its turn" from "built
+// anyway".
 func reportsWaiting(t *testing.T, signals string) string {
 	t.Helper()
 	return fmt.Sprintf("#!/bin/sh\n%sexec %s \"$@\"\n",
 		writesMarker(filepath.Join(signals, runQueued)), realCommand(t, "sleep"))
 }
 
-// A marker written with the shell's own redirection, because the PATH a shim runs on holds only the
-// commands the script under test calls and nothing a shim might want.
+// A marker written with the shell's own redirection, because the PATH a shim runs on is narrow. It
+// holds only the commands the script under test calls, and no command a shim might want.
 func writesMarker(marker string) string {
 	return fmt.Sprintf(": >\"%s\"\n", marker)
 }
 
-// A bounded wait for a marker, for a shim rather than for a case. Bounded, because a shim left waiting for
-// a marker nobody will write would outlive the case that launched it; its non-zero exit reaches the case
-// as a build that failed.
+// A bounded wait for a marker, for use inside a shim. A case has its own waiter. The bound is there
+// because a shim left waiting for a marker no process will write would outlive the case that launched
+// it. Its non-zero exit reaches the case as a build that failed.
 func awaitsMarker(t *testing.T, marker string) string {
 	t.Helper()
 	return fmt.Sprintf(`waited=0
@@ -273,9 +278,9 @@ done
 `, marker, shimPolls, realCommand(t, "sleep"), shimPoll)
 }
 
-// Waits for the first of these markers, or for the launch to end without writing any of them. A case that
-// never got its ordering measured nothing, and naming which marker is missing is the difference between a
-// case somebody can fix and one that only hangs.
+// Waits for the first of these markers, or for the launch to end without writing any of them. A case
+// that failed to get its ordering has measured no interleaving. Naming the missing marker is the
+// difference between a case somebody can fix and one that only hangs.
 func awaitAny(t *testing.T, launched *pending, markers ...string) {
 	t.Helper()
 	deadline := time.Now().Add(orderingDeadline)
@@ -299,7 +304,7 @@ func awaitAny(t *testing.T, launched *pending, markers ...string) {
 	}
 }
 
-// A marker written by the case rather than by a shim.
+// A marker the case writes itself.
 func mark(t *testing.T, marker string) {
 	t.Helper()
 	writeFile(t, marker, "", 0o644)
@@ -337,17 +342,18 @@ func realCommand(t *testing.T, name string) string {
 	return path
 }
 
-// A launch under way. Every case here runs two scripts at once, and a `go test` fixture cannot report from
-// the goroutine that waits on one: t.Fatalf outside the test's own goroutine stops nothing.
+// A launch under way. Every case here runs two scripts at once, and a `go test` fixture cannot report
+// from the goroutine that waits on one. t.Fatalf outside the test's own goroutine does not stop the
+// test.
 type pending struct {
 	done chan struct{}
-	// Set before done closes, read after it, so the channel carries them across.
+	// The fixture sets these before done closes and reads them after it, so the channel carries them across.
 	command *exec.Cmd
 	got     outcome
 	err     error
 }
 
-// A launch started here and waited on elsewhere. Started on the caller's goroutine so that the process is
+// A launch started here and waited on elsewhere. It starts on the caller's goroutine, so the process is
 // there to be signalled the moment this returns.
 func start(t *testing.T, command *exec.Cmd) *pending {
 	t.Helper()
@@ -382,9 +388,9 @@ func (p *pending) outcome(t *testing.T) outcome {
 	return p.got
 }
 
-// A launch in a process group of its own, so that a case signalling it reaches the shim it is waiting on
-// as well. bash holds a caught signal until the command in front of it returns, and the command in front
-// of a build here is a shim that would otherwise wait out its own bound first.
+// A launch in a process group of its own, so that a case signalling it reaches the shim it is waiting
+// on as well. bash holds a caught signal until the command in front of it returns. The command in
+// front of a build here is a shim that would otherwise wait out its own bound first.
 func inOwnGroup(command *exec.Cmd) *exec.Cmd {
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return command

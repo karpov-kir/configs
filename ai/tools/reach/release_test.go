@@ -1,9 +1,9 @@
 // The fixture release: a checkout shaped like this repository, and a `gh` that answers what install.sh
-// asked for rather than what GitHub would.
+// asked for, and no more of GitHub than that.
 //
 // The fake is one script for every case here. Its release listing answers by the repository it is asked
-// about, so a single process can stand for a machine that is offline, a repository with no release and
-// one with releases; everything else it does is chosen by the environment the case launches it in,
+// about, so a single process can stand for an offline machine, a repository with no release and one
+// with releases. Everything else the fake does is chosen by the environment the case launches it in,
 // because those cases are one process each anyway.
 package reach
 
@@ -33,9 +33,9 @@ for argument in "$@"; do
   previous="$argument"
 done
 
-# The three answers a listing can give, chosen by the owner asked about. Two of them leave stdout empty
-# — a repository with no release, and a listing that could not be read — so only the exit code separates
-# them, and reading the second as the first tells an offline machine there is nothing to download.
+# The three answers a listing can give, chosen by the owner asked about. A repository with no release
+# and an unreadable listing both leave stdout empty, so only the exit code separates them. A caller
+# that read the second as the first would tell an offline machine that the release has no tools.
 if [ "${1:-} ${2:-}" = "release list" ]; then
   if [ "${repo%%/*}" = unreachable ]; then exit 1; fi
   if [ "${repo%%/*}" = no-release ]; then exit 0; fi
@@ -56,7 +56,7 @@ if [ "${1:-} ${2:-}" = "release download" ]; then
     printf 'fake %s binary\n' "$tool" >"$dir/$tool-$GH_FAKE_SUFFIX"
   done
   # A stamp a case can read back by eye. install.sh records whatever the release recorded and never reads
-  # it, so a real digest here would only hide which tool's stamp landed where.
+  # it. A real digest here would only hide the tool each stamp landed on.
   if [ -z "${GH_FAKE_NO_STAMPS:-}" ]; then
     for tool in $GH_FAKE_TOOLS; do
       if [ "$tool" != "${GH_FAKE_UNSTAMPED:-}" ]; then
@@ -64,8 +64,8 @@ if [ "${1:-} ${2:-}" = "release download" ]; then
       fi
     done >"$dir/STAMPS"
   fi
-  # Every file and not just the platform's assets, so STAMPS is covered the way the release workflow
-  # covers it. The redirect creates SHA256SUMS before the glob runs, so the file has to skip itself.
+  # Every file in the directory, STAMPS included, so it is covered the way the release workflow covers
+  # it. The redirect creates SHA256SUMS before the glob runs, so the file has to skip itself.
   (
     cd "$dir" || exit 1
     for file in *; do
@@ -88,8 +88,8 @@ fi
 exit 1
 `
 
-// A PATH directory holding the fake gh, to be put in front of this process's own: every case here is
-// about what install.sh does with gh's answers, so nothing else on PATH is being modelled.
+// A PATH directory holding the fake gh, to be put in front of this process's own. Every case here is
+// about what install.sh does with gh's answers, so the rest of PATH is left unmodelled.
 func newGhPath(t *testing.T, sandbox string) string {
 	t.Helper()
 	dir, err := os.MkdirTemp(sandbox, "gh-")
@@ -103,8 +103,8 @@ func newGhPath(t *testing.T, sandbox string) string {
 // A checkout shaped like this repository: the install.sh under test at ai/tools/, the workflow it reads
 // its tool list out of, and an origin remote where the case wants one.
 //
-// The git directory is written rather than `git init`ed. What install.sh asks git for is one url, and
-// four files answer it — a fixture that shells out to build itself is the cost this whole port is about.
+// The git directory is written out file by file. What install.sh asks git for is one url, and four
+// files answer it. A fixture that shells out to build itself is the cost this whole port is about.
 func newCheckout(t *testing.T, sandbox, origin string) string {
 	t.Helper()
 	checkout, err := os.MkdirTemp(sandbox, "checkout-")

@@ -1,14 +1,13 @@
-// The decisions install.sh makes before and around the download: which asset this machine needs, which
-// repository the release comes from, which tag may be asked for, which hash an asset is checked against,
-// and whether the repository has cut a release at all.
+// The decisions install.sh makes before and around the download. The asset this machine needs, the
+// repository and tag it asks for, the hash an asset is checked against, and whether a release exists.
 //
-// Each of these is a mapping, so every row of it is here — the near miss is the danger. A wrong asset
-// installs a binary that cannot execute, a missing hash installs one that was never verified, and a
-// remote or tag that reaches `gh` as an option redirects the whole download to somebody else's release,
-// whose SHA256SUMS then verifies their binaries perfectly.
+// Each of these is a mapping, so every row of it is here. The near miss is the danger. A wrong asset
+// installs a binary that cannot execute, and a missing hash installs one that was never verified. A
+// remote or tag reaching `gh` as an option redirects the download to somebody else's release, whose
+// SHA256SUMS then verifies their binaries.
 //
-// One process answers the lot. install.sh's sourcing guard is what makes that safe: sourcing reaches the
-// functions and only a direct run downloads anything. The shell suite spent a process per row.
+// One process answers the lot. install.sh's sourcing guard makes that safe: sourcing reaches the
+// functions, and only a direct run downloads anything. The shell suite spent a process per row.
 package reach
 
 import (
@@ -26,9 +25,9 @@ type probe struct {
 	name string
 	call string
 	args []string
-	// What the call prints. A row that must refuse leaves this empty and sets refuses instead: refusing
-	// means a non-zero status AND nothing on either stream, because a refusal that printed a plausible
-	// answer is the near miss every one of these rows exists to catch.
+	// What the call prints. A row that must refuse leaves this empty and sets refuses instead. A refusal
+	// is a non-zero status with an empty stdout and stderr. A refusal that printed a plausible answer is
+	// the near miss every one of these rows exists to catch.
 	want    string
 	refuses bool
 }
@@ -64,15 +63,15 @@ func TestInstallReadsEveryAnswerTheWayTheReleaseWroteIt(t *testing.T) {
 
 func probeTable(t *testing.T, sandbox string) []probe {
 	t.Helper()
-	// SHA256SUMS is written with `sha256sum ./*`, so the recorded names carry a ./ prefix — stripped
-	// rather than expected, because the basename match is what lets an asset verify wherever it landed.
+	// SHA256SUMS is written with `sha256sum ./*`, so the recorded names carry a ./ prefix. install.sh
+	// strips that prefix, because the basename match is what lets an asset verify wherever it landed.
 	manifest := filepath.Join(sandbox, "SHA256SUMS")
 	writeFile(t, manifest, "aaaa1111  ./eco-check-darwin-arm64\nbbbb2222  ./eco-stats-linux-amd64\ncccc3333  SHA256SUMS\n", 0o644)
 	hashed := filepath.Join(sandbox, "one-byte")
 	writeFile(t, hashed, "x", 0o644)
 	digest := sha256.Sum256([]byte("x"))
-	// A workflow with no list has to yield nothing, rather than a single empty name the caller would
-	// treat as a tool called "".
+	// A workflow with no SHIPPED list has to yield an empty result. A single empty name would reach the
+	// caller as a tool called "".
 	noList := filepath.Join(sandbox, "no-list.yml")
 	writeFile(t, noList, "jobs:\n  build:\n    runs-on: ubuntu-latest\n", 0o644)
 
@@ -100,8 +99,8 @@ func probeTable(t *testing.T, sandbox string) []probe {
 		{name: "a workflow with no SHIPPED list yields nothing", call: "shipped_tools", args: []string{noList}, want: ""},
 
 		// Whether the repository has cut a release at all. Two of the three answers leave gh's stdout
-		// empty, so the exit code is the whole of what separates them, and reading the unreadable one as
-		// "none" would tell an offline machine there is nothing to download.
+		// empty, so the exit code is all that separates them. An unreadable listing read as "none" tells
+		// an offline machine the release has no tools to download.
 		{name: "a listing with a release in it reads as some", call: "releases_state", args: []string{"pinned/target"}, want: "some"},
 		{name: "an empty listing reads as none", call: "releases_state", args: []string{"no-release/target"}, want: "none"},
 		{name: "a listing gh could not answer reads as unknown, never as none", call: "releases_state", args: []string{"unreachable/target"}, want: "unknown"},
@@ -131,14 +130,15 @@ func probeTable(t *testing.T, sandbox string) []probe {
 			call: "origin_repo", args: []string{refused}, refuses: true})
 	}
 
-	// The tags a release really carries, first, so the refusals below are not a function that says no to
-	// everything.
+	// The tags a release really carries, first, so the refusals that follow cannot come from a function
+	// that refuses everything.
 	for _, accepted := range []string{"v1.0.0", "v1.2.3-rc.1", "release/2024.01", "1.0"} {
 		probes = append(probes, probe{name: "is_safe_tag accepts the tag " + accepted,
 			call: "is_safe_tag", args: []string{accepted}})
 	}
-	// `/` is legal in a tag and `..` is not, and git settles both: `git check-ref-format refs/tags/a..b`
-	// exits 1, so nothing below is a tag a release could carry, while `release/2024.01` above exits 0.
+	// `/` is legal in a tag and `..` is not. git decides both: `git check-ref-format refs/tags/a..b`
+	// exits 1, and the same check on `release/2024.01` exits 0. No refused tag here is one a release
+	// could carry.
 	for _, refused := range []string{
 		"--repo=evil/pwn", "-v1.0.0", "v1.0.0;id", "v1 0", "$(id)", "",
 		"../../etc", "../../../evil/repo/releases/tags/v1", "v1.0.0/../../evil", "a..b",
@@ -149,9 +149,9 @@ func probeTable(t *testing.T, sandbox string) []probe {
 	return probes
 }
 
-// Sources install.sh once and runs every row through it, keyed by name. Each row's arity is written out
-// rather than counted from the fields, because one row asks about the empty string and a field that is
-// empty and a field that is absent read the same way to `read`.
+// Sources install.sh once and runs every row through it, keyed by name. Each row's arity is written
+// out as a field of its own, because `read` gives an empty field and an absent field the same way. One
+// row asks about the empty string.
 const probeDriver = `#!/usr/bin/env bash
 set -uo pipefail
 . "$1"
