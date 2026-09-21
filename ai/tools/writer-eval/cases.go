@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -26,6 +27,9 @@ type Case struct {
 	// leaves the case scored on the site alone.
 	WantSummary string
 	WantNote    string
+	// Floor overrides how many rolls this case has to clear. A case no step decides is the writer
+	// judging, and three mechanisms have now failed to reach the two that carry this field.
+	Floor int
 }
 
 // ExpectRename is a site whose own identifier carries a coined compound. The writer returns the
@@ -81,6 +85,12 @@ func ParseCase(name, raw string) (Case, error) {
 			c.WantSummary = strings.ToLower(value)
 		case "note":
 			c.WantNote = strings.ToLower(value)
+		case "floor":
+			count, err := strconv.Atoi(value)
+			if err != nil || count < 1 {
+				return c, fmt.Errorf("%s names a floor of %q, which is not a positive count", name, value)
+			}
+			c.Floor = count
 		default:
 			return c, fmt.Errorf("%s names an unknown field %q", name, key)
 		}

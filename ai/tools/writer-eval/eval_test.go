@@ -232,7 +232,7 @@ func TestWriterEval(t *testing.T) {
 			}
 		}
 		cleanByCase[c.Name] = clean
-		if clean >= floorFor(c.Expect) {
+		if clean >= floorFor(c) {
 			passed++
 		}
 		var classes []string
@@ -247,8 +247,8 @@ func TestWriterEval(t *testing.T) {
 		}
 		sort.Strings(checks)
 		fmt.Fprintf(&out, "%-46s %-8s %d of %d (floor %d)  %s %s\n", c.Name, c.Expect, clean, evalRolls,
-			floorFor(c.Expect), strings.Join(classes, ", "), strings.Join(checks, ", "))
-		if clean < floorFor(c.Expect) {
+			floorFor(c), strings.Join(classes, ", "), strings.Join(checks, ", "))
+		if clean < floorFor(c) {
 			fmt.Fprintf(&out, "    wanted because: %s\n    answered: %s\n", c.Why, oneLine(answers[i][0]))
 		}
 	}
@@ -579,9 +579,13 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 }
 
 // floorFor is how many rolls a case has to clear. A step decides a none and a rename, so those clear
-// every roll. The writer judges a written block, so that one clears writtenFloor.
-func floorFor(want Expected) int {
-	if want == ExpectWritten {
+// every roll. The writer judges a written block, so that one clears writtenFloor. A case naming its
+// own floor is one no step reaches, and it clears that many.
+func floorFor(c Case) int {
+	if c.Floor > 0 {
+		return c.Floor
+	}
+	if c.Expect == ExpectWritten {
 		return writtenFloor
 	}
 	return evalRolls

@@ -104,3 +104,23 @@ word and so passed over "a scheme-blind yes", the one sentence it existed for.
 
 So a proposed rule is counted twice before it lands: over the population it will run against, and
 over the case that prompted it.
+
+## The class no presence test reaches
+
+Three mechanisms were cut at one class of claim and all three failed. The claim paraphrases what the
+code does, in words the code does not spell: `combination` is what a loop inside a loop means, and
+`owner` is what a call bound to its object means.
+
+| the test | what it did |
+|---|---|
+| strike the claim's words against the declaration | 2 of 304, and it leaves the paraphrase standing |
+| match the claim's nouns against a test's name | reaches one of five nouns on the case it was cut for |
+| read the claim's grammatical subject | 158 of 304, because a domain noun is an identifier |
+
+The third is the one worth keeping in mind. A codebase about devices and streams spells `device` and
+`stream` in its code **because** they are the domain, so a note whose subject is a device reads as a
+note about the code. There is no threshold between those, since the thing that makes a word a domain
+noun is the thing that puts it in the code.
+
+So a presence test over the code's own vocabulary cannot reach this class. What decides it is the
+writer's judgement, and what holds that judgement is the fixture.
