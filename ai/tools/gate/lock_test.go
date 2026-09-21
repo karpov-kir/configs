@@ -1,9 +1,9 @@
-// Cases for the machine-wide lock. What must hold: two gates never run at once, a lock no live gate
-// holds never wedges the machine, and the time a gate spends queued is not charged to its budget.
-//
-// The third is the reason the other two exist. Two gates at once measured 102s against a budget of
-// 100s on a tree whose own runs read 51s to 83s, and a bound that reddens over another session's
-// build is one every session learns to re-run without reading.
+// Cases for the machine-wide lock. Three things must hold. One gate runs at a time. A lock whose
+// holder is gone leaves the machine reachable. The time a gate spends queued stays out of its budget.
+
+// The third is why the other two exist. Two gates at once measured 102s against a budget of 100s, on
+// a tree whose own runs read 51s. A bound that reddens over another session's build is one every
+// session learns to re-run without reading.
 package gate
 
 import (
@@ -78,8 +78,8 @@ func TestALockNoLiveGateHoldsIsTakenRatherThanWaitedOut(t *testing.T) {
 			"behind it", err)
 	}
 	defer held.release()
-	// Taken on the pid alone. Waiting out the abandoned bound would wedge the machine for five minutes
-	// over a gate that is already gone.
+	// The pid alone settles this. A waiter that sat out the abandoned bound would hold the machine for
+	// five minutes over a gate that has already gone.
 	if waited > time.Second {
 		t.Errorf("breaking a dead gate's lock took %s, so the bound was waited out rather than the pid "+
 			"being read", waited)
@@ -114,8 +114,8 @@ func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	dir := filepath.Join(home, lockName)
-	// A lock directory holding something os.Remove will not take, and no pid, aged past the bound so a
-	// waiter tries to break it. Without the refusal the loop retries that removal forever.
+	// A lock directory holding a stray file. os.Remove refuses that, and the age past the bound makes a
+	// waiter try to break it. The refusal is what stops the loop retrying that removal forever.
 	if err := os.MkdirAll(filepath.Join(dir, "leftover"), 0o755); err != nil {
 		t.Fatalf("laying out %s: %v — nothing was measured", dir, err)
 	}
@@ -212,18 +212,17 @@ func TestAQueuedGateSaysWhoItIsWaitingForBeforeItWaits(t *testing.T) {
 	}
 }
 
-// The budget is a claim about a cold run with the machine to itself. A gate that queued has not spent
-// that time on this tree, so the report has to say the wait happened and the bound must not count it.
-//
-// The claim is read off the reported wall clock rather than by setting a budget between the two
-// figures. A budget that tight is a race with the machine: the first shape of this case gave a
-// trivial check one second and went red under a second gate, which is the defect this whole file is
-// about, written into the case meant to prove it fixed.
+// The budget is a claim about a cold run with the machine to itself. A gate that queued spent that
+// time elsewhere. The report says the wait happened, and the bound leaves it out.
+
+// The claim is read off the reported wall clock. A budget set between the two figures races the
+// machine. The first shape of this case gave a trivial check one second, and it went red under a
+// second gate. The case meant to prove the defect fixed had the defect in it.
 func TestTheWaitForTheLockIsReportedAndLeftOutOfTheBudget(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
 	f.table("quick\ttrue")
-	// Well above anything this check can take, so nothing here turns on how busy the machine is.
+	// Well above anything this check can take, so the result here holds at any load.
 	f.budget = 600
 
 	queued := 3 * time.Second

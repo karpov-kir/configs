@@ -1,13 +1,13 @@
-// One gate at a time on a machine, and the budget measured on the run rather than the wait.
-//
-// The bound this gate enforces is a claim about a cold run with the machine to itself. That
-// condition was written down and left to whoever remembered it. On a laptop carrying nine sessions
-// it is never met by accident: two gates at once read 102s against a budget of 100s, on a tree whose
-// own runs read 51s to 83s. A red that says only "another gate was running" teaches every session to
-// re-run it and stop reading it, which costs more than the bound was ever worth.
-//
-// So the second gate waits for the first, and the clock starts when it gets the machine. The lock is
-// machine-wide and lives outside any checkout, because the two gates are usually two worktrees.
+// One gate at a time on a machine. The budget is measured on the run, and the wait is left out.
+
+// The bound is a claim about a cold run with the machine to itself. The plan wrote that condition
+// down and left it to whoever remembered it. A laptop carrying nine sessions meets it by accident
+// only. Two gates at once read 102s against a budget of 100s, on a tree whose own runs read 51s.
+
+// A red saying "another gate was running" teaches every session to re-run the gate and stop reading
+// it. That costs more than the bound is worth. So the second gate waits for the first, and the clock
+// starts when it gets the machine. The lock sits outside any checkout, since the two gates are
+// usually two worktrees.
 package gate
 
 import (
@@ -24,18 +24,18 @@ import (
 
 const (
 	lockName = "kk-flavor-gate.lock"
-	// How long a lock with no pid in it may sit before a waiter takes it for abandoned. A lock whose
-	// pid is there and dead is taken at once, so this covers one window: a gate killed between making
-	// the directory and writing its pid.
+	// How long a pidless lock may sit before a waiter takes it for abandoned. A lock carrying a dead pid
+	// is taken at once. The bound covers one window: a gate killed between making the directory and
+	// writing its pid into it.
 	lockAbandonedAfter = 5 * time.Minute
-	// How long a gate queues before it refuses. Several gates can legitimately be in line, each up to
-	// the budget, so this is well above it. A wait longer than this is a machine nobody is watching.
+	// How long a gate queues before it refuses. Several gates can be in line, each up to the budget, so
+	// the figure sits well over it. A longer wait means an unattended machine.
 	lockWaitLimit = 15 * time.Minute
 )
 
-// heldLock is this process's own lock, and the pid that says so. release removes the directory only
-// while the pid inside it is still this one: after a break the path holds somebody else's lock, and
-// removing that is what would put two gates back on one machine.
+// heldLock is this process's own lock, and the pid that says so. release removes the directory while
+// the pid inside it is still this one. After a break the path holds another gate's lock, and removing
+// that puts two gates back on one machine.
 type heldLock struct {
 	dir string
 	pid int
@@ -53,9 +53,9 @@ func (h *heldLock) release() {
 	_ = os.Remove(h.dir)
 }
 
-// lockHome is the directory the lock is made in. A caller naming one gets it, which is how the suite
-// keeps its own cases off the machine's real lock. Otherwise the user's cache directory, which is
-// per-user and outside every checkout, and the temp directory where there is no cache directory.
+// lockHome is the directory the lock is made in. A caller naming one gets it, and the suite names its
+// own to keep its cases off the machine's real lock. The default is the user's cache directory. It is
+// per-user and sits outside every checkout, and the temp directory stands in where it is unavailable.
 func lockHome(given string) string {
 	if given != "" {
 		return given
@@ -66,9 +66,9 @@ func lockHome(given string) string {
 	return os.TempDir()
 }
 
-// alive says whether a pid names a running process. Signal 0 delivers nothing and reports whether it
-// could have. A pid this finds alive may still be a different process that inherited the number, and
-// the cost of that is one gate waiting behind a stranger rather than two gates racing.
+// alive says whether a pid names a running process. Signal 0 delivers no signal and reports whether it
+// could have. A pid this finds alive may be a different process that inherited the number. The cost
+// there is one gate waiting behind a stranger, against two gates racing.
 func alive(pid int) bool {
 	if pid <= 0 {
 		return false
@@ -76,9 +76,9 @@ func alive(pid int) bool {
 	return !errors.Is(syscall.Kill(pid, syscall.Signal(0)), syscall.ESRCH)
 }
 
-// abandoned reads the lock and says whether a waiter may break it. A pid that is there and dead says
-// so outright. A lock with no readable pid is the window between the directory being made and the
-// pid being written, so that one is judged on age alone.
+// abandoned reads the lock and says whether a waiter may break it. A dead pid says so outright. A lock
+// holding an unreadable pid sits in the window between the directory being made and the pid being
+// written, and age alone judges that one.
 func abandoned(dir string) bool {
 	held, err := os.ReadFile(filepath.Join(dir, "pid"))
 	if err == nil {
@@ -93,16 +93,15 @@ func abandoned(dir string) bool {
 	return time.Since(info.ModTime()) > lockAbandonedAfter
 }
 
-// takeLock returns the lock, and how long this run queued for it. The wait is returned rather than
-// printed, because what a caller does with it is the caller's: the gate reports it and leaves it out
-// of the budget.
-//
+// takeLock, the entry point here, returns the lock and how long this run queued for it. The wait comes back as a value, and
+// what a caller does with it is the caller's. The gate reports it and leaves it out of the budget.
+
 // announce is called once, when this run finds the lock held, and names who holds it. A silent queue
-// is a gate that looks hung. The pid is what tells a running gate from a wedged one, and the deadline
-// states the wait's own end before it begins.
-//
-// A lock that will not come away is a refusal. os.Remove takes an empty directory alone, so a lock
-// holding a file this package never put there would otherwise spin here for the life of the process.
+// is a gate that looks hung. The pid tells a running gate from a wedged one, and the deadline states
+// the wait's own end before it begins.
+
+// A lock that will not come away is a refusal. os.Remove takes an empty directory alone. A lock
+// holding a stray file would spin here for the life of the process.
 func takeLock(home string, poll time.Duration, announce func(string)) (*heldLock, time.Duration, error) {
 	dir := filepath.Join(home, lockName)
 	began := time.Now()
@@ -112,7 +111,7 @@ func takeLock(home string, poll time.Duration, announce func(string)) (*heldLock
 		if err == nil {
 			held := &heldLock{dir: dir, pid: os.Getpid()}
 			// The pid goes in at once, so a waiter reading this lock finds an owner. A gate killed between
-			// the line above and this one leaves it ownerless, which abandoned judges on age.
+			// taking the lock and this write leaves it ownerless, and abandoned judges that on age.
 			_ = os.WriteFile(filepath.Join(dir, "pid"), []byte(strconv.Itoa(held.pid)+"\n"), 0o644)
 			return held, time.Since(began), nil
 		}
@@ -143,9 +142,9 @@ func takeLock(home string, poll time.Duration, announce func(string)) (*heldLock
 	}
 }
 
-// holderOf names who a reader would have to go and look at: the pid inside the lock, and how long the
-// lock has been there. A lock carrying neither says so in those words. An empty phrase in a refusal
-// sends the reader to this source file to find out what was meant.
+// holderOf names who a reader would go and look at: the pid inside the lock, and how long the lock has
+// been there. A lock carrying neither says so in those words. An empty phrase in a refusal sends the
+// reader to this source file to find out what was meant.
 func holderOf(dir string) string {
 	pid := "no pid written yet"
 	if held, err := os.ReadFile(filepath.Join(dir, "pid")); err == nil {
