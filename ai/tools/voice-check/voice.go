@@ -1251,24 +1251,29 @@ func identifierWordsOf(lines []string) map[string]bool {
 	return out
 }
 
-// A camelCase name, and the comma that would place it.
+// A hump-cased name, and the comma that would place it.
 var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
 var reAppositiveTail = regexp.MustCompile(`^\s*,`)
 
+// placeableNames are the terms of art a reader already places, spelled the way an identifier is.
+// This check reported three of them in its own comment, which is what that run is for.
+var placeableNames = map[string]bool{"camelcase": true, "srgb": true, "ios": true, "macos": true,
+	"tvos": true, "watchos": true, "iphone": true, "ipad": true, "javascript": true, "typescript": true}
+
 // bareIdentifiers finds a name a block uses without saying what it is. A reader who cannot place a
-// name reads the sentence as being about something else, which is the "out of the blue" complaint
-// with a name in it. The site's own declaration is exempt, since the block sits on it, and a name
-// followed by an appositive is placed: `preferredKeySystems, the source's list of allowed systems`.
+// name reads the sentence as being about something else. The site's own declaration is exempt, since
+// the block sits on it, and an appositive places a name: `preferredSettlements, the allowed schemes`.
 //
-// Measured at 37 of 304 notes on a sixty-file set before it landed. An acronym spelled like a
-// camelCase token, `sRGB`, is its false positive.
+// It reached 37 of 304 notes on a sixty-file set before it landed. Its false positives are the terms
+// of art spelled the same way, which placeableNames holds.
 func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
 	var found []Finding
 	for at := b.start; at <= b.end && at <= len(lines); at++ {
 		text := proseOf(lines[at-1])
 		for _, span := range reCamelToken.FindAllStringIndex(text, -1) {
 			token := text[span[0]:span[1]]
-			if declared[strings.ToLower(token)] || reAppositiveTail.MatchString(text[span[1]:]) {
+			if declared[strings.ToLower(token)] || placeableNames[strings.ToLower(token)] ||
+				reAppositiveTail.MatchString(text[span[1]:]) {
 				continue
 			}
 			found = append(found, Finding{File: file, Line: at, Check: checkBareIdent, Text: token})

@@ -1455,3 +1455,19 @@ func TestABareIdentifierIsOnlyTheOneTheSiteDoesNotDeclare(t *testing.T) {
 		t.Errorf("a name from elsewhere with nothing placing it was not reported")
 	}
 }
+
+// A term of art spelled like an identifier is a name a reader already places. The check reported
+// three of them in its own comment, which is the run that finds this class.
+func TestATermOfArtIsNoBareIdentifier(t *testing.T) {
+	lines := []string{
+		"/** A name in camelCase, on a display narrower than sRGB, on iOS. */",
+		"export function readName(book: Element): string {",
+		"  return '';",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", lines, nil) {
+		if f.Check == checkBareIdent {
+			t.Errorf("reported %q, and a reader places that word already", f.Text)
+		}
+	}
+}

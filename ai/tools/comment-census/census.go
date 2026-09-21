@@ -677,9 +677,9 @@ var reSoClauseHead = regexp.MustCompile(`(?i),\s+so\b`)
 var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
 var reAppositive = regexp.MustCompile(`^\s*,`)
 
-// BareIdentifiers returns the camelCase tokens a note names without saying what they are. A reader
-// who cannot place a name reads the sentence as being about something else, which is the "out of the
-// blue" complaint with a name in it. The site's own declaration is exempt, since the block sits on it.
+// BareIdentifiers returns the hump-cased tokens a note names without saying what they are. A reader
+// who cannot place a name reads the sentence as being about something else. The site's own
+// declaration is exempt, since the block sits on it.
 func BareIdentifiers(note string, declared map[string]bool) []string {
 	var out []string
 	for _, at := range reCamelToken.FindAllStringIndex(note, -1) {
