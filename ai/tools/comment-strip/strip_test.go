@@ -309,9 +309,9 @@ func stripInto(t *testing.T, dir, archive, source string) string {
 	return string(mustRead(t, filepath.Join(facts, "1.facts")))
 }
 
-// A fact a writer dropped on one run is gone from every later run of the same change set, because
-// the strip reads the block as it stands and the dropped text lives only in an earlier run's facts.
-// With an archive, question 3 sees every claim ever made at the site.
+// A fact a writer dropped on one run is gone from every later run of the same change set. The strip
+// reads the block as it stands, and the dropped text lives in an earlier run's facts alone. With an
+// archive, question 3 sees every claim ever made at the site.
 func TestTheFactsFileCarriesWhatEarlierRunsClaimed(t *testing.T) {
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "archive")
@@ -352,8 +352,8 @@ func TestTheFactsFileCarriesWhatEarlierRunsClaimed(t *testing.T) {
 	}
 }
 
-// An archive a caller does not name leaves the facts file as it was, so a lane that wants no history
-// pays nothing for one.
+// An archive a caller leaves unnamed leaves the facts file as it was. A lane wanting no history pays
+// for none.
 func TestAStripWithNoArchiveCarriesOnlyTheStandingBlock(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.ts")

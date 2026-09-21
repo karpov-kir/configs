@@ -215,9 +215,9 @@ func Strip(self string, args []string, cwd string, stdout, stderr io.Writer) int
 	// source file as the run read it.
 	for _, s := range sites {
 		record := fmt.Sprintf("%s:%d\n%s", path, s.line, s.record)
-		// Every claim ever made at this site, not only the one standing now. A writer drops a fact by
-		// its own rules on one run, and the strip then reads the block as it stands, so the dropped
-		// text lives only in that run's facts directory and no later run can weigh it again.
+		// Every claim ever made at this site, beside the block standing now. A writer drops a fact by
+		// its own rules on one run. The strip reads the block as it stands, so the dropped text lives
+		// in that run's facts directory alone and a later run never weighs it.
 		if archive != "" {
 			carried, err := earlierFacts(archive, path, s.record)
 			if err != nil {
@@ -307,8 +307,8 @@ func archiveName(path string, line int) string {
 }
 
 // earlierFacts is every claim an earlier run recorded at this site, with the block standing now left
-// out. A block byte-identical to one already held is dropped, so a site stripped twice with no edit
-// between does not hand the writer the same sentences twice.
+// out. A block byte-identical to one already held is dropped. A site stripped twice with one block
+// between hands the writer that block once.
 func earlierFacts(archive, path, standing string) (string, error) {
 	entries, err := os.ReadDir(archive)
 	if err != nil {
@@ -334,8 +334,8 @@ func earlierFacts(archive, path, standing string) (string, error) {
 			return "", fmt.Errorf("cannot read %s", echoable(filepath.Join(archive, name)))
 		}
 		claims := string(body)
-		// An archived record holds one claim block per section, so a site stripped three times hands
-		// over three claims and not one record wrapped in another.
+		// An archived record holds one claim block per section. A site stripped three times hands over
+		// three claims, each on its own.
 		for _, block := range strings.Split(claims, earlierMarker) {
 			block = strings.TrimSpace(block)
 			if block == "" || seen[block] {
@@ -348,9 +348,9 @@ func earlierFacts(archive, path, standing string) (string, error) {
 	return out.String(), nil
 }
 
-// earlierMarker tells the writer which claims came from a run before this one. They are claims like
-// any other and question 3 weighs them the same way, and a reader of the facts file can see that the
-// block standing now does not hold them.
+// earlierMarker tells the writer which claims came from a run before this one. Question 3 weighs
+// them the way it weighs a standing claim, and a reader of the facts file can see which of them the
+// block standing now leaves out.
 const earlierMarker = "# claimed at this site by an earlier run:"
 
 // keepForLater records this run's facts for the runs after it.
