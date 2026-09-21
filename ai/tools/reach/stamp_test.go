@@ -121,12 +121,12 @@ func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
 	t.Parallel()
 	sandbox := newSandbox(t)
 	module := newModule(t, sandbox, "nesting")
-	newRepository(t, module)
+	newRepository(t, module, "")
 	alone := stampOf(t, module, ownMain)
 
 	nested := filepath.Join(module, "worktrees", "inner")
 	writeFile(t, filepath.Join(toolsIn(nested), ownMain, "main.go"), straySource, 0o644)
-	newRepository(t, nested)
+	newRepository(t, nested, "")
 	if nesting := stampOf(t, module, ownMain); nesting != alone {
 		t.Errorf("a checkout kept inside this one moved its stamp, so the source of every worktree a "+
 			"developer keeps under their repository is being hashed as this module's\nalone %q\n  now %q",
@@ -159,7 +159,7 @@ func TestAnIgnoredSourceFileStillMovesTheStamp(t *testing.T) {
 		t.Run(rule.name, func(t *testing.T) {
 			t.Parallel()
 			module := newModule(t, newSandbox(t), "ignored")
-			newRepository(t, module)
+			newRepository(t, module, "")
 			before := stampOf(t, module, ownMain)
 
 			// The rule on its own first. It names a file this module does not hold yet. A stamp that moves on
@@ -181,15 +181,6 @@ func TestAnIgnoredSourceFileStillMovesTheStamp(t *testing.T) {
 // A file that is Go source. No case here builds it. It is written into the module and into the
 // checkout nested inside it, so its location is the only difference between the two.
 const straySource = "package main\n\nvar Stray = 1\n"
-
-// A git repository at this path, with no file added to it. source-stamp.sh lists untracked files as
-// well as tracked ones, so an init is all a fixture needs in order to be a checkout.
-func newRepository(t *testing.T, dir string) {
-	t.Helper()
-	if output, err := exec.Command("git", "init", "-q", dir).CombinedOutput(); err != nil {
-		t.Fatalf("git init in %s: %v\n%s — nothing was measured", dir, err, output)
-	}
-}
 
 // The guard on the coverage set. A per-tool subset would make these two disagree, and such a subset
 // goes wrong in silence: it drops a directory the tool really imports and stops noticing edits there.
@@ -267,11 +258,8 @@ func TestEveryWayTheSourceCannotBeStampedExitsTwoAndNamesIt(t *testing.T) {
 			refusal: "is not a tool name",
 		},
 		{
-			name:    "no name at all",
-			refusal: "usage: source-stamp.sh",
-		},
-		{
-			// The other half of the argument count: loosened to "at least one", every other case stays green.
+			// The argument count, `[ $# -eq 1 ]`. Two arguments and none reach the same check and the same
+			// refusal, and this is the side of it that a loosening to "at least one" turns red.
 			name:    "a second argument",
 			asked:   []string{ownMain, "extra"},
 			refusal: "usage: source-stamp.sh",

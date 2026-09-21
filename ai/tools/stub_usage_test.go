@@ -39,7 +39,6 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -69,16 +68,8 @@ import (
 	waitreap "configs/ai/tools/wait-reap"
 )
 
-const (
-	// A stub carries the shared region AS a region. A file that names the marker inside a string it
-	// searches for answers a grep for the name and carries neither of these lines. That is the
-	// difference between a stub and a file that talks about stubs. They are told apart by that
-	// property, because a name here is the stale list this suite exists to replace.
-	stubRegionOpen  = "# --- shared:tool-stub ---"
-	stubRegionClose = "# --- end shared:tool-stub ---"
-	// What every stub declares the tool behind it to be, and how this suite finds the package to build.
-	toolDeclaration = `tool="`
-)
+// What every stub declares the tool behind it to be, and how this suite finds the package to build.
+const toolDeclaration = `tool="`
 
 // One stub's cheapest refusal — cheapest meaning the one that is not a complaint about the tree, so
 // what comes back is the usage line rather than a message about a path that does not exist. No args is
@@ -276,57 +267,21 @@ func TestEveryStubDocumentsTheUsageItsBinaryPrints(t *testing.T) {
 	}
 }
 
-// `--others`, so a stub written and still untracked is checked too. That is the moment it is easiest
-// to leave one uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte, and
-// a quoted name reaches no file.
-
-// Every stub in the repository, by repo-relative path, sorted. git lists them, because `git ls-files`
-// stops at a nested repository's edge and a walk keeps going. A developer keeping worktrees under
-// their checkout has a copy of every stub in each of them, and each copy arrives here with no row in
-// `refusals`.
+// Every stub in the repository, by repo-relative path, sorted. The scan is stub_reach_test.go's, which
+// needs the same set with each stub's declared depth beside it. This case keeps a floor of its own, so
+// a scan that narrowed is caught here as well as there.
 func discoverStubs(t *testing.T) []string {
 	t.Helper()
-	listed, err := exec.Command("git", "-C", repoRoot, "ls-files", "--cached", "--others",
-		"--exclude-standard", "-z", "--", "*.sh").Output()
-	if err != nil {
-		t.Fatalf("asking git for %s's scripts: %v", repoRoot, err)
-	}
 	var found []string
-	for _, script := range strings.Split(strings.TrimSuffix(string(listed), "\x00"), "\x00") {
-		if script == "" {
-			continue
-		}
-		body, err := os.ReadFile(filepath.Join(repoRoot, script))
-		if err != nil {
-			t.Fatalf("read %s: %v", script, err)
-		}
-		if !carriesStubRegion(string(body)) {
-			continue
-		}
-		found = append(found, script)
+	for _, stub := range stubDepths(t) {
+		found = append(found, stub.path)
 	}
 	if len(found) < 2 {
 		t.Fatalf("found %d file(s) carrying the %q region, so the loop below would assert almost nothing. "+
 			"Either the region was renamed and this suite has to follow it, or the listing is reaching "+
 			"the wrong tree.", len(found), stubRegionOpen)
 	}
-	sort.Strings(found)
 	return found
-}
-
-// Both fences, each as a whole line of its own. A file that only mentions the marker inside a string
-// carries neither.
-func carriesStubRegion(body string) bool {
-	open, closed := false, false
-	for _, line := range strings.Split(body, "\n") {
-		switch strings.TrimSpace(line) {
-		case stubRegionOpen:
-			open = true
-		case stubRegionClose:
-			closed = true
-		}
-	}
-	return open && closed
 }
 
 // The tool each stub declares. Read rather than guessed from the filename: four stubs are named nothing
@@ -342,7 +297,7 @@ func declaredTools(t *testing.T, stubs []string) map[string]string {
 
 func declaredTool(t *testing.T, stub string) string {
 	t.Helper()
-	for _, line := range strings.Split(readStub(t, stub), "\n") {
+	for _, line := range strings.Split(readFile(t, filepath.Join(repoRoot, stub)), "\n") {
 		if after, found := strings.CutPrefix(line, toolDeclaration); found {
 			if name, _, ok := strings.Cut(after, `"`); ok && name != "" {
 				return name
@@ -516,7 +471,7 @@ func asAProcess(t *testing.T, row refusal, binary, stub, cwd, home string) (stri
 // the binary's line against an explanation.
 func documentedUsage(t *testing.T, stub string) string {
 	t.Helper()
-	for _, line := range strings.Split(readStub(t, stub), "\n") {
+	for _, line := range strings.Split(readFile(t, filepath.Join(repoRoot, stub)), "\n") {
 		trimmed := strings.TrimLeft(strings.TrimPrefix(strings.TrimSpace(line), "#"), " ")
 		if !strings.HasPrefix(trimmed, "usage: ") {
 			continue
@@ -528,13 +483,4 @@ func documentedUsage(t *testing.T, stub string) string {
 	}
 	t.Fatalf("%s states no usage line, so the stub documents nothing to compare", stub)
 	return ""
-}
-
-func readStub(t *testing.T, stub string) string {
-	t.Helper()
-	body, err := os.ReadFile(filepath.Join(repoRoot, stub))
-	if err != nil {
-		t.Fatalf("read %s: %v", stub, err)
-	}
-	return string(body)
 }

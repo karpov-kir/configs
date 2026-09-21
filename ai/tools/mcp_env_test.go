@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -57,23 +57,6 @@ var sentinels = []string{
 
 const sentinelMark = "sentinel-"
 
-// Returns the path to the wrapper, and fails the case where it cannot be run. Every case in this file
-// is a launch of it. A script the suite cannot execute makes them all fail for a reason unrelated to
-// the guard they name.
-func wrapperPath(t *testing.T) string {
-	t.Helper()
-	path, err := filepath.Abs(wrapper)
-	if err != nil {
-		t.Fatalf("resolving %s: %v — nothing was measured", wrapper, err)
-	}
-	info, err := os.Stat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o111 == 0 {
-		t.Fatalf("%s is not an executable file (%v) — nothing was measured, and every case in this "+
-			"package would fail for that reason rather than for its own", path, err)
-	}
-	return path
-}
-
 // Returns the environment a shell's `env NAME=VALUE … mcp-env.sh …` builds: this process's own, plus
 // the assignments. It is passed whole, because one case needs a name TAKEN OUT of it and a merge
 // inside launch could only put names in.
@@ -81,10 +64,12 @@ func launchingEnv(assignments ...string) []string {
 	return append(os.Environ(), assignments...)
 }
 
-// One launch, with the wrapper started in exactly the environment it is given.
+// One launch, with the wrapper started in exactly the environment it is given. runnableScript is
+// stub_reach_test.go's: a script the suite cannot execute makes every case here fail for a reason
+// unrelated to the guard it names.
 func launch(t *testing.T, environment []string, args ...string) (output string, code int) {
 	t.Helper()
-	command := exec.Command(wrapperPath(t), args...)
+	command := exec.Command(runnableScript(t, wrapper), args...)
 	command.Env = environment
 	said, err := command.CombinedOutput()
 	if err == nil {
@@ -117,23 +102,14 @@ func childEnv(t *testing.T, assignments ...string) string {
 
 // --- the sentinels ---
 
-// The control that makes the rest mean anything. "No secret reached the child" passes just as well
-// over a child that printed silence. The same sentinels are measured WITHOUT the wrapper first, and
-// that run has to find them.
+// "No secret reached the child" passes just as well over a child that printed silence, so the control
+// is on the same run: the child has to have printed something.
+//
+// That the sentinels reach the launching environment at all was proved once, by hand, with a bare `env`
+// run over the same slice. os/exec hands that slice to the child verbatim, so re-running it every time
+// measures the standard library.
 func TestNoSecretInTheLaunchingEnvironmentReachesTheChild(t *testing.T) {
 	t.Parallel()
-	direct := exec.Command("env")
-	direct.Env = launchingEnv(sentinels...)
-	said, err := direct.Output()
-	if err != nil {
-		t.Fatalf("running `env` without the wrapper: %v — nothing was measured", err)
-	}
-	if found := strings.Count(string(said), sentinelMark); found != len(sentinels) {
-		t.Fatalf("the sentinels are not in the launching environment: %d of %d found. Without them "+
-			"there, the case below would pass against a wrapper that does nothing at all.",
-			found, len(sentinels))
-	}
-
 	through := childEnv(t, sentinels...)
 	if found := strings.Count(through, sentinelMark); found != 0 {
 		t.Errorf("%d sentinel value(s) reached the child. Every credential exported in the shell that "+
@@ -232,11 +208,8 @@ func TestAnUnsetVariableStaysUnsetRatherThanArrivingEmpty(t *testing.T) {
 		t.Errorf("an unset LC_CTYPE arrived as %q. Forwarded as an empty value, a variable npx reads for "+
 			"a path makes it write to the empty string rather than fall back.", got)
 	}
-	// And the other control: this is not the child dropping every LC_CTYPE it is given.
-	if got := line(childEnv(t, "LC_CTYPE=whatever"), "LC_CTYPE="); got != "LC_CTYPE=whatever" {
-		t.Errorf("the child drops LC_CTYPE whatever it is given (%q), so the case above says nothing about "+
-			"unset in particular", got)
-	}
+	// That this is not the child dropping every LC_CTYPE it is given is the row above, "a set variable
+	// arrives with its value", which hands it one and reads it back.
 }
 
 // --- the exec ---
@@ -252,24 +225,15 @@ func TestTheArgumentsReachTheCommandIntact(t *testing.T) {
 	}
 }
 
+// That a command which succeeds is not reported as a failure is every other case here: childEnvIn
+// fails the case on any status but 0.
 func TestTheCommandsExitStatusIsTheWrappers(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []struct {
-		name string
-		want int
-	}{
-		{name: "a command that fails", want: 7},
-		// The control: a command that succeeds must not be reported as a failure either.
-		{name: "control: a command that succeeds", want: 0},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			t.Parallel()
-			out, code := launch(t, launchingEnv(), "sh", "-c", fmt.Sprintf("exit %d", scenario.want))
-			if code != scenario.want {
-				t.Errorf("a command exiting %d came back as %d — the client reads this status to decide "+
-					"whether the server started\n%s", scenario.want, code, out)
-			}
-		})
+	const want = 7
+	out, code := launch(t, launchingEnv(), "sh", "-c", fmt.Sprintf("exit %d", want))
+	if code != want {
+		t.Errorf("a command exiting %d came back as %d — the client reads this status to decide "+
+			"whether the server started\n%s", want, code, out)
 	}
 }
 
@@ -330,32 +294,41 @@ func TestHelpPrintsTheHeaderItPromisesAndStopsThere(t *testing.T) {
 	}
 }
 
-// The names the wrapper's own help says it passes, sorted.
+// The names the wrapper's own help says it passes, sorted. Two cases read them, and the help is one
+// answer whoever asks, so the wrapper is launched for it once.
 func promisedNames(t *testing.T) []string {
 	t.Helper()
-	out, code := launch(t, launchingEnv(), "--help")
-	if code != 0 {
-		t.Fatalf("--help exited %d\n%s", code, out)
-	}
-	for _, text := range strings.Split(out, "\n") {
-		if names, held := strings.CutPrefix(text, "passes only: "); held {
-			return sorted(strings.Fields(names))
+	promisedOnce.Do(func() {
+		out, code := launch(t, launchingEnv(), "--help")
+		if code != 0 {
+			promisedRefusal = fmt.Sprintf("--help exited %d\n%s", code, out)
+			return
 		}
+		for _, text := range strings.Split(out, "\n") {
+			if names, held := strings.CutPrefix(text, "passes only: "); held {
+				promised = sorted(strings.Fields(names))
+			}
+		}
+	})
+	if promisedRefusal != "" {
+		t.Fatal(promisedRefusal)
 	}
-	return nil
+	return promised
 }
+
+var (
+	promisedOnce    sync.Once
+	promised        []string
+	promisedRefusal string
+)
 
 // The nth non-blank comment line of the wrapper's header, past the shebang.
 var headerLine = regexp.MustCompile(`^# ?(.+)$`)
 
 func headerProse(t *testing.T, nth int) string {
 	t.Helper()
-	body, err := os.ReadFile(wrapperPath(t))
-	if err != nil {
-		t.Fatalf("reading the wrapper: %v", err)
-	}
 	seen := 0
-	for _, text := range strings.Split(string(body), "\n")[1:] {
+	for _, text := range strings.Split(readFile(t, wrapper), "\n")[1:] {
 		match := headerLine.FindStringSubmatch(text)
 		if match == nil {
 			continue

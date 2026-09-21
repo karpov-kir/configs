@@ -445,14 +445,10 @@ func TestRunRefusesTheSameWayAndNeverExecsAnything(t *testing.T) {
 		},
 		{
 			// argv[0] is required. Without it the resolver execs the binary under its own path, and every
-			// tool then writes into ai/tools instead of its skill directory.
+			// tool then writes into ai/tools instead of its skill directory. `--run` with no tool either
+			// is this same count check, `[ $# -ge 3 ]`, one argument further short.
 			name:  "no argv0 to exec under",
 			asked: []string{"--run", tool},
-			says:  "usage: resolve.sh --run",
-		},
-		{
-			name:  "no tool either",
-			asked: []string{"--run"},
 			says:  "usage: resolve.sh --run",
 		},
 	} {

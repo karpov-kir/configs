@@ -22,31 +22,44 @@ func TestEveryBuiltBinaryIsIgnored(t *testing.T) {
 		t.Fatal("found no main packages, so this case would pass against any .gitignore at all")
 	}
 
+	var artifacts []string
 	for _, dir := range dirs {
-		artifact := filepath.Join(dir, filepath.Base(dir))
-		if !ignoredByGit(t, artifact) {
+		artifacts = append(artifacts, filepath.Join(dir, filepath.Base(dir)))
+	}
+	ignored := ignoredByGit(t, artifacts)
+	for _, artifact := range artifacts {
+		if !ignored[artifact] {
 			t.Errorf("`go build ./` in %s drops %s, which .gitignore does not cover — add a line for it, "+
-				"or the next `git add -A` in any session commits the binary", dir, artifact)
+				"or the next `git add -A` in any session commits the binary", filepath.Dir(artifact), artifact)
 		}
 	}
 }
 
-// git's own answer rather than a parser of ours, which could agree with the file and still disagree
-// with git about precedence, anchoring or negation.
-func ignoredByGit(t *testing.T, path string) bool {
+// Which of these paths git ignores. git's own answer rather than a parser of ours, which could agree
+// with the file and still disagree with git about precedence, anchoring or negation.
+//
+// One invocation for the whole list: git takes the paths on stdin and writes back the ones it ignores,
+// so a module holding two dozen tools costs one process rather than two dozen. `-z` on both streams,
+// because git C-quotes a path holding a quote or a non-ASCII byte.
+func ignoredByGit(t *testing.T, paths []string) map[string]bool {
 	t.Helper()
-	err := exec.Command("git", "check-ignore", "-q", "--", path).Run()
-	if err == nil {
-		return true
-	}
+	ask := exec.Command("git", "check-ignore", "-z", "--stdin")
+	ask.Stdin = strings.NewReader(strings.Join(paths, "\x00") + "\x00")
+	answered, err := ask.Output()
 	var exit *exec.ExitError
-	if errors.As(err, &exit) && exit.ExitCode() == 1 {
-		return false
+	// Exit 1 is git saying it ignores none of them, which is an answer. Anything else — git missing, no
+	// repository, a bad invocation — means the question went unanswered, and a case that did not run
+	// must not read as one that passed.
+	if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1) {
+		t.Fatalf("git check-ignore could not answer for %v: %v", paths, err)
 	}
-	// Anything else — git missing, no repository, a bad invocation — means the question went
-	// unanswered, and a case that did not run must not read as one that passed.
-	t.Fatalf("git check-ignore could not answer for %s: %v", path, err)
-	return false
+	ignored := map[string]bool{}
+	for _, path := range strings.Split(strings.TrimSuffix(string(answered), "\x00"), "\x00") {
+		if path != "" {
+			ignored[path] = true
+		}
+	}
+	return ignored
 }
 
 // Every directory holding a `package main`, verbatim — the directory the build actually runs in,

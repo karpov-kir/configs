@@ -8,7 +8,6 @@
 package tools_test
 
 import (
-	"os"
 	"regexp"
 	"slices"
 	"testing"
@@ -31,7 +30,7 @@ var (
 )
 
 func TestTheAiReadmeAndItsInstallerNameTheSameFormulae(t *testing.T) {
-	body := readShipped(t, aiReadme)
+	body := readFile(t, aiReadme)
 	documented := named(readmeFormula, body)
 
 	// The control half of the case. This needle comes out of a regexp, and one that stopped matching
@@ -51,7 +50,7 @@ func TestTheAiReadmeAndItsInstallerNameTheSameFormulae(t *testing.T) {
 }
 
 func TestTheEnvReadmeAndItsInstallerNameTheSamePackages(t *testing.T) {
-	body := readShipped(t, envReadme)
+	body := readFile(t, envReadme)
 	documentedFormulae := named(readmeFormula, body)
 	documentedCasks := named(readmeCask, body)
 
@@ -88,15 +87,4 @@ func sortedUnique(values []string) []string {
 	unique := slices.Clone(values)
 	slices.Sort(unique)
 	return slices.Compact(unique)
-}
-
-// Returns the file's contents, and fails the case where it cannot be read. A case that carried on
-// would hold the installer's list against an empty string and report it as drift.
-func readShipped(t *testing.T, path string) string {
-	t.Helper()
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading %s, which is the other half of this comparison: %v", path, err)
-	}
-	return string(body)
 }

@@ -102,9 +102,6 @@ func newGhPath(t *testing.T, sandbox string) string {
 
 // A checkout shaped like this repository: the install.sh under test at ai/tools/, the workflow it reads
 // its tool list out of, and an origin remote where the case wants one.
-//
-// The git directory is written out file by file. What install.sh asks git for is one url, and four
-// files answer it. A fixture that shells out to build itself is the cost this whole port is about.
 func newCheckout(t *testing.T, sandbox, origin string) string {
 	t.Helper()
 	checkout, err := os.MkdirTemp(sandbox, "checkout-")
@@ -116,18 +113,28 @@ func newCheckout(t *testing.T, sandbox, origin string) string {
 	writeFile(t, filepath.Join(checkout, "ai", "tools", "install.sh"), read(t, runnable(t, installScript)), 0o755)
 	writeFile(t, filepath.Join(checkout, ".github", "workflows", "release-tools.yml"),
 		"jobs:\n  build:\n    env:\n      SHIPPED: "+strings.Join(fixtureTools, " ")+"\n", 0o644)
+	newRepository(t, checkout, origin)
+	return checkout
+}
 
-	writeFile(t, filepath.Join(checkout, ".git", "HEAD"), "ref: refs/heads/main\n", 0o644)
+// A git repository at this path, written out file by file rather than by running `git init`. What these
+// scripts ask git for is one remote url and one file listing, and four files answer both. A fixture that
+// shells out to build itself is the cost this whole port is about.
+//
+// The remote is declared only where the caller names one, and nothing is added to the repository:
+// source-stamp.sh lists untracked files as well as tracked ones.
+func newRepository(t *testing.T, root, origin string) {
+	t.Helper()
+	git := filepath.Join(root, ".git")
+	writeFile(t, filepath.Join(git, "HEAD"), "ref: refs/heads/main\n", 0o644)
 	config := "[core]\n\trepositoryformatversion = 0\n"
 	if origin != "" {
 		config += "[remote \"origin\"]\n\turl = " + origin + "\n"
 	}
-	writeFile(t, filepath.Join(checkout, ".git", "config"), config, 0o644)
-	if err := os.MkdirAll(filepath.Join(checkout, ".git", "objects"), 0o755); err != nil {
-		t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
+	writeFile(t, filepath.Join(git, "config"), config, 0o644)
+	for _, inside := range []string{"objects", "refs"} {
+		if err := os.MkdirAll(filepath.Join(git, inside), 0o755); err != nil {
+			t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
+		}
 	}
-	if err := os.MkdirAll(filepath.Join(checkout, ".git", "refs"), 0o755); err != nil {
-		t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
-	}
-	return checkout
 }

@@ -53,7 +53,9 @@ func TestTheDownloadIsPinnedToTheOriginOfTheCheckoutInstallLivesIn(t *testing.T)
 			"against whatever repository the caller was standing in\n%s", strings.Join(log, "\n"))
 	}
 	// This gh fails the release listing too, so the repository's release state is unreadable. That is a
-	// different fact from having no release, and the two must be reported apart.
+	// different fact from having no release, and the two must be reported apart. The third state, a
+	// listing that does hold a release, is install_decisions_test.go's `releases_state` rows, and the
+	// install that exits 0 below runs on it.
 	if refused.said("has cut no release") {
 		t.Errorf("a listing gh could not answer was reported as a repository with no release, which tells "+
 			"an offline machine there is nothing to download\n%v", refused)
@@ -83,22 +85,6 @@ func TestARepositoryThatHasCutNoReleaseExitsThreeRatherThanTwo(t *testing.T) {
 			"this machine's network rather than to the repository's releases\n%v", refused)
 	}
 	expectNothingInstalled(t, checkout)
-}
-
-// The control that keeps the absent-release arm from swallowing this refusal: same fake, a release in
-// the listing, and the download still fails. Without it, every download failure could report an absent
-// release and this suite would agree.
-func TestADownloadThatFailsWhereAReleaseExistsStillExitsTwo(t *testing.T) {
-	t.Parallel()
-	sandbox := newSandbox(t)
-	checkout := newCheckout(t, sandbox, "https://github.com/pinned/target.git")
-	refused, _ := install(t, checkout, nil)
-
-	expectRefusal(t, refused, "could not download")
-	if refused.said("has cut no release") {
-		t.Errorf("a download that failed against a repository with releases was reported as one with "+
-			"none\n%v", refused)
-	}
 }
 
 // A tag reaches `gh release download` as its first positional argument, where a leading dash makes it

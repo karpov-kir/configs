@@ -8,6 +8,7 @@ package tools_test
 
 import (
 	"maps"
+	"sync"
 	"testing"
 
 	modelpolicy "configs/ai/tools/model-policy"
@@ -127,11 +128,19 @@ func nameSet(names []string) map[string]bool {
 	return set
 }
 
+// The shipped policy, parsed once. Seven cases across this package read it, and none of them writes
+// to it.
 func loadShippedPolicy(t *testing.T) *modelpolicy.Policy {
 	t.Helper()
-	policy, err := modelpolicy.Load(shippedPolicyPath)
-	if err != nil {
-		t.Fatal(err)
+	policyOnce.Do(func() { shippedPolicy, policyErr = modelpolicy.Load(shippedPolicyPath) })
+	if policyErr != nil {
+		t.Fatal(policyErr)
 	}
-	return policy
+	return shippedPolicy
 }
+
+var (
+	policyOnce    sync.Once
+	shippedPolicy *modelpolicy.Policy
+	policyErr     error
+)

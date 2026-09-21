@@ -40,7 +40,7 @@ const launcherProgram = "mcp-env.sh"
 
 func TestTheShippedDeclarationParsesOnlyAfterItsCommentsAreStripped(t *testing.T) {
 	t.Parallel()
-	text := readShippedDeclaration(t)
+	text := readFile(t, shippedDeclaration)
 	if _, err := mcp.ParseDocument(shippedDeclaration, mcp.StripComments(text)); err != nil {
 		t.Errorf("%s does not parse after stripping: %v\nNothing would sync.", shippedDeclaration, err)
 	}
@@ -61,7 +61,7 @@ func TestEveryStdioServerTheShippedDeclarationRegistersNamesARunnableCommand(t *
 	if err != nil {
 		t.Fatalf("resolving %s: %v", shippedConfigsDir, err)
 	}
-	stripped := mcp.StripComments(readShippedDeclaration(t))
+	stripped := mcp.StripComments(readFile(t, shippedDeclaration))
 	substituted := stdioCommands(t, mcp.SubstituteConfigsDir(stripped, configsDir))
 	// The same commands with the token left in, which is the control. The substitution is what makes
 	// them resolve, and the loop over `substituted` would otherwise pass whether it happened or not.
@@ -134,15 +134,6 @@ func TestTheShippedDeclarationStillMapsIntoAProjectFile(t *testing.T) {
 			}
 		})
 	}
-}
-
-func readShippedDeclaration(t *testing.T) string {
-	t.Helper()
-	text, err := os.ReadFile(shippedDeclaration)
-	if err != nil {
-		t.Fatalf("reading %s: %v", shippedDeclaration, err)
-	}
-	return string(text)
 }
 
 // Every stdio server's command, in document order.

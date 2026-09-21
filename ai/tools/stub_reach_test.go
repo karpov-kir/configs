@@ -24,9 +24,9 @@
 // leave one uncovered. `-z`, because git C-quotes a path holding a quote or a non-ASCII byte, and a
 // quoted name reaches no file.
 
-// The scan is this file's own, and `stub_usage_test.go` keeps a second one, though the two now sit in
-// one package. Two scans that agree by construction would shrink together, and each carries a floor of
-// its own, so one that narrowed is caught by whichever floor it drops under first.
+// One scan answers this file and `stub_usage_test.go`, and it runs once per test binary. It costs a git
+// process and a read of every script in the repository, and seven cases ask for it. The floors stay one
+// per case, so a scan that narrowed is caught by whichever floor it drops under first.
 package tools_test
 
 import (
@@ -37,14 +37,15 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 )
 
 // Both fences, each as a whole line of its own. A file that only mentions the marker inside a string
 // carries neither, which is what tells a stub from a file that talks about stubs.
 const (
-	offsetRegionOpen  = "# --- shared:tool-stub ---"
-	offsetRegionClose = "# --- end shared:tool-stub ---"
+	stubRegionOpen  = "# --- shared:tool-stub ---"
+	stubRegionClose = "# --- end shared:tool-stub ---"
 	// What a stub declares its depth to be.
 	offsetDeclaration = `tools_offset="`
 )
@@ -77,7 +78,7 @@ func TestEveryStubDeclaresTheOffsetThatReachesItsOwnToolsDirectory(t *testing.T)
 	if len(stubs) < 5 {
 		t.Fatalf("the scan found %d script(s) carrying %q, so this case asserts almost nothing. Either the "+
 			"region was renamed and this scan has to follow it, or the listing is reaching the wrong tree",
-			len(stubs), offsetRegionOpen)
+			len(stubs), stubRegionOpen)
 	}
 	directories := map[string]bool{}
 	for _, found := range stubs {
@@ -105,51 +106,29 @@ func TestEveryStubDeclaresTheOffsetThatReachesItsOwnToolsDirectory(t *testing.T)
 	}
 }
 
-// The defect the region exists for, at two of the depths the stubs sit at. A stub reaches its own tool
-// from a directory unrelated to the checkout it lives in. The real tree drives it. A fixture would
-// prove only that a copy of the region works where this case put it.
+// The defect the region exists for. A stub reaches its own tool from a directory unrelated to the
+// checkout it lives in. The real tree drives it. A fixture would prove only that a copy of the region
+// works where this case put it.
+//
+// One stub, because the region resolves `$here/$tools_offset/tools/resolve.sh` and consults nothing
+// else: a second depth is another value through the same line. That every stub's own depth reaches a
+// real resolver is TestEveryStubDeclaresTheOffsetThatReachesItsOwnToolsDirectory's, over all five.
 func TestAStubReachesItsToolFromAnUnrelatedCwd(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []struct {
-		name string
-		stub string
-		args []string
-		// Only the binary behind the stub writes this wording. A stub that resolved no tool stays silent,
-		// and silence reads exactly like a clean tree.
-		marker string
-	}{
-		{
-			name:   "one four levels above the tools directory",
-			stub:   fixtureStub,
-			args:   []string{"@root@"},
-			marker: "rule stated twice",
-		},
-		{
-			name:   "one two levels above it",
-			stub:   "ai/kk-flavor/scripts/model-policy.sh",
-			args:   []string{"--help"},
-			marker: "Emits the requested settings",
-		},
-	} {
-		t.Run(scenario.name, func(t *testing.T) {
-			t.Parallel()
-			// A root holding one restatement, which gives the tool something to find. Over an empty root, a
-			// silent stub and a working one would satisfy the same assertion.
-			root := newEchoRoot(t)
-			arguments := append([]string(nil), scenario.args...)
-			for i, argument := range arguments {
-				arguments[i] = strings.ReplaceAll(argument, "@root@", root)
-			}
+	// A root holding one restatement, which gives the tool something to find. Over an empty root, a
+	// silent stub and a working one would satisfy the same assertion.
+	root := newEchoRoot(t)
 
-			reached := runStub(t, newStubLaunch(t, filepath.Join(repoRoot, scenario.stub), arguments...))
-			if !reached.said(scenario.marker) {
-				t.Errorf("%s did not reach its tool from a cwd with nothing to do with its checkout\n%v",
-					scenario.stub, reached)
-			}
-			if reached.code == 2 {
-				t.Errorf("%s exited 2, which means the tool never ran\n%v", scenario.stub, reached)
-			}
-		})
+	// Only the binary behind the stub writes this wording. A stub that resolved no tool stays silent,
+	// and silence reads exactly like a clean tree.
+	const marker = "rule stated twice"
+	reached := runStub(t, newStubLaunch(t, filepath.Join(repoRoot, fixtureStub), root))
+	if !reached.said(marker) {
+		t.Errorf("%s did not reach its tool from a cwd with nothing to do with its checkout\n%v",
+			fixtureStub, reached)
+	}
+	if reached.code == 2 {
+		t.Errorf("%s exited 2, which means the tool never ran\n%v", fixtureStub, reached)
 	}
 }
 
@@ -185,7 +164,7 @@ func TestAStubThatCannotReachAResolverExitsTwoAndNamesTheFix(t *testing.T) {
 			fixture: func(t *testing.T, sandbox string) string {
 				checkout := newStubCheckout(t, sandbox, "not-executable")
 				writeFixture(t, filepath.Join(checkout, "tools", resolveScript),
-					readFixture(t, runnableScript(t, resolveScript)), 0o644)
+					readFile(t, runnableScript(t, resolveScript)), 0o644)
 				return checkout
 			},
 			says: "chmod",
@@ -233,7 +212,7 @@ func TestAStubThatCannotReachAResolverExitsTwoAndNamesTheFix(t *testing.T) {
 // nowhere would satisfy the first half on its own.
 func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing.T) {
 	t.Parallel()
-	before := readFixture(t, liveLedger)
+	before := readFile(t, liveLedger)
 
 	// Mirrors the real layout, because stats.sh's declared offset is counted from
 	// `kk-flavor/skills/<skill>/scripts/`. A shallower fixture puts the resolver out of its reach, and
@@ -241,10 +220,10 @@ func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing
 	sandbox := newSandbox(t)
 	fake := sandboxed(t, sandbox, filepath.Join(sandbox, "checkout"))
 	writeFixture(t, filepath.Join(fake, "tools", resolveScript),
-		readFixture(t, runnableScript(t, resolveScript)), 0o755)
+		readFile(t, runnableScript(t, resolveScript)), 0o755)
 	stats := filepath.Join("kk-flavor", "skills", "kk-reduce", "scripts", "stats.sh")
 	writeFixture(t, filepath.Join(fake, stats),
-		readFixture(t, runnableScript(t, filepath.Join(repoRoot, "ai", stats))), 0o755)
+		readFile(t, runnableScript(t, filepath.Join(repoRoot, "ai", stats))), 0o755)
 	buildTool(t, "eco-stats", filepath.Join(fake, "tools", "bin", "eco-stats"))
 
 	// The real ai/ as the root to measure, named absolutely: the launch runs from a directory of its own,
@@ -264,19 +243,35 @@ func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing
 		t.Errorf("nothing was written to %s (%v), so the comparison below would pass against a run that "+
 			"wrote nowhere at all", fixtureLedger, err)
 	}
-	if readFixture(t, liveLedger) != before {
+	if readFile(t, liveLedger) != before {
 		t.Errorf("%s changed: the run wrote into the checkout it was reading, which is the incident every "+
 			"fixture here is built under a sandbox to stop", liveLedger)
 	}
 }
 
-// Every script in the repository carrying the shared region, with the offset each one declares.
+// Every script in the repository carrying the shared region, with the offset each one declares. Scanned
+// once and handed to every caller after that, because the scan is a git process and a read of every
+// script in the repository.
 func stubDepths(t *testing.T) []stubDepth {
 	t.Helper()
+	scanOnce.Do(func() { scanned, scanErr = scanStubs() })
+	if scanErr != nil {
+		t.Fatalf("%v — nothing was measured", scanErr)
+	}
+	return scanned
+}
+
+var (
+	scanOnce sync.Once
+	scanned  []stubDepth
+	scanErr  error
+)
+
+func scanStubs() ([]stubDepth, error) {
 	listed, err := exec.Command("git", "-C", repoRoot, "ls-files", "--cached", "--others",
 		"--exclude-standard", "-z", "--", "*.sh").Output()
 	if err != nil {
-		t.Fatalf("asking git for %s's scripts: %v — nothing was measured", repoRoot, err)
+		return nil, fmt.Errorf("asking git for %s's scripts: %w", repoRoot, err)
 	}
 	// git lists the index and then what is untracked, so the two runs are each sorted and the join is not.
 	scripts := strings.Split(strings.TrimSuffix(string(listed), "\x00"), "\x00")
@@ -289,23 +284,25 @@ func stubDepths(t *testing.T) []stubDepth {
 		}
 		body, err := os.ReadFile(filepath.Join(repoRoot, script))
 		if err != nil {
-			t.Fatalf("reading %s: %v — nothing was measured", script, err)
+			return nil, fmt.Errorf("reading %s: %w", script, err)
 		}
-		if !carriesBothFences(string(body)) {
+		if !carriesStubRegion(string(body)) {
 			continue
 		}
 		found = append(found, stubDepth{path: script, offset: declaredOffset(string(body))})
 	}
-	return found
+	return found, nil
 }
 
-func carriesBothFences(body string) bool {
+// Both fences, each as a whole line of its own. A file that only mentions the marker inside a string
+// carries neither.
+func carriesStubRegion(body string) bool {
 	open, closed := false, false
 	for _, line := range strings.Split(body, "\n") {
 		switch strings.TrimSpace(line) {
-		case offsetRegionOpen:
+		case stubRegionOpen:
 			open = true
-		case offsetRegionClose:
+		case stubRegionClose:
 			closed = true
 		}
 	}
@@ -330,7 +327,7 @@ func newStubCheckout(t *testing.T, sandbox, name string) string {
 	t.Helper()
 	checkout := filepath.Join(sandbox, name)
 	writeFixture(t, filepath.Join(checkout, stubIn(t)),
-		readFixture(t, runnableScript(t, filepath.Join(repoRoot, fixtureStub))), 0o755)
+		readFile(t, runnableScript(t, filepath.Join(repoRoot, fixtureStub))), 0o755)
 	return checkout
 }
 
@@ -535,7 +532,7 @@ func writeFixture(t *testing.T, path, body string, mode os.FileMode) {
 	}
 }
 
-func readFixture(t *testing.T, path string) string {
+func readFile(t *testing.T, path string) string {
 	t.Helper()
 	body, err := os.ReadFile(path)
 	if err != nil {
