@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"configs/ai/tools/installertest"
 	"configs/ai/tools/mcp"
 )
 
@@ -75,53 +75,32 @@ const (
 )
 
 // `name` may carry a quote, because that is the injection case. Everything lands under t.TempDir(),
-// and newCheckout, the fixture helper, refuses a name that would leave it.
+// and installertest.Tree, the fixture writer, refuses a write that would leave it.
 
 // These fixtures are the shape of the script that once followed a live symlink out of a sandbox and
-// overwrote real config files in this checkout. The containment is asserted before the first write,
-// and a later look would come too late.
+// overwrote real config files in this checkout. The bound is the production one: Tree turns away a
+// fixture write the way `installer.tree` turns away the run's own.
 
 // A checkout of this repository's `ai/` directory: the declaration, and the wrapper beside it.
-func newCheckout(t *testing.T, name string, launcher launcherState) string {
+type checkout struct {
+	*installertest.Tree
+	dir string
+}
+
+func newCheckout(t *testing.T, name string, launcher launcherState) *checkout {
 	t.Helper()
-	root := t.TempDir()
-	dir := filepath.Join(root, name)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("building the checkout fixture at %s: %v", dir, err)
-	}
-	refuseOutside(t, root, dir)
-	write(t, filepath.Join(dir, publicFile), declaration, 0o644)
+	tree := installertest.New(t)
+	c := &checkout{Tree: tree, dir: filepath.Join(tree.Base(), name)}
+	c.MkdirAll(c.dir)
+	c.Write(filepath.Join(c.dir, publicFile), declaration)
+	const wrapper = "#!/bin/sh\nexec env -i \"$@\"\n"
 	switch launcher {
 	case launcherExecutable:
-		write(t, filepath.Join(dir, launcherName), "#!/bin/sh\nexec env -i \"$@\"\n", 0o755)
+		c.WriteMode(filepath.Join(c.dir, launcherName), wrapper, 0o755)
 	case launcherUnexecutable:
-		write(t, filepath.Join(dir, launcherName), "#!/bin/sh\nexec env -i \"$@\"\n", 0o644)
+		c.WriteMode(filepath.Join(c.dir, launcherName), wrapper, 0o644)
 	}
-	return dir
-}
-
-func write(t *testing.T, file, text string, mode os.FileMode) {
-	t.Helper()
-	if err := os.WriteFile(file, []byte(text), mode); err != nil {
-		t.Fatalf("writing the fixture %s: %v", file, err)
-	}
-}
-
-// The physical parent, so a symlink anywhere in the path cannot route a write out of the sandbox.
-func refuseOutside(t *testing.T, root, path string) {
-	t.Helper()
-	real, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		t.Fatalf("resolving the fixture path %s: %v", path, err)
-	}
-	realRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatalf("resolving the sandbox root %s: %v", root, err)
-	}
-	if real != realRoot && !strings.HasPrefix(real, realRoot+string(os.PathSeparator)) {
-		t.Fatalf("the fixture %s resolves to %s, outside this case's sandbox %s — a case allowed to run "+
-			"from there writes into whatever the path really names", path, real, realRoot)
-	}
+	return c
 }
 
 // One run, with the client's process boundary recorded.
@@ -154,7 +133,7 @@ func syncWith(t *testing.T, dir string, claude, codex *calls, args ...string) ru
 
 func TestAnUnknownArgumentStopsTheSyncRatherThanBeingIgnored(t *testing.T) {
 	t.Parallel()
-	result := sync(t, newCheckout(t, "ai", launcherExecutable), "--not-an-argument")
+	result := sync(t, newCheckout(t, "ai", launcherExecutable).dir, "--not-an-argument")
 
 	if result.code != exitBadUsage {
 		t.Errorf("exit %d, want %d. Every run of this writes a live registry, so an argument it does not "+
@@ -175,7 +154,7 @@ func TestAnUnknownArgumentStopsTheSyncRatherThanBeingIgnored(t *testing.T) {
 
 func TestTheSyncRequiresAnExplicitAgent(t *testing.T) {
 	t.Parallel()
-	dir := newCheckout(t, "ai", launcherExecutable)
+	dir := newCheckout(t, "ai", launcherExecutable).dir
 	for _, scenario := range []struct {
 		name string
 		args []string
@@ -200,39 +179,36 @@ func TestTheSyncRequiresAnExplicitAgent(t *testing.T) {
 
 func TestHelpPrintsTheGrammarAndSyncsNothing(t *testing.T) {
 	t.Parallel()
-	dir := newCheckout(t, "ai", launcherExecutable)
-	for _, flag := range []string{"-h", "--help"} {
-		t.Run(flag, func(t *testing.T) {
-			t.Parallel()
-			result := sync(t, dir, flag)
-			if result.code != exitSynced {
-				t.Errorf("%s exited %d, want 0", flag, result.code)
-			}
-			if len(result.claude.lines) > 0 {
-				t.Errorf("%s registered something:\n%s", flag, result.claude.flat())
-			}
-			// Every agent the parser accepts has to be named by the help. This loop walks the same list the
-			// parser reads, so a client added to this tool cannot be one the help quietly stops mentioning.
-			for _, agent := range agents {
-				if !strings.Contains(result.stdout, agent) {
-					t.Errorf("%s does not name the %q client, which this tool accepts — the help would then "+
-						"be documenting a tool that no longer exists\n%s", flag, agent, result.stdout)
-				}
-			}
-			// Once. The shell arm this replaces printed the header and then a usage line beside it, which
-			// put the line out twice the moment the header grew one of its own.
-			if count := strings.Count(result.stdout, usage("mcp-sync.sh")); count != 1 {
-				t.Errorf("%s printed the usage line %d times, want 1 — a second copy drifts from the first "+
-					"as soon as either is edited\n%s", flag, count, result.stdout)
-			}
-		})
+	// `-h` and `--help` are one arm of the parser, so one spelling drives it.
+	const flag = "--help"
+	result := sync(t, newCheckout(t, "ai", launcherExecutable).dir, flag)
+
+	if result.code != exitSynced {
+		t.Errorf("%s exited %d, want 0", flag, result.code)
+	}
+	if len(result.claude.lines) > 0 {
+		t.Errorf("%s registered something:\n%s", flag, result.claude.flat())
+	}
+	// Every agent the parser accepts has to be named by the help. This loop walks the same list the
+	// parser reads, so a client added to this tool cannot be one the help quietly stops mentioning.
+	for _, agent := range agents {
+		if !strings.Contains(result.stdout, agent) {
+			t.Errorf("%s does not name the %q client, which this tool accepts — the help would then "+
+				"be documenting a tool that no longer exists\n%s", flag, agent, result.stdout)
+		}
+	}
+	// Once. The shell arm this replaces printed the header and then a usage line beside it, which put
+	// the line out twice the moment the header grew one of its own.
+	if count := strings.Count(result.stdout, usage("mcp-sync.sh")); count != 1 {
+		t.Errorf("%s printed the usage line %d times, want 1 — a second copy drifts from the first "+
+			"as soon as either is edited\n%s", flag, count, result.stdout)
 	}
 }
 
 func TestACheckoutThatSubstitutesAndHasTheWrapperSyncsEveryServer(t *testing.T) {
 	t.Parallel()
-	dir := newCheckout(t, "ai", launcherExecutable)
-	result := sync(t, dir, "--agent=claude")
+	c := newCheckout(t, "ai", launcherExecutable)
+	result := sync(t, c.dir, "--agent=claude")
 
 	if result.code != exitSynced {
 		t.Fatalf("exit %d, want 0\n%s", result.code, result.stderr)
@@ -250,7 +226,7 @@ func TestACheckoutThatSubstitutesAndHasTheWrapperSyncsEveryServer(t *testing.T) 
 		}
 	}
 	for _, command := range registeredCommands(t, result.claude) {
-		if command != filepath.Join(dir, launcherName) {
+		if command != filepath.Join(c.dir, launcherName) {
 			t.Errorf("a server was registered to run %q, which is not the wrapper in this checkout. What "+
 				"the CLI is handed is a literal string it expands nothing in, so a command spelled any other "+
 				"way is a server that registers and never starts.", command)
@@ -262,7 +238,7 @@ func TestACheckoutThatSubstitutesAndHasTheWrapperSyncsEveryServer(t *testing.T) 
 // tool exists to update an entry as well as create one.
 func TestClaudeEntriesAreRemovedBeforeTheyAreAdded(t *testing.T) {
 	t.Parallel()
-	result := sync(t, newCheckout(t, "ai", launcherExecutable), "--agent=claude")
+	result := sync(t, newCheckout(t, "ai", launcherExecutable).dir, "--agent=claude")
 	if result.code != exitSynced {
 		t.Fatalf("exit %d, want 0\n%s", result.code, result.stderr)
 	}
@@ -284,7 +260,7 @@ func TestClaudeEntriesAreRemovedBeforeTheyAreAdded(t *testing.T) {
 func TestAFailedClaudeReAddSaysTheServerIsNowUnregistered(t *testing.T) {
 	t.Parallel()
 	claude := &calls{failOn: "playwright"}
-	result := syncWith(t, newCheckout(t, "ai", launcherExecutable), claude, &calls{}, "--agent=claude")
+	result := syncWith(t, newCheckout(t, "ai", launcherExecutable).dir, claude, &calls{}, "--agent=claude")
 
 	if result.code != exitRefused {
 		t.Errorf("exit %d, want %d", result.code, exitRefused)
@@ -302,7 +278,7 @@ func TestAFailedClaudeReAddSaysTheServerIsNowUnregistered(t *testing.T) {
 func TestAFailurePartWayThroughDoesNotClaimNothingWasSynced(t *testing.T) {
 	t.Parallel()
 	claude := &calls{failOn: "chrome-devtools"}
-	result := syncWith(t, newCheckout(t, "ai", launcherExecutable), claude, &calls{}, "--agent=claude")
+	result := syncWith(t, newCheckout(t, "ai", launcherExecutable).dir, claude, &calls{}, "--agent=claude")
 
 	if result.code != exitRefused {
 		t.Fatalf("exit %d, want %d", result.code, exitRefused)
@@ -320,7 +296,7 @@ func TestAFailurePartWayThroughDoesNotClaimNothingWasSynced(t *testing.T) {
 
 func TestACheckoutThatCannotBeSubstitutedIntoJSONIsRefusedBeforeTheClient(t *testing.T) {
 	t.Parallel()
-	result := sync(t, newCheckout(t, `qu"oted`, launcherExecutable), "--agent=claude")
+	result := sync(t, newCheckout(t, `qu"oted`, launcherExecutable).dir, "--agent=claude")
 
 	if result.code != exitRefused {
 		t.Errorf("exit %d, want %d", result.code, exitRefused)
@@ -348,7 +324,7 @@ func TestACheckoutWithoutARunnableWrapperIsRefused(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			result := sync(t, newCheckout(t, "ai", scenario.launcher), "--agent=claude")
+			result := sync(t, newCheckout(t, "ai", scenario.launcher).dir, "--agent=claude")
 			if result.code != exitRefused {
 				t.Errorf("exit %d, want %d", result.code, exitRefused)
 			}
@@ -365,9 +341,9 @@ func TestACheckoutWithoutARunnableWrapperIsRefused(t *testing.T) {
 
 func TestADeclarationThatIsNotThereStopsTheSync(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	write(t, filepath.Join(dir, launcherName), "#!/bin/sh\n", 0o755)
-	result := sync(t, dir, "--agent=claude")
+	tree := installertest.New(t)
+	tree.WriteMode(filepath.Join(tree.Base(), launcherName), "#!/bin/sh\n", 0o755)
+	result := sync(t, tree.Base(), "--agent=claude")
 
 	if result.code != exitRefused {
 		t.Errorf("exit %d, want %d", result.code, exitRefused)
@@ -381,10 +357,10 @@ func TestADeclarationThatIsNotThereStopsTheSync(t *testing.T) {
 // or naming an internal host lives, and it exists to override the committed half.
 func TestThePrivateDeclarationIsSyncedAfterThePublicOne(t *testing.T) {
 	t.Parallel()
-	dir := newCheckout(t, "ai", launcherExecutable)
-	write(t, filepath.Join(dir, privateFile),
-		`{"mcpServers":{"playwright":{"type":"stdio","command":"@CONFIGS@/mcp-env.sh","args":["updated"]}}}`, 0o644)
-	result := sync(t, dir, "--agent=claude")
+	c := newCheckout(t, "ai", launcherExecutable)
+	c.Write(filepath.Join(c.dir, privateFile),
+		`{"mcpServers":{"playwright":{"type":"stdio","command":"@CONFIGS@/mcp-env.sh","args":["updated"]}}}`)
+	result := sync(t, c.dir, "--agent=claude")
 
 	if result.code != exitSynced {
 		t.Fatalf("exit %d, want 0\n%s", result.code, result.stderr)
@@ -404,10 +380,10 @@ func TestThePrivateDeclarationIsSyncedAfterThePublicOne(t *testing.T) {
 // something Codex cannot preserve must not land after the public entries have been rewritten.
 func TestAPrivateFileCodexCannotPreserveStopsTheWholeSync(t *testing.T) {
 	t.Parallel()
-	dir := newCheckout(t, "ai", launcherExecutable)
-	write(t, filepath.Join(dir, privateFile),
-		`{"mcpServers":{"unsupported":{"type":"http","url":"https://example.invalid","headers":{"X":"v"}}}}`, 0o644)
-	result := sync(t, dir, "--agent=codex")
+	c := newCheckout(t, "ai", launcherExecutable)
+	c.Write(filepath.Join(c.dir, privateFile),
+		`{"mcpServers":{"unsupported":{"type":"http","url":"https://example.invalid","headers":{"X":"v"}}}}`)
+	result := sync(t, c.dir, "--agent=codex")
 
 	if result.code != exitRefused {
 		t.Errorf("exit %d, want %d", result.code, exitRefused)
@@ -433,9 +409,9 @@ func TestADeclarationCodexCannotSpellOnACommandLineIsRefused(t *testing.T) {
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
-			dir := newCheckout(t, "ai", launcherExecutable)
-			write(t, filepath.Join(dir, publicFile), scenario.text, 0o644)
-			result := sync(t, dir, "--agent=codex")
+			c := newCheckout(t, "ai", launcherExecutable)
+			c.Write(filepath.Join(c.dir, publicFile), scenario.text)
+			result := sync(t, c.dir, "--agent=codex")
 			if result.code != exitRefused {
 				t.Errorf("exit %d, want %d — %s would otherwise be registered as something other than what "+
 					"the file says", result.code, exitRefused, scenario.name)
@@ -451,10 +427,10 @@ func TestADeclarationCodexCannotSpellOnACommandLineIsRefused(t *testing.T) {
 // Claude takes whole.
 func TestClaudeTakesAnEntryCodexRefuses(t *testing.T) {
 	t.Parallel()
-	dir := newCheckout(t, "ai", launcherExecutable)
-	write(t, filepath.Join(dir, publicFile),
-		`{"mcpServers":{"one":{"type":"stdio","command":"/bin/echo","cwd":"/tmp"}}}`, 0o644)
-	result := sync(t, dir, "--agent=claude")
+	c := newCheckout(t, "ai", launcherExecutable)
+	c.Write(filepath.Join(c.dir, publicFile),
+		`{"mcpServers":{"one":{"type":"stdio","command":"/bin/echo","cwd":"/tmp"}}}`)
+	result := sync(t, c.dir, "--agent=claude")
 
 	if result.code != exitSynced {
 		t.Fatalf("exit %d, want 0 — a field Codex cannot represent is not a field Claude cannot\n%s",

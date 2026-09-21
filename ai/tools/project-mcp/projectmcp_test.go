@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"configs/ai/tools/installertest"
 	"configs/ai/tools/repo"
 	"configs/ai/tools/repo/repotest"
 )
@@ -52,10 +53,12 @@ const managedServerArgument = "@example/alpha"
 // reach the owner's own home, even with the containment assertion removed.
 
 // The guard stays because the shell this replaces once followed a live symlink out of its sandbox and
-// overwrote real config files in this checkout. It is asserted before the first write.
+// overwrote real config files in this checkout. installertest.Tree is that guard, and it is the
+// production one: it refuses a fixture write the way `installer.tree` refuses the run's own.
 
 // A project of its own, with a home of its own, both under this case's temporary directory.
 type project struct {
+	*installertest.Tree
 	t       *testing.T
 	root    string
 	dir     string
@@ -67,22 +70,19 @@ type project struct {
 
 func newProject(t *testing.T, agent string) *project {
 	t.Helper()
-	root := t.TempDir()
+	tree := installertest.New(t)
+	root := tree.Base()
 	// Non-ASCII and a space, because a project directory is a name from outside this system.
 	dir := filepath.Join(root, "project é "+agent)
 	home := filepath.Join(root, "home")
 	configs := filepath.Join(root, "configs")
 	for _, made := range []string{dir, home, configs} {
-		if err := os.MkdirAll(made, 0o755); err != nil {
-			t.Fatalf("building the fixture %s: %v", made, err)
-		}
-		refuseOutside(t, root, made)
+		tree.MkdirAll(made)
 	}
-	if err := os.WriteFile(filepath.Join(configs, "mcp.jsonc"), []byte(declarationFixture), 0o644); err != nil {
-		t.Fatalf("building the declaration fixture: %v", err)
-	}
+	tree.Write(filepath.Join(configs, "mcp.jsonc"), declarationFixture)
 	return &project{
-		t: t, root: root, dir: dir, home: home, agent: agent,
+		Tree: tree,
+		t:    t, root: root, dir: dir, home: home, agent: agent,
 		configs: configs,
 		// No repository by default. Most projects a human points this at are one, but arranging git's
 		// answer is the ignore cases' subject, and every other case would key on it by accident.
@@ -94,23 +94,6 @@ func notARepository() *repotest.Fake {
 	fake := repotest.New("/nowhere")
 	fake.Fail["TopLevel"] = errors.New("not a git repository")
 	return fake
-}
-
-// The physical parent, so a symlink anywhere in the path cannot route a write out of the sandbox.
-func refuseOutside(t *testing.T, root, path string) {
-	t.Helper()
-	real, err := filepath.EvalSymlinks(path)
-	if err != nil {
-		t.Fatalf("resolving the fixture path %s: %v", path, err)
-	}
-	realRoot, err := filepath.EvalSymlinks(root)
-	if err != nil {
-		t.Fatalf("resolving the sandbox root %s: %v", root, err)
-	}
-	if real != realRoot && !strings.HasPrefix(real, realRoot+string(os.PathSeparator)) {
-		t.Fatalf("the fixture %s resolves to %s, outside this case's sandbox %s — a case allowed to run "+
-			"from there writes into whatever the path really names", path, real, realRoot)
-	}
 }
 
 type result struct {
@@ -134,21 +117,12 @@ func (p *project) configFile() string {
 
 func (p *project) read() string {
 	p.t.Helper()
-	text, err := os.ReadFile(p.configFile())
-	if err != nil {
-		p.t.Fatalf("reading the project config: %v", err)
-	}
-	return string(text)
+	return p.Read(p.configFile())
 }
 
 func (p *project) writeConfigFile(text string) {
 	p.t.Helper()
-	if err := os.MkdirAll(filepath.Dir(p.configFile()), 0o755); err != nil {
-		p.t.Fatalf("making room for the project config: %v", err)
-	}
-	if err := os.WriteFile(p.configFile(), []byte(text), 0o644); err != nil {
-		p.t.Fatalf("writing the project config: %v", err)
-	}
+	p.Write(p.configFile(), text)
 }
 
 // forEachAgent runs the body for both clients. The two file formats are two implementations of one
@@ -292,15 +266,8 @@ func TestAConfigThatIsNotARegularUnlinkedFileIsRefused(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
 		outside := filepath.Join(p.root, "outside")
-		if err := os.WriteFile(outside, []byte("{}"), 0o644); err != nil {
-			t.Fatalf("building the fixture: %v", err)
-		}
-		if err := os.MkdirAll(filepath.Dir(p.configFile()), 0o755); err != nil {
-			t.Fatalf("making room for the link: %v", err)
-		}
-		if err := os.Symlink(outside, p.configFile()); err != nil {
-			t.Fatalf("linking the config: %v", err)
-		}
+		p.Write(outside, "{}")
+		p.Symlink(outside, p.configFile())
 
 		if outcome := p.run(); outcome.code == exitDone {
 			t.Fatal("a symlinked config was followed, so the write landed outside the project")
@@ -315,15 +282,8 @@ func TestAConfigThatIsNotARegularUnlinkedFileIsRefused(t *testing.T) {
 	})
 	forEachAgent(t, func(t *testing.T, p *project) {
 		other := filepath.Join(p.root, "other")
-		if err := os.WriteFile(other, []byte("{}"), 0o644); err != nil {
-			t.Fatalf("building the fixture: %v", err)
-		}
-		if err := os.MkdirAll(filepath.Dir(p.configFile()), 0o755); err != nil {
-			t.Fatalf("making room for the link: %v", err)
-		}
-		if err := os.Link(other, p.configFile()); err != nil {
-			t.Fatalf("hard-linking the config: %v", err)
-		}
+		p.Write(other, "{}")
+		p.Hardlink(other, p.configFile())
 		if outcome := p.run(); outcome.code == exitDone {
 			t.Fatal("a hard-linked config was replaced by rename, which silently breaks a link the " +
 				"project made on purpose")
@@ -434,10 +394,7 @@ func TestThePrivateDeclarationIsNeverReadHere(t *testing.T) {
 	t.Parallel()
 	forEachAgent(t, func(t *testing.T, p *project) {
 		// Not valid JSON, so a run that reads it at all fails loudly instead of quietly copying it.
-		if err := os.WriteFile(filepath.Join(p.configs, "mcp.private.jsonc"),
-			[]byte("INVALID PRIVATE SECRET"), 0o644); err != nil {
-			t.Fatalf("building the fixture: %v", err)
-		}
+		p.Write(filepath.Join(p.configs, "mcp.private.jsonc"), "INVALID PRIVATE SECRET")
 
 		if outcome := p.run(); outcome.code != exitDone {
 			t.Fatalf("a private declaration beside the public one stopped the run: exit %d\n%s",

@@ -8,7 +8,6 @@ package installer_test
 import (
 	"errors"
 	"os"
-	"syscall"
 	"testing"
 
 	"configs/ai/tools/installer"
@@ -36,9 +35,9 @@ func TestAnAbsentRegionIsAppendedWithoutDisturbingTheFile(t *testing.T) {
 	if !run.WriteRegion(file, openFence, closeFence, "BODY") {
 		t.Fatalf("writing an absent region failed: %v", run.Refusals())
 	}
-	f.expectContained(run)
-	f.expectSaid("added")
-	f.expectFileBody(file, "Their own words.\n\n"+openFence+"\nBODY\n"+closeFence+"\n")
+	f.ExpectNoBreach(run.Breaches())
+	f.ExpectSaid("added")
+	f.ExpectFileBody(file, "Their own words.\n\n"+openFence+"\nBODY\n"+closeFence+"\n")
 }
 
 func TestASecondWriteOfTheSameBodyChangesNothing(t *testing.T) {
@@ -50,8 +49,8 @@ func TestASecondWriteOfTheSameBodyChangesNothing(t *testing.T) {
 
 	run.WriteRegion(file, openFence, closeFence, "BODY")
 
-	f.expectSaid("already carries")
-	f.expectFileBody(file, string(before))
+	f.ExpectSaid("already carries")
+	f.ExpectFileBody(file, string(before))
 }
 
 func TestAChangedBodyRewritesOnlyWhatIsBetweenTheFences(t *testing.T) {
@@ -62,8 +61,8 @@ func TestAChangedBodyRewritesOnlyWhatIsBetweenTheFences(t *testing.T) {
 
 	run.WriteRegion(file, openFence, closeFence, "NEWBODY")
 
-	f.expectSaid("rewrote")
-	f.expectFileBody(file, "Their own words.\n\n"+openFence+"\nNEWBODY\n"+closeFence+"\n")
+	f.ExpectSaid("rewrote")
+	f.ExpectFileBody(file, "Their own words.\n\n"+openFence+"\nNEWBODY\n"+closeFence+"\n")
 }
 
 func TestRemovingTheRegionLeavesTheFileAsItWasFound(t *testing.T) {
@@ -77,8 +76,8 @@ func TestRemovingTheRegionLeavesTheFileAsItWasFound(t *testing.T) {
 
 		run.RemoveRegion(file, openFence, closeFence)
 
-		f.expectSaid("removed")
-		f.expectFileBody(file, "Their own words.\n")
+		f.ExpectSaid("removed")
+		f.ExpectFileBody(file, "Their own words.\n")
 	})
 
 	// A one-line file cannot show this. Removal holds back the blank line it added ahead of the fence,
@@ -95,7 +94,7 @@ func TestRemovingTheRegionLeavesTheFileAsItWasFound(t *testing.T) {
 
 		run.RemoveRegion(file, openFence, closeFence)
 
-		f.expectFileBody(file, paragraphs)
+		f.ExpectFileBody(file, paragraphs)
 	})
 
 	// Absent is success. An uninstall run twice is a thing people do, and the second run says "already
@@ -106,7 +105,7 @@ func TestRemovingTheRegionLeavesTheFileAsItWasFound(t *testing.T) {
 
 		run.RemoveRegion(file, openFence, closeFence)
 
-		f.expectSaid("carries no")
+		f.ExpectSaid("carries no")
 		f.expectRefusals(run, 0)
 	})
 }
@@ -124,9 +123,9 @@ func TestHalfAFenceRefusesRatherThanGuessing(t *testing.T) {
 
 		run.WriteRegion(file, openFence, closeFence, "BODY")
 
-		f.expectSaid("one half of")
+		f.ExpectSaid("one half of")
 		f.expectRefusals(run, 1)
-		f.expectFileBody(file, half)
+		f.ExpectFileBody(file, half)
 	})
 
 	t.Run("and removal refuses on it too", func(t *testing.T) {
@@ -135,8 +134,8 @@ func TestHalfAFenceRefusesRatherThanGuessing(t *testing.T) {
 
 		run.RemoveRegion(file, openFence, closeFence)
 
-		f.expectSaid("not ours to guess")
-		f.expectFileBody(file, half)
+		f.ExpectSaid("not ours to guess")
+		f.ExpectFileBody(file, half)
 	})
 
 	// A second open before the close is the same damage as a missing one: two regions, and no way to
@@ -149,7 +148,7 @@ func TestHalfAFenceRefusesRatherThanGuessing(t *testing.T) {
 		run.WriteRegion(file, openFence, closeFence, "BODY")
 
 		f.expectRefusals(run, 1)
-		f.expectFileBody(file, doubled)
+		f.ExpectFileBody(file, doubled)
 	})
 }
 
@@ -165,8 +164,8 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 
 		run.WriteRegion(link, openFence, closeFence, "BODY")
 
-		f.expectSaid("is a symlink")
-		f.expectFileBody(real, "real\n")
+		f.ExpectSaid("is a symlink")
+		f.ExpectFileBody(real, "real\n")
 	})
 
 	// A missing file is refused instead of created. This is for regions inside files that already
@@ -178,8 +177,8 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 
 		run.WriteRegion(f.base+"/nope.md", openFence, closeFence, "BODY")
 
-		f.expectSaid("never creates one")
-		f.expectAbsent(f.base + "/nope.md")
+		f.ExpectSaid("never creates one")
+		f.ExpectAbsent(f.base + "/nope.md")
 	})
 
 	t.Run("and a directory at the path refuses", func(t *testing.T) {
@@ -189,7 +188,7 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 
 		run.WriteRegion(f.base+"/a-directory", openFence, closeFence, "BODY")
 
-		f.expectSaid("is not a regular file")
+		f.ExpectSaid("is not a regular file")
 	})
 
 	// A hardlink passes the symlink check and the existence check alike, so no earlier guard catches
@@ -199,16 +198,14 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 	t.Run("and a hardlinked target refuses before reading it", func(t *testing.T) {
 		f, private := newRegionFixture(t, "secret\n")
 		hard := f.base + "/hard.md"
-		if err := os.Link(private, hard); err != nil {
-			t.Fatalf("the fixture could not hardlink %s: %v", private, err)
-		}
+		f.Hardlink(private, hard)
 		run := f.newRun(installer.RunOptions{})
 
 		run.WriteRegion(hard, openFence, closeFence, "BODY")
 
-		f.expectSaid("hard links")
-		f.expectFileBody(hard, "secret\n")
-		f.expectFileBody(private, "secret\n")
+		f.ExpectSaid("hard links")
+		f.ExpectFileBody(hard, "secret\n")
+		f.ExpectFileBody(private, "secret\n")
 	})
 
 	// An unestablished link count is the case where writing might share someone's file. This is the
@@ -223,8 +220,8 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 
 		run.WriteRegion(file, openFence, closeFence, "BODY")
 
-		f.expectSaid("no link count could be read")
-		f.expectFileBody(file, "secret\n")
+		f.ExpectSaid("no link count could be read")
+		f.ExpectFileBody(file, "secret\n")
 	})
 }
 
@@ -233,30 +230,21 @@ func TestTheStatesOfATargetFileThatRefuseAWrite(t *testing.T) {
 // writable, so the file itself passes every guard and the temp file beside it is what fails.
 func TestAReplacementThatCannotLandIsCountedAsARefusal(t *testing.T) {
 	t.Parallel()
-	f, file := newRegionFixture(t, "Theirs.\n\n"+openFence+"\nOLD\n"+closeFence+"\n")
+	const body = "Theirs.\n\n" + openFence + "\nOLD\n" + closeFence + "\n"
+	f := newBareFixture(t)
 	locked := f.base + "/locked"
-	f.MkdirAll(locked)
-	moved := locked + "/CLAUDE.md"
-	if err := os.Rename(file, moved); err != nil {
-		t.Fatalf("the fixture could not move the file into the locked directory: %v", err)
-	}
-	if err := os.Chmod(locked, 0o555); err != nil {
-		t.Fatalf("the fixture could not lock %s: %v", locked, err)
-	}
-	t.Cleanup(func() { os.Chmod(locked, 0o755) })
-	// The case probes instead of assuming. Root ignores mode bits, and CAP_DAC_OVERRIDE ignores them
-	// too, on a filesystem that drops them. A 555 directory builds no refusal there, and the case
-	// would assert against a write that happily succeeds.
-	if syscall.Access(locked, 0x2) == nil {
-		t.Skip("this process can write into a mode-555 directory, so the replacement here cannot be made to fail")
-	}
+	file := locked + "/CLAUDE.md"
+	f.Write(file, body)
+	// CloseToNewFiles probes rather than assuming, and skips the case with its reason where this
+	// process writes into a mode-555 directory anyway.
+	f.CloseToNewFiles(locked)
 	run := f.newRun(installer.RunOptions{})
 
-	run.WriteRegion(moved, openFence, closeFence, "NEW")
+	run.WriteRegion(file, openFence, closeFence, "NEW")
 
 	f.expectRefusals(run, 1)
-	f.expectSaid("could not create a temporary file beside")
-	f.expectFileBody(moved, "Theirs.\n\n"+openFence+"\nOLD\n"+closeFence+"\n")
+	f.ExpectSaid("could not create a temporary file beside")
+	f.ExpectFileBody(file, body)
 }
 
 func TestADryRunOverARegionWritesNothing(t *testing.T) {
@@ -266,6 +254,6 @@ func TestADryRunOverARegionWritesNothing(t *testing.T) {
 
 	run.WriteRegion(file, openFence, closeFence, "BODY")
 
-	f.expectSaid("would add")
-	f.expectFileBody(file, "Theirs.\n")
+	f.ExpectSaid("would add")
+	f.ExpectFileBody(file, "Theirs.\n")
 }

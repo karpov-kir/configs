@@ -13,7 +13,7 @@ import (
 func TestClaudeRtkIsInitialisedWithItsHookOnlyArguments(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run("--agent=claude", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
+	f.ExpectCode(f.run("--agent=claude", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
 
 	if !f.machine.Ran("rtk", "init", "--agent", "claude", "--global", "--hook-only", "--auto-patch") {
 		t.Errorf("rtk was not initialised the way Claude needs: %v", f.machine.Spelled("rtk"))
@@ -32,13 +32,13 @@ func TestCodexRtkIsInitialisedInAStagingProfileAndOnlyItsDocumentIsKept(t *testi
 		return 0
 	})
 
-	f.expectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
+	f.ExpectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
 
 	if !f.machine.Ran("rtk", "init", "--codex", "--global") {
 		t.Errorf("rtk was not initialised the way Codex needs: %v", f.machine.Spelled("rtk"))
 	}
-	f.expectFileBody(f.codexHome+"/RTK.md", "RTK usage\n")
-	f.expectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
+	f.ExpectFileBody(f.codexHome+"/RTK.md", "RTK usage\n")
+	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
 }
 
 // A profile that already holds an RTK.md keeps it: that document is the human's own, and rtk would
@@ -47,9 +47,9 @@ func TestAnExistingCodexRtkDocumentIsKeptAndTheCliIsNotRun(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.codexHome+"/RTK.md", "Personal RTK instructions\n")
 
-	f.expectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
+	f.ExpectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
 
-	f.expectFileBody(f.codexHome+"/RTK.md", "Personal RTK instructions\n")
+	f.ExpectFileBody(f.codexHome+"/RTK.md", "Personal RTK instructions\n")
 	if f.machine.RanAny("rtk") {
 		t.Errorf("rtk ran over a profile that already had its document: %v", f.machine.Spelled("rtk"))
 	}
@@ -61,9 +61,9 @@ func TestASymlinkedCodexRtkDocumentIsRefusedBeforeTheCliRuns(t *testing.T) {
 	f := newFixture(t)
 	f.Symlink(f.home+"/elsewhere", f.codexHome+"/RTK.md")
 
-	f.expectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 1)
+	f.ExpectCode(f.run("--agent=codex", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 1)
 
-	f.expectAbsent(f.home + "/elsewhere")
+	f.ExpectAbsent(f.home + "/elsewhere")
 	if f.machine.RanAny("rtk") {
 		t.Errorf("rtk ran against a symlinked document: %v", f.machine.Spelled("rtk"))
 	}
@@ -73,26 +73,26 @@ func TestAFailedRtkInitFailsTheRun(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering("rtk", func(machine.Command) int { return 1 })
 
-	f.expectCode(f.run("--agent=claude", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 1)
+	f.ExpectCode(f.run("--agent=claude", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 1)
 
-	f.expectSaid("rtk init failed")
+	f.ExpectSaid("rtk init failed")
 }
 
 func TestAMachineWithoutRtkSaysSoRatherThanFailingSilently(t *testing.T) {
 	f := newFixture(t)
-	f.machine.without("rtk")
+	f.machine.Without("rtk")
 
-	f.expectCode(f.run("--agent=claude", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 1)
+	f.ExpectCode(f.run("--agent=claude", "--owner", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 1)
 
-	f.expectSaid("rtk is not on PATH — install it or use --skip-rtk")
+	f.ExpectSaid("rtk is not on PATH — install it or use --skip-rtk")
 }
 
 func TestADryRunNamesTheRtkInvocationAndRunsNothing(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.run("--agent=claude", "--owner", "--dry-run", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
+	f.ExpectCode(f.run("--agent=claude", "--owner", "--dry-run", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
 
-	f.expectSaid("would run rtk init --agent claude --global --hook-only --auto-patch")
+	f.ExpectSaid("would run rtk init --agent claude --global --hook-only --auto-patch")
 	if f.machine.RanAny("rtk") {
 		t.Errorf("a dry run invoked rtk: %v", f.machine.Spelled("rtk"))
 	}
@@ -101,9 +101,9 @@ func TestADryRunNamesTheRtkInvocationAndRunsNothing(t *testing.T) {
 func TestSkipRtkSaysSoAndRunsNothing(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectSaid("skipped  RTK initialization")
+	f.ExpectSaid("skipped  RTK initialization")
 	if f.machine.RanAny("rtk") {
 		t.Errorf("--skip-rtk invoked rtk: %v", f.machine.Spelled("rtk"))
 	}
@@ -115,10 +115,10 @@ func TestADefaultTierLeavesRtkAloneAndSaysWhose(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md", "not ours to remove\n")
 
-	f.expectCode(f.run("--agent=claude", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
+	f.ExpectCode(f.run("--agent=claude", "--skip-brew", "--skip-tools", "--skip-mcp", "--skip-verify"), 0)
 
-	f.expectSaid("rtk is the owner tier's")
-	f.expectFileBody(f.home+"/.claude/RTK.md", "not ours to remove\n")
+	f.ExpectSaid("rtk is the owner tier's")
+	f.ExpectFileBody(f.home+"/.claude/RTK.md", "not ours to remove\n")
 	if f.machine.RanAny("rtk") {
 		t.Errorf("a default tier invoked rtk: %v", f.machine.Spelled("rtk"))
 	}
@@ -130,10 +130,10 @@ func TestTheLeftoverClaudeRtkDocumentIsRemoved(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md", "the copy an earlier bootstrap left here\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectSaid("removed  " + f.home + "/.claude/RTK.md")
-	f.expectAbsent(f.home + "/.claude/RTK.md")
+	f.ExpectSaid("removed  " + f.home + "/.claude/RTK.md")
+	f.ExpectAbsent(f.home + "/.claude/RTK.md")
 }
 
 // A symlink there is what a machine set up from an older README by hand holds. The link goes, and
@@ -144,10 +144,10 @@ func TestASymlinkAtTheLeftoverPathGoesWithoutFollowingIt(t *testing.T) {
 	f.Write(f.home+"/.claude/pointed-at.md", "the file the link named\n")
 	f.Symlink(f.home+"/.claude/pointed-at.md", f.home+"/.claude/RTK.md")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
 
-	f.expectAbsent(f.home + "/.claude/RTK.md")
-	f.expectFileBody(f.home+"/.claude/pointed-at.md", "the file the link named\n")
+	f.ExpectAbsent(f.home + "/.claude/RTK.md")
+	f.ExpectFileBody(f.home+"/.claude/pointed-at.md", "the file the link named\n")
 }
 
 // This only ever wrote a file there, so a directory holds something else, and removing it is the data
@@ -156,20 +156,20 @@ func TestADirectoryAtTheLeftoverPathIsRefusedAndItsContentsSurvive(t *testing.T)
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md/notes.md", "somebody else put this here\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.install("--agent=claude", "--owner"), 1)
 
-	f.expectSaid("is a directory, and this script only ever wrote a file")
-	f.expectFileBody(f.home+"/.claude/RTK.md/notes.md", "somebody else put this here\n")
+	f.ExpectSaid("is a directory, and this script only ever wrote a file")
+	f.ExpectFileBody(f.home+"/.claude/RTK.md/notes.md", "somebody else put this here\n")
 }
 
 func TestADryRunOverTheLeftoverLeavesItAlone(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md", "still here afterwards\n")
 
-	f.expectCode(f.install("--agent=claude", "--owner", "--dry-run"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--owner", "--dry-run"), 0)
 
-	f.expectSaid("would remove the leftover " + f.home + "/.claude/RTK.md")
-	f.expectFileBody(f.home+"/.claude/RTK.md", "still here afterwards\n")
+	f.ExpectSaid("would remove the leftover " + f.home + "/.claude/RTK.md")
+	f.ExpectFileBody(f.home+"/.claude/RTK.md", "still here afterwards\n")
 }
 
 // Codex keeps its own RTK.md in the profile, so Claude's cleanup does not apply. A silent step reads
@@ -178,10 +178,10 @@ func TestCodexSaysTheClaudeCleanupDoesNotApply(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/RTK.md", "Claude's own\n")
 
-	f.expectCode(f.install("--agent=codex", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
 
-	f.expectSaid("Claude RTK cleanup does not apply to Codex")
-	f.expectFileBody(f.home+"/.claude/RTK.md", "Claude's own\n")
+	f.ExpectSaid("Claude RTK cleanup does not apply to Codex")
+	f.ExpectFileBody(f.home+"/.claude/RTK.md", "Claude's own\n")
 }
 
 // --- fixture helpers for the rtk cases ---------------------------------------------------------------

@@ -18,7 +18,7 @@ func (f *fixture) unmount(options installer.RunOptions) *installer.Run {
 	run := f.newRun(options)
 	f.declareMounts(run, f.repo)
 	run.Unmount()
-	f.expectContained(run)
+	f.ExpectNoBreach(run.Breaches())
 	return run
 }
 
@@ -32,8 +32,8 @@ func TestUnmountRemovesWhatThisCheckoutWrote(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("uninstalling an installed machine reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectAbsent(f.home + "/.zshrc")
-	f.expectAbsent(f.home + "/.config/nvim")
+	f.ExpectAbsent(f.home + "/.zshrc")
+	f.ExpectAbsent(f.home + "/.config/nvim")
 }
 
 // An uninstall path that links every mount and then removes it leaves the machine installed by the
@@ -48,9 +48,9 @@ func TestUnmountOverAMachineHoldingNothingLinksNothingOnTheWay(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("uninstalling a clean machine reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectNotSaid("  linked   ")
-	f.expectSaid("is already gone")
-	f.expectAbsent(f.home + "/.zshrc")
+	f.ExpectNotSaid("  linked   ")
+	f.ExpectSaid("is already gone")
+	f.ExpectAbsent(f.home + "/.zshrc")
 }
 
 func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
@@ -62,8 +62,8 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 
 		run := f.unmount(installer.RunOptions{})
 
-		f.expectSaid("is not a symlink, so this did not write it")
-		f.expectFileBody(f.home+"/.zshrc", "hand-written")
+		f.ExpectSaid("is not a symlink, so this did not write it")
+		f.ExpectFileBody(f.home+"/.zshrc", "hand-written")
 		if code := run.Report(); code != 1 {
 			t.Errorf("a real file at a target reported %d, wanted 1", code)
 		}
@@ -78,8 +78,8 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 
 		run := f.unmount(installer.RunOptions{})
 
-		f.expectSaid("points at the relative path")
-		f.expectSymlink(f.home + "/.zshrc")
+		f.ExpectSaid("points at the relative path")
+		f.ExpectSymlink(f.home + "/.zshrc")
 		f.expectRefusals(run, 1)
 	})
 
@@ -92,8 +92,8 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 
 		run := f.unmount(installer.RunOptions{})
 
-		f.expectSaid("which is not in this checkout — left alone")
-		f.expectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
+		f.ExpectSaid("which is not in this checkout — left alone")
+		f.ExpectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
 		f.expectRefusals(run, 1)
 	})
 
@@ -105,8 +105,8 @@ func TestUnmountRefusesEveryTargetItCannotProveItWrote(t *testing.T) {
 
 		run := f.unmount(installer.RunOptions{})
 
-		f.expectSaid("which is not in this checkout — left alone")
-		f.expectSymlink(f.home + "/.zshrc")
+		f.ExpectSaid("which is not in this checkout — left alone")
+		f.ExpectSymlink(f.home + "/.zshrc")
 		f.expectRefusals(run, 1)
 	})
 }
@@ -121,6 +121,6 @@ func TestADryRunUninstallRemovesNothing(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("a dry-run uninstall reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid("would remove " + f.home + "/.zshrc")
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectSaid("would remove " + f.home + "/.zshrc")
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }

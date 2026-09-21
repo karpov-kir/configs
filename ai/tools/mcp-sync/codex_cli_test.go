@@ -27,13 +27,13 @@ func TestARealCodexKeepsEveryArgumentBoundary(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("CODEX_HOME", home)
 
-	dir := newCheckout(t, "ai", launcherExecutable)
-	write(t, filepath.Join(dir, publicFile), `{"mcpServers":{
+	c := newCheckout(t, "ai", launcherExecutable)
+	c.Write(filepath.Join(c.dir, publicFile), `{"mcpServers":{
 		"literal":{"type":"stdio","command":"/bin/echo","args":["a b","$(literal)","a\nb"],"env":{"VALUE":"x=y z"}},
-		"streamed":{"type":"http","url":"http://127.0.0.1:9/mcp"}}}`, 0o644)
+		"streamed":{"type":"http","url":"http://127.0.0.1:9/mcp"}}}`)
 
 	var out, said bytes.Buffer
-	if code := Run("mcp-sync.sh", []string{"--agent=codex"}, dir, NewCLIClient(&out, &said), &out, &said); code != exitSynced {
+	if code := Run("mcp-sync.sh", []string{"--agent=codex"}, c.dir, NewCLIClient(&out, &said), &out, &said); code != exitSynced {
 		t.Fatalf("syncing to a real Codex exited %d\n%s", code, said.String())
 	}
 

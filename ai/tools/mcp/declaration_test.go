@@ -30,11 +30,13 @@ func TestADeclarationWithoutAServersObjectIsRefusedByName(t *testing.T) {
 		name string
 		text string
 	}{
+		// One shape of "not an object at all" is enough here. Which shapes ParseObject turns away is
+		// object_test.go's table, at the level that decides it. What this table adds is the refusal
+		// naming the file, and the two arms above ParseObject: a file with no mcpServers key, and one
+		// whose mcpServers is not an object.
 		{name: "not JSON at all", text: "INVALID PRIVATE SECRET"},
-		{name: "a JSON array", text: `["mcpServers"]`},
 		{name: "an object with no mcpServers", text: `{"other": {}}`},
 		{name: "mcpServers as an array", text: `{"mcpServers": []}`},
-		{name: "empty", text: ""},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()

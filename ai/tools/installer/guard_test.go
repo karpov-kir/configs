@@ -28,7 +28,7 @@ func newHomeMountedElsewhere(t *testing.T) (*fixture, string) {
 	f := newFixture(t)
 	other := f.newCheckout(f.base + "/other-repo")
 	f.mountFrom(other, installer.RunOptions{})
-	f.expectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
+	f.ExpectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
 	return f, other
 }
 
@@ -41,17 +41,17 @@ func TestARunFromASecondCheckoutWritesNothing(t *testing.T) {
 	if code := run.Report(); code != 1 {
 		t.Errorf("a run from a second checkout reported %d, wanted 1", code)
 	}
-	f.expectSaid("not to this checkout")
-	f.expectSaid("4 mounts")
-	f.expectSaid(other)
-	f.expectSaid("nothing was written")
-	f.expectSaid("--relocate")
-	f.expectNotSaid(label + ": ok")
+	f.ExpectSaid("not to this checkout")
+	f.ExpectSaid("4 mounts")
+	f.ExpectSaid(other)
+	f.ExpectSaid("nothing was written")
+	f.ExpectSaid("--relocate")
+	f.ExpectNotSaid(label + ": ok")
 
 	// The half that carries the rest. A guard that refuses after repointing has still moved the
 	// machine, so the mounts are read back instead of the message being taken at its word.
-	f.expectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
-	f.expectLinkTo(f.home+"/.config/nvim", other+"/nvim")
+	f.ExpectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
+	f.ExpectLinkTo(f.home+"/.config/nvim", other+"/nvim")
 }
 
 // A dry run has to refuse as well. With the guard gone it reports "would repoint" for all of them
@@ -66,9 +66,9 @@ func TestADryRunFromASecondCheckoutRefusesRatherThanPreviewingTheMove(t *testing
 	if code := run.Report(); code != 1 {
 		t.Errorf("a dry run from a second checkout reported %d, wanted 1", code)
 	}
-	f.expectNotSaid(label + ": ok")
-	f.expectNotSaid("would repoint")
-	f.expectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
+	f.ExpectNotSaid(label + ": ok")
+	f.ExpectNotSaid("would repoint")
+	f.ExpectLinkTo(f.home+"/.zshrc", other+"/zsh/.zshrc")
 }
 
 // The escape hatch, which has to exist or someone genuinely relocating their configs cannot. It is a
@@ -83,9 +83,9 @@ func TestRelocateMovesTheMountsToThisCheckout(t *testing.T) {
 	if code := run.Report(); code != 0 {
 		t.Errorf("--relocate reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectSaid("moving 4 mount(s)")
-	f.expectSaid(other)
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectSaid("moving 4 mount(s)")
+	f.ExpectSaid(other)
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
 // A machine mounted from two other checkouts at once, which is what half-moving one by hand leaves.
@@ -96,7 +96,7 @@ func TestTwoForeignCheckoutsAreBothNamed(t *testing.T) {
 	t.Parallel()
 	f, other := newHomeMountedElsewhere(t)
 	third := f.newCheckout(f.base + "/third-repo")
-	f.removeLink(f.home + "/.gitconfig")
+	f.RemoveLink(f.home + "/.gitconfig")
 	f.Symlink(third+"/git/.gitconfig", f.home+"/.gitconfig")
 
 	run := f.mount(installer.RunOptions{})
@@ -104,10 +104,10 @@ func TestTwoForeignCheckoutsAreBothNamed(t *testing.T) {
 	if code := run.Report(); code != 1 {
 		t.Errorf("two foreign checkouts reported %d, wanted 1", code)
 	}
-	f.expectSaid(other)
-	f.expectSaid(third)
+	f.ExpectSaid(other)
+	f.ExpectSaid(third)
 	f.expectRefusals(run, 2)
-	f.expectLinkTo(f.home+"/.gitconfig", third+"/git/.gitconfig")
+	f.ExpectLinkTo(f.home+"/.gitconfig", third+"/git/.gitconfig")
 }
 
 // A checkout that no longer resolves is the aftermath of this bug, or of a directory moved on
@@ -123,7 +123,7 @@ func TestAMountFromACheckoutThatIsGoneIsRepairedRatherThanRefused(t *testing.T) 
 	if code := run.Report(); code != 0 {
 		t.Errorf("a mount from a deleted checkout reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
 // The three shapes a stale mount takes that are NOT a second checkout. Each is a link the
@@ -145,7 +145,7 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 		run := f.mount(installer.RunOptions{})
 
 		f.expectRefusals(run, 0)
-		f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
+		f.ExpectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
 	})
 
 	// A mount naming a checkout's root instead of the config inside it. A run writes
@@ -161,7 +161,7 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 		run := f.mount(installer.RunOptions{})
 
 		f.expectRefusals(run, 0)
-		f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
+		f.ExpectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
 	})
 
 	// A relative link value is one this package never wrote, since every link it makes is absolute. A
@@ -175,7 +175,7 @@ func TestAStaleMountIsNotMistakenForASecondCheckout(t *testing.T) {
 		run := f.mount(installer.RunOptions{})
 
 		f.expectRefusals(run, 0)
-		f.expectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
+		f.ExpectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
 	})
 }
 
@@ -196,7 +196,7 @@ func TestAMountNamingTheRunningCheckoutThroughASymlinkedPathIsNotForeign(t *test
 	if code := run.Report(); code != 0 {
 		t.Errorf("a mount through a symlinked path reported %d, wanted 0: %v", code, run.Refusals())
 	}
-	f.expectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
+	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 }
 
 // A reader told their two configs would move, and left to discover that every skill moves with them,
@@ -218,27 +218,27 @@ func TestABulkMountTakesPartInTheCountTheGuardReports(t *testing.T) {
 		run.AddBulk(repo+"/skills/kk-build", f.home+"/.claude/skills/kk-build")
 		run.AddBulk(repo+"/skills/kk-ship", f.home+"/.claude/skills/kk-ship")
 		run.Mount()
-		f.expectContained(run)
+		f.ExpectNoBreach(run.Breaches())
 		return run
 	}
 
 	mountedFrom(other, installer.RunOptions{})
-	f.expectLinkTo(f.home+"/.claude/skills/kk-build", other+"/skills/kk-build")
+	f.ExpectLinkTo(f.home+"/.claude/skills/kk-build", other+"/skills/kk-build")
 
 	run := mountedFrom(f.repo, installer.RunOptions{})
 
 	if code := run.Report(); code != 1 {
 		t.Errorf("a run from a second checkout reported %d, wanted 1", code)
 	}
-	f.expectSaid("6 mounts (4 configs and 2 skills)")
-	f.expectSaid("...and all 2 skills")
+	f.ExpectSaid("6 mounts (4 configs and 2 skills)")
+	f.ExpectSaid("...and all 2 skills")
 	// The carrying half again: the mounts are read back, and the message's word is left aside.
-	f.expectLinkTo(f.home+"/.claude/skills/kk-build", other+"/skills/kk-build")
+	f.ExpectLinkTo(f.home+"/.claude/skills/kk-build", other+"/skills/kk-build")
 
 	relocated := mountedFrom(f.repo, installer.RunOptions{Relocate: true})
 	if code := relocated.Report(); code != 0 {
 		t.Errorf("--relocate over a bulk set reported %d, wanted 0: %v", code, relocated.Refusals())
 	}
-	f.expectSaid("moving 6 mount(s)")
-	f.expectLinkTo(f.home+"/.claude/skills/kk-build", f.repo+"/skills/kk-build")
+	f.ExpectSaid("moving 6 mount(s)")
+	f.ExpectLinkTo(f.home+"/.claude/skills/kk-build", f.repo+"/skills/kk-build")
 }

@@ -23,19 +23,12 @@ func TestTheLauncherReachesTheWrapperThroughAHomeFullOfShellSyntax(t *testing.T)
 	p := newProject(t, claudeAgent)
 	home := filepath.Join(p.root, `home $value "quote é`)
 	checkout := filepath.Join(home, "checkout")
-	if err := os.MkdirAll(filepath.Join(checkout, "kk-flavor"), 0o755); err != nil {
-		t.Fatalf("building the home fixture: %v", err)
-	}
+	p.MkdirAll(filepath.Join(checkout, "kk-flavor"))
 	// `.kk-flavor` is a symlink into whichever checkout installed it. The launcher resolves it
 	// physically before walking up to the wrapper, because the kernel reads `..` from the link's target.
-	if err := os.Symlink(filepath.Join(checkout, "kk-flavor"), filepath.Join(home, ".kk-flavor")); err != nil {
-		t.Fatalf("linking .kk-flavor: %v", err)
-	}
+	p.Symlink(filepath.Join(checkout, "kk-flavor"), filepath.Join(home, ".kk-flavor"))
 	// A wrapper that prints its arguments instead of launching a server, so what arrives is readable.
-	if err := os.WriteFile(filepath.Join(checkout, "mcp-env.sh"),
-		[]byte("#!/bin/sh\nprintf '%s\\n' \"$@\"\n"), 0o755); err != nil {
-		t.Fatalf("writing the wrapper fixture: %v", err)
-	}
+	p.WriteMode(filepath.Join(checkout, "mcp-env.sh"), "#!/bin/sh\nprintf '%s\\n' \"$@\"\n", 0o755)
 
 	if outcome := p.run(); outcome.code != exitDone {
 		t.Fatalf("the install exited %d\n%s", outcome.code, outcome.stderr)

@@ -23,7 +23,7 @@ package installer_test
 // resolve a parent physically before touching it, and the run itself is built with WriteRoot, which
 // makes the package refuse the same way.
 
-// expectContained, a method on fixture, is what reads the second half back. It fails the case as a
+// ExpectNoBreach, the tree's own read-back, is what reads the second half. It fails the case as a
 // guard, and never as a result.
 
 // Fixtures are built with os.MkdirAll, os.WriteFile and os.Symlink, with no shell process in
@@ -32,12 +32,11 @@ package installer_test
 // filesystem. An in-memory tree fails to model their semantics.
 
 import (
-	"os"
-	"strings"
 	"testing"
 
 	"configs/ai/tools/installer"
 	"configs/ai/tools/installertest"
+	"configs/ai/tools/runtest"
 )
 
 // What the calling installer is called, and what the guard therefore looks for under a candidate root.
@@ -47,12 +46,12 @@ const label = "env bootstrap"
 
 // One case's tree: a checkout, a home, and the account the run printed.
 type fixture struct {
-	*installertest.Writer
+	*installertest.Tree
+	*runtest.Output
 	t    *testing.T
 	base string
 	repo string
 	home string
-	out  strings.Builder
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -69,9 +68,9 @@ func newFixture(t *testing.T) *fixture {
 // I/O is what this suite's wall time is made of now that no process spawns.
 func newBareFixture(t *testing.T) *fixture {
 	t.Helper()
-	writer := installertest.New(t)
-	base := writer.Base()
-	f := &fixture{Writer: writer, t: t, base: base, repo: base + "/checkout"}
+	tree := installertest.New(t)
+	base := tree.Base()
+	f := &fixture{Tree: tree, Output: runtest.NewOutput(t), t: t, base: base, repo: base + "/checkout"}
 	f.home = base + "/home"
 	f.MkdirAll(f.home)
 	return f
@@ -123,9 +122,9 @@ func (f *fixture) newRun(options installer.RunOptions) *installer.Run {
 	if options.ConfigHome == "" {
 		options.ConfigHome = f.home + "/.config"
 	}
-	options.Out = &f.out
+	options.Out = &f.Out
 	options.WriteRoot = f.base
-	f.out.Reset()
+	f.Reset()
 	return installer.NewRun(options)
 }
 
@@ -136,7 +135,7 @@ func (f *fixture) mountFrom(repo string, options installer.RunOptions) *installe
 	run := f.newRun(options)
 	f.declareMounts(run, repo)
 	run.Mount()
-	f.expectContained(run)
+	f.ExpectNoBreach(run.Breaches())
 	return run
 }
 
@@ -158,7 +157,7 @@ func (f *fixture) mountSkills(names []string, options installer.RunOptions) *ins
 	}
 	run.AddUnmountScan(f.skillsMount(), f.repo+"/skills")
 	run.Mount()
-	f.expectContained(run)
+	f.ExpectNoBreach(run.Breaches())
 	return run
 }
 
@@ -172,108 +171,11 @@ func (f *fixture) newSkill(name string) {
 	f.Write(f.repo+"/skills/"+name+"/SKILL.md", "---\nname: "+name+"\ndescription: a skill\n---\n")
 }
 
-func (f *fixture) expectContained(run *installer.Run) {
-	f.t.Helper()
-	if breaches := run.Breaches(); len(breaches) > 0 {
-		f.t.Fatalf("the run went for a path outside %s — %s\n"+
-			"this is the containment guard, not a failing case", f.base, strings.Join(breaches, "; "))
-	}
-}
-
-// --- the fixture writers ----------------------------------------------------------------------
-
-// A fixture link dropped so another can take its place. It goes through the containment guard,
-// because RefuseExistingSymlink, one of its checks, deliberately leaves an existing symlink alone.
-// That refusal is a rule, and reaching for os directly would work around it.
-func (f *fixture) removeLink(path string) {
-	f.t.Helper()
-	f.ContainedParent(path)
-	if err := os.Remove(path); err != nil {
-		f.t.Fatalf("the fixture could not drop %s: %v", path, err)
-	}
-}
-
 // --- what a case asks afterwards ----------------------------------------------------------------
-
-func (f *fixture) said() string {
-	return f.out.String()
-}
-
-func (f *fixture) expectSaid(want string) {
-	f.t.Helper()
-	if !strings.Contains(f.out.String(), want) {
-		f.t.Errorf("the run never said %q. It said:\n%s", want, f.out.String())
-	}
-}
-
-func (f *fixture) expectNotSaid(unwanted string) {
-	f.t.Helper()
-	if strings.Contains(f.out.String(), unwanted) {
-		f.t.Errorf("the run said %q, which it must not. It said:\n%s", unwanted, f.out.String())
-	}
-}
 
 func (f *fixture) expectRefusals(run *installer.Run, want int) {
 	f.t.Helper()
 	if got := len(run.Refusals()); got != want {
 		f.t.Errorf("the run collected %d refusal(s), wanted %d: %v", got, want, run.Refusals())
-	}
-}
-
-func (f *fixture) expectLinkTo(target, want string) {
-	f.t.Helper()
-	value, err := os.Readlink(target)
-	if err != nil {
-		f.t.Errorf("%s is not a symlink, so it was never mounted: %v", target, err)
-		return
-	}
-	if value != want {
-		f.t.Errorf("%s -> %s, wanted %s", target, value, want)
-	}
-}
-
-// A symlink at the target, wherever it points — for a case whose whole subject is that a link survived
-// a run that removes some of them.
-func (f *fixture) expectSymlink(target string) {
-	f.t.Helper()
-	if _, err := os.Readlink(target); err != nil {
-		f.t.Errorf("%s is not a symlink any more, so the run took it: %v", target, err)
-	}
-}
-
-// An empty path, with no entry of any kind. Lstat, because Stat follows the link and answers "not
-// there" for one that dangles. That is the shape a half-done removal leaves behind, and these cases
-// assert about it.
-func (f *fixture) expectAbsent(path string) {
-	f.t.Helper()
-	if info, err := os.Lstat(path); err == nil {
-		f.t.Errorf("%s is still there (%s)", path, info.Mode())
-	}
-}
-
-func (f *fixture) expectDir(path string) {
-	f.t.Helper()
-	info, err := os.Stat(path)
-	if err != nil || !info.IsDir() {
-		f.t.Errorf("%s is not a directory, so the run never created it: %v", path, err)
-	}
-}
-
-func (f *fixture) expectNotSymlink(path string) {
-	f.t.Helper()
-	if value, err := os.Readlink(path); err == nil {
-		f.t.Errorf("%s became a symlink to %s, so what was there was replaced", path, value)
-	}
-}
-
-func (f *fixture) expectFileBody(path, want string) {
-	f.t.Helper()
-	got, err := os.ReadFile(path)
-	if err != nil {
-		f.t.Errorf("%s could not be read, so what was in it did not survive: %v", path, err)
-		return
-	}
-	if string(got) != want {
-		f.t.Errorf("%s holds %q, wanted %q", path, got, want)
 	}
 }

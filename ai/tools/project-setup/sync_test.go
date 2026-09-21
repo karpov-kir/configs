@@ -8,18 +8,18 @@ import "testing"
 func TestASyncMountsTheTierEachClientWasInstalledWith(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
-	f.expectCode(f.install("--agent=claude", "--maintainer"), 0)
-	f.expectCode(f.install("--agent=codex"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--maintainer"), 0)
+	f.ExpectCode(f.install("--agent=codex"), 0)
 	f.RemoveAll(f.skillsMount("claude"))
 	f.RemoveAll(f.skillsMount("codex"))
 
-	f.expectCode(f.sync(f.project), 0)
+	f.ExpectCode(f.sync(f.project), 0)
 
 	// Claude was installed with --maintainer, so it gets the marked skill back too.
-	f.expectLinkTo(f.skillsMount("claude")+"/kk-ecosystem", f.home+"/.kk-flavor/skills/kk-ecosystem")
-	f.expectLinkTo(f.skillsMount("codex")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
-	f.expectAbsent(f.skillsMount("codex") + "/kk-ecosystem")
-	f.expectFileBody(paths.state+"/claude", "true\n")
+	f.ExpectLinkTo(f.skillsMount("claude")+"/kk-ecosystem", f.home+"/.kk-flavor/skills/kk-ecosystem")
+	f.ExpectLinkTo(f.skillsMount("codex")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
+	f.ExpectAbsent(f.skillsMount("codex") + "/kk-ecosystem")
+	f.ExpectFileBody(paths.state+"/claude", "true\n")
 }
 
 // A checkout is not an install: a hook that rewrote a project's tracked files on every branch switch
@@ -27,14 +27,14 @@ func TestASyncMountsTheTierEachClientWasInstalledWith(t *testing.T) {
 func TestASyncWritesNoInstructionsAndNoIgnoreRules(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()
-	f.expectCode(f.install("--agent=claude"), 0)
-	instructions := f.read(f.project + "/AGENTS.md")
+	f.ExpectCode(f.install("--agent=claude"), 0)
+	instructions := f.Read(f.project + "/AGENTS.md")
 	f.RemoveAll(f.project + "/.gitignore")
 
-	f.expectCode(f.sync(f.project), 0)
+	f.ExpectCode(f.sync(f.project), 0)
 
-	f.expectFileBody(f.project+"/AGENTS.md", instructions)
-	f.expectAbsent(f.project + "/.gitignore")
+	f.ExpectFileBody(f.project+"/AGENTS.md", instructions)
+	f.ExpectAbsent(f.project + "/.gitignore")
 }
 
 // A clone this was never installed into has none to restore. That is a success: git runs this hook on
@@ -43,17 +43,17 @@ func TestASyncOverAClientlessCloneDoesNothingAndSucceeds(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()
 
-	f.expectCode(f.sync(f.project), 0)
+	f.ExpectCode(f.sync(f.project), 0)
 
-	f.expectAbsent(f.skillsMount("claude"))
+	f.ExpectAbsent(f.skillsMount("claude"))
 }
 
 func TestASyncOverSomethingThatIsNotAWorktreeSaysSo(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.sync(f.project), 1)
+	f.ExpectCode(f.sync(f.project), 1)
 
-	f.expectSaid("is not a Git worktree")
+	f.ExpectSaid("is not a Git worktree")
 }
 
 // A state file holding anything but the two words the install writes is one somebody edited, or a
@@ -61,12 +61,12 @@ func TestASyncOverSomethingThatIsNotAWorktreeSaysSo(t *testing.T) {
 func TestAStateFileNobodyCanReadStopsTheSync(t *testing.T) {
 	f := newFixture(t)
 	paths := f.asRepository()
-	f.expectCode(f.install("--agent=claude"), 0)
-	f.rewrite(paths.state+"/claude", "maybe\n")
+	f.ExpectCode(f.install("--agent=claude"), 0)
+	f.Write(paths.state+"/claude", "maybe\n")
 
-	f.expectCode(f.sync(f.project), 1)
+	f.ExpectCode(f.sync(f.project), 1)
 
-	f.expectSaid("Invalid project skill setup")
+	f.ExpectSaid("Invalid project skill setup")
 }
 
 // Run from a directory inside the worktree. That is what a human doing this by hand does, while
@@ -74,21 +74,21 @@ func TestAStateFileNobodyCanReadStopsTheSync(t *testing.T) {
 func TestASyncFromInsideTheWorktreeStillMountsAtItsRoot(t *testing.T) {
 	f := newFixture(t)
 	f.asRepository()
-	f.expectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 	f.RemoveAll(f.skillsMount("claude"))
 	inside := f.project + "/somewhere/deep"
 	f.MkdirAll(inside)
 	f.git.TreeAt(inside, f.project)
 
-	f.expectCode(f.sync(inside), 0)
+	f.ExpectCode(f.sync(inside), 0)
 
-	f.expectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
+	f.ExpectLinkTo(f.skillsMount("claude")+"/kk-build", f.home+"/.kk-flavor/skills/kk-build")
 }
 
 func TestASyncNamingNoWorktreeIsRefused(t *testing.T) {
 	f := newFixture(t)
 
-	f.expectCode(f.syncWith(), 2)
+	f.ExpectCode(f.syncWith(), 2)
 
-	f.expectSaid("usage: project-skills.sh --sync <worktree>")
+	f.ExpectSaid("usage: project-skills.sh --sync <worktree>")
 }
