@@ -190,6 +190,14 @@ func (h hostRepo) baseRevision(revisions []string) (string, error) {
 		if right == "" {
 			right = "HEAD"
 		}
+		// Each half on its own. diffscan.RefuseNonRevisions, the guard the arguments passed, reads the
+		// leading byte of the whole argument, so `a...--foo` reaches here whole and splits into a half
+		// that opens with a dash. What that half reaches is a git argv.
+		for _, half := range []string{left, right} {
+			if strings.HasPrefix(half, "-") {
+				return "", fmt.Errorf("'%s' is an option, not a git-diff revision — the scan did NOT run", half)
+			}
+		}
 		base, err := h.git.MergeBase(h.root, left, right)
 		if err != nil {
 			return "", gitRefusal(fmt.Sprintf("%s and %s have no merge base", left, right), err)

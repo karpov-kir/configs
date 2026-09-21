@@ -140,6 +140,44 @@ func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
 	}
 }
 
+// go build reads a `.go` file whatever an ignore rule says. A listing that honours those rules stamps
+// less than the compiler compiles, and one line holds the stamp still while the binary changes under
+// it. resolve.sh then serves that binary at exit 0 as built from this source.
+
+// Both files carrying such a rule are here. One travels with the repository. One is per-clone, and a
+// diff and `git status` both stay silent about it.
+func TestAnIgnoredSourceFileStillMovesTheStamp(t *testing.T) {
+	t.Parallel()
+	for _, rule := range []struct {
+		name string
+		// Where the rule is written, under the module.
+		file string
+	}{
+		{name: "a rule that travels with the repository", file: ".gitignore"},
+		{name: "a rule that is per-clone and reaches no diff", file: filepath.Join(".git", "info", "exclude")},
+	} {
+		t.Run(rule.name, func(t *testing.T) {
+			t.Parallel()
+			module := newModule(t, newSandbox(t), "ignored")
+			newRepository(t, module)
+			before := stampOf(t, module, ownMain)
+
+			// The rule on its own first. It names a file this module does not hold yet. A stamp that moves on
+			// the rule alone leaves the second half of this case passing on the wrong cause.
+			writeFile(t, filepath.Join(module, rule.file), "hidden.go\n", 0o644)
+			if ruled := stampOf(t, module, ownMain); ruled != before {
+				t.Fatalf("writing the rule moved the stamp on its own\nbefore %q\n   now %q", before, ruled)
+			}
+
+			writeFile(t, filepath.Join(toolsIn(module), ownMain, "hidden.go"), straySource, 0o644)
+			if hidden := stampOf(t, module, ownMain); hidden == before {
+				t.Errorf("a `.go` file the compiler reads and this rule hides left the stamp where it was, "+
+					"so the binary built from it reads as current\nbefore %q\n   now %q", before, hidden)
+			}
+		})
+	}
+}
+
 // A file that is Go source. No case here builds it. It is written into the module and into the
 // checkout nested inside it, so its location is the only difference between the two.
 const straySource = "package main\n\nvar Stray = 1\n"

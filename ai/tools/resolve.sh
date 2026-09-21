@@ -236,29 +236,53 @@ lock="$binary.lock"
 # process holds.
 lock_abandoned_minutes=5
 
+# The pid of the process holding the lock, written inside it. Age alone marked a lock abandoned. A
+# build often outruns the bound: a cold module fetch, a loaded machine, a suspended laptop. A waiter
+# then broke the lock under a live holder. That holder released the waiter's lock as its own, and the
+# critical section stood open to every process after it.
+
+# What the section guards is the `mv` and the stamp write. A break leaves one build's binary beside
+# another build's stamp, and the next run reads that pair as current.
+release_lock() {
+  trap - EXIT HUP INT TERM
+  [ "$(cat "$lock/pid" 2>/dev/null || :)" = "$$" ] || return 0
+  rm -f "$lock/pid" 2>/dev/null || :
+  rmdir "$lock" 2>/dev/null || :
+}
+
 # A waiter polls five times a second. bash 3.2 is still /bin/bash on macOS, and it offers no way to
 # wait on a directory being removed. Both machines this runs on accept a fractional sleep, which keeps
 # a queued tool off a whole second it did not need.
+
+# A lock is broken on two counts together: its holder is gone, and it is older than the bound. A live
+# holder keeps its lock however long it takes.
+
+# A lock that will not come away is a refusal. `rmdir` removes an empty directory alone. A lock
+# holding a stray file spun this loop forever, skipping the sleep and forking one `find` per turn.
 waited=""
 while ! mkdir "$lock" 2>/dev/null; do
   [ -d "$lock" ] || die "cannot create $lock, so $tool did NOT run"
-  if [ -n "$(find "$lock" -maxdepth 0 -mmin "+$lock_abandoned_minutes" 2>/dev/null)" ]; then
-    rmdir "$lock" 2>/dev/null || :
-  else
-    waited=1
-    sleep 0.2
+  holder="$(cat "$lock/pid" 2>/dev/null || :)"
+  if [ -z "$holder" ] || ! kill -0 "$holder" 2>/dev/null; then
+    if [ -n "$(find "$lock" -maxdepth 0 -mmin "+$lock_abandoned_minutes" 2>/dev/null)" ]; then
+      rm -f "$lock/pid" 2>/dev/null || :
+      rmdir "$lock" 2>/dev/null ||
+        die "$lock is held by no live process and will not come away, so $tool did NOT run — remove it by hand"
+      continue
+    fi
   fi
+  waited=1
+  sleep 0.2
 done
+
+# The pid goes in first, so a waiter reading this lock finds an owner. A process killed between taking
+# the lock and this line leaves it ownerless, and a waiter breaks it once it is past the bound.
+printf '%s\n' "$$" >"$lock/pid"
 
 # A build that failed and a build a signal stopped both give the lock up here. `serve` is the
 # exception: an exec runs no trap, so every path from here to `serve` calls `release_lock` first.
-trap 'rmdir "$lock" 2>/dev/null || :' EXIT
-trap 'rmdir "$lock" 2>/dev/null || :; exit 2' HUP INT TERM
-
-release_lock() {
-  trap - EXIT HUP INT TERM
-  rmdir "$lock" 2>/dev/null || :
-}
+trap 'release_lock' EXIT
+trap 'release_lock; exit 2' HUP INT TERM
 
 # The build this run waited for may be the build it needed, and past the lock the stamp says so. The
 # check saves compiling the same source a second time, which is what every tool the gate launches at

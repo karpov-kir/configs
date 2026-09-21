@@ -77,6 +77,14 @@ fi
 # Outside a checkout the walk is all there is. It prunes bin/ and dist/ for the binaries and `.git`
 # for holding no Go. Both spellings name every file `./…`, so an unchanged tree stamps as it did when
 # this only walked.
+#
+# The listing leaves `--exclude-standard` off, and that is the point of it. go build reads a `.go`
+# file whatever .gitignore says. A listing that skips ignored files stamps less than the compiler
+# compiles, and resolve.sh serves the result at exit 0 as built from this source.
+
+# What the listing is for is the nested-checkout boundary. ls-files stops at a repository inside this
+# one by git's own rule, where a walk descends into all eight of them. That boundary holds without
+# the flag.
 sources=()
 while IFS= read -r -d '' path; do
   sources+=("./${path#./}")
@@ -85,7 +93,7 @@ done < <(
     if command -v git >/dev/null 2>&1 &&
       [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ]; then
       printf 'go.mod\0'
-      git ls-files --cached --others --exclude-standard -z -- '*.go' ':(exclude)*_test.go'
+      git ls-files --cached --others -z -- '*.go' ':(exclude)*_test.go'
     else
       printf './go.mod\0'
       find . \( -name .git -o -name bin -o -name dist \) -prune -o \

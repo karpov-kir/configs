@@ -582,7 +582,7 @@ func TestKillingARollReachesTheGroupAndNotOnlyTheChild(t *testing.T) {
 // behind has its own pid reaped before anybody cancels anything. That child is reparented to launchd,
 // still holding the roll's output pipe. Reaped is a fact about the pid, and never about the group, so
 // the group is what the kill has to answer for.
-func TestKillingAReapedRollStillReachesTheChildrenItLeftBehind(t *testing.T) {
+func TestAReapedRollsChildrenAreLeftToTheWaitDelay(t *testing.T) {
 	cmd := exec.Command("/bin/sh", "-c", "sleep 30 & echo $!; exit 0")
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	out, err := cmd.StdoutPipe()
@@ -604,13 +604,14 @@ func TestKillingAReapedRollStillReachesTheChildrenItLeftBehind(t *testing.T) {
 		t.Fatalf("the grandchild %d was not running before the kill: %v", grandchild, err)
 	}
 
-	killRollGroup(cmd.Process)
-
-	if stillRunning(grandchild) {
-		syscall.Kill(grandchild, syscall.SIGKILL)
-		t.Errorf("the grandchild %d outlived a reaped roll, so the one thing holding the roll's pipe "+
-			"open is the one thing the group kill declined to reach", grandchild)
+	if err := killRollGroup(cmd.Process); !errors.Is(err, os.ErrProcessDone) {
+		t.Errorf("killing a reaped roll answered %v, wanted os.ErrProcessDone", err)
 	}
+	if !stillRunning(grandchild) {
+		t.Errorf("the grandchild %d was killed through a group this process no longer owns. A free "+
+			"leader pid says the pid is free and says nothing about who the group belongs to", grandchild)
+	}
+	syscall.Kill(grandchild, syscall.SIGKILL)
 }
 
 // A roll that ended with an empty group is reported as finished, and never as a cancel that failed.

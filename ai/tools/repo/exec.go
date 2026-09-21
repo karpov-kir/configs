@@ -119,8 +119,10 @@ func (e Exec) Resolve(dir, rev string) (string, error) {
 	return strings.TrimRight(string(out), "\n"), nil
 }
 
+// `--end-of-options` for the same reason Resolve carries it. Both arguments are revisions a caller
+// took from a command line, and one opening with a dash is read as a flag without it.
 func (e Exec) MergeBase(dir, left, right string) (string, error) {
-	return e.line(dir, "merge-base", left, right)
+	return e.line(dir, "merge-base", "--end-of-options", left, right)
 }
 
 func (e Exec) Tracked(dir string, pathspec ...string) ([]string, error) {
@@ -137,7 +139,7 @@ func (e Exec) Untracked(dir string, pathspec ...string) ([]string, error) {
 // subdirectory would otherwise get that directory's files under names the repository root does not
 // know.
 func (e Exec) NamesAt(dir, rev string) ([]string, error) {
-	return e.listing(dir, "ls-tree", "-r", "-z", "--full-tree", "--name-only", rev)
+	return e.listing(dir, "ls-tree", "-r", "-z", "--full-tree", "--name-only", "--end-of-options", rev)
 }
 
 // `--no-relative`, because `diff.relative=true` in the reader's config names `a.go` for `pkg/a.go` and
@@ -242,7 +244,7 @@ func (e Exec) Status(dir string) ([]string, error) {
 // rendering of the file. Every caller here reads content to measure or to compare, and the reader's
 // own config must not decide what they measure.
 func (e Exec) Show(dir, rev, path string) ([]byte, error) {
-	return e.run(dir, "show", "--no-textconv", rev+":"+path)
+	return e.run(dir, "show", "--no-textconv", "--end-of-options", rev+":"+path)
 }
 
 // ContentsAt reads the whole list in one process. `cat-file --batch` takes object names on stdin and
@@ -393,7 +395,7 @@ func (e Exec) Ignored(dir string, paths []string) (map[string]bool, error) {
 
 // `check-ignore` exits 1 for a path no rule ignores. This returns empty with a nil error there.
 func (e Exec) IgnoreSource(dir, path string) (string, error) {
-	out, err := e.run(dir, "check-ignore", "-v", path)
+	out, err := e.run(dir, "check-ignore", "-v", "--", path)
 	if err != nil {
 		var exit *exec.ExitError
 		if errors.As(err, &exit) && exit.ExitCode() == 1 {

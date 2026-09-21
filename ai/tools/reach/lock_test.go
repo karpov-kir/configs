@@ -59,10 +59,14 @@ const (
 // They are this wide because what waits is a process on a machine already running the rest of this
 // package in parallel. A bound that expires under load reports a script that no longer takes the
 // ordering, and that report would be a lie.
+
+// Thirty seconds told that lie once, on a full `go test ./...` with three agents finishing beside it.
+// The same case passed alone in ten. Every wait here ends on a marker, so a passing run pays neither
+// bound, and a hung one pays the difference between them.
 const (
 	shimPoll         = "0.02"
-	shimPolls        = 1500
-	orderingDeadline = 30 * time.Second
+	shimPolls        = 6000
+	orderingDeadline = 120 * time.Second
 )
 
 // A toolchain that copies the source it compiled into the binary it writes. A case can then read the
@@ -397,9 +401,100 @@ func inOwnGroup(command *exec.Cmd) *exec.Cmd {
 	return command
 }
 
+// The liveness check first. The `Wait` this case's launch runs on its own goroutine may already have
+// reaped the build, and the pid is free the moment it does. A signal to the negation of a free pid
+// reaches whichever group now answers to it, which on this machine is another session's.
 func signalGroup(t *testing.T, launched *pending, signal syscall.Signal) {
 	t.Helper()
+	if err := launched.command.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Fatalf("the build was already reaped (%v), so the kill this case is about never happened", err)
+	}
 	if err := syscall.Kill(-launched.command.Process.Pid, signal); err != nil {
 		t.Fatalf("sending %v to the build: %v — the kill this case is about never happened", signal, err)
+	}
+}
+
+// A lock that will not come away is a refusal. `rmdir` removes an empty directory alone, and a lock
+// holding a stray file stays where it is. The waiter retried that removal and skipped its sleep,
+// forking one `find` per turn for the life of the process. Every skill stub execs this script, so one
+// such lock wedged that tool for every session on the machine.
+func TestALockThatWillNotComeAwayIsRefused(t *testing.T) {
+	t.Parallel()
+	sandbox := newSandbox(t)
+	tools := newToolsDir(t, sandbox, "wedged")
+	lock := filepath.Join(tools, "bin", tool) + ".lock"
+	if err := os.MkdirAll(filepath.Join(lock, "leftover"), 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", lock, err)
+	}
+	aged(t, lock)
+
+	command := newLaunch(t, filepath.Join(tools, "resolve.sh"),
+		newBuildPath(t, sandbox, "wedged-build", fmt.Sprintf(recordingToolchain, "")), tool)
+	// The bound on the spin this case is about. A script that refuses reaches it in milliseconds, and
+	// one that spins is killed here and reports a code no refusal carries.
+	spinning := time.AfterFunc(orderingDeadline, func() {
+		if command.Process != nil {
+			_ = command.Process.Kill()
+		}
+	})
+	defer spinning.Stop()
+	expectRefusal(t, launch(t, command), "will not come away")
+}
+
+// A lock is broken on its age and on its holder together. A build that outruns five minutes is
+// ordinary: a cold module fetch, a loaded machine, a suspended laptop. Age alone let a waiter take the
+// lock from a live holder. That holder then released the waiter's lock as its own, and the pair this
+// lock guards was left torn for every process after it.
+func TestALockALiveProcessHoldsSurvivesItsAge(t *testing.T) {
+	t.Parallel()
+	sandbox := newSandbox(t)
+	tools := newToolsDir(t, sandbox, "live-holder")
+	lock := filepath.Join(tools, "bin", tool) + ".lock"
+
+	// Any live pid answers, because the pid is the whole of what a waiter reads. This one outlives the
+	// case and is killed with it.
+	holder := exec.Command("sleep", "120")
+	if err := holder.Start(); err != nil {
+		t.Fatalf("starting the holder: %v — nothing was measured", err)
+	}
+	t.Cleanup(func() {
+		_ = holder.Process.Kill()
+		_ = holder.Wait()
+	})
+	if err := os.MkdirAll(lock, 0o755); err != nil {
+		t.Fatalf("laying out %s: %v — nothing was measured", lock, err)
+	}
+	pid := fmt.Sprintf("%d\n", holder.Process.Pid)
+	if err := os.WriteFile(filepath.Join(lock, "pid"), []byte(pid), 0o644); err != nil {
+		t.Fatalf("writing the holder's pid: %v — nothing was measured", err)
+	}
+	aged(t, lock)
+
+	// A waiter on a lock it may not break waits, so this run is killed at the end of a window. A run
+	// that breaks the lock does it on its first turn, long inside that window.
+	command := newLaunch(t, filepath.Join(tools, "resolve.sh"),
+		newBuildPath(t, sandbox, "live-holder-build", fmt.Sprintf(recordingToolchain, "")), tool)
+	waiting := time.AfterFunc(3*time.Second, func() {
+		if command.Process != nil {
+			_ = command.Process.Kill()
+		}
+	})
+	defer waiting.Stop()
+	launch(t, command)
+
+	held, err := os.ReadFile(filepath.Join(lock, "pid"))
+	if err != nil || string(held) != pid {
+		t.Errorf("a waiter took %s from a process still holding it (%v, %q), so two builds now write one "+
+			"binary and one stamp between them", lock, err, held)
+	}
+}
+
+// An mtime an hour back. What a waiter needs is a lock older than the bound it breaks on. A case that
+// waited five minutes for one would be the slowest in this package by two orders of magnitude.
+func aged(t *testing.T, lock string) {
+	t.Helper()
+	abandoned := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(lock, abandoned, abandoned); err != nil {
+		t.Fatalf("ageing %s: %v — the abandoned lock this case is about was never set up", lock, err)
 	}
 }

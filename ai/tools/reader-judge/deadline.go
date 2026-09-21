@@ -2,7 +2,6 @@ package readerjudge
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -185,31 +184,21 @@ type modelCommand struct {
 // whole Wait-to-channel gap down to the two adjacent syscalls below; it does not close it. Closing it
 // needs pidfd or process handles, which darwin does not have.
 //
-// A reaped child is not an empty group, which is why ErrProcessDone leaves work here to do. A provider
-// that exits leaving children behind has them reparented to launchd, still holding the roll's output
-// pipe. The roll then waits on them for the whole of cmd.WaitDelay, which is the very hang the group
-// kill exists to end.
+// A reaped roll leaves its children to cmd.WaitDelay. They are reparented to launchd holding the
+// roll's output pipe, and five seconds later os/exec closes it and returns.
+
+// A sweep of the group stood here and has gone. Its claim was that a leader's pid being free says the
+// group behind it is this roll's. A group outlives its leader, so a free pid says only that the pid is
+// free. Any process that took that pid, made a group and exited leaves the same shape, which is the
+// shape TestAReapedRollsChildrenAreLeftToTheWaitDelay, the case for this, builds.
+
+// What the sweep bought was closing the pipe now instead of five seconds from now. What it risked was
+// SIGKILL to a process group belonging to another session. The second is worse than the first.
 func killRollGroup(p *os.Process) error {
 	if err := p.Signal(syscall.Signal(0)); err != nil {
-		if errors.Is(err, os.ErrProcessDone) {
-			sweepTheAbandonedGroup(p.Pid)
-		}
 		return err
 	}
 	return syscall.Kill(-p.Pid, syscall.SIGKILL)
-}
-
-// Making a group takes being the pid it is named after. A pid held by no process cannot name a group
-// another process made, so an unused pid is what says the group behind it is still this roll's. ESRCH
-// from the sweep is the group having emptied itself, which is the outcome asked for.
-
-// sweepTheAbandonedGroup kills what a reaped roll left running, and stays silent once the leader's pid
-// belongs to another process.
-func sweepTheAbandonedGroup(leader int) {
-	if !errors.Is(syscall.Kill(leader, syscall.Signal(0)), syscall.ESRCH) {
-		return
-	}
-	_ = syscall.Kill(-leader, syscall.SIGKILL)
 }
 
 func runBounded(deadline time.Duration, command modelCommand) (string, error) {

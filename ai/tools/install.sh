@@ -220,21 +220,42 @@ held_lock=""
 # this machine.
 
 # The age is asked with `find -mmin`, in whole minutes: macOS ships bash 3.2 and no GNU stat.
+# A lock is broken on two counts together: the pid inside it belongs to a dead process, and the lock is
+# older than the bound. Age alone marked it abandoned. A waiter then broke the lock under a live holder,
+# that holder released the waiter's lock as its own, and the section stood open to every process after
+# it. What it guards is the pair this script writes.
+
+# A lock that will not come away is a refusal. `rmdir` removes an empty directory alone. A lock holding
+# a stray file spun this loop forever, skipping the sleep.
 take_lock() { # <lock directory>
+  local holder
   while ! mkdir "$1" 2>/dev/null; do
     [ -d "$1" ] || die "cannot create $1, so nothing was installed"
-    if [ -n "$(find "$1" -maxdepth 0 -mmin "+$lock_abandoned_minutes" 2>/dev/null)" ]; then
-      rmdir "$1" 2>/dev/null || :
-    else
-      sleep 0.2
+    holder="$(cat "$1/pid" 2>/dev/null || :)"
+    if [ -z "$holder" ] || ! kill -0 "$holder" 2>/dev/null; then
+      if [ -n "$(find "$1" -maxdepth 0 -mmin "+$lock_abandoned_minutes" 2>/dev/null)" ]; then
+        rm -f "$1/pid" 2>/dev/null || :
+        rmdir "$1" 2>/dev/null ||
+          die "$1 is held by no live process and will not come away, so nothing was installed — remove it by hand"
+        continue
+      fi
     fi
+    sleep 0.2
   done
+  # The pid goes in first, so a waiter reading this lock finds an owner. A process killed between taking
+  # the lock and this line leaves it ownerless, and a waiter breaks it once it is past the bound.
+  printf '%s\n' "$$" >"$1/pid"
   held_lock="$1"
 }
 
+# Only this process's own lock is given up. After a break the path holds someone else's lock, and
+# removing that is what left the section open to everyone.
 release_lock() {
   [ -n "$held_lock" ] || return 0
-  rmdir "$held_lock" 2>/dev/null || :
+  if [ "$(cat "$held_lock/pid" 2>/dev/null || :)" = "$$" ]; then
+    rm -f "$held_lock/pid" 2>/dev/null || :
+    rmdir "$held_lock" 2>/dev/null || :
+  fi
   held_lock=""
 }
 
