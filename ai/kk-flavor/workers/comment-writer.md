@@ -78,12 +78,13 @@ UnmeasuredPostingServerFailed = 'UNMEASURED_POSTING_SERVER_FAILED',
 stubReadingLedger({ supported: true, reads });
 
 // Every caller removes postings from the ledger while it walks the result.
-// `snapshotPostings` copies the live list into a plain array, which keeps each posting the callers remove.
+// `snapshotPostings` copies the live list into a plain array.
 export function snapshotPostings(list: LivePostingList): Posting[] {
 ```
 
 The eleventh reads its fact from the `--- callers` section. A caller's act that explains this
-function's act is the `fact:`, and `belongs at` is for a caller's act the fact explains.
+function's act is the `fact:`, and the copy is the act the callers' removal explains. `belongs at` is
+for a caller's act the fact explains.
 
 The block is the record written as two plain sentences: the fact, then the tie. The tie's subject is
 the `bears_on` identifier, and it takes the spelling the code gives it. No connective is required and `so` is not
