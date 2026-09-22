@@ -97,3 +97,16 @@ why. The plain half reads a directory of reviewed source named by `JUDGE_EVAL_PL
 a reviewer left alone. It asks what share of them the writer writes for, and what share of those fail
 a check. The set is named by the environment and by no committed path. A case there
 is named by its position in the sorted set, and only counts leave the run.
+
+## What a case cannot measure
+
+The writer a case runs is told it has no tools. Every case hands it the code, the facts, and
+whatever `--- callers` and `--- tests` sections the case carries, and it answers from that alone. A
+writer working a real change set has the repository: it follows a field's consumer into another
+file and decides what it found there.
+
+So a defect that turns on what the writer goes and finds cannot go red here. Case k18 is that
+shape. Four cuts of it, each at fifteen rolls, came back written 15, 15, 13 and 15 times, and the
+two-roll move sits inside the no-change band this file's first section gives. The rule k18 pins
+landed on the evidence from the change set, and the case pins the correct answer rather than
+guarding against the defect.

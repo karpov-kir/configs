@@ -1,0 +1,45 @@
+expect: written
+note: written
+floor: 60
+keeps: must match | has to match | must stay in step
+why: this case pins the correct answer and does not guard against the defect, and a green run of it is no protection; the defect it was cut for is a writer routing the claim to a run-time check it found by following the field's consumer into another file, and four cuts at fifteen rolls came back written 15, 15, 13 and 15 times, inside the no-change band, because the eval writer has no tools and cannot do the finding that produced the defect; writer-eval's README holds that limit; the rule landed on the change set's own evidence, where the check's fault message and its test both carry the field's name and the verb declare, so the check reads as the claim restated in code, and is not, because a check running over an export can fail and five rows of the real table fail it today against 24 fetched exports; a failing check is not a carrier, and routing the claim to it deleted the one statement that made the parting findable
+labelled: 2026-09-22
+--- code
+export interface CatalogueEntry {
+  book: LedgerBook;
+  entryType: string;
+  omissionReason?: string;
+}
+--- callers
+// ledger/narrowing/LedgerNarrowing.ts
+export function newCataloguedBookCheck(entryType: string): ExportCheck {
+  return {
+    fault: doc =>
+      faultOf({
+        doc,
+        entryType,
+        rule: declaringCount => {
+          const entryCount = listEntries(doc).length;
+
+          return declaringCount < entryCount
+            ? `${entryCount - declaringCount} of ${entryCount} entries declare something other than ` +
+                `${entryType}, and nothing narrows this row, so the poster may post one of them`
+            : undefined;
+        },
+      }),
+  };
+}
+
+// tests/catalogue/LedgerNarrowingHooks.ts
+{ check: newCataloguedBookCheck(bookEntryType), narrowingFilters: [] }
+--- facts
+The book's export declares the entry type the book carries.
+This field must match that string, or a poster answers about an entry type this book does not carry.
+
+# claimed at this site by an earlier run:
+Names the entry type read from this book's export, which is what the poster gets asked about.
+--- tests
+// LedgerNarrowing.test.ts in the change set
+it('should fault an export declaring the entry type nowhere', () => {
+  expect(cataloguedBookFaultOf(doc)).toBe(`no entry declares ${ENTRY_TYPE}`);
+});
