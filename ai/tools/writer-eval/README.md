@@ -60,7 +60,7 @@ on the machine, and the runs queue behind each other.
 
 The four-minute deadline on a call did not hold. Both stalled runs ended with every slot in flight
 held by a call past sixteen minutes, alive, a second and a half of processor time each, waiting on
-the network. `WaitDelay` now closes the pipes shortly after the kill. The first full set run with it in place finished in 33 minutes, where the two before it had not finished at all. **That is evidence and not a diagnosis.** Where a run wedges again, read it before anything else lands.
+the network. `WaitDelay` now closes the pipes shortly after the kill. The first full set run with it in place finished in 33 minutes, where the two before it had not finished at all. **That is evidence and not a diagnosis.** Where a run wedges again, read it before anything else lands. Read `pmset -g log` for sleep first. The call deadline runs on a clock that stops while the machine sleeps, and `ps` elapsed time does not. A run on 2026-09-23 took 3 h 40 m through fifteen-minute sleep cycles, with calls showing 33 minutes against a four-minute deadline. `caffeinate -i -s -w <pid>` holds the machine awake for one test process and ends when it does.
 
 Read the run's own processes by the test binary's path and never by a name a shell wrapper also carries. A check for the wedge timed `go test` and `sed` as though they were calls, because `pgrep -f writer-eval.test` matches the wrapper's command line too. Whether that is the whole of it is unmeasured: the runs were
 stopped, not diagnosed.
