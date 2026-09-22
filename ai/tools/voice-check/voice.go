@@ -114,13 +114,53 @@ const (
 	checkClauseDepth   = "clause-depth"
 	checkDoubleNeg     = "double-negative"
 	checkSemicolon     = "semicolon"
+	checkReasonAway    = "reason-by-link"
+	checkAloneForOnly  = "alone-for-only"
 )
 
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
-	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon}
+	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly}
+
+// reAlone is the word itself. What it follows decides whether it is the exclusivity word or the
+// ordinary one, and aloneIsIdiom reads that.
+var reAlone = regexp.MustCompile(`(?i)\balone\b`)
+
+// aloneLookBack is how many words back the governing verb is looked for: `leave the actor alone`.
+const aloneLookBack = 3
+
+// aloneStandsAfter is the pronouns `alone` follows in its ordinary sense, and aloneStandsUnder the
+// verbs that take it: `leave it alone`, `the header stands alone`.
+var aloneStandsAfter = map[string]bool{"it": true, "them": true, "him": true, "her": true, "me": true,
+	"us": true, "you": true, "i": true, "he": true, "she": true, "we": true, "they": true}
+
+var aloneStandsUnder = map[string]bool{"leave": true, "leaves": true, "left": true, "leaving": true,
+	"let": true, "lets": true, "letting": true, "stand": true, "stands": true, "standing": true,
+	"stood": true, "go": true, "goes": true, "went": true, "gone": true}
+
+// aloneIsIdiom says this `alone` is the ordinary word and not the exclusivity one. `before` is the
+// text up to the word.
+func aloneIsIdiom(before string) bool {
+	words := strings.Fields(before)
+	for at := len(words) - 1; at >= 0 && at > len(words)-1-aloneLookBack; at-- {
+		word := strings.ToLower(strings.Trim(words[at], "`*_,.;:()\"'"))
+		if aloneStandsUnder[word] {
+			return true
+		}
+		if at == len(words)-1 && aloneStandsAfter[word] {
+			return true
+		}
+	}
+	return false
+}
+
+// reReasonAway is a note handing its reason to another note: `for the reason {@link X} gives`,
+// `see <X> for why`, `as {@link X} explains`. The reason is written where it is read, so a block
+// carrying one of these shapes is a block whose reason has to move to it.
+var reReasonAway = regexp.MustCompile(`(?i)\b(for the reason|see|as)\s+(\{@link\s+[^}\n]{1,80}\}|` +
+	"`[^`\n]{1,80}`" + `)\s+(gives|states|explains|for why|for the reason)\b`)
 
 var (
 	// A bold span opening on a word or a backtick. `**` around a space is markdown that did not close.
@@ -444,6 +484,9 @@ type scanner struct {
 	// suppressed counts what the allowlist dropped. A finding answered by an entry is still a finding
 	// the text carried, and a report that said nothing about it would read as text that matched nothing.
 	suppressed *int
+	// record says the text opens with the note's record, which RecordFindings reads against the block
+	// and the source under it. The register checks read the prose either way.
+	record bool
 	// inCell says the segment is one cell of a table row. A cell is a list by construction. A semicolon
 	// in one separates two fields, and the same semicolon in prose joins two clauses.
 	inCell bool
@@ -729,6 +772,26 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 			}
 		}
 	}
+	// Two shapes a reviewer sent back on 2026-09-22, both of them a comment's own sentence and neither
+	// of them a register tell. `alone` after a noun is `only` doing its work in a word a reader in a
+	// second language meets as "by itself" first. A reason given as a pointer at another comment leaves
+	// the reason at neither block, and the link form is what makes that one readable.
+	if s.profile == ProfileComment {
+		for _, at := range reAlone.FindAllStringIndex(text, -1) {
+			if aloneIsIdiom(text[:at[0]]) {
+				continue
+			}
+			add(checkAloneForOnly, at[0], at[1])
+		}
+		for from := 0; from < len(text); {
+			at := reReasonAway.FindStringIndex(text[from:])
+			if at == nil {
+				break
+			}
+			add(checkReasonAway, from+at[0], from+at[1])
+			from += at[1]
+		}
+	}
 	// A coined word is a codebase's invented vocabulary, so the check belongs where code and the text
 	// about a change are — not over a rule file, which is prose about writing and uses the ordinary
 	// English word a codebase may happen to have coined. A machine-level conf naming one project's
@@ -917,11 +980,17 @@ func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int
 	// a diff. The comment profile reads stdin as a diff, so a block piped to it holds no hunk and the
 	// run reports an empty scan. Run 7 put 17 bare identifiers over 8 files past the gate that way.
 	source := false
+	// The writer fills the note's record before it writes the block, and `--record` says the piped text
+	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
+	// stopped, and the register checks passed every one: a block with nothing wrong with its prose.
+	record := false
 flags:
 	for len(args) > 0 {
 		switch {
 		case args[0] == "--source":
 			source = true
+		case args[0] == "--record":
+			record = true
 		case strings.HasPrefix(args[0], "--profile="):
 			named := Profile(strings.TrimPrefix(args[0], "--profile="))
 			switch named {
@@ -937,6 +1006,10 @@ flags:
 			break flags
 		}
 		args = args[1:]
+	}
+	if record && !source {
+		return out.refuseArguments(errors.New("--record reads a record against the block and the source " +
+			"under it, which is what --source pipes — the scan did NOT run"))
 	}
 	if source && profile != ProfileComment {
 		return out.refuseArguments(fmt.Errorf("--source reads a block with the comment profile's checks, "+
@@ -968,7 +1041,7 @@ flags:
 	}
 	suppressed := 0
 	s := scanner{profile: profile, coined: coined, domain: domain, allowed: allowed, suppressed: &suppressed,
-		notice: func(line string) { out.note("%s", line) }}
+		record: record, notice: func(line string) { out.note("%s", line) }}
 	over := scanned{conf: conf}
 	if counts {
 		return reportCounts(out, s, profile, args, cwd, cfg, &over)
@@ -1248,7 +1321,12 @@ func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
 func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned, source bool) ([]Finding, error) {
 	read := func(file string, lines []string) []Finding {
 		if source {
-			return s.scanSource(file, lines, nil, lines)
+			if !s.record {
+				return s.scanSource(file, lines, nil, lines)
+			}
+			found := RecordFindings(file, lines)
+			_, under, _ := splitRecord(lines)
+			return append(found, s.scanSource(file, under, nil, under)...)
 		}
 		return s.scanProse(file, lines)
 	}

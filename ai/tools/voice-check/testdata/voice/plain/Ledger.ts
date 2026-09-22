@@ -67,3 +67,11 @@ export function toEntries(set: Element): Element[] {
 export function dropStaleClaims(book: Element): Element[] {
   return [];
 }
+
+/**
+ * A ledger ignoring the settlement scheme stalls on its first posting under that scheme.
+ * `warmUpPosting` gates on the scheme's own claim, and knows the deferred scheme only.
+ */
+export function warmUpPosting(book: Element): void {
+  return;
+}

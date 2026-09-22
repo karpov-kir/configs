@@ -3,7 +3,7 @@
 # which sentences are written in the register the rule forbids. With `--density` it reports how many
 # comment lines the set carries beside the host repository's own rate.
 #
-#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [--source] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [--source] [--record] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
 #   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread (default 262144)
@@ -40,9 +40,17 @@
 # file named as a path or `-`: a PR body, a review comment, a reply. `instruction` reads a rule file
 # under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
 #
+# `--record` says the piped text opens with the note's record — `fact:`, `bears_on:`, `does:` — above a
+# `---` line, with the block and the declaration it sits on under it. It reads the record against both:
+# `bears_on` names a declaration at this site and the block spells it, and `does` shares a word with the
+# body. `does: none` stands on a one-line declaration, where the value beneath is the tie. It needs
+# `--source`. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and stopped, and every
+# register check passed them, because nothing was wrong with the prose.
+#
 # Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, long-block,
 # coined, coined-identifier, counterfactual-consequence, anthropomorphism, elided-verb, long-sentence,
-# clause-depth, double-negative, semicolon. Several are scoped by profile. `long-block` is the comment
+# clause-depth, double-negative, semicolon. `--record` adds record-slot-missing,
+# bears-on-is-not-at-this-site, block-does-not-name-what-it-bears-on and does-names-nothing-in-the-body. Several are scoped by profile. `long-block` is the comment
 # profile's, since only there is a block a thing. `bold` is not the instruction profile's: a rule file IS markdown, so its bold is
 # structure rather than the tell. `coined` is not the instruction profile's either: a coined word is a
 # codebase's invented vocabulary, and a rule file is prose about writing that uses the ordinary English
