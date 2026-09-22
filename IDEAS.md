@@ -359,17 +359,19 @@ one check a wrong declaration cannot survive, and it is also the only way to ans
 changes saved anything — the question below has been open for four steps. It needs a recording
 mechanism that does not exist, so it waits until the declarations it would audit are in the tree.
 
-## 3x | 2026-09-17 | What the judge corpus cannot yet decide
+## 4x | 2026-09-22 | What the judge corpus cannot yet decide
 
 **Eleven cases still cannot settle a close call, but they were enough to find something eight could
 not.** Three cases went in — a real `IDEAS.md` entry, a plan report and a landing reply, taking
 `record-entry` and `reply` off zero coverage — and the false-cut count moved from a handful scattered
-across runs to a cluster that repeats. Over three runs of the finished corpus, codex made 5, 4 and 3
-false cuts and claude/haiku 8 and 7 — the separation holds, and is wider than it was. What eleven
-cases still cannot do is rank two configurations a single false cut apart, and the answer to that is
-what it was: more real artifacts, labelled when they are written and the reading is fresh. `ticket` and `slack` remain
-at zero cases, deliberately — this repo produces neither, and a case someone invents to fill a row
-measures the inventor.
+across runs to a cluster that repeats. Over three runs, codex made 5, 4 and 3 false cuts and
+claude/haiku 8 and 7 — the separation holds, and is wider than it was. Those figures are the eleven
+cases as they stood on 2026-09-17; three `comment` cases have since joined and nothing has re-measured
+against fourteen, so read them as a reading of that corpus rather than of this one. What it still
+cannot do is rank two configurations a single false cut apart, and the answer to that is what it was:
+more real artifacts, labelled when they are written and the reading is fresh. `ticket` and `slack`
+remain at zero cases, deliberately — this repo produces neither, and a case someone invents to fill a
+row measures the inventor.
 
 **`defaultRollDeadline` is measured now, and it moved to 900s — but what it is guarding against is
 still unexplained.** Twenty runs of the shipped path over 9KB, 18KB, 36KB and 53KB of this repo's own
@@ -415,10 +417,12 @@ restated the one above it, and that cut was taken. It cannot tell a forward-look
 something found nowhere else from one that only repeats what the reader has just read. A rule that
 spared both would buy the accuracy back by making the judge useless against ordinary sign-off.
 
-The repair is a sentence in `Prompt()` and it is not made here: a peer is editing that same function
-on `claude/comments-overhaul-69d0ac`, and two sessions rewriting one prompt against two evals would
-leave neither measurable. It lands after theirs, measured against this corpus, which is now large
-enough to tell whether it worked.
+The repair is a sentence in `Prompt()`, it is still unmade, and nothing is holding it up any more. It
+waited on a peer editing that same function — that work landed, and the clause in today's prompt
+about a summary on a declaration is theirs. Their rewrite did not fix this by accident: the message
+recording that it landed was judged against the new prompt and lost the paragraph saying the repair
+was now unblocked, a fifth instance of the same cut. What is left is to write it and measure it
+against the corpus, which is large enough to tell whether it worked.
 
 **A slow roll now says so, and every other wait in this pipeline still does not.** The two stalls
 above printed nothing on either stream for five and a half minutes, which from the outside is
