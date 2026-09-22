@@ -63,12 +63,20 @@ on the machine, and the runs queue behind each other.
 The four-minute deadline on a call did not hold. Both stalled runs ended with every slot in flight
 held by a call past sixteen minutes, alive, a second and a half of processor time each, waiting on
 the network. `WaitDelay` now closes the pipes shortly after the kill. That bounds the case where the process dies
-and the read goes on. Whether that is the whole of it is unmeasured: the runs were
+and the read goes on. **It is a bound and not a diagnosis.** Where a run at fifteen rolls
+wedges again, read that before anything else lands. A harness that cannot finish a set gates the
+whole regime. Whether that is the whole of it is unmeasured: the runs were
 stopped, not diagnosed.
 
 Where the full set will not fit, an isolation run is k03, the case under test and the plain half.
 k03 is the guard. It is a negated case over four conditions, and the refactor lane is owed
 it. A rule that talks the writer into writing empties k03 first. The full set runs once at landing.
+
+## The rule text a run measured
+
+The two rule files are read once, when the run starts, and every roll is given that text. The table
+header prints a short hash of it. An edit made to a rule while a run is going reached the rolls after
+it before this, and the table named the text it had measured nowhere.
 
 ## The two halves
 

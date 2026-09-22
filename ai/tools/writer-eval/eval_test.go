@@ -2,6 +2,8 @@ package writereval
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -258,20 +260,57 @@ func writerSettings(t *testing.T) modelpolicy.Settings {
 	return decision.Requested
 }
 
+// rulePaths are the two files the writer writes to. A run measures the text they held when it
+// started.
+var rulePaths = []string{
+	"../../kk-flavor/standards/code-style.md",
+	"../../kk-flavor/workers/comment-writer.md",
+}
+
+type ruleFile struct {
+	path string
+	body string
+}
+
+var (
+	ruleOnce  sync.Once
+	ruleHeld  []ruleFile
+	ruleSum   string
+	ruleError error
+)
+
+// readRules reads the rule files once for the whole run. The prompt read them off disk on every
+// roll. An edit made while a run was going then reached the rolls after it, and the table named the
+// text it had measured nowhere. A pair of runs on 2026-09-22 took six hours between them, and
+// neither rule file could be touched for the whole of it.
+func readRules(t *testing.T) []ruleFile {
+	t.Helper()
+	ruleOnce.Do(func() {
+		sum := sha256.New()
+		for _, path := range rulePaths {
+			body, err := os.ReadFile(path)
+			if err != nil {
+				ruleError = err
+				return
+			}
+			ruleHeld = append(ruleHeld, ruleFile{path: path, body: string(body)})
+			sum.Write(body)
+		}
+		ruleSum = hex.EncodeToString(sum.Sum(nil))[:12]
+	})
+	if ruleError != nil {
+		t.Fatalf("the eval could not read a rule file: %v", ruleError)
+	}
+	return ruleHeld
+}
+
 // prompt assembles what an isolated writer is given: the rule, the worker and the site. The files
 // come from the checkout under test, so a change to either is what the next run measures.
 func prompt(t *testing.T, c Case) string {
 	t.Helper()
 	var out strings.Builder
-	for _, path := range []string{
-		"../../kk-flavor/standards/code-style.md",
-		"../../kk-flavor/workers/comment-writer.md",
-	} {
-		body, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("the eval could not read %s: %v", path, err)
-		}
-		fmt.Fprintf(&out, "=== %s ===\n%s\n\n", filepath.Base(path), body)
+	for _, held := range readRules(t) {
+		fmt.Fprintf(&out, "=== %s ===\n%s\n\n", filepath.Base(held.path), held.body)
 	}
 	// The site is named, because a return quoting one invented `writer-eval:1` from the run's own
 	// working directory when the prompt left it unsaid.
@@ -390,6 +429,7 @@ func TestWriterEval(t *testing.T) {
 	var out strings.Builder
 	fmt.Fprintf(&out, "\nwriter row: %s %s, %d case(s), %d roll(s) each\n\n",
 		settings.Model, settings.Effort, len(cases), evalRolls)
+	fmt.Fprintf(&out, "rules read once at %s\n", ruleSum)
 	fmt.Fprintf(&out, "%-46s %-8s %-7s %s\n", "case", "want", "passed", "what came back")
 	passed := 0
 	cleanByCase := map[string]int{}
@@ -801,5 +841,40 @@ func TestAFloorAsksTheSameShareAtAnyRollCount(t *testing.T) {
 			"\n--- code\nexport function f() {}\n--- facts\nA library drops an entry.\n"); err == nil {
 			t.Errorf("a floor of %q parsed, and a share runs from 1 to 100", bad)
 		}
+	}
+}
+
+// The prompt read both rule files off disk every time. An edit made while a run was going then
+// reached the rolls after it. A run at fifteen rolls takes long enough that somebody will want to edit a rule
+// beside it.
+func TestTheRuleFilesAreReadOnceForTheWholeRun(t *testing.T) {
+	first := readRules(t)
+	if len(first) != len(rulePaths) {
+		t.Fatalf("%d rule file(s), want %d", len(first), len(rulePaths))
+	}
+	if ruleSum == "" {
+		t.Errorf("the run names no rule text, so a table cannot say which it measured")
+	}
+	held := first[0].body
+	on := first[0].path
+	body, err := os.ReadFile(on)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(on, append(body, []byte("\nan edit made while the run is going\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.WriteFile(on, body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	again := readRules(t)
+	if again[0].body != held {
+		t.Errorf("the edit reached the run, so a roll after it read a rule the table does not name")
+	}
+	if strings.Contains(prompt(t, Case{Name: "k", Code: "export function f() {}", Facts: "A library drops an entry.",
+		Expect: ExpectWritten, Why: "a site"}), "an edit made while the run is going") {
+		t.Errorf("the prompt carried an edit made after the run started")
 	}
 }
