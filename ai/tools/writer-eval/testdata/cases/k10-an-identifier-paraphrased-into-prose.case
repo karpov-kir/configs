@@ -1,7 +1,7 @@
 expect: written
 summary: needed
 note: written
-floor: 2
+floor: 40
 why: Kirill on 2026-09-21 read the written block as "This still sounds confusing"; the audit called "the measured settlement scheme" plain when it is a coined modifier, and the note paraphrased an identifier into English instead of naming and placing it, so a reader gets neither the name nor an explanation; no check reaches either, since an identifier's words are the domain's words, and the Words sentence for naming an identifier with an appositive is the remedy the writer's judgement applies
 labelled: 2026-09-21
 --- code
