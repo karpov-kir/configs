@@ -1,0 +1,19 @@
+expect: written
+note: written
+site: 3
+lands: export function findField
+floor: 60
+bars: the field lookup | the lookup matches | the entry type check
+keeps: findField
+why: the strip offered the constant and the claim is about the function below it; Kirill on 2026-09-22 on a block of this shape: "First part is complete garbage. The second part 'so the content type check' is not clear and I don't see what is 'content type check' from this comment"; a writer at the constant cannot name the function, so it paraphrased one, and the remedy is to write the block at the function and name it
+labelled: 2026-09-22
+--- code
+import { Field, LedgerBook } from './book';
+
+export const ACCRUAL_NAMESPACE = 'urn:ledger:accrual:2026';
+
+export function findField(book: LedgerBook, name: string): Field | undefined {
+  return book.fields.find((field) => field.namespace === ACCRUAL_NAMESPACE && field.name === name);
+}
+--- facts
+A book may bind any prefix to the accrual namespace, so the field lookup matches by namespace.

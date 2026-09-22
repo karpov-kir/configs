@@ -304,6 +304,16 @@ func readRules(t *testing.T) []ruleFile {
 	return ruleHeld
 }
 
+// numbered puts a line number in front of each line. The writer answers with the number of the
+// declaration it chose, and a file it reads unnumbered leaves it guessing at one.
+func numbered(code string) string {
+	var out strings.Builder
+	for n, line := range strings.Split(code, "\n") {
+		fmt.Fprintf(&out, "%d\t%s\n", n+1, line)
+	}
+	return strings.TrimRight(out.String(), "\n")
+}
+
 // prompt assembles what an isolated writer is given: the rule, the worker and the site. The files
 // come from the checkout under test, so a change to either is what the next run measures.
 func prompt(t *testing.T, c Case) string {
@@ -313,10 +323,11 @@ func prompt(t *testing.T, c Case) string {
 		fmt.Fprintf(&out, "=== %s ===\n%s\n\n", filepath.Base(held.path), held.body)
 	}
 	// The site is named, because a return quoting one invented `writer-eval:1` from the run's own
-	// working directory when the prompt left it unsaid.
-	fmt.Fprintf(&out, "=== the site ===\nThe site is `%s.ts:1`. The file holds this code, with every "+
-		"comment block already removed:\n\n"+
-		"```ts\n%s\n```\n\nThe facts file for the site holds:\n\n%s\n\n", c.Name, c.Code, c.Facts)
+	// working directory when the prompt left it unsaid. The lines are numbered because the writer
+	// answers with the line it put the block on.
+	fmt.Fprintf(&out, "=== the site ===\nThe strip offers the site `%s.ts:%d`. The file holds this code, "+
+		"with every comment block already removed and every line numbered:\n\n```ts\n%s\n```\n\n"+
+		"The facts file for the site holds:\n\n%s\n\n", c.Name, c.Site, numbered(c.Code), c.Facts)
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
 	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
@@ -331,8 +342,11 @@ func prompt(t *testing.T, c Case) string {
 	}
 	out.WriteString("You have no tools here, so apply the worker's voice check by reading rather than " +
 		"by running it, and report a script you would have run as a finding you read for yourself.\n\n" +
+		"The offered site is where the block stood before. You may write the block above any declaration " +
+		"in this file, and you answer with a line `at: <line number>` saying which one you chose.\n\n" +
 		"Answer with a line `summary: needed` or `summary: none`, a line `note: written` or " +
-		"`note: none`, then the block you would write above the declaration, or the single word none, " +
+		"`note: none`, a line `at: <line number>`, then the block you would write above that " +
+		"declaration, or the single word none, " +
 		"or a line `rename: <what to rename>`. The site is none only where both parts are none. Where " +
 		"a part was needed and you answer none for it, show the attempts first, one per line, as " +
 		"`attempt 1: <part> — <finding>`. Add your audit lines, one per line, as " +
@@ -876,5 +890,45 @@ func TestTheRuleFilesAreReadOnceForTheWholeRun(t *testing.T) {
 	if strings.Contains(prompt(t, Case{Name: "k", Code: "export function f() {}", Facts: "A library drops an entry.",
 		Expect: ExpectWritten, Why: "a site"}), "an edit made while the run is going") {
 		t.Errorf("the prompt carried an edit made after the run started")
+	}
+}
+
+// A strip offers the declaration the archive recorded, and the fact is often about something further
+// down the file. Three of four blocks a reviewer sent back on 2026-09-22 sat where the archive had
+// put them. One was a file header carrying a claim about a function, one a constant carrying a claim
+// about two functions.
+func TestACaseSaysWhichDeclarationTheBlockBelongsOn(t *testing.T) {
+	raw := "expect: written\nnote: written\nwhy: a claim about a function, offered at the header\n" +
+		"site: 1\nlands: export function postRow\n--- code\nimport { LedgerRow } from './rows';\n\n" +
+		"export const SOURCE = 'accrual-eu';\n\nexport function postRow(row: LedgerRow): void {}\n" +
+		"--- facts\nA posting server rejects a row it has already recorded.\n"
+	c, err := ParseCase("k-lands", raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Site != 1 {
+		t.Errorf("the offered site reads %d, want 1", c.Site)
+	}
+	if at := DeclaredAt(c.Code, c.Lands); at != 5 {
+		t.Errorf("postRow is declared on line %d, want 5", at)
+	}
+	written := Return{Summary: PartNone, Note: PartWritten, Block: "// A posting server rejects a row it has already recorded."}
+	atTheHeader := written
+	atTheHeader.At = 1
+	if JudgeCase(c, atTheHeader).Passed() {
+		t.Errorf("a block left at the offered site passed a case that names another declaration")
+	}
+	atTheFunction := written
+	atTheFunction.At = 5
+	if v := JudgeCase(c, atTheFunction); !v.Passed() {
+		t.Errorf("a block on the named declaration failed: %v", v.Failures)
+	}
+	// A case naming a declaration its own code lacks is broken. The parse refuses it, and no run scores it.
+	if _, err := ParseCase("k-typo", strings.Replace(raw, "lands: export function postRow",
+		"lands: export function postRowe", 1)); err == nil {
+		t.Errorf("a case naming a declaration the code lacks parsed")
+	}
+	if !strings.Contains(prompt(t, c), "5\texport function postRow") {
+		t.Errorf("the prompt shows the writer no line numbers to answer with")
 	}
 }

@@ -24,6 +24,8 @@ A **note** says something the code cannot say: a fact about the outside world th
 
 A summary fills one pattern: `<Verb> <what>` and, where there is a case, `, or <value> when <case>`. A note fills one pattern: `<One fact>, so <consequence>.` It is one sentence, and a second fact is a second sentence in the same pattern. The edit lane writes toward these patterns. A sentence that resists one is a finding, and never an automatic deletion.
 
+A comment sits on the declaration it is about. A claim about a function goes on that function and names it, wherever the claim was found. A file header keeps what spans the file, and a header saying what the file is for is deleted where the file's name says it.
+
 Inside a block the summary comes first, then the note. A block is at most four prose lines. A file header is at most eight. A line carrying only a doc tag — `@param`, `@returns`, `@throws`, `@example` — is the signature written out, and counts as neither.
 
 Use the identifier's name or the domain's own word. Where a specification names a thing and the code names it something else, a comment takes one of those two names and coins no third. A word the reader would need to have been in the room for does not go in a comment.

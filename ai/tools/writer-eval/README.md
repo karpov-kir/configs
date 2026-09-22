@@ -55,17 +55,14 @@ was silent on that.
 
 ## What a run costs
 
-360 calls for the full set at fifteen rolls, four in flight. One run took 25 minutes. The next two
-attempts at the same run never finished, at 2h51m and 4h18m, and both were stopped before any table
-came out. A run of nine cases took 61 minutes. The account is shared with every other session
+390 calls for the full set at fifteen rolls, four in flight, and about half an hour. One run took 25 minutes and a later one 33. Between them two attempts never finished, at 2h51m and 4h18m, and both were stopped before any table came out. A run of nine cases took 61 minutes. The account is shared with every other session
 on the machine, and the runs queue behind each other.
 
 The four-minute deadline on a call did not hold. Both stalled runs ended with every slot in flight
 held by a call past sixteen minutes, alive, a second and a half of processor time each, waiting on
-the network. `WaitDelay` now closes the pipes shortly after the kill. That bounds the case where the process dies
-and the read goes on. **It is a bound and not a diagnosis.** Where a run at fifteen rolls
-wedges again, read that before anything else lands. A harness that cannot finish a set gates the
-whole regime. Whether that is the whole of it is unmeasured: the runs were
+the network. `WaitDelay` now closes the pipes shortly after the kill. The first full set run with it in place finished in 33 minutes, where the two before it had not finished at all. **That is evidence and not a diagnosis.** Where a run wedges again, read it before anything else lands.
+
+Read the run's own processes by the test binary's path and never by a name a shell wrapper also carries. A check for the wedge timed `go test` and `sed` as though they were calls, because `pgrep -f writer-eval.test` matches the wrapper's command line too. Whether that is the whole of it is unmeasured: the runs were
 stopped, not diagnosed.
 
 Where the full set will not fit, an isolation run is k03, the case under test and the plain half.
