@@ -60,6 +60,12 @@ Cover three things, in this order, and only while each has content. What changes
 
 Leave out why the code is right, because deciding that is the reviewer's job. Leave out what ran, because CI reports itself. What CI cannot produce — a manual drive, a migration against real data — falls to **Budget**.
 
+One PR is 110 words of your own prose or fewer. Fifty of the host repository's merged before 2026-06-01 were counted, leaving out the template's own lines and the stack map. They run to a median of 48 words and a 90th percentile of 110. A description over 110 is a finding. The median prints beside it, so an author reads the reference and the line together. The count is per PR, and a stack earns more PRs at the same width. Measured 2026-09-22. A figure moves in `comment-voice.conf`, and this line records what was counted.
+
+## Tickets
+
+A ticket takes the same 110 words until a body of tickets is measured. The PR figure stands in for one that has yet to be counted. This line says so.
+
 ## Review comments
 
 The reviewer's side, for an author deciding what to change. Put each note on the line it concerns. Put in the body the verdict and any mismatch with what was asked. A point a line could have held belongs on the line.
