@@ -20,6 +20,15 @@ Beyond [writing.md](writing.md) → **Density**: no anecdotes, counts, dates, "o
 
 A rule about form may carry one before-and-after pair. The pair is the rule's statement of the shape it requires, not evidence that the shape is better.
 
+## No outside names
+
+Our ecosystem must not mention exact packages, repos, etc.
+
+No file here names a repository, a path, a package, a symbol or an identifier belonging to a codebase
+this tree is used on. Write the shape, or a name from a domain invented for the purpose. A count is a
+number and brings no name with it. A fixture reads private source through an environment variable, and
+a case in it is named by its position in the sorted set.
+
 ## One home
 
 Every rule lives in exactly one file; everywhere else cross-references it by path.

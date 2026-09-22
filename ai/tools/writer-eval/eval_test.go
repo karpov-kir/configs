@@ -228,8 +228,8 @@ func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
 	}
 }
 
-// The fixture is the private review translated into the ledger domain. A word from the reviewed
-// codebase here would put somebody else's code in a public repository.
+// The fixture is the private review translated into the ledger domain. The rule it enforces is
+// ai/kk-flavor/standards/ecosystem.md -> No outside names.
 func TestNoCaseCarriesTheReviewedCodebasesWords(t *testing.T) {
 	cases, err := LoadCases(casesDir)
 	if err != nil {
@@ -600,8 +600,9 @@ func poolInto(path string, clean map[string]int) (pooled, error) {
 }
 
 // plainSetEnv names a directory of reviewed source whose blocks a reviewer left alone. It is
-// somebody else's code and this repository is public. So the environment names the set, a case is
-// named by its position in the sorted set, and only counts leave the run.
+// somebody else's code, and ai/kk-flavor/standards/ecosystem.md -> No outside names keeps its
+// names out of this tree. So the environment names the set, a case is named by its position in
+// the sorted set, and only counts leave the run.
 const plainSetEnv = "JUDGE_EVAL_PLAIN"
 
 // plainBlocksEnv bounds how many blocks the plain half reads, because each one spends a model call.
