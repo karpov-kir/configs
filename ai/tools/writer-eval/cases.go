@@ -42,8 +42,11 @@ type Case struct {
 	// rewrite that reverses the reason for an earlier fix would let the rejected shape back without
 	// anything noticing. The case is what notices.
 	Bars []string
-	// Floor overrides how many rolls this case has to clear. A case no step decides is the writer
-	// judging, and three mechanisms have now failed to reach the two that carry this field.
+	// Floor overrides the share of rolls this case has to clear, in whole percent. A case no step
+	// decides is the writer judging, and three mechanisms have failed to reach the ones carrying it.
+	//
+	// It is a share and no longer a count. Floors were counts written against five rolls, so each of
+	// them grew three times weaker the day the roll count went to fifteen, and the table stayed quiet.
 	Floor int
 }
 
@@ -150,11 +153,11 @@ func ParseCase(name, raw string) (Case, error) {
 				return c, fmt.Errorf("%s names no wording to bar", name)
 			}
 		case "floor":
-			count, err := strconv.Atoi(value)
-			if err != nil || count < 1 {
-				return c, fmt.Errorf("%s names a floor of %q, which is not a positive count", name, value)
+			share, err := strconv.Atoi(strings.TrimSuffix(value, "%"))
+			if err != nil || share < 1 || share > 100 {
+				return c, fmt.Errorf("%s names a floor of %q, which is not a share between 1 and 100", name, value)
 			}
-			c.Floor = count
+			c.Floor = share
 		default:
 			return c, fmt.Errorf("%s names an unknown field %q", name, key)
 		}

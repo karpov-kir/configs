@@ -61,9 +61,12 @@ const callDeadline = 4 * time.Minute
 // reader sees the variance.
 var evalRolls, rollsProblem = rollsFromEnv(os.Getenv(rollsEnv))
 
-const defaultRolls = 5
+// defaultRolls is fifteen because five cannot read this set. A run on 690b548, with the tree
+// untouched, gave l01 6 of 15, l03 5 of 15 and k03 6 of 15. The same three cases had read 5 of 5,
+// 3 of 5 and 4 of 5 that day, so five rolls printed a coin as certainty.
+const defaultRolls = 15
 
-// rollsEnv raises the roll count for one run. Five rolls cannot separate a rule that moved an answer
+// rollsEnv sets the roll count for one run. Five rolls cannot separate a rule that moved an answer
 // from a case that answers differently twice. l03 came back 0 of 5 and then 4 of 5 over two runs
 // whose rule text differed by one sentence, and that case reads neither. A question about what a
 // rule did to a case is asked at a roll count that can answer it.
@@ -89,8 +92,9 @@ func rollsFromEnv(set string) (int, string) {
 // writer had moved from judging to refusing, and one number could not see that happen.
 const labelledBar = "a none case on every roll, a written case on three of five"
 
-// writtenFloor is how many rolls a case the writer judges has to clear.
-const writtenFloor = 3
+// writtenFloor is the share of rolls a case the writer judges has to clear. Three of five was the
+// number before floors became shares.
+const writtenFloor = 60
 
 // An invariant's worth is the obligation it states. A run on 2026-09-21 turned "must stay in step
 // with" into "copies", which leaves a reader of the changed side unaware of what they owe. Every
@@ -306,6 +310,11 @@ func callWriter(settings modelpolicy.Settings, text string) (string, error) {
 	ctx, stop := context.WithTimeout(context.Background(), callDeadline)
 	defer stop()
 	command := exec.CommandContext(ctx, "claude", append(args, text)...)
+	// The deadline killed the process and the read went on waiting. A full set at fifteen rolls wedged
+	// twice on 2026-09-22, with every slot held by a call past sixteen minutes against a deadline of
+	// four. WaitDelay closes the pipes a moment after the kill, so a caller that outlives its own
+	// process stops holding a slot.
+	command.WaitDelay = 5 * time.Second
 	out, err := command.Output()
 	if err != nil {
 		return "", fmt.Errorf("the writer row did not answer: %w", err)
@@ -743,11 +752,54 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 // every roll. The writer judges a written block, so that one clears writtenFloor. A case naming its
 // own floor is one no step reaches, and it clears that many.
 func floorFor(c Case) int {
+	share := 100
 	if c.Floor > 0 {
-		return c.Floor
+		share = c.Floor
+	} else if c.Expect == ExpectWritten {
+		share = writtenFloor
 	}
-	if c.Expect == ExpectWritten {
-		return writtenFloor
+	// Rounded up, so a share never asks for less than it says.
+	at := (share*evalRolls + 99) / 100
+	if at < 1 {
+		at = 1
 	}
-	return evalRolls
+	return at
+}
+
+// A floor written as a count was a share of five rolls that no case wrote down as one. The day the
+// roll count went to fifteen, each floor asked for a third of the day before, and the table stayed
+// quiet about it.
+func TestAFloorAsksTheSameShareAtAnyRollCount(t *testing.T) {
+	held := evalRolls
+	defer func() { evalRolls = held }()
+	written := Case{Expect: ExpectWritten}
+	none := Case{Expect: ExpectNone}
+	forty := Case{Expect: ExpectWritten, Floor: 40}
+	for _, rolls := range []int{5, 15, 30} {
+		evalRolls = rolls
+		if at, want := floorFor(written), (writtenFloor*rolls+99)/100; at != want {
+			t.Errorf("at %d rolls the written floor is %d, want %d", rolls, at, want)
+		}
+		if at := floorFor(none); at != rolls {
+			t.Errorf("at %d rolls a none case clears %d, and the bar is every roll", rolls, at)
+		}
+		if at, want := floorFor(forty), (40*rolls+99)/100; at != want {
+			t.Errorf("at %d rolls a 40%% floor is %d, want %d", rolls, at, want)
+		}
+	}
+	evalRolls = 5
+	if at := floorFor(forty); at != 2 {
+		t.Errorf("40%% of five rolls is %d, and the cases were written as 2 of 5", at)
+	}
+	evalRolls = 15
+	if at := floorFor(forty); at != 6 {
+		t.Errorf("40%% of fifteen rolls is %d, want 6", at)
+	}
+	// A count left over from the days of five rolls reads as 3% of them here, which is no floor at all.
+	for _, bad := range []string{"0", "101", "150", "none"} {
+		if _, err := ParseCase("k-floor", "expect: written\nwhy: a floor\nfloor: "+bad+
+			"\n--- code\nexport function f() {}\n--- facts\nA library drops an entry.\n"); err == nil {
+			t.Errorf("a floor of %q parsed, and a share runs from 1 to 100", bad)
+		}
+	}
 }
