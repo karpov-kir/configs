@@ -76,6 +76,10 @@ UnmeasuredPostingServerFailed = 'UNMEASURED_POSTING_SERVER_FAILED',
 stubReadingLedger({ supported: true, reads });
 ```
 
+State the bearing where the code under the note would read as a mistake without it. A function copying
+a list by hand looks like needless work until the reader knows its callers remove entries while they
+walk the copy. An enum member with a plain name is owed no bearing. None goes there.
+
 Read what each one does. The first is a file header. It says what every declaration in the file
 is for, and it leaves the file's own name unsaid. The fourth carries its bearing on `because` and the two
 before it on `so`, so the connective is a choice. The fifth explains a number no consequence explains: a specification permits
