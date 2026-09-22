@@ -37,6 +37,12 @@ type Case struct {
 	// named a caller's act and left the site unnamed, and the case there asked for the caller alone
 	// and passed it on every roll.
 	Keeps [][]string
+	// Site is the line the strip offered, and 1 where a case leaves it unsaid. Lands is the identifier
+	// the block has to sit on. The two differ often: a strip offers the declaration the archive
+	// recorded, and the fact is about something further down the file. Three of four blocks a reviewer
+	// sent back on 2026-09-22 sat where the archive had put them.
+	Site  int
+	Lands string
 	// Bars is the wording the block may not carry, as alternatives of which none may appear. It holds a
 	// shape a review already rejected at this site. A rule the writer reads can be rewritten, and a
 	// rewrite that reverses the reason for an earlier fix would let the rejected shape back without
@@ -143,6 +149,14 @@ func ParseCase(name, raw string) (Case, error) {
 				return c, fmt.Errorf("%s names no wording to keep", name)
 			}
 			c.Keeps = append(c.Keeps, group)
+		case "site":
+			at, err := strconv.Atoi(value)
+			if err != nil || at < 1 {
+				return c, fmt.Errorf("%s names a site of %q, which is not a line", name, value)
+			}
+			c.Site = at
+		case "lands":
+			c.Lands = value
 		case "bars":
 			for _, wording := range strings.Split(value, "|") {
 				if trimmed := strings.TrimSpace(wording); trimmed != "" {
@@ -164,6 +178,12 @@ func ParseCase(name, raw string) (Case, error) {
 	}
 	if c.Expect == "" {
 		return c, fmt.Errorf("%s names no expected class", name)
+	}
+	if c.Site == 0 {
+		c.Site = 1
+	}
+	if c.Lands != "" && !strings.Contains(c.Code, c.Lands) {
+		return c, fmt.Errorf("%s asks the block to land on %q, which the code does not hold", name, c.Lands)
 	}
 	if c.Why == "" {
 		return c, fmt.Errorf("%s says no reason, and a case nobody can read is a case nobody can re-cut", name)
@@ -250,10 +270,31 @@ func JudgeCase(c Case, r Return) Verdict {
 			}
 		}
 	}
+	// A block the writer never wrote fails on its part already.
+	if c.Lands != "" && r.Block != "" {
+		if at := DeclaredAt(c.Code, c.Lands); at == 0 {
+			v.Failures = append(v.Failures, Failure{"case-names-no-such-declaration", c.Lands})
+		} else if r.At != at {
+			v.Failures = append(v.Failures, Failure{"wrote-it-at-the-wrong-declaration",
+				fmt.Sprintf("line %d, and %s is declared on line %d", r.At, c.Lands, at)})
+		}
+	}
 	for _, wording := range c.Bars {
 		if r.Block != "" && strings.Contains(strings.ToLower(r.Text()), wording) {
 			v.Failures = append(v.Failures, Failure{"wrote-the-barred-shape", "the block carries " + wording})
 		}
 	}
 	return v
+}
+
+// DeclaredAt is the line of the first declaration holding `what`, or zero where the code holds none.
+// A case names the declaration its block belongs on, because an edit anywhere earlier in the fixture
+// moves a line number.
+func DeclaredAt(code, what string) int {
+	for n, line := range strings.Split(code, "\n") {
+		if strings.Contains(line, what) {
+			return n + 1
+		}
+	}
+	return 0
 }

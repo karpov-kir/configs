@@ -1,5 +1,8 @@
-expect: none
-why: both claims the facts carry are named by a test in the change set, almost in the test's own words, so question 3's carried-by-a-test step reaches each of them; the case held a third claim no test carries and called the site none for it, which is why it read 7 of 15 at baseline and why it is split
+expect: written
+note: written
+floor: 60
+keeps: rename | renamed | published
+why: the claim is that these names are published and carry a rename warning, which is a fact about a surface outside this file and no test in the change set names it; it rode in l01 with two claims the tests do carry, and a writer keeping this one and dropping those two was following the brief while the case counted a miss
 labelled: 2026-09-22
 --- code
 export enum Settlement {
@@ -11,9 +14,7 @@ export enum Settlement {
   EscrowCredit = 'escrow-credit',
 }
 --- facts
-Only pairings that exist in practice are members, so an impossible one like escrow with cash has no name. Members
-are ordered by settlement scheme to match the posting catalog, so an account's cells under one scheme sit together
-in both.
+Names every settlement the ledger measures, published names under the same rename warning as {@link Account}.
 --- tests
 // SettlementOrder.test.ts in the change set
 it('orders settlements by scheme so an account\'s cells sit together in the catalog', () => {

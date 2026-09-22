@@ -75,7 +75,9 @@ Then read the block once as the engineer opening this file for the first time, a
 
 An allow entry in `comment-voice.conf` marks a sentence a reviewer settled. Keep such a sentence as it stands and write no part that replaces it, the way you leave a block the strip left standing.
 
-Write the block into the file at the site, in the comment syntax the file's other blocks use, and change no other line. Where the site's declaration declares members, a member's own line is part of this site, and a block written there is written at the site.
+The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function and names it. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A claim that fits no declaration in this file goes back as `for the PR body`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
+
+Write the block in the comment syntax the file's other blocks use, and change no other line.
 
 ## Verdict
 

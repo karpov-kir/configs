@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	census "configs/ai/tools/comment-census"
@@ -30,6 +31,10 @@ type Return struct {
 	Summary  Part
 	Note     Part
 	Attempts int
+	// At is the line the writer put the block on. A strip offers a site, and the fact is often about a
+	// declaration further down the file. Three of four blocks a reviewer sent back on 2026-09-22 sat
+	// where the archive had put them, and their subjects were elsewhere.
+	At int
 	// Carried says the return sent the claim somewhere else in the tree. A claim about a row of data
 	// goes to a field on that row, and a block is the wrong home for it however well written.
 	Carried bool
@@ -54,6 +59,9 @@ type Audit struct {
 }
 
 var auditLine = regexp.MustCompile(`(?i)^\s*(term|verb):\s*(.+?)\s+[—-]\s+(\w+)\s*$`)
+
+// placedLine is the line the writer says its block sits on.
+var placedLine = regexp.MustCompile(`(?i)^\s*at:\s*(\d+)\s*$`)
 
 // The lines a writer returns beside its block: what it dropped and where that went. They are the
 // return's own bookkeeping, and reading one as prose scored a correct `carried by` as a written
@@ -82,6 +90,12 @@ func ParseReturn(raw string) Return {
 			out.Note = PartNone
 			if strings.EqualFold(m[1], "written") {
 				out.Note = PartWritten
+			}
+			continue
+		}
+		if m := placedLine.FindStringSubmatch(line); m != nil {
+			if n, err := strconv.Atoi(m[1]); err == nil {
+				out.At = n
 			}
 			continue
 		}
