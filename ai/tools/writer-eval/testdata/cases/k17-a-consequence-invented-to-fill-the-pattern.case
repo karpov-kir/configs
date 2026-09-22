@@ -1,0 +1,14 @@
+expect: written
+note: written
+floor: 60
+bars: fresh history | files a renamed | under a new history
+keeps: hash
+why: the fact is that an audit hash derives from these names, and the pattern asked for a consequence at every site, so the writer invented one about an archive it cannot read; Kirill on 2026-09-22: "The second part is garbage, and hard to follow"; the fact stands on its own and the second half is what the note pattern bought
+labelled: 2026-09-22
+--- code
+export enum SettlementScheme {
+  DirectCash = 'direct-cash',
+  EscrowCredit = 'escrow-credit',
+}
+--- facts
+The audit hash derives from these names, so the archive files a renamed member's results under a fresh history.
