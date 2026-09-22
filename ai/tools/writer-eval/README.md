@@ -75,6 +75,21 @@ The two rule files are read once, when the run starts, and every roll is given t
 header prints a short hash of it. An edit made to a rule while a run is going reached the rolls after
 it before this, and the table named the text it had measured nowhere.
 
+## k11, and a floor a case has never met
+
+k11 asks the writer to name both the caller's act on a copy and the site that makes the copy. The
+note pattern is what carried it. That pattern demanded a consequence at every site, and at k11's site
+the consequence is worth having.
+
+Its no-change pair reads 2 and 2 of 15 against a floor of 60%, so the case has yet to meet its own
+floor. The pattern's removal took it to 0. A rule telling the writer to state the bearing where the
+code beneath would read as a mistake without it took it to 8. That is the second largest single move
+this set has measured, and it is one roll under the floor.
+
+The floor stays at 60%. A floor set to what a case just scored means whatever the last run gave, and
+the pair rule this file opens with exists to stop that. k11 reads as failing, and the bar it fails is
+one the writer has yet to be shown clearing at that site.
+
 ## The two halves
 
 The labelled half is `testdata/cases/`, one file per site, each carrying what a reviewer decided and
