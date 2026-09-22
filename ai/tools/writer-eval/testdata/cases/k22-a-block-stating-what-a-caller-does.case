@@ -1,0 +1,29 @@
+expect: written
+note: written
+floor: 60
+keeps: claimsschemethroughstandardapi
+bars: warmupposting | warm-up | warm up | warmup
+why: the first fact bears on this function, which turns the API's rejection into `false`, and it stays here with the tie naming that; the second fact is about what this function's one caller does with the result, and that caller sits in another file of the change set; a writer on 2026-09-22 wrote the caller's act into this block, and a reviewer asked how the warm-up was related to this function at all; the caller's fact belongs at the caller and comes back as `belongs at <file>:<identifier>: <fact>`, and this block keeps the ledger's fact with the tie naming what `claimsSchemeThroughStandardApi` does about it
+labelled: 2026-09-22
+--- code
+export async function claimsSchemeThroughStandardApi(
+  scheme: PostingScheme,
+  formatName: string,
+): Promise<boolean> {
+  return requestSchemeAccess(schemeIdOf(scheme), [{ formatName }]).then(
+    () => true,
+    () => false,
+  );
+}
+--- callers
+// postings/warmup/PostingWarmUp.ts
+export async function warmUpPosting(scheme: PostingScheme, formatName: string): Promise<void> {
+  if (!(await claimsSchemeThroughStandardApi(scheme, formatName))) {
+    return;
+  }
+
+  await openPostingSession(scheme, formatName);
+}
+--- facts
+The standard scheme API rejects where a ledger refuses the scheme, and it resolves where the ledger takes it.
+A ledger ignoring the settlement scheme stalls on its first posting under that scheme. The claim for a combination reads `Unknown` for such a ledger, so the warm-up gates on this claim instead.

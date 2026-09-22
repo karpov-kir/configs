@@ -3,7 +3,7 @@
 # which sentences are written in the register the rule forbids. With `--density` it reports how many
 # comment lines the set carries beside the host repository's own rate.
 #
-#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [--source] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [--source] [--record] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
 #   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread (default 262144)
@@ -40,9 +40,15 @@
 # file named as a path or `-`: a PR body, a review comment, a reply. `instruction` reads a rule file
 # under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
 #
+# `--record`, with `--source`, reads a note's record above a `---` line: `fact:`, `bears_on:`, `does:`.
+# The block and its declaration sit under the line. `bears_on` has to be declared there and said in the
+# block, and `does` has to share a word with the body. `does: none` stands on a one-line declaration.
+#
+# Its checks are record-slot-missing, bears-on-elsewhere, block-omits-bears-on and does-untied.
+#
 # Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, long-block,
 # coined, coined-identifier, counterfactual-consequence, anthropomorphism, elided-verb, long-sentence,
-# clause-depth, double-negative, semicolon. Several are scoped by profile. `long-block` is the comment
+# clause-depth, double-negative, semicolon, `reason-by-link`, `alone-for-only`. Several are scoped by profile. `long-block` is the comment
 # profile's, since only there is a block a thing. `bold` is not the instruction profile's: a rule file IS markdown, so its bold is
 # structure rather than the tell. `coined` is not the instruction profile's either: a coined word is a
 # codebase's invented vocabulary, and a rule file is prose about writing that uses the ordinary English

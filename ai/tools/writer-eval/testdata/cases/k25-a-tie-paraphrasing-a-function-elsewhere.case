@@ -1,0 +1,23 @@
+expect: written
+note: written
+floor: 60
+site: 1
+lands: attributeInNamespace
+keeps: supplement_namespace
+keeps: attributeinnamespace
+bars: the attribute lookup | the format check | the content type check
+why: run 7 wrote two sentences on this constant, each tying its fact to a function further down the file by paraphrase; a reviewer read it on 2026-09-22 and said the first part was complete garbage and that "so the content type check" was not clear and named nothing they could find; the case scores the paraphrase, which is the defect: a paraphrase of another declaration is not an identifier at this site and fails the record's identifier test, so the tie names `attributeInNamespace` or it is no tie; the block lands at `attributeInNamespace`, which the writer chose on fifteen rolls of fifteen and which the rule now states: the fact explains matching by namespace and not by prefix, and that act is the function's; a reader editing the constant makes no mistake this fact prevents, and a reader editing the lookup does
+labelled: 2026-09-22
+--- code
+const SUPPLEMENT_NAMESPACE = 'urn:ledger:supplement:2014';
+
+export function attributeInNamespace(node: Element, name: string): string | null {
+  return node.getAttributeNS(SUPPLEMENT_NAMESPACE, name);
+}
+
+export function formatOfEntry(node: Element): string | null {
+  return node.getAttribute('format') ?? attributeInNamespace(node, 'supplementalFormats');
+}
+--- facts
+A export may bind any prefix it likes to the supplement namespace.
+An entry may name its format in the supplemental formats attribute.

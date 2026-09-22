@@ -98,6 +98,17 @@ a reviewer left alone. It asks what share of them the writer writes for, and wha
 a check. The set is named by the environment and by no committed path. A case there
 is named by its position in the sorted set, and only counts leave the run.
 
+## One run at a time
+
+Two runs in flight together fail. On 2026-09-22 a full set and a single case ran at once, and the
+writer row came back `exit status 1` on most calls. The table printed `0 of 15  error x15` for
+twenty-odd cases, which reads exactly like a rule that broke everything. Read the `what came back`
+column before believing a zero: `error` there is a run that did not happen.
+
+A run also measures the rule files as they stood when it started, which `readRules` says in the
+code. So a rule edit during a run leaves a table naming text the run measured nowhere, and the header
+hash is the only thing that says so. Finish the run, or kill it and start again.
+
 ## What a case cannot measure
 
 The writer a case runs is told it has no tools. Every case hands it the code, the facts, and
@@ -106,7 +117,7 @@ writer working a real change set has the repository: it follows a field's consum
 file and decides what it found there.
 
 So a defect that turns on what the writer goes and finds cannot go red here. Case k18 is that
-shape. Four cuts of it, each at fifteen rolls, came back written 15, 15, 13 and 15 times, and the
+shape. Four cuts of it, each at fifteen rolls, came back written 15, 15, 13 and 15 times. That
 two-roll move sits inside the no-change band this file's first section gives. The rule k18 pins
-landed on the evidence from the change set, and the case pins the correct answer rather than
-guarding against the defect.
+landed on the evidence from the change set. The case pins the correct answer, and it guards against
+no defect.

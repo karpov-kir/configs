@@ -91,3 +91,11 @@ export function toEntries(set: Element): Element[] {
 export function dropStaleClaims(book: Element): Element[] {
   return [];
 }
+
+/**
+ * Gated on the settlement scheme, not the combination, for the reason {@link claimsSchemeThroughStandardApi} gives.
+ * A ledger of this build knows the deferred scheme alone.
+ */
+export function warmUpPosting(book: Element): void {
+  return;
+}

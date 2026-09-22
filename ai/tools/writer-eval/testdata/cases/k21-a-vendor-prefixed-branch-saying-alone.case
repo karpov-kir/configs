@@ -1,0 +1,20 @@
+expect: written
+note: written
+floor: 60
+site: 2
+keeps: ledgervendorkeys
+keeps: probevendorclaim | vendorschemeclaim | this branch | the branch
+bars: alone
+why: the fact is what a vendor's prefixed interface knows, and the facts file hands it over with `alone` after the noun, which is where the old block had it; a reviewer read that block on 2026-09-22 and asked what `alone` meant there; the case scores the bar and the tie, and it scores no wording for the exclusivity claim, because `the one scheme the vendor interface reports` says it as well as `only` does and a whitelist of phrasings would measure the list
+labelled: 2026-09-22
+--- code
+export function vendorSchemeClaim(formatName: string, requirement: PostingRequirement): LedgerClaim {
+  if (window.LedgerVendorKeys && requirement.scheme === PostingScheme.Deferred) {
+    return probeVendorClaim(formatName);
+  }
+
+  return LedgerClaim.Refused;
+}
+--- facts
+`window.LedgerVendorKeys` is the vendor's prefixed interface, and it knows the deferred scheme alone.
+Such a ledger reports the deferred scheme as unsupported through the standard scheme API.
