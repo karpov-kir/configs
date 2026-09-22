@@ -75,6 +75,21 @@ The two rule files are read once, when the run starts, and every roll is given t
 header prints a short hash of it. An edit made to a rule while a run is going reached the rolls after
 it before this, and the table named the text it had measured nowhere.
 
+## k11, and a floor a case has never met
+
+k11 asks the writer to name both the caller's act on a copy and the site that makes the copy. The
+note pattern is what carried it. That pattern demanded a consequence at every site, and at k11's site
+the consequence is worth having.
+
+Its no-change pair reads 2 and 2 of 15 against a floor of 60%, so the case has yet to meet its own
+floor. The pattern's removal took it to 0. A rule telling the writer to state the bearing where the
+code beneath would read as a mistake without it took it to 8. That is the second largest single move
+this set has measured, and it is one roll under the floor.
+
+The floor stays at 60%. A floor set to what a case just scored means whatever the last run gave, and
+the pair rule this file opens with exists to stop that. k11 reads as failing, and the bar it fails is
+one the writer has yet to be shown clearing at that site.
+
 ## The two halves
 
 The labelled half is `testdata/cases/`, one file per site, each carrying what a reviewer decided and
@@ -82,3 +97,16 @@ why. The plain half reads a directory of reviewed source named by `JUDGE_EVAL_PL
 a reviewer left alone. It asks what share of them the writer writes for, and what share of those fail
 a check. The set is named by the environment and by no committed path. A case there
 is named by its position in the sorted set, and only counts leave the run.
+
+## What a case cannot measure
+
+The writer a case runs is told it has no tools. Every case hands it the code, the facts, and
+whatever `--- callers` and `--- tests` sections the case carries, and it answers from that alone. A
+writer working a real change set has the repository: it follows a field's consumer into another
+file and decides what it found there.
+
+So a defect that turns on what the writer goes and finds cannot go red here. Case k18 is that
+shape. Four cuts of it, each at fifteen rolls, came back written 15, 15, 13 and 15 times, and the
+two-roll move sits inside the no-change band this file's first section gives. The rule k18 pins
+landed on the evidence from the change set, and the case pins the correct answer rather than
+guarding against the defect.

@@ -55,6 +55,25 @@ Two assumptions died on contact here. The connective ban was proposed to make no
 have rewritten 131 of 304 notes that nobody had flagged. The counterfactual clause was assumed to be
 the subset of the clauses naming no element, and it is 6 of the 21.
 
+## The `so` share, and what it is a share of
+
+A reviewer read a run's comments on 2026-09-22 as carrying `so` everywhere. The run measured 43% of
+its blocks. This set measures 9%, and the gap is not the connective.
+
+| | of the plain set |
+|---|---|
+| blocks holding a note sentence | 425 of 476 |
+| of those, the note states a bearing | 142, or 33% |
+| of those, the bearing is carried by `, so ` | 80, or 56% |
+
+So where this codebase states a consequence at all, it reaches for `so` more than half the time, and
+more often than the run a reviewer complained about. What the run does differently is state a
+consequence three times as often: the note pattern asked for one at every site, and two thirds of the
+notes a reviewer left alone have none.
+
+`note-block-with-a-so-clause` reports the share. It gates nothing, and a run reading its own figure
+against this one is reading a property of a body of prose, never a target to move toward.
+
 ## restates-code, measured before it was allowed to delete
 
 The proposal was a check that deletes a summary whose content words the declaration beneath it

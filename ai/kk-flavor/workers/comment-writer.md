@@ -20,7 +20,7 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    Then strike, on the summary you are about to write and at any body length. List its content words. Strike each one that appears in the identifier, a parameter name, the return type or the body. A plural or a verb form counts as the same word. Strike also the verbs a summary opens with: checks, whether, returns, lists, says, gives, declares, holds, names, reads, writes, takes, yields, produces, provides, gets, sets. A summary with no word left is `none`. Probes for this question live in `~/.kk-flavor/workers/comment-writer/tests/summary-verdicts.md`.
 2. **The summary.** Write one where the name and signature leave a return case, a unit, an ordering a caller depends on, a side effect or a precondition unsaid. Fill the summary pattern the rule gives: `<Verb> <what>` and, where there is a case, `, or <value> when <case>`. Use the identifier's names and the domain's words. Say what the symbol decides or returns. A summary on a member of an interface says what every implementation does, and behaviour one implementation alone has goes on that implementation. Do not say why.
-3. **The note.** This question runs for every site, including one whose summary is `none`. Open the facts file. Read each sentence in it as a claim, and check the claim against the code. Drop a claim the code in this file contradicts, and return it as `stale`. A claim about anything you cannot read here is never `stale`: keep it as the note and return `unverified: <site>: <claim>` for code review. A run marked a claim about a vendor's asset `stale` on 2026-09-21, and a reviewer fetched the asset and found the claim true. One claim is never `stale`. It is the claim that this code and something outside it agree, in the words copies, mirrors, stays in step with, must match or kept in sync with. Where the two have parted, the parting is a correctness finding and the claim is what made it findable. Keep the claim as the note, in wording that states the obligation. A note saying this table `must match` that one states what is owed. A note saying it copies that one states only what is. The reader who changes one side is owed the first. Return `invariant diverged: <site>: <claim>` for code review. Where a comparison against the other side could be written, return `carried by <test to write>` too.
+3. **The note.** This question runs for every site, including one whose summary is `none`. Open the facts file. Read each sentence in it as a claim, and check the claim against the code. Drop a claim the code in this file contradicts, and return it as `stale`. A claim about anything you cannot read here is never `stale`: keep it as the note and return `unverified: <site>: <claim>` for code review. A run marked a claim about a vendor's asset `stale` on 2026-09-21, and a reviewer fetched the asset and found the claim true. One claim is never `stale`. It is the claim that this code and something outside it agree, in the words copies, mirrors, stays in step with, must match or kept in sync with. Where the two have parted, the parting is a correctness finding and the claim is what made it findable. Keep the claim as the note, in wording that states the obligation. A note saying this table `must match` that one states what is owed. A note saying it copies that one states only what is. The reader who changes one side is owed the first. Return `invariant diverged: <site>: <claim>` for code review. Where a comparison against the other side could be written, return `carried by <test to write>` too. Code carries such a claim only where the code makes the parting impossible: a type, a derivation, a single place both sides are read from. A check running over the outside thing reports a parting and leaves it standing, and a check able to fail is not a carrier. A writer routing the claim to one deletes the sentence that made the parting findable.
 
    Then two drops you take as steps. Take the claim's content words, with the opening verbs struck as in question 1. The claim is shown by the body where every one of those words appears in the site's identifier, its parameters, its return type or its body lines. Drop it and return `shown by the body: <claim>`.
 
@@ -30,11 +30,62 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    Neither step reaches a claim that paraphrases the code in words the code does not spell. That judgement stays yours, and `~/.kk-flavor/workers/comment-writer/tests/` holds the cases it is measured on. Drop a claim that justifies a decision a reader would take for granted, which `~/.kk-flavor/standards/code-style.md` → **Comments** already names. A reader meeting two places a value can sit reads both, and the claim defends what they were going to do. Drop a claim a test, a lint rule, a rename or an extraction would carry, and return it as `carried by <what>` for the refactor lane. Before keeping a claim, `grep` the change set's tests for the fact's nouns, and answer `carried by <test>` where a test names it. A language mechanism, an ordering and a branch routing are `carried by` before they are a note. A fact about the world outside this code is never `carried by <test>`. That fate is for a claim about what this code itself does: what it returns, which branch runs, an ordering it imposes. A test guards such a claim against regression, and the reader sees it in the code.
 
-   Keep a claim only where it states a fact about the world outside this code: a device, a platform, a format, a vendor's asset, a specification, a library's behaviour. A claim about this code's own behaviour is shown by the code or carried by a test. Write each kept claim as one sentence in the note pattern: `<One fact>.` The fact sentence keeps the fact's own subject. The subject is the outside thing the fact is about: a type, a device, a format, a specification, a library, or a party the domain names. Name it as the code or the domain names it. A claim opening on something the reader cannot name is the out-of-the-blue block a reviewer sent back on 2026-09-21. Write such a claim again from the named thing it turns on. A fact that holds sometimes is written as the case it holds in, in the `when <case>` shape the summary pattern already uses. `The schedule can omit a settlement, so the poster retries` becomes `When the schedule omits a settlement, the poster retries`. The second says the same thing and says when. A name from outside the site's own declaration carries what it is in plain words at its first mention: `preferredSettlements, the ledger's list of allowed schemes`. A second sentence says what follows from the fact for a reader of this code, in the present tense. It is required. A note earns its place by the consequence. A fact whose consequence is missing goes into the summary, or it goes back as `for the PR body`. A fact standing alone reads out of the blue to a reader who met it for the first time here. The consequence names the site's declaration or a caller's act on the site's result. A caller `grep` finds in the repository is a named element of the system. The consequence names what that caller does, in the code's own verb: removes, iterates, appends. A caller no `grep` finds is the hypothetical actor. Leave the actor out and keep the claim: the fact stays as the note's one sentence, and the site returns `unverified: <site>: <claim>` for review. A consequence you have no `grep` to check is a doubt, and dropping the fact hides it. Leave out a choice the code never made, and leave out what other code would do. The second sentence names its own subject and its own object by the code's noun. `that`, `this` and `it` reaching into the first sentence make a reader hold both sentences to read the second. A second fact is a second sentence. Two sentences is the ceiling. Return a fact that needs more as `for the PR body`, and write no note for it. Answer `note: written` or `note: none`.
+   Keep a claim only where it states a fact about the world outside this code: a device, a platform, a format, a vendor's asset, a specification, a library's behaviour. A claim about this code's own behaviour is shown by the code or carried by a test. Write the claim as the fact it is, and say what it bears on where it bears on something. A note is the fact from outside this code, and what the fact means for the code under it. Name the thing it means it for by its identifier. In a set of reviewed code, two thirds of the notes a reviewer left alone state a fact and stop. A fact you can state, with no bearing to draw from it, is still a note. A name from outside the site's own declaration carries what it is in plain words at its first mention: `preferredSettlements, the ledger's list of allowed schemes`. A caller `grep` finds in the repository is one of the code's own elements. A caller no `grep` finds is a hypothetical actor. Leave that actor out, keep the claim, and return `unverified: <site>: <claim>` for review. Leave out a choice the code never made, and leave out what other code would do. A sentence after the first names its own subject and object by the code's noun. `that`, `this` and `it` reaching back make a reader hold both sentences to read the second. Two sentences is the ceiling.
+
+   Write like the blocks under **How these read**, which are notes a reviewer left standing in a set of reviewed code. Return a fact that needs more as `for the PR body`, and write no note for it. Answer `note: written` or `note: none`.
 
    The block is the summary and the note together. The site is `none` only where both parts are `none`.
 
 Copy no sentence from the facts file into the block. Write each kept fact again from the code and the claim. Copy a line carrying only a doc tag (`@param`, `@returns`, `@throws`, `@example`) unchanged where the file's other blocks carry them, and write no new one.
+
+## How these read
+
+Ten notes a reviewer left standing in a set of reviewed code, in this repository's own domain. Three
+state what a fact bears on and seven state a fact and stop, which is the proportion the reviewed set
+keeps.
+
+```ts
+// Publishes the outcome of a posting whose settlement failed. The ledger's own claims decide which token it gets.
+import { LedgerClaim } from './LedgerClaims';
+
+// `LedgerBook.SETTLED` is missing on some ledger builds here, so the value is spelled out.
+const SETTLED = 2;
+
+// A ledger ignoring `currency` answers about the rate and leaves the period unasked, so both fields are read.
+async function readRateFields(
+
+// The match is anchored at the start, because `formatFault` appends `(code [Unreadable])` to readable messages too.
+export function isPlaceholderFaultText(formatted: string): boolean {
+
+// The posting format, which carries the precision: `AMT2` is two decimals and `AMT4` is four.
+format: string | null;
+
+// XML Name rules cap no element name, and whoever served the export chose this one.
+const PUBLISHED_ELEMENT_NAME_CHARACTER_LIMIT = 40;
+
+// `0` is what a fetch reports for a request that never reached a server, and this phrase claims one answered.
+if (typeof status === 'number' && status >= 100 && status < 600) {
+
+// One ledger build lacks `entry-precision`, the field defined against an entry, and falls through to the book-wide one.
+const PRECISION_FIELDS = ['entry-precision', 'book-precision'];
+
+// The posting service answered 5xx: a server erroring on a request it accepted cannot be the ledger's doing.
+UnmeasuredPostingServerFailed = 'UNMEASURED_POSTING_SERVER_FAILED',
+
+// A ledger export predating these fields ignores them and answers about the entry type alone.
+stubReadingLedger({ supported: true, reads });
+```
+
+State the bearing where the code under the note would read as a mistake without it. A function copying
+a list by hand looks like needless work until the reader knows its callers remove entries while they
+walk the copy. An enum member with a plain name is owed no bearing. None goes there.
+
+Read what each one does. The first is a file header. It says what every declaration in the file
+is for, and it leaves the file's own name unsaid. The fourth carries its bearing on `because` and the two
+before it on `so`, so the connective is a choice. The fifth explains a number no consequence explains: a specification permits
+anything and a person chose forty. The sixth warns that the code's own wording claims more than the
+value supports. The eighth says what an answer means. None of the six invents something to put after
+a `so`.
 
 ## Words
 

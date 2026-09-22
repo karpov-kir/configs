@@ -346,14 +346,19 @@ func (t *Tally) add(sentence string) {
 
 // Report is what one run of the census measured.
 type Report struct {
-	Files      int
-	Blocks     int
-	Summaries  int
-	Notes      int
-	Shapes     []Tally
-	Verbs      []Tally
-	Coined     Tally
-	Long       Tally
+	Files     int
+	Blocks    int
+	Summaries int
+	Notes     int
+	Shapes    []Tally
+	Verbs     []Tally
+	Coined    Tally
+	Long      Tally
+	// SoBlocks is how many blocks with a note carry `, so `. The three tallies below it read a so
+	// clause's subject. This one reads how often the connective is reached for at all. A
+	// reviewer on 2026-09-22 read a run's comments as carrying it everywhere, and the run measured 43%
+	// of its blocks against this set's 9%.
+	SoBlocks   Tally
 	SoNamed    Tally
 	SoPronoun  Tally
 	SoUnnamed  Tally
@@ -386,6 +391,7 @@ func Measure(files [][]string) Report {
 	}
 	coined := &Tally{Name: "coined-compound"}
 	long := &Tally{Name: "note-over-2-sentences"}
+	soBlocks := &Tally{Name: "note-block-with-a-so-clause"}
 	soNamed := &Tally{Name: "so-clause-naming-the-code"}
 	soUnnamed := &Tally{Name: "so-clause-naming-no-element"}
 	soPronoun := &Tally{Name: "so-clause-with-a-pronoun-subject"}
@@ -460,6 +466,9 @@ func Measure(files [][]string) Report {
 				rep.Summaries++
 			}
 			rep.Notes += len(notes)
+			if joined := strings.Join(notes, " "); commaSo.MatchString(joined) {
+				soBlocks.add(joined)
+			}
 			if len(notes) > 2 {
 				long.add(strings.Join(notes, " "))
 			}
@@ -514,6 +523,7 @@ func Measure(files [][]string) Report {
 	sort.SliceStable(rep.Verbs, func(i, j int) bool { return rep.Verbs[i].Count > rep.Verbs[j].Count })
 	rep.Coined = *coined
 	rep.Long = *long
+	rep.SoBlocks = *soBlocks
 	rep.SoNamed = *soNamed
 	rep.SoPronoun = *soPronoun
 	rep.SoBoth = *soBoth
@@ -807,3 +817,8 @@ func ParaphrasedIdentifiers(note string, lines []string) []string {
 	}
 	return out
 }
+
+// commaSo is the connective the note pattern used to ask for. The share of blocks reaching for it is
+// a property of a body of prose. This tool reports it beside density, so a run is read against a
+// reference and never against an ear.
+var commaSo = regexp.MustCompile(`(?i),\s+so\s`)
