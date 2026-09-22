@@ -40,7 +40,8 @@ Copy no sentence from the facts file into the block. Write each kept fact again 
 
 ## How these read
 
-Ten notes a reviewer left standing in a set of reviewed code, in this repository's own domain. Each
+Ten notes a reviewer left standing in a set of reviewed code, in this repository's own domain, and an
+eleventh written to the same record. Each
 one on a constant, a field or an enum member states the fact and stops, and the value beneath it is
 the tie. Each one on a function, a branch or a call carries its tie in words.
 
@@ -75,7 +76,14 @@ UnmeasuredPostingServerFailed = 'UNMEASURED_POSTING_SERVER_FAILED',
 
 // A ledger export predating these fields ignores them and answers about the entry type only, and `reads` holds what such an export returns.
 stubReadingLedger({ supported: true, reads });
+
+// Every caller removes postings from the ledger while it walks the result.
+// `snapshotPostings` copies the live list into a plain array, which keeps each posting the callers remove.
+export function snapshotPostings(list: LivePostingList): Posting[] {
 ```
+
+The eleventh reads its fact from the `--- callers` section. A caller's act that explains this
+function's act is the `fact:`, and `belongs at` is for a caller's act the fact explains.
 
 The block is the record written as two plain sentences: the fact, then the tie. The tie's subject is
 the `bears_on` identifier, and it takes the spelling the code gives it. No connective is required and `so` is not
