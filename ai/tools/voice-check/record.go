@@ -6,19 +6,16 @@ import (
 	"strings"
 )
 
-// The record's three slots and the checks that read them. A note is a record before it is prose:
-// the fact from outside this code, the identifier at this site the fact bears on, and what that
-// identifier does about the fact. The block is that record written as two plain sentences.
+// A note's record is three slots: the fact from outside this code, the identifier here it bears on,
+// and what that identifier does because of it. The block writes the record as two plain sentences.
 //
-// Four blocks a reviewer read on 2026-09-22 stated a fact and stopped, and the reviewer's question
-// on each was a version of "and what?". Each of them was a block whose record would have had no
-// `does`. The checks here refuse the record rather than the prose, because the prose is where the
-// writer has already decided.
+// Four blocks a reviewer read on 2026-09-22 stated a fact and stopped. Each record would have had an
+// empty `does`. These checks read the record, since the writer's prose is already decided.
 const (
 	checkRecordSlot      = "record-slot-missing"
-	checkRecordElsewhere = "bears-on-is-not-at-this-site"
-	checkRecordUnnamed   = "block-does-not-name-what-it-bears-on"
-	checkRecordUntied    = "does-names-nothing-in-the-body"
+	checkRecordElsewhere = "bears-on-elsewhere"
+	checkRecordUnnamed   = "block-omits-bears-on"
+	checkRecordUntied    = "does-untied"
 )
 
 // recordMarker ends the record and opens the block. Everything above it is slots, everything under
@@ -38,8 +35,8 @@ var identifierToken = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 var camelHump = regexp.MustCompile(`([a-z0-9])([A-Z])`)
 
 // recordSegments is every segment the given text's identifiers spell, lower-cased, plus each
-// identifier whole. A segment rather than a substring, so `MediaSource` meets `mediaSourceClaim` and
-// never meets `sourced`.
+// identifier whole. Segments match whole, so `MediaSource` meets mediaSourceClaim, an identifier
+// holding it, and never meets `sourced`.
 func recordSegments(text string) map[string]bool {
 	out := map[string]bool{}
 	for _, token := range identifierToken.FindAllString(text, -1) {
@@ -56,7 +53,7 @@ func recordSegments(text string) map[string]bool {
 }
 
 // splitRecord cuts the piped lines at the marker. The second return is false where the text carries
-// no marker, which is a caller that passed `--record` and piped a block alone.
+// no marker. That caller passed `--record` and piped a block with no record above it.
 func splitRecord(lines []string) (record, under []string, found bool) {
 	for i, line := range lines {
 		if strings.TrimSpace(line) == recordMarker {
@@ -108,7 +105,7 @@ func blockAndBody(lines []string) (block, body []string) {
 	return block, lines[at:]
 }
 
-// oneLineDeclaration says the declaration under the block holds a value and no body: a constant, a
+// oneLineDeclaration says the declaration under the block holds a value on one line: a constant, a
 // field, an enum member. `does` may be `none` there, because the value beneath is the tie.
 func oneLineDeclaration(body []string) bool {
 	for _, line := range body {
@@ -122,7 +119,7 @@ func oneLineDeclaration(body []string) bool {
 }
 
 // RecordFindings reads a record against the block it produced and the source the block sits on. It
-// reports what the record fails, and it says nothing about the prose: the register checks read that.
+// reports what the record fails. The register checks read the prose.
 func RecordFindings(file string, lines []string) []Finding {
 	record, under, found := splitRecord(lines)
 	if !found {
@@ -172,9 +169,9 @@ func RecordFindings(file string, lines []string) []Finding {
 	return out
 }
 
-// namesSomethingIn says the phrase shares one segment with the set. One shared segment and not every
-// word: a tie reading `takes the FairPlay path` names the branch by `Fairplay`, and `path` is the
-// English around it.
+// namesSomethingIn says the phrase shares one segment with the set. One segment is enough: a tie
+// reading `takes the FairPlay path` names the branch by `Fairplay`, and `path` is the English around
+// it.
 func namesSomethingIn(phrase string, set map[string]bool) bool {
 	for segment := range recordSegments(phrase) {
 		if set[segment] {
@@ -184,8 +181,9 @@ func namesSomethingIn(phrase string, set map[string]bool) bool {
 	return false
 }
 
-// spellsTheName says the text holds the identifier whole. `bears_on` names one declaration, so a
-// shared hump is not the test here: a block saying "format" has not said `getFormatClaim`.
+// spellsTheName says the text holds the identifier whole. `bears_on` names one declaration, and a
+// block saying "format" has said one hump of getFormatClaim, the declared name, and left the rest
+// unsaid.
 func spellsTheName(name, text string) bool {
 	wanted := identifierToken.FindAllString(name, -1)
 	if len(wanted) == 0 {

@@ -125,14 +125,14 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly}
 
 // reAlone is the word itself. What it follows decides whether it is the exclusivity word or the
-// ordinary one, and aloneIsIdiom reads that.
+// ordinary one.
 var reAlone = regexp.MustCompile(`(?i)\balone\b`)
 
 // aloneLookBack is how many words back the governing verb is looked for: `leave the actor alone`.
 const aloneLookBack = 3
 
-// aloneStandsAfter is the pronouns `alone` follows in its ordinary sense, and aloneStandsUnder the
-// verbs that take it: `leave it alone`, `the header stands alone`.
+// aloneStandsAfter is the pronouns the word follows in its ordinary sense. aloneStandsUnder, the
+// table beside it, is the verbs that take it: `leave it alone`, `the header stands alone`.
 var aloneStandsAfter = map[string]bool{"it": true, "them": true, "him": true, "her": true, "me": true,
 	"us": true, "you": true, "i": true, "he": true, "she": true, "we": true, "they": true}
 
@@ -140,8 +140,8 @@ var aloneStandsUnder = map[string]bool{"leave": true, "leaves": true, "left": tr
 	"let": true, "lets": true, "letting": true, "stand": true, "stands": true, "standing": true,
 	"stood": true, "go": true, "goes": true, "went": true, "gone": true}
 
-// aloneIsIdiom says this `alone` is the ordinary word and not the exclusivity one. `before` is the
-// text up to the word.
+// aloneIsIdiom says this occurrence is the ordinary word, where the exclusivity one would be a
+// finding. `before` is the text up to the word.
 func aloneIsIdiom(before string) bool {
 	words := strings.Fields(before)
 	for at := len(words) - 1; at >= 0 && at > len(words)-1-aloneLookBack; at-- {
@@ -157,8 +157,8 @@ func aloneIsIdiom(before string) bool {
 }
 
 // reReasonAway is a note handing its reason to another note: `for the reason {@link X} gives`,
-// `see <X> for why`, `as {@link X} explains`. The reason is written where it is read, so a block
-// carrying one of these shapes is a block whose reason has to move to it.
+// `see <X> for why`, `as {@link X} explains`. A reason is written where it is read. A block carrying
+// one of these shapes has to take its reason in.
 var reReasonAway = regexp.MustCompile(`(?i)\b(for the reason|see|as)\s+(\{@link\s+[^}\n]{1,80}\}|` +
 	"`[^`\n]{1,80}`" + `)\s+(gives|states|explains|for why|for the reason)\b`)
 
@@ -772,23 +772,27 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 			}
 		}
 	}
-	// Two shapes a reviewer sent back on 2026-09-22, both of them a comment's own sentence and neither
-	// of them a register tell. `alone` after a noun is `only` doing its work in a word a reader in a
-	// second language meets as "by itself" first. A reason given as a pointer at another comment leaves
-	// the reason at neither block, and the link form is what makes that one readable.
+	// Two shapes a reviewer sent back on 2026-09-22. The exclusivity word after a noun reads as "by
+	// itself" to a reader in a second language, and `only` is the word they expect. A reason given as a
+	// pointer at another comment leaves the reason at neither block. Both read `prose`, or start there,
+	// so a comment quoting either shape in backticks is a mention and is passed over.
 	if s.profile == ProfileComment {
-		for _, at := range reAlone.FindAllStringIndex(text, -1) {
-			if aloneIsIdiom(text[:at[0]]) {
+		for _, at := range reAlone.FindAllStringIndex(prose, -1) {
+			if aloneIsIdiom(prose[:at[0]]) {
 				continue
 			}
 			add(checkAloneForOnly, at[0], at[1])
 		}
+		// The link form makes this shape readable, and `text` still holds the backticked name. A match
+		// opening inside a code span is a quotation of the shape.
 		for from := 0; from < len(text); {
 			at := reReasonAway.FindStringIndex(text[from:])
 			if at == nil {
 				break
 			}
-			add(checkReasonAway, from+at[0], from+at[1])
+			if start := from + at[0]; prose[start] == text[start] {
+				add(checkReasonAway, start, from+at[1])
+			}
 			from += at[1]
 		}
 	}
@@ -982,7 +986,7 @@ func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int
 	source := false
 	// The writer fills the note's record before it writes the block, and `--record` says the piped text
 	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
-	// stopped, and the register checks passed every one: a block with nothing wrong with its prose.
+	// stopped, and the register checks passed every one, because their prose was sound.
 	record := false
 flags:
 	for len(args) > 0 {

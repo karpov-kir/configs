@@ -7,8 +7,8 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// checksOf is the check names a run reported, in report order, so a case can say what fired and what
-// did not rather than counting.
+// checksOf is the check names a run reported, in report order. A case then says which checks fired.
+// That says more than a count.
 func checksOf(found []Finding) []string {
 	var out []string
 	for _, f := range found {
@@ -36,8 +36,8 @@ export function getFormatClaim(formatName: string): LedgerClaim {
 }`,
 		},
 		{
-			// The shape a reviewer read on 2026-09-22 and answered "And what?". Nothing is wrong with
-			// the prose, so the register checks pass it and this one does not.
+			// The shape a reviewer read on 2026-09-22 and answered "And what?". Its prose is sound, so the
+			// register checks pass it, and this check reports it.
 			name: "a fact that stops leaves the block naming nothing",
 			text: `fact: The book took a posting format long before the probe reported the same format.
 bears_on: getFormatClaim
@@ -50,14 +50,14 @@ export function getFormatClaim(formatName: string): LedgerClaim {
 			want: []string{checkRecordUnnamed},
 		},
 		{
-			// A fact whose bearing is what a caller does with the result belongs at the caller, and the
-			// writer cannot reach that file. The identifier-set test is the guard, not the writer.
+			// A fact whose bearing is what a caller does with the result belongs at the caller. The writer
+			// cannot reach that file, so the identifier-set test is the guard here.
 			name: "bears_on naming a caller fails at this site",
 			text: `fact: A ledger ignoring the posting scheme stalls on its first posting under that scheme.
 bears_on: warmUpPosting
 does: gates on this claim instead of the combination
 ---
-// A ledger ignoring the scheme stalls on its first posting. ` + "`warmUpPosting`" + ` gates on this claim.
+// A ledger ignoring the scheme stalls on its first posting. warmUpPosting, the caller, gates on this claim.
 export async function claimsSchemeThroughStandardApi(scheme: PostingScheme): Promise<boolean> {
   return probe.requestAccess(scheme).then(() => true, () => false);
 }`,
@@ -132,7 +132,8 @@ func TestDoesSharesOneSegment(t *testing.T) {
 	}
 }
 
-// `MediaSource` meets `mediaSourceClaim` as a segment and never meets a word that merely holds it.
+// `MediaSource` meets mediaSourceClaim, an identifier holding it, as a segment. It never meets a word
+// holding it as letters.
 func TestSegmentsAreNotSubstrings(t *testing.T) {
 	set := recordSegments("const mediaSourceClaim = 1; const sourced = 2;")
 	if !set["source"] || !set["media"] {
