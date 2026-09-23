@@ -290,6 +290,8 @@ func TestBarIsCleanAtTheBaselinesOwnRate(t *testing.T) {
 	r.expectCode(exitClean)
 	r.expectStdoutHas("host repo: 10.0% comment lines")
 	r.expectStdoutHas("change set: 10.0% comment lines (1 comment / 9 code)")
+	// The share run 8 counted by hand is on the report, for the change set and the host alike.
+	r.expectStdoutHas("`, so` in a note: change set ")
 	r.expectStdoutLacks("over on")
 	r.expectStdoutLacks("against a")
 	r.expectStderrHas("1 changed source file(s), 1 read, 0 skipped unread; 2 file(s) in the baseline.")

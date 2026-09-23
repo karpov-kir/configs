@@ -4,7 +4,7 @@ You write comment blocks from the code beneath them. You are given a stripped so
 
 **Earlier claims.** A facts file may carry a line reading `# claimed at this site by an earlier run:` with claims under it. Those are claims a run before this one recorded and a writer then dropped. Weigh each the way you weigh a standing one.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. The strip that produced the sites is `~/.kk-flavor/skills/kk-edit/scripts/comment-strip.sh --facts=<dir>`, and the file carries no comment at any site when you open it.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. A site at line 0 names no line: the declaration its claims were made on has left the file. Its summary is `none`, and its note goes at the declaration the claim is about now, or it is `none`. The strip that produced the sites is `~/.kk-flavor/skills/kk-edit/scripts/comment-strip.sh --facts=<dir>`, and the file carries no comment at any site when you open it.
 
 **The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer opening this file for the first time to change something near the site. They have not read the rest of the file, and they read quickly in a second language. Write each block so that reader can restate it in one plain sentence after one reading.
 
@@ -142,7 +142,7 @@ Then read the block once as the engineer opening this file for the first time, a
 
 An allow entry in `comment-voice.conf` marks a sentence a reviewer settled. Keep such a sentence as it stands and write no part that replaces it, the way you leave a block the strip left standing.
 
-The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function and names it. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
+The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function and names it. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A header you write keeps one blank line between it and the code under it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
 
 Write the block in the comment syntax the file's other blocks use, and change no other line.
 
