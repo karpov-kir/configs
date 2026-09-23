@@ -122,7 +122,8 @@ const (
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
-	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly}
+	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
+	checkOverBand, checkTestsNarration}
 
 // reAlone is the word itself. What it follows decides whether it is the exclusivity word or the
 // ordinary one.
@@ -487,6 +488,11 @@ type scanner struct {
 	// record says the text opens with the note's record, which RecordFindings reads against the block
 	// and the source under it. The register checks read the prose either way.
 	record bool
+	// kind is the body a prose text is read as, empty for none. bands and template are what its
+	// checks count against.
+	kind     string
+	bands    map[string]band
+	template map[string]bool
 	// inCell says the segment is one cell of a table row. A cell is a list by construction. A semicolon
 	// in one separates two fields, and the same semicolon in prose joins two clauses.
 	inCell bool
@@ -988,6 +994,8 @@ func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int
 	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
 	// stopped, and the register checks passed every one, because their prose was sound.
 	record := false
+	// A PR body and a ticket each have a width, and `--kind` reads the prose as one of them.
+	kind := ""
 flags:
 	for len(args) > 0 {
 		switch {
@@ -995,6 +1003,12 @@ flags:
 			source = true
 		case args[0] == "--record":
 			record = true
+		case strings.HasPrefix(args[0], "--kind="):
+			kind = strings.TrimPrefix(args[0], "--kind=")
+			if _, known := defaultBands[kind]; !known {
+				return out.refuseArguments(fmt.Errorf("no kind %q — the scan did NOT run. Kinds: %s %s",
+					shell.CutBytesMarked(shell.Oneline(kind), 40), KindPRBody, KindTicket))
+			}
 		case strings.HasPrefix(args[0], "--profile="):
 			named := Profile(strings.TrimPrefix(args[0], "--profile="))
 			switch named {
@@ -1010,6 +1024,10 @@ flags:
 			break flags
 		}
 		args = args[1:]
+	}
+	if kind != "" && profile != ProfileProse {
+		return out.refuseArguments(fmt.Errorf("--kind reads a PR body or a ticket, which the prose profile "+
+			"reads, and not the %s profile — the scan did NOT run", profile))
 	}
 	if record && !source {
 		return out.refuseArguments(errors.New("--record reads a record against the block and the source " +
@@ -1045,7 +1063,17 @@ flags:
 	}
 	suppressed := 0
 	s := scanner{profile: profile, coined: coined, domain: domain, allowed: allowed, suppressed: &suppressed,
-		record: record, notice: func(line string) { out.note("%s", line) }}
+		record: record, kind: kind, notice: func(line string) { out.note("%s", line) }}
+	if kind != "" {
+		if s.bands, err = confBands(cwd); err != nil {
+			return out.refuse(err)
+		}
+		root := cwd
+		if top, err := git.TopLevel(cwd); err == nil && top != "" {
+			root = top
+		}
+		s.template = templateLines(root)
+	}
 	over := scanned{conf: conf}
 	if counts {
 		return reportCounts(out, s, profile, args, cwd, cfg, &over)
@@ -1332,7 +1360,11 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			_, under, _ := splitRecord(lines)
 			return append(found, s.scanSource(file, under, nil, under)...)
 		}
-		return s.scanProse(file, lines)
+		found := s.scanProse(file, lines)
+		if s.kind != "" {
+			found = append(found, KindFindings(file, strings.Join(lines, "\n"), s.kind, s.bands, s.template)...)
+		}
+		return found
 	}
 	if len(args) == 0 {
 		return nil, fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", s.profile)

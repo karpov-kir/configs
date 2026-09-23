@@ -54,6 +54,11 @@ type Case struct {
 	// It is a share and no longer a count. Floors were counts written against five rolls, so each of
 	// them grew three times weaker the day the roll count went to fifteen, and the table stayed quiet.
 	Floor int
+	// Returns is the fates the return has to name, and Withholds the fates it may not. A fact that fits
+	// no note is routed somewhere, and where it went is the thing a case about routing scores. Run 7
+	// routed 704 words of facts about the world into a PR body, where the change is described.
+	Returns   []string
+	Withholds []string
 }
 
 // ExpectCarried is a site whose claim belongs somewhere else in the tree: a field on the data row it
@@ -165,6 +170,21 @@ func ParseCase(name, raw string) (Case, error) {
 			}
 			if len(c.Bars) == 0 {
 				return c, fmt.Errorf("%s names no wording to bar", name)
+			}
+		case "returns", "withholds":
+			var fates []string
+			for _, fate := range strings.Split(value, "|") {
+				if trimmed := strings.ToLower(strings.TrimSpace(fate)); trimmed != "" {
+					fates = append(fates, trimmed)
+				}
+			}
+			if len(fates) == 0 {
+				return c, fmt.Errorf("%s names no fate under %s", name, key)
+			}
+			if strings.EqualFold(strings.TrimSpace(key), "returns") {
+				c.Returns = append(c.Returns, fates...)
+			} else {
+				c.Withholds = append(c.Withholds, fates...)
 			}
 		case "floor":
 			share, err := strconv.Atoi(strings.TrimSuffix(value, "%"))
@@ -282,6 +302,24 @@ func JudgeCase(c Case, r Return) Verdict {
 	for _, wording := range c.Bars {
 		if r.Block != "" && strings.Contains(strings.ToLower(r.Text()), wording) {
 			v.Failures = append(v.Failures, Failure{"wrote-the-barred-shape", "the block carries " + wording})
+		}
+	}
+	routed := func(fate string) bool {
+		for _, got := range r.Routed {
+			if strings.HasPrefix(got, fate) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, fate := range c.Returns {
+		if !routed(fate) {
+			v.Failures = append(v.Failures, Failure{"routed-it-elsewhere", "no " + fate + " line"})
+		}
+	}
+	for _, fate := range c.Withholds {
+		if routed(fate) {
+			v.Failures = append(v.Failures, Failure{"routed-to-a-withheld-fate", fate})
 		}
 	}
 	return v

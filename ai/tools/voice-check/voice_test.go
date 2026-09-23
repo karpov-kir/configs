@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,6 +78,9 @@ func TestTheHouseCorpusExercisesEveryCheck(t *testing.T) {
 		fired[f.Check]++
 	}
 	for _, check := range AllChecks {
+		if slices.Contains(kindChecks, check) {
+			continue
+		}
 		if fired[check] == 0 {
 			t.Errorf("%s fires nowhere in the house corpus, so this suite cannot tell it from a deleted check", check)
 		}
@@ -421,7 +425,7 @@ func TestAnAllowlistEntryNeedsACheckItRunsAndAReason(t *testing.T) {
 		{"empty reason", "allow contrast rather than # ", "no reason"},
 		{"unknown check", "allow loudness rather than # because", "a check this scan does not run"},
 		{"no text", "allow contrast  # because", "no matched text"},
-		{"unknown keyword", "suppress contrast rather than", "none of `coined`, `domain` and `allow`"},
+		{"unknown keyword", "suppress contrast rather than", "none of `coined`, `domain`, `allow` and `band`"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

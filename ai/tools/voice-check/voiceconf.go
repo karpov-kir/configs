@@ -158,10 +158,12 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// parseVoiceConf reads two line shapes:
+// parseVoiceConf reads four line shapes:
 //
 //	coined <word>                       a word this repository coined
+//	domain <word>                       a compound this codebase's readers know
 //	allow <check> <matched text> # <reason>
+//	band <kind> <words> <median> # <reason>
 //
 // The reason is separated by ` # ` because a matched text can hold anything a comment can, spaces
 // included, and a positional separator would cut the text at its first space.
@@ -203,8 +205,14 @@ func parseVoiceConf(body string) ([]string, []string, allowlist, error) {
 				return nil, nil, nil, err
 			}
 			allowed = append(allowed, entry)
+		// A `band` is a body's width for a kind, and `confBands` reads it. It is checked here so a
+		// malformed one refuses every run, the way a malformed allow entry does.
+		case "band":
+			if _, _, err := parseBandLine(rest, number+1); err != nil {
+				return nil, nil, nil, err
+			}
 		default:
-			return nil, nil, nil, fmt.Errorf("line %d starts with a word that is none of `coined`, `domain` and `allow`", number+1)
+			return nil, nil, nil, fmt.Errorf("line %d starts with a word that is none of `coined`, `domain`, `allow` and `band`", number+1)
 		}
 	}
 	return coined, domain, allowed, nil

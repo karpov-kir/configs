@@ -241,3 +241,28 @@ func TestAVerdictLineIsNotPartOfTheBlock(t *testing.T) {
 		}
 	}
 }
+
+// A case scores where a fact went: the fates its return has to name and the ones it may not.
+func TestACaseScoresTheFateItRoutes(t *testing.T) {
+	c, err := ParseCase("routing", "expect: none\nnote: none\nwhy: a fixture\nlabelled: 2026-09-23\n returns : does not fit\nwithholds: for the PR body\n--- code\nconst X = 1;\n--- facts\nA fact.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Returns) != 1 || c.Returns[0] != "does not fit" || len(c.Withholds) != 1 || c.Withholds[0] != "for the pr body" {
+		t.Fatalf("returns %q, withholds %q", c.Returns, c.Withholds)
+	}
+	failures := func(raw string) []string {
+		var out []string
+		for _, f := range JudgeCase(c, ParseReturn(raw)).Failures {
+			out = append(out, f.Check)
+		}
+		return out
+	}
+	if got := failures("summary: none\nnote: none\nnone\ndoes not fit: 1: A fact."); len(got) != 0 {
+		t.Fatalf("a return routing the fact as the case asks fails %v", got)
+	}
+	got := failures("summary: none\nnote: none\nnone\nfor the PR body: 1: A fact.")
+	if strings.Join(got, ",") != "routed-it-elsewhere,routed-to-a-withheld-fate" {
+		t.Fatalf("a return routing the fact to the PR body fails %v", got)
+	}
+}
