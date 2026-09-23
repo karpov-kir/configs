@@ -18,7 +18,7 @@
 
 A comment is one of two kinds, and each kind has one shape.
 
-**The tooling decides every comment, and it asks the human about none.** It writes a useful one, rewrites one it can make useful, and deletes the rest. A reviewer's suggested sentence is a fact like any other, and a comment another person wrote is decided the same way.
+**The tooling decides every comment itself, without asking the human.** A reviewer's suggestion is one more fact.
 
 A **summary** sits on a declaration and says what it does in one sentence. It starts with a verb, the way this repository already writes them: "Lists …", "Returns …", "Checks whether …", "Throws when …". A symbol has one where its name and signature leave something to say. A type's fields and members are part of its signature. What is left to say is a return case, a unit, an ordering, a side effect or a precondition. A summary that only restates the identifier in words is deleted, exported or not. Where the body is five lines or fewer the reader reads the body. A summary there says a fact from outside the function: what a caller expects, what a format or a platform does, why a bound was chosen. The parameter names and the return type are part of what the identifier says. A field whose meaning is not in its name and type gets a sentence on that field. A summary may say in words what the signature says in types when that is the thing left to say. It says what the symbol decides or returns in the words its caller uses. It does not define the symbol against another symbol. It does not say why.
 
