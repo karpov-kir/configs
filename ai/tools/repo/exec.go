@@ -465,19 +465,28 @@ func (e Exec) listing(dir string, args ...string) ([]string, error) {
 	return names, nil
 }
 
+// relocatesGit holds exactly two names. GIT_WORK_TREE moves `--show-toplevel` and leaves the store
+// alone, so a caller declaring a work tree gets the question it meant. GIT_OBJECT_DIRECTORY and
+// GIT_DISCOVERY_ACROSS_FILESYSTEM name no other repository, since discovery still lands on an ancestor
+// that holds the path. GIT_CEILING_DIRECTORIES only stops discovery, so honouring it costs a refusal.
+var relocatesGit = map[string]bool{"GIT_DIR": true, "GIT_COMMON_DIR": true}
+
+// ClearGitLocation unsets, in this process, the variables WithoutGitLocation strips. A caller whose
+// callee runs git with os.Environ uses it.
+func ClearGitLocation() {
+	for name := range relocatesGit {
+		os.Unsetenv(name)
+	}
+}
+
 // WithoutGitLocation returns the caller's environment with the two variables that relocate git's idea
 // of the repository taken out. git reads them before the directory it was handed, so a tool run from a
 // hook answers about the hook's repository whatever directory it was asked about. A consumer keying a
 // directory name off that answer creates, writes and later removes directories under the wrong name.
 func WithoutGitLocation(environ []string) []string {
-	// Exactly two. GIT_WORK_TREE moves `--show-toplevel` and leaves the store alone, so a caller declaring
-	// a work tree gets the question it meant. GIT_OBJECT_DIRECTORY and GIT_DISCOVERY_ACROSS_FILESYSTEM
-	// name no other repository, since discovery still lands on an ancestor that holds the path.
-	// GIT_CEILING_DIRECTORIES only stops discovery, so honouring it costs a refusal.
-	relocates := map[string]bool{"GIT_DIR": true, "GIT_COMMON_DIR": true}
 	kept := make([]string, 0, len(environ))
 	for _, entry := range environ {
-		if name, _, found := strings.Cut(entry, "="); !found || !relocates[name] {
+		if name, _, found := strings.Cut(entry, "="); !found || !relocatesGit[name] {
 			kept = append(kept, entry)
 		}
 	}

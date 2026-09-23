@@ -125,6 +125,10 @@ for the intent lifecycle. Individual IDSD checkpoints remain available. These en
 coordinator, which dispatches bounded leaf workers and waits on completion. Independent correctness
 and security reviews keep separate contexts; fixes reopen affected evidence.
 
+A `kk-build` run ends in a `kk-qualify` pass. Until one has read the build's tree,
+`~/.kk-flavor/scripts/build-gate.sh check` refuses its commit, push or PR. To ship a build without the
+pass, say so. The agent then records your words with `build-gate.sh skip`.
+
 `kk-edit` combines the former concision and humanization passes for prose and comments. It preserves
 meaning and stops at an edited artifact. The skillcraft worker remains the focused skill-structure lane;
 `kk-ecosystem` owns instruction semantics and applies its ordered checks within one worker. A full

@@ -1,6 +1,6 @@
 ---
 name: kk-build
-description: Take a settled requirement to a green tree — place the work, plan the stack and the change, then code, test and gate it. Use for "build this", "implement the ticket". The build loop, not the quality pass that reads the result afterwards (kk-qualify).
+description: Take a settled requirement to a green tree — place the work, plan the stack and the change, then code, test and gate it. Use for "build this", "implement the ticket". Ends in a kk-qualify pass over what it built; a pass alone over changes already made is kk-qualify's.
 argument-hint: "the requirement to build — a ticket, an issue, a file holding it, or the ask itself"
 ---
 
@@ -15,6 +15,8 @@ Build in the current coordinator under `~/.kk-flavor/standards/skill-protocol.md
 ## Phase 1 — Place the build
 
 **One requirement = one worktree = one branch**, before any reading. Inherit your caller's worktree if it placed you in one; never nest a second. A lone build in an idle repo may skip the worktree.
+
+**Then open the gate:** `~/.kk-flavor/scripts/build-gate.sh open "<the requirement>"`. Skip this step when your caller names the pass as its own. Commits, pushes and PRs in this worktree then wait for a `kk-qualify` pass over the tree. Record a skip of that pass only in the human's own words (`~/.kk-flavor/standards/git.md` → **Commits**).
 
 ## Phase 2 — Plan the stack (interactive)
 
@@ -42,16 +44,18 @@ Plan the change in the implementation context. Reuse an established shape; a loc
 
 ## Phase 5 — Checkpoint
 
+**Qualify it first.** Skip this step when your caller names the pass as its own. Run `kk-qualify` over the build's change set, untrimmed. Hand it the requirement set your caller named, and tell it Phase 4 already ran the conformance gate. Keep its fixes in the tree. Then run `~/.kk-flavor/scripts/build-gate.sh stamp`.
+
 Present for human judgment, and stop:
 
 - Diff summary — what changed conceptually, never a line dump.
 - **Gate results** — absolute; a red gate blocks (fix or escalate).
 - **Test results** — the human approves the behaviour.
 - **Scope delta** — what the conformance gate returned, plus every deferral, routed to the home your caller named.
-- **Open lanes** — what the loop named, for the pass that will run them.
+- **The pass's residue** — `kk-qualify`'s items. Where your caller owns the pass, the lanes the loop named for it.
 - **Anything only a human can accept** — a constraint no command can check, a proposal Phase 3 returned.
 
-Approve on outcomes → done. Reject with feedback → back to Phase 4.
+Approve on outcomes → done. Reject with feedback → back to Phase 4, and through this phase's pass again: the gate reads an edit after the stamp as unqualified.
 
 ## Parallel builds
 
