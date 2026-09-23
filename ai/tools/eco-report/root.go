@@ -81,10 +81,10 @@ func (r *run) defaultConfigPath() string {
 	return flavorconfig.Path(r.home, "idsd.conf")
 }
 
-// The root the config at path names, or empty when there is no such file. Absent is quiet, and a file
-// that is present but unusable refuses: no path here falls back to the next source, because a silent
-// fallback would write this clone's intents into a directory the human was never told about. restores
-// names what removing this file would fall back to, the two sources falling back to different things.
+// The root the config at path names, or empty when there is no such file. An absent file is quiet. A
+// file that is present and unusable refuses the run, because a silent fallback would write this
+// clone's intents into a directory the human was never told about. `restores` names what removing this
+// file falls back to, which differs between the two sources.
 func (r *run) configuredRoot(path, restores string) string {
 	// `IsSymlink` as well, so a dangling link refuses instead of reading as absent — an existence test
 	// alone cannot see one.
@@ -351,8 +351,8 @@ func (r *run) resolveIdsdDir() {
 		r.overrideNote = "note: idsd location overridden by " + r.overrideConfigPath() + " — using " + r.idsdDir
 		return
 	}
-	// The shipped default is silent where the override announces itself: the announcement exists so a
-	// tuned machine never looks like an untuned one.
+	// The shipped default stays silent. The override announces itself so a tuned machine never looks
+	// like an untuned one.
 	if shipped := r.configuredRoot(r.defaultConfigPath(), "this repository's shared git dir"); shipped != "" {
 		r.idsdDir = shipped + "/" + r.repoKey()
 		r.idsdConfigPath = r.defaultConfigPath()

@@ -357,10 +357,9 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	}
 }
 
-// This case goes through `flavorconfig` and never through ConfigFromEnv: the shipped numbers equal
-// the built-in ones, so a ConfigFromEnv that ignored the file would still satisfy what this case
-// asserts. It is also the only place in the repository that opens the file, so a typo there survives
-// until every scan refuses.
+// This case reads the file through `flavorconfig`. The shipped numbers equal the constants in code, and
+// a case built on ConfigFromEnv passes whether or not it reads the file. No other place in the
+// repository opens this file, and a typo in it shows up here first.
 func TestTheShippedConfigParsesAndMatchesTheBuiltInDefaults(t *testing.T) {
 	flavor, err := filepath.Abs("../../kk-flavor")
 	if err != nil {
@@ -421,8 +420,8 @@ func TestTheEnvironmentWinsOverTheShippedConfigAndABrokenOneRefuses(t *testing.T
 		t.Fatal("a shipped config the tool cannot read was replaced by the built-in defaults in silence")
 	}
 
-	// A key `flavorconfig` accepts and this tool then rejects. The refusal has to name the file and
-	// not the environment variable, or it sends the human to edit something they never set.
+	// A key `flavorconfig` accepts and this tool then rejects. The refusal names the file, since that
+	// is what the human has to edit. The environment variable was never set.
 	if err := os.WriteFile(path, []byte("min-length nope\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

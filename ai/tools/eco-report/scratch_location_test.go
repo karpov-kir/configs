@@ -762,10 +762,9 @@ func TestABrokenShippedDefaultRefusesRatherThanFallingBack(t *testing.T) {
 
 func TestTheShippedIdsdConfigIsReadableByTheToolThatReadsIt(t *testing.T) {
 	t.Parallel()
-	// This case opens the file this checkout ships, through the real path and not a fixture's content,
-	// and it is the only place here that opens it. A typo would first show up as every idsd command in
-	// every repo refusing at exit 2, and a missing file would not show up at all: the git-dir fallback
-	// is a real directory every command reports success from.
+	// This case opens the file this checkout ships, through the real path, and no other case opens it.
+	// A typo would first show as every idsd command in every repo refusing at exit 2. A missing file
+	// would show nowhere, since the git-dir fallback is a real directory every command succeeds from.
 	f := newRepo(t)
 	f.mountShippedConfigs()
 	root := f.runReportStdout("root")

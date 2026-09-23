@@ -1,14 +1,14 @@
 // Package flavorconfig reads the tracked defaults the flavor ships under `kk-flavor/configs/`.
 //
 // One shape for every tool with a tunable: `<key> <value>` a line, `#` comments. The file comes from
-// the checkout the running binary was built in, so a config is exactly as trusted as the code reading
-// it, and an arbitrary repository being judged does not set the bounds it is judged under
+// the checkout the running binary was built in. A config is then exactly as trusted as the code
+// reading it. A repository being judged cannot set the bounds it is judged under
 // (`~/.kk-flavor/standards/ecosystem.md` → "Conventions a new file joins").
 //
 // This package parses. What a value means and what a refusal costs the run are each caller's.
 //
-// Every value read here is a bounded number; a key naming a path, a deletion target or a command
-// needs the guards in `eco-report`'s own reader instead.
+// Every value read here is a bounded number. A key naming a path, a deletion target or a command
+// needs the guards in `eco-report`'s own reader.
 package flavorconfig
 
 import (
@@ -35,18 +35,12 @@ func Path(home, name string) string {
 	return filepath.Join(dir, name)
 }
 
-// dirFor is Path's decision, with the executable passed in so a case can name one.
-//
-// A binary the resolver builds or downloads sits at `<checkout>/ai/tools/bin/<tool>`, and that
-// checkout's configs are the ones this reads. Two things follow. A worktree tests its own configs
-// rather than whatever the installed mount has checked out, and CI, which has no mount, reads the
-// configs it built from. A host repository still cannot choose them: a skill runs a script through
-// `~/.kk-flavor` wherever the working directory holds code the human did not write, and that stub
-// resolves to the installed checkout's binary.
-//
-// A binary anywhere else — a `go test` build, a `go run` — falls back to the mount under home. Empty
-// when home is not absolute: there is then no mount for one to sit in.
+// dirFor is Path's decision, with the executable passed in so a case can name one. The resolver puts
+// a binary at `<checkout>/ai/tools/bin/<tool>`, and this reads that checkout's configs. A worktree
+// then tests its own configs, and CI reads the configs it built from.
 func dirFor(exe, home string) string {
+	// A host repository cannot choose these. A skill runs a script through `~/.kk-flavor` wherever the
+	// working directory holds code the human did not write, and that stub runs the installed binary.
 	if exe != "" {
 		if real, err := filepath.EvalSymlinks(exe); err == nil {
 			exe = real
@@ -59,6 +53,8 @@ func dirFor(exe, home string) string {
 			}
 		}
 	}
+	// Any other binary, such as a `go test` build, reads the mount under home. A relative home has no
+	// mount to read.
 	if !filepath.IsAbs(home) {
 		return ""
 	}
@@ -68,17 +64,16 @@ func dirFor(exe, home string) string {
 // Read returns the settings the file at path holds, or nil when there is no such file. allowed lists
 // every key the caller understands.
 //
-// Everything but an absent file refuses: a default quietly restored is indistinguishable from the
-// config working, and a key outside allowed is a setting the human believes they changed and did not.
+// Everything but an absent file refuses. A default quietly restored looks the same as the config
+// working. A key outside allowed is a setting the human believes they changed.
 func Read(path string, allowed []string) (map[string]string, error) {
-	// `IsSymlink` as well, so a dangling link refuses instead of reading as absent — an existence test
-	// alone cannot see one.
+	// `IsSymlink` as well, so a dangling link refuses. An existence test by itself reads one as absent.
 	if path == "" || (!shell.PathExists(path) && !shell.IsSymlink(path)) {
 		return nil, nil
 	}
-	// Before IsRegularFile, which FOLLOWS the link and so passes a link to a good file: whoever can
-	// repoint it chooses what this tool reads on the next run. Only the final component is tested, so
-	// the `~/.kk-flavor` mount being a symlink is not what this catches.
+	// Ahead of IsRegularFile, which follows the link and passes a link to a good file. Whoever can
+	// repoint the link chooses what this tool reads next run. Only the final component is tested, so the
+	// `~/.kk-flavor` mount being a symlink is fine.
 	if shell.IsSymlink(path) {
 		return nil, fmt.Errorf("%s is a symlink -> %s, and whoever can repoint it chooses what this reads; replace it with a regular file",
 			path, shell.Oneline(readLink(path)))
@@ -96,9 +91,8 @@ func Read(path string, allowed []string) (map[string]string, error) {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		// One-lined AND cut, these files being written by hand and their content reaching a terminal: a
-		// line holding no newline is as long as the file, and echoing it whole buries the refusal it
-		// belongs to.
+		// One-lined and cut, since a human writes these files and the echo reaches a terminal. A line
+		// with no newline is as long as the file, and echoed whole it buries its own refusal.
 		fields := shell.SplitFields(trimmed)
 		if len(fields) != 2 || !slices.Contains(allowed, fields[0]) {
 			return nil, fmt.Errorf("%s has a line this does not understand: %s — the supported lines are %s",

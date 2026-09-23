@@ -82,7 +82,7 @@ type Config struct {
 const configName = "voice-check.conf"
 
 // ConfigFromEnv resolves the byte cap: the tracked default in `configs/voice-check.conf`, then this
-// run's environment over it. A value that does not parse refuses the run. A caller who set one asked
+// run's environment on top. A value that does not parse refuses the run. A caller who set one asked
 // for a bound, and falling back to the default would report a scan against a bound they did not pick.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MaxFileBytes: defaultMaxFileBytes}

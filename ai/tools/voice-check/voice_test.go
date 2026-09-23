@@ -499,7 +499,7 @@ func TestTheShippedAndMachineConfsAddTogether(t *testing.T) {
 }
 
 // A repository under review does not get a say. Its own `.kk-flavor/comment-voice.conf` could list
-// every finding the change carries as one to keep, and the check would pass over text nobody read.
+// every finding the change carries as one to keep, and the check would pass over unread text.
 func TestAConfInsideTheRepositoryUnderReviewIsNotRead(t *testing.T) {
 	repo := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(repo, ".kk-flavor"), 0o755); err != nil {
@@ -886,7 +886,8 @@ func TestARunThatReadAConfNamesIt(t *testing.T) {
 	}
 }
 
-// A conf can be a symlink wherever it sits. A non-regular file is declined, and the refusal names the file rather than what it found inside it.
+// A conf can be a symlink wherever it sits. A non-regular file is declined, and the refusal names the
+// file and leaves out what it found inside.
 func TestANonRegularConfIsDeclinedWithoutEchoingIt(t *testing.T) {
 	dir := t.TempDir()
 	secret := filepath.Join(dir, "elsewhere")
@@ -1058,9 +1059,9 @@ func TestAConfLineThatIsNotUTF8IsRefusedWithoutEchoingIt(t *testing.T) {
 	}
 }
 
-// A conf present but unusable refuses rather than falling back. A dangling symlink where the flavor
-// ships one would otherwise leave the scan running with no coined words and no allowlist, reporting
-// clean — and a default quietly restored cannot be told from the config working.
+// A conf that is present and unusable refuses the run. Skipped, a dangling symlink where the flavor
+// ships its conf would leave the scan clean with an empty vocabulary. That looks the same as the
+// config working.
 func TestAConfPresentButUnusableRefusesRatherThanFallingBack(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

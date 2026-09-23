@@ -9,8 +9,8 @@ import (
 	"configs/ai/tools/flavorconfig"
 )
 
-// Read through flavorconfig rather than ConfigFromEnv, for the reason dup-literals' twin of this case
-// gives: the shipped number equals the built-in one, so a ConfigFromEnv ignoring the file would pass.
+// This case reads the file through flavorconfig. The shipped number equals the constant in code, and a
+// case built on ConfigFromEnv passes whether or not it reads the file.
 func TestTheShippedByteCapParsesAndMatchesTheBuiltInDefault(t *testing.T) {
 	flavor, err := filepath.Abs("../../kk-flavor")
 	if err != nil {
@@ -30,8 +30,8 @@ func TestTheShippedByteCapParsesAndMatchesTheBuiltInDefault(t *testing.T) {
 	}
 }
 
-// The shipped value applies, the environment wins over it, and a shipped value that does not parse
-// refuses the run rather than falling back to the built-in number.
+// The shipped value applies and the environment wins over it. A shipped value that does not parse
+// refuses the run, and the constant in code stays out of it.
 func TestTheEnvironmentWinsOverTheShippedByteCapAndABrokenOneRefuses(t *testing.T) {
 	home := t.TempDir()
 	configs := filepath.Join(home, ".kk-flavor", "configs")

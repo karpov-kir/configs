@@ -1,18 +1,16 @@
 // The voice check's configuration: the words a codebase coined, and the findings it has decided to
 // keep. Both live in one file so the vocabulary is stated once.
 //
-// The file is `comment-voice.conf`. COMMENT_VOICE_CONF names one, and then it is the only one read.
-// Otherwise two are read and their entries added together: the one the flavor ships beside its other
-// configs, and `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. They add rather than
-// override, because a word one codebase coined costs another nothing to allow, while an override would
-// drop one codebase's vocabulary wherever the other's file was found first.
+// The file is `comment-voice.conf`. When COMMENT_VOICE_CONF names a file, that is the only file read.
+// Without it, the flavor's copy in its configs directory and this machine's
+// `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf` are read, and their entries add up.
+// An override would drop one codebase's words wherever the other file answered first.
 //
-// There is no copy inside the repository being checked. A tree under review that could list findings
-// to keep could silence the check on itself.
+// The repository being checked keeps no copy. A tree under review that could list findings to keep
+// could silence the check on itself.
 //
-// No conf at all is not an error: the scan runs with no coined words and no allowlist, which is the
-// setting every codebase starts at. A conf NAMED by COMMENT_VOICE_CONF and then absent is an error,
-// because the caller asked for a file and did not get it.
+// Where no conf exists, the scan runs with an empty vocabulary and allowlist, the setting every
+// codebase starts at. A file COMMENT_VOICE_CONF names must exist, because the caller asked for it.
 package voicecheck
 
 import (
@@ -68,8 +66,8 @@ func (a allowlist) covers(f Finding) bool {
 // The conf is a settings file, not a corpus. A file over this is not one somebody typed.
 const maxVoiceConfBytes = 64 * 1024
 
-// Where a conf came from, so a run can say which answered. A conf the flavor ships and one the operator
-// set on their own machine carry different weight, and a path alone does not tell them apart.
+// Where a conf came from, which the run prints. The flavor's conf and the operator's own carry
+// different weight, and the path does not show it.
 const (
 	confNamed   = "named by COMMENT_VOICE_CONF"
 	confShipped = "shipped with the flavor"
@@ -81,15 +79,13 @@ type voiceConfSource struct {
 	origin string
 }
 
-// voiceConfig reads every conf that applies and adds their entries together, returning the coined
-// words, the domain words, the allowlist, and a phrase naming what answered. Nothing, and no error,
-// where no conf exists. A conf that does not parse refuses the run: a scan that silently ignored half
-// its own allowlist would report findings a human already answered.
+// voiceConfig reads every conf that applies and adds up their entries. It returns the coined words,
+// the domain words, the allowlist, and a phrase naming the files it read. A conf that does not parse
+// refuses the run. A scan that skipped half its allowlist would report findings a human answered.
 //
-// Present-but-unusable refuses rather than being skipped. A dangling symlink, a directory or an
-// unreadable file would otherwise leave the scan running without that file's entries and reporting
-// clean — and a default quietly restored is indistinguishable from the config working
-// (ecosystem.md → Conventions a new file joins).
+// A conf that is present and unusable also refuses: a dangling symlink, a directory, an unreadable
+// file. Skipped, it would leave the scan clean without that file's entries, and that looks the same as
+// the config working (ecosystem.md → Conventions a new file joins).
 func voiceConfig() ([]string, []string, allowlist, string, error) {
 	var coined, domain []string
 	var allowed allowlist
@@ -147,10 +143,9 @@ func readCapped(path string, cap int64) (string, error) {
 	return string(body), nil
 }
 
-// voiceConfSources says which confs apply. A path named by the environment always applies: the caller
-// asked for that file, so its absence is a refusal rather than a fallback. The other two apply where
-// something sits at them, probed with Lstat so a dangling symlink counts as present and is refused
-// rather than skipped over in silence.
+// voiceConfSources says which confs apply. A path the environment names always applies, because the
+// caller asked for it. Each of the other two applies when something sits at its path. Lstat does the
+// probing, so a dangling symlink counts as present and the read refuses it.
 func voiceConfSources() []voiceConfSource {
 	if named, set := os.LookupEnv("COMMENT_VOICE_CONF"); set && named != "" {
 		return []voiceConfSource{{named, confNamed}}
