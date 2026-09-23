@@ -148,3 +148,12 @@ The invented consequence at k17 and k23 got through on one roll in fifteen under
 Under the second it got through on four at k17, so a model reader accepts that shape too. The branch
 writer's own k07 block claims to tie its fact, and the reader found it tied on fifteen rolls of
 fifteen.
+
+## A spelling check, measured and left unbuilt
+
+A comment word missing from both the repository's tree and the system dictionary was measured as a
+finding on 2026-09-23, over the 60 reviewed files. It flagged 158 occurrences over 88 distinct words in
+notes a reviewer left standing. Most were ordinary lower-case words the dictionary lacks, 23 were a
+product's or a vendor's name, and 9 were acronyms. It measured the dictionary's age, and a dictionary is
+a kept list, which no source of these checks may be. A coined compound the tree does not spell stays the
+finding. Ordinary words are the register scan's ground.
