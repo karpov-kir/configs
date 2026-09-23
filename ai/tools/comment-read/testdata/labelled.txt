@@ -1,0 +1,58 @@
+The ten blocks the bar was fixed over: the eight a reviewer flagged on 2026-09-21 and 2026-09-22, in
+the ledger domain as the writer-eval cases carry them, and the two the landed rules still write at
+k17 and k07. The reader answers `cannot say` on every one, or the gate is deleted.
+
+=== k15
+// Reads postings out of a ledger book, following the field inheritance the specification defines.
+--- line
+import { LedgerBook, Posting } from './book';
+
+=== k19
+// The book took a posting format through the posting interface long before the probe reported the same format.
+--- line
+export function getFormatClaim(formatName: string): LedgerClaim {
+
+=== k20
+// `canPost`, the probe's own format check, answers `maybe` where the ledger will not commit to a format.
+--- line
+switch (probe.canPost(formatName)) {
+
+=== k21
+// `window.LedgerVendorKeys` is the vendor's prefixed interface, and it knows the deferred scheme alone.
+// Such a ledger reports the deferred scheme as unsupported through the standard scheme API.
+--- line
+if (window.LedgerVendorKeys && requirement.scheme === PostingScheme.Deferred) {
+
+=== k22
+// A ledger ignoring the settlement scheme stalls on its first posting under that scheme.
+// The claim for a combination reads `Unknown` for such a ledger, so the warm-up gates on this claim instead.
+--- line
+export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, formatName: string): Promise<boolean> {
+
+=== k23
+// The run hash derives from these names, so the dataset files a renamed member's results under a fresh history.
+--- line
+export enum PostingFormat {
+
+=== k25
+// An export may bind any prefix to the supplement namespace, so the attribute lookup matches by namespace.
+// An entry may name its format in the supplemental formats attribute, so the format check reads both attributes.
+--- line
+const SUPPLEMENT_NAMESPACE = 'urn:ledger:supplement:2014';
+
+=== k26
+// The ledgers that ignore the settlement scheme are the ones whose first posting stalls.
+// combinationClaim, the claim for a combination, reports those ledgers as Unknown, so the posting warm-up gates on this function.
+--- line
+export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, formatName: string): Promise<boolean> {
+
+=== k17
+// The audit hash derives from these names, so the archive files a renamed member's results under a fresh history.
+--- line
+export enum SettlementScheme {
+
+=== k07
+// A ledger can choose a settlement the preferred settlements do not name.
+// `withOnlySettlement` returns a source whose `settlements` holds the given scheme and no other.
+--- line
+export function withOnlySettlement(source: SourceConfig, scheme: Settlement): SourceConfig {

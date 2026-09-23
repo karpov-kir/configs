@@ -19,5 +19,5 @@ export function formatOfEntry(node: Element): string | null {
   return node.getAttribute('format') ?? attributeInNamespace(node, 'supplementalFormats');
 }
 --- facts
-A export may bind any prefix it likes to the supplement namespace.
+An export may bind any prefix it likes to the supplement namespace.
 An entry may name its format in the supplemental formats attribute.

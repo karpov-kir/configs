@@ -32,6 +32,7 @@
     "build/explore":           { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
     "code-review":             { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "comment-writer":          { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
+    "comment-read":            { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" }, "rolls": 3 },
     "conform":                 { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "drive":                   { "codex": { "model": "gpt-6-astra", "effort": "high" }, "claude": { "model": "opus" } },
     "grill/facts":             { "codex": { "model": "gpt-5.6-terra", "effort": "low" }, "claude": { "model": "sonnet" } },
