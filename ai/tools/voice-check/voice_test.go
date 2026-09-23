@@ -1019,7 +1019,7 @@ func TestATableRowIsDataInBothTextProfiles(t *testing.T) {
 		"| `keep` | leave it, since the block states a fact the code cannot show anywhere |",
 		"| `obvious` | delete it, because every sentence restates the name or the lines beneath |",
 	}
-	for _, profile := range []Profile{ProfileProse, ProfileInstruction} {
+	for _, profile := range textProfiles {
 		s := scanner{profile: profile}
 		for _, one := range s.scanProse("f.md", table) {
 			if one.Check == checkLongSentence || one.Check == checkClauseDepth {
@@ -1028,6 +1028,46 @@ func TestATableRowIsDataInBothTextProfiles(t *testing.T) {
 		}
 	}
 }
+
+func TestUnpunctuatedListItemsAreReadOneAtATime(t *testing.T) {
+	list := []string{
+		"# Scope",
+		"",
+		"- `shared`: `Config`, the loader and its defaults move into the shared package with no change",
+		"- `player`: the player reads its settings from the shared loader instead of its own copy",
+		"* `ui`: the settings page renders from the same loader and drops its private fallback values",
+		"1. `tests`: every suite that built a config by hand now calls the shared builder",
+		"2) `docs`: the README section on configuration points at the shared package",
+	}
+	for _, profile := range textProfiles {
+		for _, one := range (scanner{profile: profile}).scanProse("f.md", list) {
+			if one.Check == checkLongSentence {
+				t.Errorf("the %s profile read the items as one sentence: %v", profile, one)
+			}
+		}
+	}
+}
+
+func TestALongSentenceInAWrappedListItemIsCaughtOnItsFirstLine(t *testing.T) {
+	list := []string{
+		"- a short item",
+		"- this item carries one sentence that keeps on going past every reasonable length a reader",
+		"  can hold in mind at once while the writer adds clause after clause without ever stopping",
+		"- another short item",
+	}
+	found := (scanner{profile: ProfileProse}).scanProse("f.md", list)
+	if !hasCheck(found, checkLongSentence) {
+		t.Fatalf("the long sentence inside an item went unread:\n%s", render(found))
+	}
+	for _, one := range found {
+		if one.Check == checkLongSentence && one.Line != 2 {
+			t.Errorf("long-sentence reported on line %d, want line 2 where the item starts", one.Line)
+		}
+	}
+}
+
+// textProfiles lists the two profiles that read a whole text file.
+var textProfiles = []Profile{ProfileProse, ProfileInstruction}
 
 // A cell's own prose is still read. Joined, these rows make a long clausal pseudo-sentence, and each
 // cell alone is plain, so a check firing per cell is the coverage a skip would have cost.
@@ -1086,7 +1126,7 @@ func TestOneSemicolonJoinsTwoClausesWhateverItsTail(t *testing.T) {
 // semicolon in prose joins two clauses. Two cells in standards/testing.md found this.
 func TestOneSemicolonInACellSeparatesFields(t *testing.T) {
 	cell := []string{"| Unit | One unit of behaviour | Real in-process collaborators; no real I/O |"}
-	for _, profile := range []Profile{ProfileProse, ProfileInstruction} {
+	for _, profile := range textProfiles {
 		s := scanner{profile: profile}
 		if hasCheck(s.scanProse("f.md", cell), checkSemicolon) {
 			t.Errorf("the %s profile read a cell's two fields as a clause join", profile)
