@@ -725,3 +725,22 @@ func TestAHeaderUnderAShebangKeepsTheHeadersAllowance(t *testing.T) {
 		t.Fatalf("a nine-line header under a shebang counted as %d long block(s); want 1", counted.longBlocks)
 	}
 }
+
+// A file this change wrote whole and over the rate is charged, however lean the change's other files
+// are. The charge was read off the change set's total, and a lean file of the change's own diluted
+// it. The report said `nothing chargeable` beside a file it listed as 100% written here.
+func TestAFileTheChangeWroteOverTheRateIsCharged(t *testing.T) {
+	r := newRepoWithLeanBaseline(t)
+	for i := 0; i < 20; i++ {
+		r.write(fmt.Sprintf("lean%d.go", i), strings.Repeat("code()\n", 50))
+	}
+	r.write("legacy.go", heavy(60, 20))
+	r.commit("legacy arrives")
+	r.write("legacy.go", heavy(60, 21))
+	r.write("fresh.go", strings.Repeat("// a fresh note\n", 10)+strings.Repeat("code()\n", 10))
+	r.write("mine.go", strings.Repeat("code()\n", 400))
+	r.runBar()
+	r.expectStdoutLacks("nothing chargeable")
+	r.expectStdoutHas("fresh.go: 10 comment line(s) charged")
+	r.expectStdoutHas("chargeable: 10 comment line(s), in the files this change wrote")
+}
