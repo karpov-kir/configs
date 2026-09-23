@@ -82,7 +82,7 @@ stubReadingLedger({ supported: true, reads });
 export function snapshotPostings(list: LivePostingList): Posting[] {
 ```
 
-The eleventh reads its fact from the `--- callers` section. A caller's act that explains this
+The eleventh reads its fact from the callers you found. A caller's act that explains this
 function's act is the `fact:`, and the copy is the act the callers' removal explains. `belongs at` is
 for a caller's act the fact explains.
 
@@ -120,7 +120,7 @@ The audit is a step you take before the block leaves your hands. A block whose a
 
 List every noun phrase in the block and classify each one:
 
-- `identifier` where the word is in the site's `identifiers.txt`. The strip writes that file beside the facts file, and it holds each name as the code spells it and in lower case, so a lookup matches either.
+- `identifier` where the word is in the site's `identifiers.txt`. Look it up with `grep -ixF '<the phrase>' identifiers.txt`, which matches the phrase whole and in any case. The strip writes that file beside the facts file, and it holds each name as the code spells it and in lower case, so a lookup matches either.
 - `domain` where the word is a `domain` entry in `comment-voice.conf`.
 - `plain` where every word of it is an ordinary English word and it carries no hyphen.
 
@@ -137,6 +137,8 @@ Return the audit lines beside the block, one per line, as `term: <phrase> — id
 ## Check each block before you write it
 
 Run the edit lane's voice check over the block on stdin: `voice-check.sh --profile=comment --source --record -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Pipe the note's three slots, then a line reading `---`, then the block with the declaration it will sit on and that declaration's body under it. The check reads the record against both: `bears_on` names a declaration under the block and the block spells it, and `does` shares a word with the body. The prose profile leaves out bare-identifier, long-block and coined-identifier, and a run on 2026-09-21 put a block past it twice that the comment profile refused both times. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `does not fit`. Show the two rewrites: `attempt 1: <the part> - <the finding>` and `attempt 2: <the part> - <the finding>`, one to a line, above the part's `none`. A part you set out to write and answered `none` for, with no two attempts under it, is a part you skipped, and your caller returns it to you. The gate applies to each part on its own.
+
+A `long-line` finding is a line to wrap at the width it names. Wrap it and run the check again.
 
 Then read the block once as the engineer opening this file for the first time, and restate it in one plain sentence. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `does not fit`.
 

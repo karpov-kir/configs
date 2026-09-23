@@ -96,6 +96,7 @@ export function dropStaleClaims(book: Element): Element[] {
 /**
  * Gated on the settlement scheme, not the combination, for the reason {@link claimsSchemeThroughStandardApi} gives.
  * A ledger of this build knows the deferred scheme alone.
+ * The ledger reports the deferred scheme through its own interface, and the standard interface reports it unsupported on this build.
  */
 export function warmUpPosting(book: Element): void {
   return;

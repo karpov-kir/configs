@@ -117,6 +117,7 @@ const (
 	checkReasonAway     = "reason-by-link"
 	checkAloneForOnly   = "alone-for-only"
 	checkHeaderOnImport = "header-on-import"
+	checkLongLine       = "long-line"
 )
 
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
@@ -124,7 +125,8 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
-	checkOverBand, checkTestsNarration, checkHeaderOnImport}
+	checkOverBand, checkTestsNarration, checkHeaderOnImport,
+	checkLongLine}
 
 // reImportLine opens an import, in the languages whose files open on one.
 var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
@@ -500,6 +502,8 @@ type scanner struct {
 	// vocabulary is the names the repository resolves from outside its own source, which a reader
 	// places without an appositive. Nil where the repository has no type environment to read.
 	vocabulary map[string]bool
+	// width is the line width the repository formats code to, which a comment line keeps too.
+	width int
 	// inCell says the segment is one cell of a table row. A cell is a list by construction. A semicolon
 	// in one separates two fields, and the same semicolon in prose joins two clauses.
 	inCell bool
@@ -584,6 +588,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 	for _, b := range commentBlocksIn(lines, held) {
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
 		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
+		found = append(found, s.longLines(file, b, lines)...)
 		limit := voiceLongBlock
 		header := b.isFileHeader(lines, held)
 		// A file header stands apart from the code under it. The strip takes the blank line under a
@@ -1090,6 +1095,7 @@ flags:
 			s.template = templateLines(root)
 		}
 		if profile == ProfileComment {
+			s.width = prettierWidth(root)
 			s.vocabulary = DerivedVocabulary(root, cacheHomeFrom(os.LookupEnv))
 			if len(s.vocabulary) > 0 {
 				out.note("placing %d name(s) this repository resolves from its type environment", len(s.vocabulary))
