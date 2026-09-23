@@ -85,3 +85,22 @@ second is about the thing the row names, which a field carries.
 Ten blocks of the reviewed set stand on data this way, and most of them are the first shape. A route
 firing on the declaration alone would put a design reason into a provenance field. The lane reads the
 claim itself.
+
+### 8. A carrier outside the scope
+
+```ts
+export function settlementCutoff(book: LedgerBook): Date {
+  return addDays(book.closedAt, 2);
+}
+```
+
+Block on `settlementCutoff`: `Postings dated after the book closes still count for two days, because
+the clearing house settles a day late at quarter end.`
+
+Scope: this file alone. The only test naming the cutoff lives in `tests/settlement/Cutoff.test.ts`,
+outside the scope.
+
+Expected: `for the PR body: pending carrier <a test naming the two-day window>: <the fact>`. A test
+would carry the claim about this code's own window, and the lane may not write one outside its scope.
+`carried by <test>` there would leave a fact the tree holds nowhere.
+
