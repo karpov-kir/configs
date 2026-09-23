@@ -23,6 +23,7 @@ import (
 	readerjudge "configs/ai/tools/reader-judge"
 	"configs/ai/tools/repo"
 	"configs/ai/tools/shell"
+	voicecheck "configs/ai/tools/voice-check"
 )
 
 const factsOption = "--facts="
@@ -334,7 +335,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// list sits beside the facts. Absent, every noun audits as none of the three and the writer
 	// rewrites until it declines the site.
 	if err := os.WriteFile(filepath.Join(dir, identifiersFile),
-		[]byte(strings.Join(identifierWords(lines), "\n")+"\n"), 0o644); err != nil {
+		[]byte(strings.Join(append(identifierWords(lines), treeNames(cwd, git)...), "\n")+"\n"), 0o644); err != nil {
 		return refuse("cannot write %s", echoable(filepath.Join(dir, identifiersFile)))
 	}
 	for _, s := range sites {
@@ -564,4 +565,30 @@ func keepForLater(archive, path string, line int, decl, record string) error {
 		return fmt.Errorf("cannot write %s", echoable(name))
 	}
 	return nil
+}
+
+// treeNames is the hyphenated names the repository spells in its paths and its code, which the
+// writer's audit reads as the code's own words beside the file's identifiers. A repository kept a list
+// of them by hand once, and on 2026-09-23 the list went: the tree is the one source.
+func treeNames(cwd string, git repo.Git) []string {
+	if git == nil {
+		return nil
+	}
+	root, err := git.TopLevel(cwd)
+	if err != nil || root == "" {
+		return nil
+	}
+	home, _ := os.LookupEnv("XDG_CACHE_HOME")
+	if home == "" {
+		if user, ok := os.LookupEnv("HOME"); ok && user != "" {
+			home = filepath.Join(user, ".cache")
+		}
+	}
+	names := voicecheck.DerivedNames(root, git, home)
+	out := make([]string, 0, len(names))
+	for name := range names {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
 }

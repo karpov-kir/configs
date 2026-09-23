@@ -15,7 +15,7 @@ func TestNoneIsReadAsDecliningTheSite(t *testing.T) {
 
 func TestTheAuditLinesComeOutOfTheBlock(t *testing.T) {
 	r := ParseReturn("/** A closing period posts in the base currency. */\n" +
-		"term: closing period — domain\n" +
+		"term: closing period — identifier\n" +
 		"term: base currency — domain\n" +
 		"verb: posts — literal\n")
 	if got := r.Text(); got != "A closing period posts in the base currency." {
@@ -24,7 +24,7 @@ func TestTheAuditLinesComeOutOfTheBlock(t *testing.T) {
 	if len(r.Terms) != 2 || len(r.Verbs) != 1 {
 		t.Fatalf("%d term(s) and %d verb(s), want 2 and 1", len(r.Terms), len(r.Verbs))
 	}
-	if r.Terms[0].Word != "closing period" || r.Terms[0].Class != "domain" {
+	if r.Terms[0].Word != "closing period" || r.Terms[0].Class != "identifier" {
 		t.Errorf("first term %+v", r.Terms[0])
 	}
 }

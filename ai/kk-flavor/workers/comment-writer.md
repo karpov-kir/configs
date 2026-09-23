@@ -120,11 +120,10 @@ The audit is a step you take before the block leaves your hands. A block whose a
 
 List every noun phrase in the block and classify each one:
 
-- `identifier` where the word is in the site's `identifiers.txt`. Look it up with `grep -ixF '<the phrase>' identifiers.txt`, which matches the phrase whole and in any case. The strip writes that file beside the facts file, and it holds each name as the code spells it and in lower case, so a lookup matches either.
-- `domain` where the word is a `domain` entry in `comment-voice.conf`.
+- `identifier` where the word is in the site's `identifiers.txt`. Look it up with `grep -ixF '<the phrase>' identifiers.txt`, which matches the phrase whole and in any case. The strip writes that file beside the facts file. It holds every hyphenated name the repository spells in a path or on a line of code. It holds each name as the code spells it and in lower case, so a lookup matches either.
 - `plain` where every word of it is an ordinary English word and it carries no hyphen.
 
-Anything else is `none of the three` and a rewrite. Classify by presence in those lists. A coined compound reads as ordinary English to the writer who chose it, so judgement passes over it.
+Anything else is `neither` and a rewrite. Classify by presence in those lists. A coined compound reads as ordinary English to the writer who chose it, so judgement passes over it.
 
 Then list every verb and classify each as `literal` or `figure`. These four are a `figure` wherever they appear, because a set of reviewed code was counted for them: cover, settle, sit in, load-bearing. Read them off that list, the way the noun phrases are read off theirs, and leave the judgement out. Any other verb is `literal` where it is an action its named subject performs: uses, returns, removes, reads, copies, throws. A `figure` is a rewrite. A verb the sentence borrows from an earlier clause is elided, and it is written again: `as soon as the document removes it`, never `as soon as the document does`.
 
@@ -132,7 +131,7 @@ Then read each sentence you wrote back against the file. A word of exclusivity �
 
 Then count the note's sentences, and leave the summary out of that count. Two is the ceiling, and a fact may share one sentence with its consequence. At three the facts need more room than a note, so the note is `none` and they go back as `does not fit`. The block's own bound is four prose lines.
 
-Return the audit lines beside the block, one per line, as `term: <phrase> — identifier|domain|plain` and `verb: <word> — literal|figure`.
+Return the audit lines beside the block, one per line, as `term: <phrase> — identifier|plain` and `verb: <word> — literal|figure`.
 
 ## Check each block before you write it
 
@@ -142,7 +141,7 @@ A `long-line` finding is a line to wrap at the width it names. Wrap it and run t
 
 Then read the block once as the engineer opening this file for the first time, and restate it in one plain sentence. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `does not fit`.
 
-A sentence a reviewer suggested reaches you as a fact at its site, and you answer it the way you answer any site. A header saying what the file is for is `none` whoever wrote it. An allow entry in `comment-voice.conf` suppresses a check's finding on a block you wrote, and keeps no sentence from you.
+A sentence a reviewer suggested reaches you as a fact at its site, and you answer it the way you answer any site. A header saying what the file is for is `none` whoever wrote it.
 
 The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function and names it. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A header you write keeps one blank line between it and the code under it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
 

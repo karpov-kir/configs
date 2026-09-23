@@ -57,14 +57,3 @@ func TestATestsSectionNarratingWhatRanIsAFinding(t *testing.T) {
 		t.Fatalf("narration found on lines %v, want 3 and 4: the manual drive and the line outside the section stay", lines)
 	}
 }
-
-func TestABandLineNeedsItsFiguresAndAReason(t *testing.T) {
-	if _, b, err := parseBandLine("pr-body 90 40 # counted over thirty PRs", 1); err != nil || b.words != 90 || b.median != 40 {
-		t.Fatalf("a well-formed band reads as %+v, %v", b, err)
-	}
-	for _, bad := range []string{"pr-body 90 40", "pr-body ninety 40 # r", "slack 90 40 # r", "pr-body 90 # r"} {
-		if _, _, err := parseBandLine(bad, 1); err == nil {
-			t.Errorf("band %q is accepted", bad)
-		}
-	}
-}

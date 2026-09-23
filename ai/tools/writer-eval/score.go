@@ -216,7 +216,7 @@ func Score(r Return) []Failure {
 		}
 	}
 	for _, t := range r.Terms {
-		if t.Class != "identifier" && t.Class != "domain" && t.Class != "plain" {
+		if t.Class != "identifier" && t.Class != "plain" {
 			add("term-audited-as-none-of-the-three", t.Word+" — "+t.Class)
 		}
 	}

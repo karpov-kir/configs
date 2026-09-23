@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"configs/ai/tools/shell"
@@ -33,64 +32,13 @@ type band struct {
 	median int
 }
 
-// defaultBands are the figures `human-writing.md` -> Change descriptions (PRs) states. Fifty merged
-// PRs of the host repository ran to a median of 48 authored words and a 90th percentile of 110, with
-// the template's lines and the stack map left out. A ticket takes the PR figure until a body of
-// tickets is counted. A `band` line in the conf moves either.
+// defaultBands are the figures `human-writing.md` -> Change descriptions (PRs) states, and that file
+// is the one place they move. Fifty merged PRs of the host repository ran to a median of 48 authored
+// words and a 90th percentile of 110, with the template's lines and the stack map left out. A ticket
+// takes the PR figure until a body of tickets is counted.
 var defaultBands = map[string]band{
 	KindPRBody: {words: 110, median: 48},
 	KindTicket: {words: 110, median: 48},
-}
-
-// parseBandLine reads `band <kind> <words> <median> # <reason>`. The reason records what was counted,
-// and a figure with none is refused the way an allow entry with none is.
-func parseBandLine(rest string, number int) (string, band, error) {
-	figures, reason, hasReason := strings.Cut(rest, " # ")
-	fields := strings.Fields(figures)
-	if len(fields) != 3 {
-		return "", band{}, fmt.Errorf("line %d is not `band <kind> <words> <median> # <reason>`", number)
-	}
-	if _, known := defaultBands[fields[0]]; !known {
-		return "", band{}, fmt.Errorf("line %d sets a band for %q, and the kinds are %s and %s", number, fields[0],
-			KindPRBody, KindTicket)
-	}
-	words, errWords := strconv.Atoi(fields[1])
-	median, errMedian := strconv.Atoi(fields[2])
-	if errWords != nil || errMedian != nil || words < 1 || median < 1 {
-		return "", band{}, fmt.Errorf("line %d sets a band that is not two positive counts", number)
-	}
-	if !hasReason || strings.TrimSpace(reason) == "" {
-		return "", band{}, fmt.Errorf("line %d sets a band with no reason after ` # `; a figure with no reason is refused", number)
-	}
-	return fields[0], band{words: words, median: median}, nil
-}
-
-// confBands reads the conf's `band` lines over the defaults. No conf leaves the defaults standing.
-func confBands(cwd string) (map[string]band, error) {
-	out := map[string]band{}
-	for kind, b := range defaultBands {
-		out[kind] = b
-	}
-	path, _, found := voiceConfPath(cwd)
-	if !found {
-		return out, nil
-	}
-	body, err := readCapped(path, maxVoiceConfBytes)
-	if err != nil {
-		return nil, err
-	}
-	for number, raw := range shell.SplitLines(body) {
-		keyword, rest, _ := strings.Cut(strings.TrimSpace(raw), " ")
-		if keyword != "band" {
-			continue
-		}
-		kind, b, err := parseBandLine(strings.TrimSpace(rest), number+1)
-		if err != nil {
-			return nil, err
-		}
-		out[kind] = b
-	}
-	return out, nil
 }
 
 // templatePaths are where a repository keeps its PR template, relative to its root.
