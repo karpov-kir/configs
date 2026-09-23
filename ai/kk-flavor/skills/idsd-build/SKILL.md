@@ -54,6 +54,7 @@ Enter `~/.kk-flavor/skills/kk-build/SKILL.md`'s loop, supplying:
   - A durable standard the project inherits (a persistence layer, a protocol) → propose it, never auto-edit, to the project's agent instructions — or to the charter’s **Constraints** through `idsd-charter` when it is a project-wide invariant — **and** hand it back as an open item for the **report**. **Never the ICE's `## Follow-ups`**: the gate reads both, and only the ICE's copy adds a freshness block to the human's answer.
   - A change to a contract others consume (an API shape, a shared type, a wire protocol) → a `- [ ]` for **every** consumer, the project's own skills and tooling included — those read the contract from outside the codebase and won't show up in a code search.
   - A follow-up, open question, or cross-intent consequence → an unchecked `- [ ]` in the ICE's `## Follow-ups`, naming where it will land.
+- **The pass** — `idsd-qualify`. Tell `kk-build` the pass is this skill's. It then skips its gate and its Phase 5 pass.
 
 **Its tests are this ICE's scenarios**, each at the cheapest level that can prove it (`~/.kk-flavor/standards/testing.md` → **1. Core philosophy**, rule 4). Scenarios are examples, not the whole contract: also cover every constraint no scenario exercises — each supported value, threshold, edge branch. Extend hand-written tests. Do not clobber them.
 

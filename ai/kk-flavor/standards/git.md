@@ -10,6 +10,8 @@ Name branches `<type>/<TICKET>-<slug>`, dropping the ticket when there's none. T
 
 **Print the command and get approval before any commit, any push, and any PR you open.**
 
+**A build waits on its gate.** Before any commit, push or PR, run `~/.kk-flavor/scripts/build-gate.sh check` in the worktree, and let a non-zero exit stop you. It refuses a build opened there until a quality pass has read the current tree, or the human has skipped that pass. When the human waives the pass, run `build-gate.sh skip "<their words>"` with their own words. Approval to commit is a separate answer, and `unattended` lifts only the approval. Once the build's change has landed where the human asked, `build-gate.sh close` retires it.
+
 **A push to a shared or default branch cannot be taken back.** [live-systems.md](live-systems.md) → **Arrange the undo before the act** holds there even where the approval above was lifted.
 
 **A pushed branch is never rewritten.** A force-push, an amend over it and a rebase of it are all the same act, and each is refused. A correction to pushed work is a new commit on top, and it names what it corrects.

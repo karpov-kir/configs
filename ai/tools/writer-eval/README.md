@@ -120,6 +120,10 @@ whatever `--- callers` and `--- tests` sections the case carries, and it answers
 writer working a real change set has the repository: it follows a field's consumer into another
 file and decides what it found there.
 
+A case also hands the writer its callers in a `--- callers` section, which no run has. In a run the
+strip emits no such section, and the writer finds a caller by `grep` under question 1. A case reads
+what the writer does with callers it has, and says nothing about whether it would have found them.
+
 So a defect that turns on what the writer goes and finds cannot go red here. Case k18 is that
 shape. Four cuts of it, each at fifteen rolls, came back written 15, 15, 13 and 15 times. That
 two-roll move sits inside the no-change band this file's first section gives. The rule k18 pins
@@ -144,3 +148,12 @@ The invented consequence at k17 and k23 got through on one roll in fifteen under
 Under the second it got through on four at k17, so a model reader accepts that shape too. The branch
 writer's own k07 block claims to tie its fact, and the reader found it tied on fifteen rolls of
 fifteen.
+
+## A spelling check, measured and left unbuilt
+
+A comment word missing from both the repository's tree and the system dictionary was measured as a
+finding on 2026-09-23, over the 60 reviewed files. It flagged 158 occurrences over 88 distinct words in
+notes a reviewer left standing. Most were ordinary lower-case words the dictionary lacks, 23 were a
+product's or a vendor's name, and 9 were acronyms. It measured the dictionary's age, and a dictionary is
+a kept list, which no source of these checks may be. A coined compound the tree does not spell stays the
+finding. Ordinary words are the register scan's ground.

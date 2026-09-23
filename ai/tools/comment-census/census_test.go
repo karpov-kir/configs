@@ -352,3 +352,21 @@ func TestTheStrikeReadsTheDeclarationsOwnWords(t *testing.T) {
 		}
 	}
 }
+
+func TestSoShareCountsBlocksCarryingANote(t *testing.T) {
+	lines := strings.Split(strings.Join([]string{
+		"// Returns the posting format.",
+		"// The vendor spells it long, so the value is spelled out.",
+		"func format() string { return \"\" }",
+		"",
+		"// Reads the rate. The ledger answers about the rate only.",
+		"func rate() int { return 1 }",
+		"",
+		"// Lists entries.",
+		"func list() {}",
+	}, "\n"), "\n")
+	notes, withSo := SoShare(lines)
+	if withSo != 1 || notes < 2 {
+		t.Fatalf("%d of %d blocks with a note carry `, so`, want 1 of at least 2", withSo, notes)
+	}
+}

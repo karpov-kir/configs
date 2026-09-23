@@ -6,8 +6,7 @@
 // carries can be read. The two are separate because a set can be driven to any rate by compressing
 // every sentence, which meets the number and is the defect.
 //
-// Deterministic, so two runs over one text print one report and a finding can be allowlisted by its
-// exact matched text.
+// Deterministic, so two runs over one text print one report.
 package voicecheck
 
 import (
@@ -95,34 +94,41 @@ func (f Finding) String() string {
 		f.Line, f.Check, shell.CutBytesMarked(shell.Oneline(f.Text), maxMatchBytes))
 }
 
-// The checks, each named so an allowlist entry can name it.
+// The checks, each named so a report can name it.
 const (
-	checkBold          = "bold"
-	checkContrast      = "contrast"
-	checkCounterfactal = "counterfactual-opener"
-	checkNoSubject     = "no-subject"
-	checkIntensifier   = "intensifier"
-	checkPositional    = "positional"
-	checkLongBlock     = "long-block"
-	checkCoined        = "coined"
-	checkCoinedIdent   = "coined-identifier"
-	checkCounterfact   = "counterfactual-consequence"
-	checkAnthropo      = "anthropomorphism"
-	checkElidedVerb    = "elided-verb"
-	checkBareIdent     = "bare-identifier"
-	checkLongSentence  = "long-sentence"
-	checkClauseDepth   = "clause-depth"
-	checkDoubleNeg     = "double-negative"
-	checkSemicolon     = "semicolon"
-	checkReasonAway    = "reason-by-link"
-	checkAloneForOnly  = "alone-for-only"
+	checkBold           = "bold"
+	checkContrast       = "contrast"
+	checkCounterfactal  = "counterfactual-opener"
+	checkNoSubject      = "no-subject"
+	checkIntensifier    = "intensifier"
+	checkPositional     = "positional"
+	checkLongBlock      = "long-block"
+	checkCoined         = "coined"
+	checkCoinedIdent    = "coined-identifier"
+	checkCounterfact    = "counterfactual-consequence"
+	checkAnthropo       = "anthropomorphism"
+	checkElidedVerb     = "elided-verb"
+	checkBareIdent      = "bare-identifier"
+	checkLongSentence   = "long-sentence"
+	checkClauseDepth    = "clause-depth"
+	checkDoubleNeg      = "double-negative"
+	checkSemicolon      = "semicolon"
+	checkReasonAway     = "reason-by-link"
+	checkAloneForOnly   = "alone-for-only"
+	checkHeaderOnImport = "header-on-import"
+	checkLongLine       = "long-line"
 )
 
-// AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
+// AllChecks is every check name, which the suite reads to prove each one fires on its corpus.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
-	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly}
+	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
+	checkOverBand, checkTestsNarration, checkHeaderOnImport,
+	checkLongLine}
+
+// reImportLine opens an import, in the languages whose files open on one.
+var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
 
 // reAlone is the word itself. What it follows decides whether it is the exclusivity word or the
 // ordinary one.
@@ -476,20 +482,25 @@ func isProseLine(stripped string) bool {
 // scanner holds one run's settings so every profile reaches the same checks.
 type scanner struct {
 	profile Profile
-	coined  []string
-	// domain holds the compounds this codebase's readers know, from the conf. The coined-identifier
-	// check passes over these and fires on every other compound the code spells.
-	domain  []string
-	allowed allowlist
-	// suppressed counts what the allowlist dropped. A finding answered by an entry is still a finding
-	// the text carried, and a report that said nothing about it would read as text that matched nothing.
-	suppressed *int
+	// coined is words a caller names beside the built-in ones. No run names any: a repository keeps no
+	// word list. The suite does, to reach the checks with a word of its own.
+	coined []string
+	// derived is the hyphenated names the repository spells itself, in a path or on a line of code. The
+	// coined-identifier check passes over these and fires on every other compound the code spells.
+	derived map[string]bool
 	// record says the text opens with the note's record, which RecordFindings reads against the block
 	// and the source under it. The register checks read the prose either way.
 	record bool
+	// kind is the body a prose text is read as, empty for none. bands and template are what its
+	// checks count against.
+	kind     string
+	bands    map[string]band
+	template map[string]bool
 	// vocabulary is the names the repository resolves from outside its own source, which a reader
 	// places without an appositive. Nil where the repository has no type environment to read.
 	vocabulary map[string]bool
+	// width is the line width the repository formats code to, which a comment line keeps too.
+	width int
 	// inCell says the segment is one cell of a table row. A cell is a list by construction. A semicolon
 	// in one separates two fields, and the same semicolon in prose joins two clauses.
 	inCell bool
@@ -574,8 +585,16 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 	for _, b := range commentBlocksIn(lines, held) {
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
 		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
+		found = append(found, s.longLines(file, b, lines)...)
 		limit := voiceLongBlock
 		header := b.isFileHeader(lines, held)
+		// A file header stands apart from the code under it. The strip takes the blank line under a
+		// header with the header, and three rewritten headers of run 8 then sat directly on an import.
+		// A Go package comment sits on `package` with no blank, so only an import under one is read.
+		if header && b.end < len(whole) && reImportLine.MatchString(whole[b.end]) {
+			found = append(found, Finding{File: file, Line: b.end, Check: checkHeaderOnImport,
+				Text: strings.TrimSpace(whole[b.end])})
+		}
 		if header {
 			limit = voiceLongHeader
 		}
@@ -591,17 +610,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 		}
 		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf))...)
 	}
-	return s.filter(found)
-}
-
-// filter drops what the allowlist answers and counts it. A finding an entry answers is still a finding
-// the text carried, and a report saying nothing about it reads as text that matched nothing.
-func (s scanner) filter(found []Finding) []Finding {
-	kept := s.allowed.filter(found)
-	if s.suppressed != nil {
-		*s.suppressed += len(found) - len(kept)
-	}
-	return kept
+	return found
 }
 
 // scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
@@ -661,7 +670,7 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 		}
 	}
 	flush(len(lines))
-	return s.filter(found)
+	return found
 }
 
 // scanCells reads a table row's cells, each as its own segment. The delimiter row under a header
@@ -931,7 +940,7 @@ func readAllCapped(from io.Reader, cap int64) ([]byte, error) {
 // measured it.
 var defaultCoined = []string{"has no name", "names no", "names nothing", "a name it does not hold"}
 
-// coinedTerms is a conf's own words followed by the built-in phrases. It resolves here because
+// coinedTerms is a caller's own words followed by the built-in phrases. It resolves here because
 // scanSegment is the only place a check runs. A construction site that merged them would leave every
 // other construction of a scanner short of the list, and the run would still pass.
 func (s scanner) coinedTerms() []string {
@@ -970,8 +979,8 @@ func coinedInIdentifier(word string) *regexp.Regexp {
 
 // ScanFile is the whole scan over one file's content, for a caller holding the bytes already. The
 // suite reads the fixture through it, so what a test measures is what a run reports.
-func ScanFile(profile Profile, coined []string, allowed allowlist, file, content string) []Finding {
-	s := scanner{profile: profile, coined: coined, allowed: allowed}
+func ScanFile(profile Profile, coined []string, file, content string) []Finding {
+	s := scanner{profile: profile, coined: coined}
 	lines := shell.SplitLines(content)
 	if profile == ProfileComment {
 		return s.scanSource(file, lines, nil, lines)
@@ -991,6 +1000,8 @@ func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int
 	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
 	// stopped, and the register checks passed every one, because their prose was sound.
 	record := false
+	// A PR body and a ticket each have a width, and `--kind` reads the prose as one of them.
+	kind := ""
 flags:
 	for len(args) > 0 {
 		switch {
@@ -998,6 +1009,12 @@ flags:
 			source = true
 		case args[0] == "--record":
 			record = true
+		case strings.HasPrefix(args[0], "--kind="):
+			kind = strings.TrimPrefix(args[0], "--kind=")
+			if _, known := defaultBands[kind]; !known {
+				return out.refuseArguments(fmt.Errorf("no kind %q — the scan did NOT run. Kinds: %s %s",
+					shell.CutBytesMarked(shell.Oneline(kind), 40), KindPRBody, KindTicket))
+			}
 		case strings.HasPrefix(args[0], "--profile="):
 			named := Profile(strings.TrimPrefix(args[0], "--profile="))
 			switch named {
@@ -1013,6 +1030,10 @@ flags:
 			break flags
 		}
 		args = args[1:]
+	}
+	if kind != "" && profile != ProfileProse {
+		return out.refuseArguments(fmt.Errorf("--kind reads a PR body or a ticket, which the prose profile "+
+			"reads, and not the %s profile — the scan did NOT run", profile))
 	}
 	if record && !source {
 		return out.refuseArguments(errors.New("--record reads a record against the block and the source " +
@@ -1035,31 +1056,27 @@ flags:
 		}
 	}
 
-	coined, domain, allowed, conf, err := voiceConfig(cwd)
-	if err != nil {
-		return out.refuse(err)
-	}
-	// A configuration that took effect says so, every run it changes. Silent, a conf a repository
-	// ships can allow every check and the run still reports `0 finding(s)` and `clean, which says the
-	// register was read` — a clean voice pass over text nothing read.
-	if conf != "" {
-		out.note("reading %s: %d coined word(s), %d domain word(s), %d allowlist entry(ies)",
-			shell.CutBytesMarked(shell.Oneline(conf), maxPathBytes), len(coined), len(domain), len(allowed))
-	}
-	suppressed := 0
-	s := scanner{profile: profile, coined: coined, domain: domain, allowed: allowed, suppressed: &suppressed,
-		record: record, notice: func(line string) { out.note("%s", line) }}
-	if profile == ProfileComment {
+	s := scanner{profile: profile, record: record, kind: kind, notice: func(line string) { out.note("%s", line) }}
+	if kind != "" || profile == ProfileComment {
 		root := cwd
 		if top, err := git.TopLevel(cwd); err == nil && top != "" {
 			root = top
 		}
-		s.vocabulary = DerivedVocabulary(root, cacheHomeFrom(os.LookupEnv))
-		if len(s.vocabulary) > 0 {
-			out.note("placing %d name(s) this repository resolves from its type environment", len(s.vocabulary))
+		if kind != "" {
+			s.bands = defaultBands
+			s.template = templateLines(root)
+		}
+		if profile == ProfileComment {
+			s.width = prettierWidth(root)
+			s.derived = DerivedNames(root, git, cacheHomeFrom(os.LookupEnv))
+			s.vocabulary = DerivedVocabulary(root, cacheHomeFrom(os.LookupEnv))
+			if len(s.vocabulary) > 0 {
+				out.note("placing %d name(s) this repository resolves from its type environment", len(s.vocabulary))
+			}
 		}
 	}
-	over := scanned{conf: conf}
+	var err error
+	over := scanned{}
 	if counts {
 		return reportCounts(out, s, profile, args, cwd, cfg, &over)
 	}
@@ -1073,7 +1090,6 @@ flags:
 	if err != nil {
 		return out.refuse(err)
 	}
-	over.suppressed = suppressed
 	return reportVoice(out, profile, found, over)
 }
 
@@ -1345,7 +1361,11 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			_, under, _ := splitRecord(lines)
 			return append(found, s.scanSource(file, under, nil, under)...)
 		}
-		return s.scanProse(file, lines)
+		found := s.scanProse(file, lines)
+		if s.kind != "" {
+			found = append(found, KindFindings(file, strings.Join(lines, "\n"), s.kind, s.bands, s.template)...)
+		}
+		return found
 	}
 	if len(args) == 0 {
 		return nil, fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", s.profile)
@@ -1391,10 +1411,8 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 // scanned is what a run covered, so an empty report can be told from an empty scan. diffscan's own
 // header states the rule: the denominator is contract, not decoration.
 type scanned struct {
-	files      int
-	declined   int
-	suppressed int
-	conf       string
+	files    int
+	declined int
 }
 
 func reportVoice(out console, profile Profile, found []Finding, over scanned) int {
@@ -1430,9 +1448,6 @@ func reportVoice(out console, profile Profile, found []Finding, over scanned) in
 	}
 	out.note("%s profile: %d finding(s)%s over %d file(s), %d declined unread.",
 		profile, len(found), tally(parts), over.files, over.declined)
-	if over.suppressed > 0 {
-		out.note("%d finding(s) suppressed by the allowlist in %s.", over.suppressed, over.conf)
-	}
 	if over.files == 0 {
 		out.note("nothing reached the scan, so this run says nothing about the text.")
 		return exitClean
@@ -1441,7 +1456,7 @@ func reportVoice(out console, profile Profile, found []Finding, over scanned) in
 		out.note("clean, which says the register was read and matched nothing — not that the text was not read.")
 		return exitClean
 	}
-	out.note("each finding is an edit the lane makes, not a count to drive down. A finding that must stand goes in the allowlist with its reason.")
+	out.note("each finding is an edit the lane makes, not a count to drive down. A finding that must stand is a defect in the check, which is fixed there.")
 	return exitFound
 }
 
@@ -1465,12 +1480,8 @@ func reportCounts(out console, s scanner, profile Profile, args []string, cwd st
 		fmt.Fprintf(out.stdout, "%d %s\n", len(found), arg)
 		total += len(found)
 	}
-	over.suppressed = *s.suppressed
 	out.note("%s profile: %d finding(s) over %d file(s), %d declined unread.",
 		profile, total, over.files, over.declined)
-	if over.suppressed > 0 {
-		out.note("%d finding(s) suppressed by the allowlist in %s.", over.suppressed, over.conf)
-	}
 	if total == 0 {
 		return exitClean
 	}
@@ -1537,18 +1548,14 @@ func (s scanner) bareIdentifiers(file string, b block, lines []string, declared 
 }
 
 // coinedIdentifiers finds a hyphenated compound in a block whose camelCase join the code spells. The
-// code invented the word and the prose took it, so the rename lane owns it. A compound the conf
-// names as the domain's passes. comment-census's README holds the measurement that seeds it.
+// code invented the word and the prose took it, so the rename lane owns it. A compound the tree spells
+// hyphenated passes: that is a file, a directory or a flag of the repository's own, and its name.
 func (s scanner) coinedIdentifiers(file string, b block, lines []string, identifiers map[string]bool) []Finding {
 	var found []Finding
-	known := map[string]bool{}
-	for _, word := range s.domain {
-		known[strings.ToLower(word)] = true
-	}
 	for at := b.start; at <= b.end && at <= len(lines); at++ {
 		text := proseOf(lines[at-1])
 		for _, m := range reHyphenPair.FindAllStringSubmatch(text, -1) {
-			if known[strings.ToLower(m[0])] || !identifiers[strings.ToLower(m[1]+m[2])] {
+			if s.derived[strings.ToLower(m[0])] || !identifiers[strings.ToLower(m[1]+m[2])] {
 				continue
 			}
 			found = append(found, Finding{File: file, Line: at, Check: checkCoinedIdent, Text: m[0]})

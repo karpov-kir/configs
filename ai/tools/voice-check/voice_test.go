@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,7 +16,7 @@ import (
 )
 
 // The words the corpus below treats as coined: a metaphor for a mechanism, and a word a reader would
-// have to have been in the room for. A repository names its own in `comment-voice.conf`.
+// have to have been in the room for. A repository keeps no list of its own: its hyphenated names are read off its tree.
 var fixtureCoined = []string{"climb", "drift", "slip", "hedge", "sprocket", "wobble"}
 
 const (
@@ -77,6 +78,9 @@ func TestTheHouseCorpusExercisesEveryCheck(t *testing.T) {
 		fired[f.Check]++
 	}
 	for _, check := range AllChecks {
+		if slices.Contains(kindChecks, check) {
+			continue
+		}
 		if fired[check] == 0 {
 			t.Errorf("%s fires nowhere in the house corpus, so this suite cannot tell it from a deleted check", check)
 		}
@@ -411,89 +415,6 @@ func TestTheCommentProfileReportsOnlyWhatADiffAdded(t *testing.T) {
 	}
 }
 
-func TestAnAllowlistEntryNeedsACheckItRunsAndAReason(t *testing.T) {
-	cases := []struct {
-		name  string
-		line  string
-		wants string
-	}{
-		{"no reason", "allow contrast rather than", "no reason"},
-		{"empty reason", "allow contrast rather than # ", "no reason"},
-		{"unknown check", "allow loudness rather than # because", "a check this scan does not run"},
-		{"no text", "allow contrast  # because", "no matched text"},
-		{"unknown keyword", "suppress contrast rather than", "none of `coined`, `domain` and `allow`"},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			_, _, _, err := parseVoiceConf(c.line + "\n")
-			if err == nil || !strings.Contains(err.Error(), c.wants) {
-				t.Fatalf("got %v, want a refusal naming %q", err, c.wants)
-			}
-		})
-	}
-}
-
-func TestAnAllowlistDropsOnlyTheFindingItNames(t *testing.T) {
-	coined, _, allowed, err := parseVoiceConf(
-		"coined climb\n" +
-			"allow contrast rather than # the host repo's own phrase in this file, quoted\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(coined) != 1 || coined[0] != "climb" {
-		t.Fatalf("want one coined word; got %v", coined)
-	}
-	s := scanner{profile: ProfileComment, coined: coined, allowed: allowed}
-	found := s.scanSource("f.ts", []string{"// Read the book rather than climb it."}, nil, nil)
-	if hasCheck(found, checkContrast) {
-		t.Error("the allowed contrast finding was still reported")
-	}
-	if !hasCheck(found, checkCoined) {
-		t.Error("the allowlist dropped a coined finding it did not name")
-	}
-}
-
-// The conf is the repository's before the machine's: a coined word is a property of the codebase, and
-// a machine-wide list would answer for every repository the human works in.
-func TestTheRepositorysOwnConfComesBeforeTheMachines(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".kk-flavor"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	repoConf := filepath.Join(dir, ".kk-flavor", voiceConfName)
-	if err := os.WriteFile(repoConf, []byte("coined climb\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("XDG_CONFIG_HOME", dir+"/machine")
-	t.Setenv("COMMENT_VOICE_CONF", "")
-	got, origin, ok := voiceConfPath(dir)
-	if !ok || got != repoConf || origin != confRepository {
-		t.Fatalf("resolved %q as %q (found %v), want the repository's own conf at %q", got, origin, ok, repoConf)
-	}
-}
-
-func TestAConfThatDoesNotParseRefusesTheRunRatherThanScanningWithHalfOfIt(t *testing.T) {
-	dir := t.TempDir()
-	conf := filepath.Join(dir, voiceConfName)
-	if err := os.WriteFile(conf, []byte("coined climb\nallow contrast rather than\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("COMMENT_VOICE_CONF", conf)
-	if _, _, _, _, err := voiceConfig(dir); err == nil {
-		t.Fatal("a conf with an entry carrying no reason was accepted")
-	}
-}
-
-func TestAMissingConfIsNotAnError(t *testing.T) {
-	dir := t.TempDir()
-	t.Setenv("COMMENT_VOICE_CONF", "")
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "absent"))
-	coined, _, allowed, _, err := voiceConfig(dir)
-	if err != nil || len(coined) != 0 || len(allowed) != 0 {
-		t.Fatalf("got %v/%v/%v, want an empty configuration and no error", coined, allowed, err)
-	}
-}
-
 func TestAnUnknownProfileRefusesTheRun(t *testing.T) {
 	var out, errs strings.Builder
 	dir := t.TempDir()
@@ -822,63 +743,6 @@ func TestAnAbsurdLineNumberInAHunkHeaderIsDropped(t *testing.T) {
 	}
 }
 
-// A conf that took effect says so. Silent, a conf a repository ships can allow every check and the run
-// still reports `0 finding(s)` and "clean, which says the register was read".
-func TestARunThatReadAConfNamesIt(t *testing.T) {
-	dir := t.TempDir()
-	conf := filepath.Join(dir, voiceConfName)
-	if err := os.WriteFile(conf, []byte("coined climb\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("COMMENT_VOICE_CONF", conf)
-	var out, errs strings.Builder
-	Run("voice-check.sh", []string{"--profile=prose", conf}, dir,
-		repotest.New(dir), Config{MaxFileBytes: 1 << 18}, &out, &errs)
-	if !strings.Contains(errs.String(), voiceConfName) || !strings.Contains(errs.String(), "1 coined word") {
-		t.Fatalf("the run did not name the conf it read: %q", errs.String())
-	}
-}
-
-// The conf path is one a repository can ship, so it is one a repository can ship as a symlink. A
-// non-regular file is declined, and the refusal names the file rather than what it found inside it.
-func TestANonRegularConfIsDeclinedWithoutEchoingIt(t *testing.T) {
-	dir := t.TempDir()
-	secret := filepath.Join(dir, "elsewhere")
-	if err := os.WriteFile(secret, []byte("NPM_TOKEN=abcdef\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	conf := filepath.Join(dir, voiceConfName)
-	if err := os.Symlink(secret, conf); err != nil {
-		t.Skipf("this filesystem does not take symlinks: %v", err)
-	}
-	t.Setenv("COMMENT_VOICE_CONF", conf)
-	_, _, _, _, err := voiceConfig(dir)
-	if err == nil {
-		t.Fatal("a symlinked conf was read")
-	}
-	if !strings.Contains(err.Error(), "not a regular file") {
-		t.Fatalf("got %v, want the refusal that declines a non-regular file — a parse error here means it was read", err)
-	}
-	if strings.Contains(err.Error(), "NPM_TOKEN") || strings.Contains(err.Error(), "abcdef") {
-		t.Fatalf("the refusal echoed the file it was aimed at: %v", err)
-	}
-}
-
-// A conf that does not parse is refused by line, and the refusal carries no text off the line. A
-// symlinked or mistaken conf otherwise prints its first token into the transcript.
-func TestAParseRefusalNamesTheLineAndNotItsContents(t *testing.T) {
-	_, _, _, err := parseVoiceConf("NPM_TOKEN=abcdef\n")
-	if err == nil {
-		t.Fatal("a line that is neither directive was accepted")
-	}
-	if strings.Contains(err.Error(), "NPM_TOKEN") || strings.Contains(err.Error(), "abcdef") {
-		t.Fatalf("the refusal echoed the line: %v", err)
-	}
-	if !strings.Contains(err.Error(), "line 1") {
-		t.Fatalf("the refusal does not name the line: %v", err)
-	}
-}
-
 // A coined word is a codebase's invented vocabulary. A rule file is prose about writing and uses the
 // ordinary English word a codebase may have coined, so the instruction profile does not run the check
 // — otherwise a machine-level conf naming one project's terms reports every repository's rule files
@@ -993,58 +857,6 @@ func TestTwoCoinedWordsPartedByOneByteAreTwoFindings(t *testing.T) {
 		if coined != 2 {
 			t.Errorf("%q reported %d coined finding(s); want 2", line, coined)
 		}
-	}
-}
-
-// A conf line that is not valid UTF-8 reaches a regular expression, and regexp refuses invalid UTF-8.
-// Through MustCompile that is a panic printing the conf's own bytes and a stack trace of host paths —
-// which undoes the refusal-without-echoing the rest of the conf handling was written for.
-func TestAConfLineThatIsNotUTF8IsRefusedWithoutEchoingIt(t *testing.T) {
-	_, _, _, err := parseVoiceConf("coined API\xffKEY\n")
-	if err == nil {
-		t.Fatal("a conf line holding invalid UTF-8 was accepted")
-	}
-	if strings.Contains(err.Error(), "API") || strings.Contains(err.Error(), "KEY") {
-		t.Fatalf("the refusal echoed the line: %v", err)
-	}
-	if !strings.Contains(err.Error(), "line 1") {
-		t.Fatalf("the refusal does not name the line: %v", err)
-	}
-}
-
-// A conf present but unusable refuses rather than falling back. A dangling symlink at either searched
-// path would otherwise leave the scan running with no coined words and no allowlist, reporting clean —
-// and a default quietly restored cannot be told from the override working.
-func TestAConfPresentButUnusableRefusesRatherThanFallingBack(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".kk-flavor"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	conf := filepath.Join(dir, ".kk-flavor", voiceConfName)
-	if err := os.Symlink(filepath.Join(dir, "absent"), conf); err != nil {
-		t.Skipf("this filesystem does not take symlinks: %v", err)
-	}
-	t.Setenv("COMMENT_VOICE_CONF", "")
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "machine"))
-	if _, _, _, _, err := voiceConfig(dir); err == nil {
-		t.Fatal("a dangling conf symlink was treated as no conf at all")
-	}
-}
-
-// A finding the allowlist answers is still a finding the text carried. Uncounted, a conf a repository
-// ships silences every check and the run still reports `0 finding(s)` and `clean`.
-func TestASuppressedFindingIsCounted(t *testing.T) {
-	_, _, allowed, err := parseVoiceConf("allow contrast rather than # the fixture's own phrase, quoted\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	suppressed := 0
-	s := scanner{profile: ProfileComment, allowed: allowed, suppressed: &suppressed}
-	if found := s.scanSource("f.ts", []string{"// Read the book rather than the entry."}, nil, nil); len(found) != 0 {
-		t.Fatalf("want the finding suppressed; got %s", render(found))
-	}
-	if suppressed != 1 {
-		t.Fatalf("suppressed %d finding(s); want 1", suppressed)
 	}
 }
 
@@ -1305,29 +1117,6 @@ func TestEmphasisIsTheAdverbAndNotTheDeterminer(t *testing.T) {
 	} {
 		if hasCheck(s.scanSource("f.go", []string{naming}, nil, nil), checkIntensifier) {
 			t.Errorf("%q names a thing and was read as padding", naming)
-		}
-	}
-}
-
-// A compound the code spells is a rename finding until the conf says the domain owns it. The seeding
-// is per repository, because the measurement behind this check read twelve on one sixty-file set and
-// every one of those was a term its readers knew.
-func TestADomainWordSilencesTheCoinedIdentifierCheck(t *testing.T) {
-	name, lines := readCorpus(t, houseCorpus)
-	firing := scanner{profile: ProfileComment, coined: fixtureCoined}
-	var compound string
-	for _, f := range firing.scanSource(name, lines, nil, nil) {
-		if f.Check == checkCoinedIdent {
-			compound = f.Text
-		}
-	}
-	if compound == "" {
-		t.Fatalf("the house corpus carries no compound the code spells, so this case tests nothing")
-	}
-	silenced := scanner{profile: ProfileComment, coined: fixtureCoined, domain: []string{compound}}
-	for _, f := range silenced.scanSource(name, lines, nil, nil) {
-		if f.Check == checkCoinedIdent {
-			t.Errorf("%q is a domain word and the check still reported it", f.Text)
 		}
 	}
 }

@@ -29,3 +29,4 @@ dist/
 /cmd/wait-reap/wait-reap
 /install-project/install-project
 /project-skills/project-skills
+/cmd/build-gate/build-gate

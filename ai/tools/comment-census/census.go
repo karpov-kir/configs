@@ -822,3 +822,19 @@ func ParaphrasedIdentifiers(note string, lines []string) []string {
 // a property of a body of prose. This tool reports it beside density, so a run is read against a
 // reference and never against an ear.
 var commaSo = regexp.MustCompile(`(?i),\s+so\s`)
+
+// SoShare is a file's blocks carrying a note, and how many of those reach for `, so `. The edit
+// lane's density report prints it, since run 8 counted it by hand: 20 over 44 blocks.
+func SoShare(lines []string) (withNotes, withSo int) {
+	for _, b := range Blocks(lines) {
+		notes := b.Notes()
+		if len(notes) == 0 {
+			continue
+		}
+		withNotes++
+		if commaSo.MatchString(strings.Join(notes, " ")) {
+			withSo++
+		}
+	}
+	return withNotes, withSo
+}
