@@ -140,7 +140,7 @@ Run the edit lane's voice check over the block on stdin: `voice-check.sh --profi
 
 Then read the block once as the engineer opening this file for the first time, and restate it in one plain sentence. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `does not fit`.
 
-An allow entry in `comment-voice.conf` marks a sentence a reviewer settled. Keep such a sentence as it stands and write no part that replaces it, the way you leave a block the strip left standing.
+A sentence a reviewer suggested reaches you as a fact at its site, and you answer it the way you answer any site. A header saying what the file is for is `none` whoever wrote it. An allow entry in `comment-voice.conf` suppresses a check's finding on a block you wrote, and keeps no sentence from you.
 
 The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function and names it. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A header you write keeps one blank line between it and the code under it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
 

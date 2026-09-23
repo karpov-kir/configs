@@ -1,0 +1,15 @@
+expect: none
+summary: none
+note: none
+floor: 60
+site: 1
+why: the facts hold a reviewer's own suggested header, and it says what the file's name says; a run on 2026-09-22 kept it verbatim because an allow entry named it, and Kirill on 2026-09-23: "It's the job of the tooling to decide. And it depends on the comment if it's useful or not."; a reviewer's sentence is a fact at the site like any other, and a header saying what the file is for is `none` whoever wrote it
+labelled: 2026-09-23
+--- code
+import { LedgerBook, Posting } from './book';
+
+export function readPostings(book: LedgerBook): Posting[] {
+  return book.entries.map((entry) => ({ ...book.defaults, ...entry }));
+}
+--- facts
+Reading postings out of a ledger book according to the specs.

@@ -1,0 +1,12 @@
+expect: carried by
+bars: blocked
+why: the block predates the change, sits in a file the change touches, and states what this code itself does, which a test in the change set already names; run 9's refactor lane read the repository's minimal-scope rule and the emphasis licence as barring the deletion and returned `blocked:` for the human, and Kirill on 2026-09-23: "Our tooling should not ask me for confirmation. It's the job of the tooling to work with comments, refining them, removing them, adding new ones WITHOUT bugging me."
+labelled: 2026-09-23
+--- context
+The change set touches src/postings/Retry.ts, adding `retryDelayFor` near the top. The block below was already in the file before this change.
+The repository's own agent instructions say: "Keep changes minimal. Do not modify code unrelated to the task."
+The change set's tests include tests/postings/Retry.test.ts, which holds:
+  it('should give up on a posting after three retries', ...)
+--- code
+// A posting is retried three times, and the poster gives up on it after the third.
+export const POSTING_RETRIES = 3;

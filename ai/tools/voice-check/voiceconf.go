@@ -25,7 +25,9 @@ import (
 
 const voiceConfName = "comment-voice.conf"
 
-// An allowlist entry is one finding a human decided to keep, by the exact text that matched.
+// An allowlist entry is one finding a human decided to keep, by the exact text that matched. It
+// suppresses that finding on a block the writer wrote, and nothing else: it keeps no sentence from
+// the writer, whoever suggested the sentence.
 //
 // The reason is required and never parsed. It is there so the next reader can see why the entry
 // exists, and so an entry cannot be added by a run that was only trying to reach zero: writing a
