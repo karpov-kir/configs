@@ -149,6 +149,14 @@ Under the second it got through on four at k17, so a model reader accepts that s
 writer's own k07 block claims to tie its fact, and the reader found it tied on fifteen rolls of
 fifteen.
 
+## A restating judge, built and left unrun
+
+A second judge read a block beside its code and answered whether the block added anything the code
+did not show. It was for l03, a claim that paraphrases the body in words the code does not spell. It
+was built on 2026-09-23 and never run. The blind reader above had shown that a model asked to connect
+a block to its code connects almost anything. l03 had meanwhile reached 14 of 15 under the writer's own
+per-slot drop. A judge there was machinery over a case that already held.
+
 ## A spelling check, measured and left unbuilt
 
 A comment word missing from both the repository's tree and the system dictionary was measured as a
