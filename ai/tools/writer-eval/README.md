@@ -49,6 +49,10 @@ The pair measured on 690b548, at fifteen rolls, with the tree the same for both 
 **The spread is 0 to 2 of 15.** A rule that moves a case by two rolls or fewer has shown no more than
 the instrument does. At five rolls the same cases swung by four, so the count is what bought the band.
 
+k17 on 44d4720, the same way, came back 6 and 3. Four earlier readings across rule texts that
+barely touch it read 7, 10, 3 and 4. So k17 alone spreads by three, one past the band above, and
+a move on k17 of three or fewer is inside what the instrument does there.
+
 A floor is a share of the rolls in whole percent. Floors were counts once, written against five
 rolls. The day the count went to fifteen, each of them asked for a third of its intent, and the table
 was silent on that.
