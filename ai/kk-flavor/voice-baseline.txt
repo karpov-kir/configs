@@ -11,7 +11,7 @@
 #
 131 ai/kk-flavor/standards/model-policy.md
 125 ai/kk-flavor/standards/ecosystem.md
-99 ai/kk-flavor/standards/skill-protocol.md
+97 ai/kk-flavor/standards/skill-protocol.md
 97 ai/kk-flavor/skills/idsd-reactor/SKILL.md
 69 ai/kk-flavor/standards/testing.md
 53 ai/kk-flavor/skills/kk-foreman/SKILL.md
@@ -54,9 +54,9 @@
 14 ai/kk-flavor/skills/kk-reduce/stats.md
 13 ai/kk-flavor/workers/reduce/reconcile.md
 13 ai/kk-flavor/workers/reduce/arbitrate.md
-11 ai/kk-flavor/workers/refactor.md
 12 ai/kk-flavor/workers/reduce/over-cut.md
 12 ai/kk-flavor/skills/kk-pr/address-review.md
+11 ai/kk-flavor/workers/refactor.md
 11 ai/kk-flavor/standards/git.md
 11 ai/kk-flavor/standards/building.md
 10 ai/kk-flavor/templates/spawn-prompt.md
@@ -76,8 +76,9 @@
 3 ai/kk-flavor/skills/idsd-intent/templates/ice-template.md
 3 ai/kk-flavor/skills/idsd-charter/templates/charter-template.md
 2 ai/kk-flavor/standards/core-principles.md
-0 ai/kk-flavor/standards/browser.md
 0 ai/kk-flavor/workers/refactor/tests/comment-verdicts.md
 0 ai/kk-flavor/workers/comment-writer/tests/summary-verdicts.md
+0 ai/kk-flavor/workers/comment-writer/tests/note-placement.md
 0 ai/kk-flavor/workers/comment-writer.md
+0 ai/kk-flavor/standards/browser.md
 0 ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md
