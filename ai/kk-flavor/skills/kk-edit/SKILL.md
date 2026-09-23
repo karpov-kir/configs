@@ -32,7 +32,7 @@ For code comments, write every block again from the code. A block refined in pla
 
 Three bounds, and a model votes on none of them. The writer's `none` default and its two-rewrites-then-`none` rule bound how much gets written. The voice check bounds the register. The refactor lane's `carried by` line bounds placement. A judge kind that labelled every block was measured against this lane and dropped. `ai/tools/reader-judge/eval_test.go` holds what it scored.
 
-Then run `~/.kk-flavor/skills/kk-edit/scripts/voice-check.sh --density` over the same revisions and report its figure. The figure gates no edit. Return the writer's routed lines with it. `carried by` and `rename` go to the refactor lane, and `stale` to correctness review. `for the PR body` goes to the caller for the change's description, and `does not fit` to the caller for the human. A `does not fit` fact is about the world, and it never becomes a paragraph of the body. Comment truth belongs to correctness review and placement to refactor.
+Then run `~/.kk-flavor/skills/kk-edit/scripts/voice-check.sh --density` over the same revisions and report its figure. The figure gates no edit. Return the writer's routed lines with it. `carried by` and `rename` go to the refactor lane, and `stale` to correctness review. `for the PR body` goes to the caller for the change's description, and `does not fit` to the caller for the human. A `does not fit` fact is about the world, and it never becomes a paragraph of the body. A `carried by` fact the refactor lane leaves unmade comes back as `for the PR body` with its carrier named as pending. A fact the tree holds nowhere has been lost. Comment truth belongs to correctness review and placement to refactor.
 
 ## Verify and return
 

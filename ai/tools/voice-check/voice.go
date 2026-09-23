@@ -493,6 +493,9 @@ type scanner struct {
 	kind     string
 	bands    map[string]band
 	template map[string]bool
+	// vocabulary is the names the repository resolves from outside its own source, which a reader
+	// places without an appositive. Nil where the repository has no type environment to read.
+	vocabulary map[string]bool
 	// inCell says the segment is one cell of a table row. A cell is a list by construction. A semicolon
 	// in one separates two fields, and the same semicolon in prose joins two clauses.
 	inCell bool
@@ -1064,15 +1067,23 @@ flags:
 	suppressed := 0
 	s := scanner{profile: profile, coined: coined, domain: domain, allowed: allowed, suppressed: &suppressed,
 		record: record, kind: kind, notice: func(line string) { out.note("%s", line) }}
-	if kind != "" {
-		if s.bands, err = confBands(cwd); err != nil {
-			return out.refuse(err)
-		}
+	if kind != "" || profile == ProfileComment {
 		root := cwd
 		if top, err := git.TopLevel(cwd); err == nil && top != "" {
 			root = top
 		}
-		s.template = templateLines(root)
+		if kind != "" {
+			if s.bands, err = confBands(cwd); err != nil {
+				return out.refuse(err)
+			}
+			s.template = templateLines(root)
+		}
+		if profile == ProfileComment {
+			s.vocabulary = DerivedVocabulary(root, cacheHomeFrom(os.LookupEnv))
+			if len(s.vocabulary) > 0 {
+				out.note("placing %d name(s) this repository resolves from its type environment", len(s.vocabulary))
+			}
+		}
 	}
 	over := scanned{conf: conf}
 	if counts {
@@ -1545,6 +1556,7 @@ func (s scanner) bareIdentifiers(file string, b block, lines []string, declared 
 		for _, span := range reCamelToken.FindAllStringIndex(text, -1) {
 			token := text[span[0]:span[1]]
 			if declared[strings.ToLower(token)] || placeableNames[strings.ToLower(token)] ||
+				s.vocabulary[strings.ToLower(token)] ||
 				reAppositiveTail.MatchString(text[span[1]:]) {
 				continue
 			}

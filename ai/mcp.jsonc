@@ -8,15 +8,6 @@
     // host, or anything carrying a credential, goes in ai/mcp.private.jsonc, which is gitignored and
     // which mcp-sync.sh reads in the same run — ai/README.md states that policy.
 
-
-    // Launches a Chrome of its own, on a profile that persists between runs, one per project
-    // directory. It isn't a clean room: what I sign into there stays signed in. One browser at a
-    // time per profile, so two clients in one project conflict.
-    "playwright": {
-      "type": "stdio",
-      "command": "@CONFIGS@/mcp-env.sh",
-      "args": ["mise", "exec", "node@lts", "--", "npx", "-y", "@playwright/mcp"]
-    },
     // Drives the Chrome already running on this machine, my everyday profile and my open tabs. It
     // needs Chrome's remote debugging switched on; README.md carries that step and the warning
     // about leaving it on.
