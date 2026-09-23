@@ -1,0 +1,21 @@
+expect: written
+note: written
+floor: 60
+site: 2
+keeps: maybe
+keeps: unknown
+why: the fact says what the probe's hedged answer means and the site is the branch that maps it; a writer on 2026-09-22 wrote the meaning and stopped, and a reviewer read the block and said it was a statement with no why; the block owes the tie: the member `maybe` becomes, which is `LedgerClaim.Unknown`
+labelled: 2026-09-22
+--- code
+export function getProbeFormatClaim(formatName: string): LedgerClaim {
+  switch (probe.canPost(formatName)) {
+    case 'accepted':
+      return LedgerClaim.Accepted;
+    case 'maybe':
+      return LedgerClaim.Unknown;
+    default:
+      return LedgerClaim.Refused;
+  }
+}
+--- facts
+`canPost`, the probe's own format check, answers `maybe` where the ledger will not commit to a format.

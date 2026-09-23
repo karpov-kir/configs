@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestUncountedNoteCarriesNoControlByte(t *testing.T) {

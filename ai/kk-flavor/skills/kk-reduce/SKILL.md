@@ -64,7 +64,7 @@ Stop when a round returns little and says so.
 
 Cutting damages prose: it stitches sentences together, strands pronouns, leaves terms used before the line defining them, and compresses a rule past the point where its constraint survives. Spawn `kk-edit` **last**, as `reduce/repair`, pointed at the readability floor rather than at volume, and hand it that list — expect it to *add* words.
 
-**Run the tests beside every script the campaign touched, per that script's own header** — it names the case and the mutation run that proves the case can fail. A header stating `# untested:` instead (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**) leaves this step covering that script with nothing; read its reason. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
+**Run the suite each script the campaign touched names in its own header** — that header is where its cases live. A header stating `# untested:` instead (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**) leaves this step no suite to run for that script. Read its reason. A script the campaign changed owes its case in this phase (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**).
 
 Include comments from the campaign's own edits in that same `kk-edit` pass; do not spawn a second editor.
 

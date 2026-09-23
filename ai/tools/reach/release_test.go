@@ -1,0 +1,141 @@
+// The fixture release: a checkout shaped like this repository, and a `gh` that answers what install.sh
+// asked for, and no more of GitHub than that.
+//
+// The fake is one script for every case here. Its release listing answers by the repository it is asked
+// about, so a single process can stand for an offline machine, a repository with no release and one
+// with releases. Everything else the fake does is chosen by the environment the case launches it in,
+// because those cases are one process each anyway.
+package reach
+
+import (
+	"configs/ai/tools/runtest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+const fakeGh = `#!/usr/bin/env bash
+set -u
+printf '%s\n' "$*" >>"$GH_FAKE_LOG"
+
+digest() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | cut -d' ' -f1
+  else
+    sha256sum "$1" | cut -d' ' -f1
+  fi
+}
+
+repo=""
+previous=""
+for argument in "$@"; do
+  if [ "$previous" = "--repo" ]; then repo="$argument"; fi
+  previous="$argument"
+done
+
+# The three answers a listing can give, chosen by the owner asked about. A repository with no release
+# and an unreadable listing both leave stdout empty, so only the exit code separates them. A caller
+# that read the second as the first would tell an offline machine that the release has no tools.
+if [ "${1:-} ${2:-}" = "release list" ]; then
+  if [ "${repo%%/*}" = unreachable ]; then exit 1; fi
+  if [ "${repo%%/*}" = no-release ]; then exit 0; fi
+  printf 'v1.0.0\n'
+  exit 0
+fi
+
+if [ "${1:-} ${2:-}" = "release download" ]; then
+  [ "${GH_FAKE_DOWNLOAD:-fail}" = serve ] || exit 1
+  dir=""
+  previous=""
+  for argument in "$@"; do
+    if [ "$previous" = "--dir" ]; then dir="$argument"; fi
+    previous="$argument"
+  done
+  [ -n "$dir" ] || exit 1
+  for tool in $GH_FAKE_TOOLS; do
+    printf 'fake %s binary\n' "$tool" >"$dir/$tool-$GH_FAKE_SUFFIX"
+  done
+  # A stamp a case can read back by eye. install.sh records whatever the release recorded and never reads
+  # it. A real digest here would only hide the tool each stamp landed on.
+  if [ -z "${GH_FAKE_NO_STAMPS:-}" ]; then
+    for tool in $GH_FAKE_TOOLS; do
+      if [ "$tool" != "${GH_FAKE_UNSTAMPED:-}" ]; then
+        printf 'stamp-for-%s  %s\n' "$tool" "$tool"
+      fi
+    done >"$dir/STAMPS"
+  fi
+  # Every file in the directory, STAMPS included, so it is covered the way the release workflow covers
+  # it. The redirect creates SHA256SUMS before the glob runs, so the file has to skip itself.
+  (
+    cd "$dir" || exit 1
+    for file in *; do
+      if [ "$file" = SHA256SUMS ]; then continue; fi
+      printf '%s  ./%s\n' "$(digest "$file")" "$file"
+    done
+  ) >"$dir/SHA256SUMS"
+  exit 0
+fi
+
+if [ "${1:-} ${2:-}" = "attestation verify" ]; then
+  unattested=" ${GH_FAKE_UNATTESTED:-} "
+  asked=" $(basename "$3") "
+  if [ "${unattested%"$asked"*}" != "$unattested" ]; then
+    echo "stub-gh: no attestation matching the artifact was found" >&2
+    exit 1
+  fi
+  exit 0
+fi
+exit 1
+`
+
+// A PATH directory holding the fake gh, to be put in front of this process's own. Every case here is
+// about what install.sh does with gh's answers, so the rest of PATH is left unmodelled.
+func newGhPath(t *testing.T, sandbox string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp(sandbox, "gh-")
+	if err != nil {
+		t.Fatalf("building the gh fixture under %s: %v — nothing was measured", sandbox, err)
+	}
+	runtest.WriteFile(t, filepath.Join(runtest.Sandboxed(t, sandbox, dir), "gh"), fakeGh, 0o755)
+	return dir
+}
+
+// A checkout shaped like this repository: the install.sh under test at ai/tools/, the workflow it reads
+// its tool list out of, and an origin remote where the case wants one.
+func newCheckout(t *testing.T, sandbox, origin string) string {
+	t.Helper()
+	checkout, err := os.MkdirTemp(sandbox, "checkout-")
+	if err != nil {
+		t.Fatalf("building the checkout fixture under %s: %v — nothing was measured", sandbox, err)
+	}
+	runtest.Sandboxed(t, sandbox, checkout)
+
+	runtest.WriteFile(t, filepath.Join(checkout, "ai", "tools", "install.sh"), runtest.ReadFile(t, runtest.Runnable(t, installScript)), 0o755)
+	runtest.WriteFile(t, filepath.Join(checkout, ".github", "workflows", "release-tools.yml"),
+		"jobs:\n  build:\n    env:\n      SHIPPED: "+strings.Join(fixtureTools, " ")+"\n", 0o644)
+	newRepository(t, checkout, origin)
+	return checkout
+}
+
+// Builds a git repository at this path file by file, with no `git init` run. These scripts ask git
+// for one remote url and one file listing, and four files answer both. A fixture that shells out to
+// build itself is the cost this whole port is about.
+
+// The remote is declared only where the caller names one, and no file is added to the repository:
+// source-stamp.sh lists untracked files as well as tracked ones.
+func newRepository(t *testing.T, root, origin string) {
+	t.Helper()
+	git := filepath.Join(root, ".git")
+	runtest.WriteFile(t, filepath.Join(git, "HEAD"), "ref: refs/heads/main\n", 0o644)
+	config := "[core]\n\trepositoryformatversion = 0\n"
+	if origin != "" {
+		config += "[remote \"origin\"]\n\turl = " + origin + "\n"
+	}
+	runtest.WriteFile(t, filepath.Join(git, "config"), config, 0o644)
+	for _, inside := range []string{"objects", "refs"} {
+		if err := os.MkdirAll(filepath.Join(git, inside), 0o755); err != nil {
+			t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
+		}
+	}
+}

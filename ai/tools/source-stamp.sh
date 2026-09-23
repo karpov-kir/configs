@@ -4,6 +4,8 @@
 #
 #   usage: source-stamp.sh <tool>     # <tool> is a directory name under ai/tools
 #
+# tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
+
 # Content, because nothing else survives the trip from the build machine to this one. git does not
 # preserve mtimes, and a release binary is written into bin/ long after the checkout it lands in, so a
 # timestamp reads a stale binary as fresh. The revision Go embeds — `go version -m`, readable even
@@ -17,7 +19,10 @@
 # much costs only a rebuild the next run would make anyway. `_test.go` is the one exclusion, because
 # no test file reaches a binary.
 #
-# tested by: source-stamp-test.sh
+# go.mod sits at the repository root, two levels up from ai/tools/, so the listing starts at the root.
+# The offset is declared here for the reason resolve.sh gives about the stubs. A walk upward finds
+# whatever ancestor happens to carry a go.mod, and this machine keeps checkouts inside checkouts, so
+# that ancestor can be a different module.
 set -euo pipefail
 
 die() {
@@ -29,6 +34,10 @@ die() {
 tools="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" ||
   die "cannot resolve my own directory, so no source can be found"
 
+# The module root, as an offset from this directory. resolve.sh declares the same offset, and the two
+# have to move together.
+module="$tools/../.."
+
 [ $# -eq 1 ] || die "usage: source-stamp.sh <tool>"
 tool="$1"
 
@@ -36,9 +45,9 @@ case "$tool" in
   "" | *[!a-z0-9-]*) die "'$tool' is not a tool name — expected lowercase letters, digits and dashes" ;;
 esac
 
-# macOS ships shasum, most Linux images ship sha256sum, and a release is stamped on one and read on
-# the other — so this rests on the two writing a digest and a name the same way, which
-# source-stamp-test.sh asserts.
+# macOS ships shasum and most Linux images ship sha256sum. A release is stamped on one and read on
+# the other, so the two have to write a digest and a name the same way.
+# The Go suite in ai/tools/reach/ checks that they do.
 if command -v shasum >/dev/null 2>&1; then
   hasher=(shasum -a 256)
 elif command -v sha256sum >/dev/null 2>&1; then
@@ -52,24 +61,42 @@ fi
 [ -d "$tools/$tool" ] || [ -d "$tools/cmd/$tool" ] ||
   die "no source for $tool under $tools, so there is nothing to stamp"
 
-[ -f "$tools/go.mod" ] || die "no go.mod at $tools, so the source of $tool cannot be stamped"
+[ -f "$module/go.mod" ] || die "no go.mod at $module, so the source of $tool cannot be stamped"
 
-# Sorted under LC_ALL=C and named relatively, so the same source stamps the same on the release runner
-# and on the machine that installs what it built. bin/ and dist/ are pruned because they hold the
-# binaries, and walking them would stat a few megabytes per run for files that cannot match.
+# The list is sorted under LC_ALL=C and named relative to the module root. The same source then stamps
+# the same on the release runner and on the machine that installs what it built.
+
+# git holds the list inside a checkout. `git ls-files` stops at a nested repository's edge, so the
+# worktrees a machine keeps inside its checkout fall out by git's own rule. An ignore entry would do
+# the same job and anyone can edit one away.
+
+# `--others` is passed because source that is written but still unstaged has to move the stamp. A
+# binary built before that source would otherwise read as current. `-z` is passed because git
+# C-quotes a path holding a quote or a non-ASCII byte.
+
+# Outside a checkout the walk is all there is. It prunes bin/ and dist/ for the binaries and `.git`
+# for holding no Go. Both spellings name every file `./…`, so an unchanged tree stamps as it did when
+# this only walked.
 sources=()
-while IFS= read -r path; do
-  sources+=("$path")
+while IFS= read -r -d '' path; do
+  sources+=("./${path#./}")
 done < <(
-  CDPATH= cd "$tools" &&
-    {
-      printf './go.mod\n'
-      find . \( -name bin -o -name dist \) -prune -o \
-        -type f -name '*.go' ! -name '*_test.go' -print
-    } | LC_ALL=C sort
+  CDPATH= cd "$module" &&
+    if command -v git >/dev/null 2>&1 &&
+      [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ]; then
+      printf 'go.mod\0'
+      # `--exclude-standard` is left off, and that is the point. go build reads a `.go` file whatever
+      # .gitignore says. A listing that skips ignored files stamps less than the compiler compiles, and
+      # resolve.sh serves the result at exit 0 as built from this source.
+      git ls-files --cached --others -z -- '*.go' ':(exclude)*_test.go'
+    else
+      printf './go.mod\0'
+      find . \( -name .git -o -name bin -o -name dist \) -prune -o \
+        -type f -name '*.go' ! -name '*_test.go' -print0
+    fi | LC_ALL=C sort -z
 )
-[ ${#sources[@]} -gt 1 ] || die "found no Go source for $tool under $tools, so the stamp would say nothing"
+[ ${#sources[@]} -gt 1 ] || die "found no Go source for $tool under $module, so the stamp would say nothing"
 
 # One digest over every file's digest and name, so a file added, removed or renamed moves the stamp
 # as surely as an edited one.
-(CDPATH= cd "$tools" && "${hasher[@]}" "${sources[@]}") | "${hasher[@]}" | cut -d' ' -f1
+(CDPATH= cd "$module" && "${hasher[@]}" "${sources[@]}") | "${hasher[@]}" | cut -d' ' -f1

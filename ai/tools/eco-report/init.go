@@ -3,7 +3,7 @@ package ecoreport
 import (
 	"os"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // `init` — the only subcommand that creates a report, and the one every symlink guard exists for.
@@ -48,7 +48,7 @@ func (r *run) cmdInit(args []string) {
 	replacing, carried := "", ""
 	if present {
 		replacing = r.openItemsPhrase()
-		carried, _ = r.runTodoGate()
+		carried, _ = r.reportOpenItems()
 	}
 
 	// 0700, and this is the one place in this tool that creates the scratch tree — MkdirAll builds every

@@ -29,7 +29,7 @@ import (
 	"sort"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Every name this report prints is one the tree chose — a path it named a file with, a heading it
@@ -262,11 +262,11 @@ func run(args []string, out, errOut io.Writer) int {
 	// stdout has no way back to the stderr lines above, so printing it and exiting 2 would still hand
 	// them the number.
 	if skipped > 0 {
-		fmt.Fprintf(errOut, "cite-graph: %d path(s) under %s were NOT read (each named above) — the tree measured is not the tree given, so there is no report. Exit 2.\n", skipped, root)
+		fmt.Fprintf(errOut, "cite-graph.sh: %d path(s) under %s were NOT read (each named above) — the tree measured is not the tree given, so there is no report. Exit 2.\n", skipped, root)
 		return 2
 	}
 	if len(defined) == 0 {
-		fmt.Fprintf(errOut, "cite-graph: read nothing under %s — exit 2, which is not the same as a flat tree.\n", root)
+		fmt.Fprintf(errOut, "cite-graph.sh: read nothing under %s — exit 2, which is not the same as a flat tree.\n", root)
 		return 2
 	}
 	// The router's own view, for the unentered report: a file it loads is entered whole.

@@ -57,7 +57,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 
 ## Land it
 
-**Clear a `PENDING` review of your own first** — or, in `review`, add to it. Every mode that reads code does this; `refine-description` leaves it. GitHub allows one per person per PR, so creating a second fails, and a half-written earlier one otherwise becomes part of what the human reads as yours. `gh api repos/{owner}/{repo}/pulls/<N>/reviews --jq '.[] | select(.state == "PENDING") | .id'`, then `DELETE .../reviews/<id>`.
+**Clear a `PENDING` review of your own first** — or, in `review`, add to it. Every mode that reads code does this. `refine-description` leaves it. GitHub allows one per person per PR, so creating a second fails, and a half-written earlier one otherwise becomes part of what the human reads as yours. `gh api repos/{owner}/{repo}/pulls/<N>/reviews --jq '.[] | select(.state == "PENDING") | .id'`, then `DELETE .../reviews/<id>`.
 
 1. **Select, don't transcribe.** The bar for what earns a line and the shape of one is `~/.kk-flavor/standards/human-writing.md` → **Review comments**, or, in `refine-description`, that file's **Change descriptions (PRs)**; below is only what GitHub adds.
    - **The defect, then the fix, in two or three sentences.** A ` ```suggestion ` block replaces that prose when the fix is code on the diff's own lines. Severity and an exploit scenario stay on a security finding.

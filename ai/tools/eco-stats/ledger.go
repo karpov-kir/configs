@@ -8,17 +8,23 @@ import (
 	"strings"
 	"time"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
-// stats.md owns the rules below — kk-reduce's SKILL.md says so, and its reader arrives at the file,
-// not at the skill — so a fresh one has to carry them or it begins life with none of the protection
-// the ledger exists to have.
-//
-// This and the live stats.md are a .md/source pair, which no drift check covers — the shared-region
-// scan reads `*.sh` — so a case in stats_test.go compares the two directly. It runs only where there
-// is no ledger yet, which is never the tree that would show it had drifted.
-const ledgerSeed = "# Ecosystem size\n" +
+// LedgerSeed and the live stats.md are a .md/source pair, and the shared-region scan reads `*.sh`
+// alone, so a case compares the two directly.
+
+// LedgerSeed is exported because that case lives in `ai/tools`. The live ledger is outside this
+// module, and Go keys a package's test cache on the module. A case here that read the live ledger
+// would answer `ok (cached)` over a ledger that had changed underneath the run.
+
+// The seed path itself runs only where there is no ledger yet, and a tree like that cannot show the
+// two copies apart. So this package holds the other half, that a first run writes exactly this.
+
+// stats.md owns the rules in this seed. kk-reduce's SKILL.md says so, and its reader arrives at the
+// file itself. A fresh ledger has to carry them, or it begins life with none of the protection the
+// ledger exists to have.
+const LedgerSeed = "# Ecosystem size\n" +
 	"\n" +
 	"Appended by `kk-reduce` alone, via `~/.kk-flavor/skills/kk-reduce/scripts/stats.sh --agent=\"${ECO_AGENT:?choose claude or codex explicitly}\" --append <note>`: one row before a\n" +
 	"campaign, whose note marks `, start`, and one after. **A delta across that pair is the campaign's own\n" +
@@ -114,7 +120,7 @@ func createLedger(path string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := file.WriteString(ledgerSeed); err != nil {
+	if _, err := file.WriteString(LedgerSeed); err != nil {
 		file.Close()
 		return err
 	}

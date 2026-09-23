@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/shell"
 )
 
 // The heads are bound to their constants for the reason harness_test.go's block gives. The tails
@@ -56,47 +56,35 @@ func TestGoDispatchSubcommandCallSites(t *testing.T) {
 		f.doesNotReport(noCallSite + "beta")
 	})
 
-	t.Run("reads a grammar wrapped across comment lines", func(t *testing.T) {
-		newWrappedGrammarStub(t).reports(noCallSite + "gamma")
+	t.Run("reads a grammar wrapped across comment lines, agreeing with the dispatch about it", func(t *testing.T) {
+		f := newWrappedGrammarStub(t)
+		output := f.run()
+		f.found(output, noCallSite+"gamma")
+		f.absent(output, acceptsUnnamed)
 	})
 
-	t.Run("and agrees with the dispatch about the wrapped half", func(t *testing.T) {
-		newWrappedGrammarStub(t).doesNotReport(acceptsUnnamed)
-	})
-
+	// The dispatch's own labels are asserted beside the decoy's, or the silence holds on a run that read
+	// no dispatch at all.
 	t.Run("takes labels from the dispatch and not from another switch beside it", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha}", toyDecoyAndDispatch).doesNotReport(noCallSite + "pending")
-	})
-
-	// Without this the case above passes on a run that read no dispatch at all.
-	t.Run("while still taking the dispatch's own (control for the case above)", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha}", toyDecoyAndDispatch).reports(noCallSite + "alpha")
+		f := newToolStub(t, "toy.sh {alpha}", toyDecoyAndDispatch)
+		output := f.run()
+		f.found(output, noCallSite+"alpha")
+		f.absent(output, noCallSite+"pending")
 	})
 }
 
 // Either way the scan can fail to read a dispatch, it has to say which way, and then check what it
 // does know rather than nothing.
 func TestADispatchThatCannotBeReadIsReported(t *testing.T) {
+	// The finding, the way it names, and the check it still runs — three needles off one run.
 	t.Run("fires when the tool ships no source to read a dispatch out of", func(t *testing.T) {
 		f := newStubWithoutSource(t)
-		f.reports(unreadable + f.root + toyIsUnread)
-	})
-
-	t.Run("and names that as the way it could not read it", func(t *testing.T) {
-		newStubWithoutSource(t).reports("no source directory at")
-	})
-
-	t.Run("and still checks the subcommands the usage names", func(t *testing.T) {
-		newStubWithoutSource(t).reports(noCallSite + "beta")
+		f.reports(unreadable+f.root+toyIsUnread, "no source directory at", noCallSite+"beta")
 	})
 
 	t.Run("fires when the source holds no switch carrying the stub's usage line", func(t *testing.T) {
 		f := newStubWithUnmarkedSource(t)
-		f.reports(unreadable + f.root + toyIsUnread)
-	})
-
-	t.Run("and names that as the way it could not read it", func(t *testing.T) {
-		newStubWithUnmarkedSource(t).reports("no switch under")
+		f.reports(unreadable+f.root+toyIsUnread, "no switch under")
 	})
 
 	// A stub naming no grammar over a tool holding no dispatch takes no subcommand. That is a
@@ -140,14 +128,11 @@ func TestSubcommandCountIsBounded(t *testing.T) {
 		return newToolStub(t, usage, newDispatch(usage, names...))
 	}
 
-	t.Run("reports the subcommands it did not carry", func(t *testing.T) {
-		newFloodedDispatch(t).reports("were NOT checked")
-	})
-
 	// Presence alone is not enough here, and it was all this pinned: the notice reached the screen
 	// because it sorted ahead of the basename the findings led with, and the day those findings led
 	// with a path instead, the per-rank cap dropped the one line saying the scan had stopped checking.
-	t.Run("and ranks that notice above the findings it qualifies", func(t *testing.T) {
+	// That check, ranksAbove, fails on an absent notice too, so its presence needs no case of its own.
+	t.Run("reports the subcommands it did not carry, above the findings that notice qualifies", func(t *testing.T) {
 		newFloodedDispatch(t).ranksAbove("were NOT checked", noCallSite)
 	})
 
@@ -168,29 +153,21 @@ func TestTwoScriptsUnderOneNameAreReportedNotWelded(t *testing.T) {
 		return f
 	}
 
-	t.Run("reports the scripts sharing a name", func(t *testing.T) {
-		newSharedScriptName(t).reports(weldedName)
-	})
-
 	// The count is what says how many, because the printer bounds the line and the last path on a long
-	// one can be cut; the first is in a fixed position and is asserted whole.
-	t.Run("and names how many and which", func(t *testing.T) {
+	// one can be cut. The first path is in a fixed position and is asserted whole. The report stands
+	// in place of the check: a finding that cannot be attributed to one of two files is not printed
+	// against either.
+	t.Run("reports the scripts sharing a name, naming how many and which, and withholds the finding it can no longer attribute", func(t *testing.T) {
 		f := newSharedScriptName(t)
-		f.reports("2 scripts are named toy.sh (" + f.root + "/kk-flavor/skills/other/scripts/toy.sh, ")
+		output := f.run()
+		f.found(output, weldedName,
+			"2 scripts are named toy.sh ("+f.root+"/kk-flavor/skills/other/scripts/toy.sh, ")
+		f.absent(output, noCallSite+"beta")
 	})
 
-	// The report replaces the check rather than sitting beside it. A finding that cannot be attributed
-	// to one of two files is not printed against either.
-	t.Run("and withholds the finding it can no longer attribute", func(t *testing.T) {
-		newSharedScriptName(t).doesNotReport(noCallSite + "beta")
-	})
-
-	// Without this the case above passes on a fixture whose dispatch was never read.
-	t.Run("while one script of that name is checked as before (control)", func(t *testing.T) {
-		newToolStub(t, "toy.sh {alpha|beta}", toyDispatch).reports(noCallSite + "beta")
-	})
-
-	t.Run("and names that one by path, not by basename", func(t *testing.T) {
+	// Take this case away and the welded case passes on a fixture whose dispatch was never read. The
+	// path is part of the needle, because that is what the welded case takes away.
+	t.Run("while one script of that name is checked as before, named by path (control)", func(t *testing.T) {
 		f := newToolStub(t, "toy.sh {alpha|beta}", toyDispatch)
 		f.reports(noCallSite + "beta — " + f.root + "/kk-flavor/skills/toy.sh")
 	})
@@ -227,14 +204,12 @@ func TestAnUnreadableDispatchPathSaysItWasCut(t *testing.T) {
 		return f
 	}
 
-	t.Run("names the directory it could not read (control for the case below)", func(t *testing.T) {
-		newLongToolName(t).reports("no source directory at ")
-	})
-
-	// Matched on the marker together with the text the finding puts after the path, so the assertion
-	// is about where the cut is reported rather than about a "..." landing anywhere in the output.
-	t.Run("and marks the path it cut rather than naming a shorter wrong one", func(t *testing.T) {
-		newLongToolName(t).reports(shell.CutMarker + ") — the 2 subcommand(s)")
+	// The mark is matched together with the text the finding puts after the path. The assertion is
+	// about the place the cut is reported, and a bare "..." somewhere else in the output fails it.
+	// The finding's own wording rides beside it as the control: take it away and the mark passes over
+	// a run that named no directory at all.
+	t.Run("names the directory it could not read, marking the path it cut", func(t *testing.T) {
+		newLongToolName(t).reports("no source directory at ", shell.CutMarker+") — the 2 subcommand(s)")
 	})
 }
 
@@ -375,17 +350,10 @@ func TestAUsageGrammarWithNoDispatchBehindItIsReported(t *testing.T) {
 		return f
 	}
 
+	// The finding, the way it names, and the check it still runs — three needles off one run.
 	t.Run("fires when nothing in the script reaches a dispatch", func(t *testing.T) {
 		f := newUnreachableDispatch(t)
-		f.reports(unreadable + f.root + toyIsUnread)
-	})
-
-	t.Run("and names that as the way it could not read it", func(t *testing.T) {
-		newUnreachableDispatch(t).reports(noWayToADispatch)
-	})
-
-	t.Run("and still checks the subcommands its usage names", func(t *testing.T) {
-		newUnreachableDispatch(t).reports(noCallSite + "beta")
+		f.reports(unreadable+f.root+toyIsUnread, noWayToADispatch, noCallSite+"beta")
 	})
 
 	// The two determinations that stay quiet. Each is an answer this scan reached, not one it failed
@@ -418,15 +386,12 @@ func TestAnUnreadDispatchSurvivesAFlood(t *testing.T) {
 		return f
 	}
 
-	t.Run("shows it through a flood of link findings", func(t *testing.T) {
-		f := newUnreadDispatchUnderAFlood(t)
-		f.reports(unreadable + f.root + toyIsUnread)
-	})
-
 	// Presence alone passes again the day the rank is dropped and the flood lands one line short of
-	// the per-rank cap, so the ordering is what this pins.
-	t.Run("and ranks it above that flood rather than inside it", func(t *testing.T) {
-		newUnreadDispatchUnderAFlood(t).ranksAbove(unreadable, "dangling link: ")
+	// the per-rank cap. The ordering is what this pins, over the whole finding, path included. That
+	// check, ranksAbove, fails on an absent needle too, and that is what carries the presence half.
+	t.Run("shows it through a flood of link findings, above that flood rather than inside it", func(t *testing.T) {
+		f := newUnreadDispatchUnderAFlood(t)
+		f.ranksAbove(unreadable+f.root+toyIsUnread, "dangling link: ")
 	})
 }
 

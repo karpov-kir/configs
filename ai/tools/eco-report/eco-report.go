@@ -5,14 +5,14 @@
 // .idsd/intents/<intent>/for-agents/qualify-report.md, so two ships never share a file.
 //
 // It is a library with a thin command beside it, for the reason ecocheck is: the suite that proves it
-// drives it once per case, and a process spawn per case is the cost that makes a mutation run take
-// hours. Nothing here writes to os.Stdout or calls os.Exit — every path reports through the writers
+// drives it once per case, and a process spawn per case is what puts a suite over the time budget
+// testing.md sets. No code here writes to os.Stdout or calls os.Exit — every path reports through the writers
 // the Invocation carries and returns the code the command exits on — and nothing here holds state
 // between calls, so two runs in one process cannot see each other's caches.
 //
-// Two seams stay out of this package, and must: `ai/tools/tree-fingerprint/` owns the
-// tree-fingerprint recipe, imported and run in process, and `todo-gate.sh` owns the open-item scan,
-// which is spawned. Neither is reimplemented here — newRun says what recomputing the first one costs.
+// One seam stays out of this package, and must: the fingerprint recipe belongs to the `treefingerprint`
+// package, imported and run in process. This package calls it instead of reimplementing it, and newRun,
+// the constructor, says what recomputing it costs. No code here spawns a child.
 //
 // This tool deletes files (discard) and writes to the git index (promote). Every refusal below is
 // load-bearing: read the comment before removing one.
@@ -108,8 +108,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"kk-flavor/tools/shell"
-	treefingerprint "kk-flavor/tools/tree-fingerprint"
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
+	treefingerprint "configs/ai/tools/tree-fingerprint"
 )
 
 // Invocation is one run of the tool. The three fields it would otherwise read from its own process —
@@ -126,6 +127,10 @@ type Invocation struct {
 	// a fixture instead of the developer's own.
 	ConfigHome string
 	Out, Err   io.Writer
+	// Where this run's repository questions go. Nil means `repo.Exec` against the Home field, which is
+	// what the command wires in. The suite hands a `repotest.Fake` instead, so no case has to build a
+	// repository to have something to ask.
+	Git repo.Git
 	// How the working tree is fingerprinted. Nil is the shipped recipe, called IN PROCESS rather than
 	// spawned as `tree-fingerprint.sh`.
 	//
@@ -170,7 +175,9 @@ func (inv Invocation) Exec() (code int) {
 type stop struct{ code int }
 
 type run struct {
-	// The repository answers already asked, per invocation. git.go → memoGit owns it.
+	// Where this run's repository questions go. Never nil once Exec has built the run.
+	git repo.Git
+	// The repository answers already asked, per invocation. askOnce, the memo method in git.go, owns it.
 	gitMemo map[string]gitAnswer
 
 	// The fingerprint recipe, in process. Never nil once Exec has built the run.
@@ -181,7 +188,6 @@ type run struct {
 	out, errOut           io.Writer
 	skillDir              string
 	template              string
-	todoGate              string
 	fingerprintBin        string
 
 	root string
@@ -229,6 +235,7 @@ func newRun(inv Invocation) *run {
 	r := &run{
 		args:        inv.Args,
 		dir:         inv.Dir,
+		git:         inv.Git,
 		home:        inv.Home,
 		configHome:  inv.ConfigHome,
 		out:         inv.Out,
@@ -246,6 +253,12 @@ func newRun(inv Invocation) *run {
 	if inv.Home == "" {
 		r.home = os.Getenv("HOME")
 	}
+	// The command cannot build this, because it needs the HOME resolved a few lines earlier. git reads
+	// its global config out of HOME. A run pointed at another HOME has to point git there too, or git
+	// answers from a config the caller replaced.
+	if r.git == nil {
+		r.git = repo.Exec{Env: repo.Environ(r.home)}
+	}
 	if inv.ConfigHome == "" {
 		r.configHome = os.Getenv("XDG_CONFIG_HOME")
 	}
@@ -256,7 +269,6 @@ func newRun(inv Invocation) *run {
 	scripts := r.absPath(shell.DirName(self))
 	r.skillDir = filepath.Clean(scripts + "/..")
 	r.template = r.skillDir + "/templates/qualify-report-template.md"
-	r.todoGate = scripts + "/todo-gate.sh"
 	// The one script that fingerprints a tree. Never recompute the recipe here: get it half right,
 	// with a throwaway index but no throwaway object store, and every untracked file's content lands
 	// in the human's own .git/objects for good, referenced by no ref and so collected by nothing.
@@ -284,9 +296,9 @@ func (r *run) resolveRoot() {
 	root, ok := layoutRoot(r.dir)
 	if !ok {
 		// The layout could not answer — an environment override, or a shape it does not know. git can.
-		var status int
-		root, status = r.capture(nil, "git", "rev-parse", "--show-toplevel")
-		if status != 0 {
+		var err error
+		root, err = r.git.TopLevel(r.dir)
+		if err != nil || root == "" {
 			r.refuse("error: not a git repo")
 		}
 	}

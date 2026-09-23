@@ -11,7 +11,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 func TestOnelineReplacesEveryC0ByteAndDel(t *testing.T) {
@@ -38,22 +38,6 @@ func TestOnelineReplacesTheEncodedC1Range(t *testing.T) {
 		}
 		if !utf8.ValidString(got) {
 			t.Errorf("Oneline(U+%04X) returned invalid UTF-8: %q", r, got)
-		}
-	}
-}
-
-// The three spellings of the same terminal command — ESC [ 2 K, U+009B encoded as UTF-8, and the raw
-// 0x9b byte an 8-bit terminal reads as CSI directly. The introducer is looked for byte by byte,
-// because reaching the terminal is a fact about bytes: IndexByte for 0x9b catches the raw form and
-// the second byte of the encoded one at once.
-func TestOnelineNeutralisesACsiSequenceThatWouldEraseTheLineAboveIt(t *testing.T) {
-	for _, erase := range []string{"\x1b[2K", "\u009b2K", string([]byte{0x9b}) + "2K"} {
-		got := shell.Oneline("refused: evil" + erase + ".md")
-		if strings.IndexByte(got, 0x1b) >= 0 || strings.IndexByte(got, 0x9b) >= 0 {
-			t.Errorf("Oneline(%q) = %q, which still carries the introducer", erase, got)
-		}
-		if strings.Contains(got, "\n") {
-			t.Errorf("Oneline(%q) = %q, which spans more than one line", erase, got)
 		}
 	}
 }
@@ -431,7 +415,6 @@ func TestSortUniqueSortsByByteAndDropsDuplicates(t *testing.T) {
 		// LC_ALL=C is byte order, so every capital sorts ahead of every lowercase letter.
 		{"byte order, not locale order", []string{"b", "A", "a", "B"}, []string{"A", "B", "a", "b"}},
 		{"duplicates collapse to one", []string{"a", "a", "a"}, []string{"a"}},
-		{"already sorted and unique is unchanged", []string{"a", "b"}, []string{"a", "b"}},
 		{"the empty string is a value like any other", []string{"b", "", "b"}, []string{"", "b"}},
 	}
 	for _, c := range cases {

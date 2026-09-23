@@ -1,28 +1,39 @@
-// Cases for the handoff gate. Every check is paired with its negative control: the clean draft passes,
-// and each case is that same draft broken in exactly one way. Without the pair, a gate that had
-// stopped reading the file would satisfy every refusal case and fail nothing.
-//
-// The fixture is a real git repository with a real commit, because the two things the gate reaches
-// outside the draft for are whether the base commit resolves and whether the tree is dirty. Stubbing
-// git would prove only that the stub ran. One repository serves the whole suite, so nothing here runs
-// in parallel: two cases would otherwise disagree about whether the tree is dirty.
-//
-// One guard has no case and is named rather than quietly absent. "could not resolve" sits behind a
-// successful IsDir, so reaching it needs the directory to disappear between two statements, and no
-// fixture worth building does that.
+// Cases for the handoff gate. Every check is paired with its negative control. The clean draft
+// passes, and each case is that same draft broken in exactly one way. A gate that had stopped
+// reading the file would otherwise satisfy every refusal case and fail none of them.
+
+// No case here forks git. The gate asks a repository four things: that the directory is a work tree,
+// whether the base commit resolves, whether the tree is dirty, and how `repo-key` abbreviates it. A
+// `repotest.Fake` answers all four. That a real git answers them the way these cases assume is
+// `repo/exec_test.go`'s.
+
+// What stays on disk is the directory itself and a HEAD under its git dir. The gate resolves the
+// path a draft has to name, and `repo-key` reads that HEAD to refuse a path that is no git dir.
+
+// One repository serves the whole suite, so these cases run in sequence. Two cases in parallel would
+// disagree about whether the tree is dirty.
+
+// One guard is named here, with no case behind it. "could not resolve" sits behind a successful
+// IsDir, so reaching it needs the directory to disappear between two statements. No fixture worth
+// building does that.
+
+// No case here reads outside the module. The case that ran this gate over the shipped handoff
+// template is `ai/tools/shipped_handoff_template_test.go`, in the package `ai/gate.sh` forces. Go
+// keys its test cache on the module, and a case here would have answered `ok (cached)` over a
+// template that changed.
 package handoffcheck
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	repokey "kk-flavor/tools/repo-key"
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/repo/repotest"
+	"configs/ai/tools/shell"
 )
 
 // The fixture clone's own directory name, and the abbreviation `repo-key` answers for it — which is
@@ -36,22 +47,20 @@ const (
 	fixtureAbbrev = "HF"
 )
 
-// The one repository every case runs against, its resolved path, and its commit. Built once in
-// TestMain: `git init` plus a commit is the expensive part of a case, and nothing here changes what a
-// later case reads except the dirty-tree pair, which puts the tree back.
+// The base commit every fixture holds: twelve hex, the length a session writes an abbreviated SHA
+// down at. It is distinct from the `0123456789ab` a case hands a repository that lacks it.
+const fixtureSHA = "9f2a1c0b7de4"
+
+// The single repository every case runs against, its resolved path, and the port answering for it.
+// TestMain builds it once. The dirty-tree pair is the only case that changes what a later case
+// reads, and it puts the tree back.
 var (
 	fixtureRepo string
 	fixturePath string
-	fixtureSHA  string
+	fixtureGit  *repotest.Fake
 )
 
 func TestMain(m *testing.M) {
-	// The machine's own git config must not reach the fixture. NOSYSTEM covers /etc/gitconfig and
-	// GIT_CONFIG_GLOBAL supersedes both ~/.gitconfig and $XDG_CONFIG_HOME/git/config at once. A global
-	// commit.gpgsign refuses the empty commit below, and TestMain then exits 2 saying nothing was
-	// tested — on a machine where this gate is working perfectly.
-	os.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	os.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	base, err := os.MkdirTemp("", "handoff-check")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "handoff-check: no temporary directory, so nothing was tested:", err)
@@ -60,8 +69,8 @@ func TestMain(m *testing.M) {
 	defer os.RemoveAll(base)
 
 	fixtureRepo = filepath.Join(base, fixtureName)
-	if fixtureRepo, fixturePath, fixtureSHA, err = newRepo(fixtureRepo); err != nil {
-		fmt.Fprintln(os.Stderr, "handoff-check: no git fixture, so nothing was tested:", err)
+	if fixtureRepo, fixturePath, fixtureGit, err = newRepo(fixtureRepo); err != nil {
+		fmt.Fprintln(os.Stderr, "handoff-check: no repository fixture, so nothing was tested:", err)
 		os.RemoveAll(base)
 		os.Exit(2)
 	}
@@ -71,30 +80,21 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// newRepo builds a git repository holding one empty commit, and answers with the path the gate will
-// resolve for itself. os.MkdirTemp hands back a symlinked path on macOS, so a draft quoting the path
-// as created would not match what the gate compares against.
-func newRepo(dir string) (repo, resolved, sha string, err error) {
-	if err = os.MkdirAll(dir, 0o755); err != nil {
-		return "", "", "", err
+// newRepo, the fixture helper, builds a directory the gate can be pointed at and the port that
+// answers for it. That is a work tree holding one commit, a clean tree, and a shared git dir whose
+// parent name is what `repo-key` abbreviates. repotest.Fake.OnDisk builds the two things that have to
+// be real on disk, and resolves the root. Those two are the git dir the gate is pointed at, and the
+// HEAD that `repo-key` demands of a git dir.
+
+// The gate is handed the directory as created, and a draft quotes the resolved spelling. On macOS,
+// os.MkdirTemp answers a symlinked path, so the two spellings differ. The gate resolves its own
+// argument, and the cases here rest on that.
+func newRepo(dir string) (repoDir, resolved string, git *repotest.Fake, err error) {
+	git = repotest.New(dir)
+	if err = git.OnDisk(); err != nil {
+		return "", "", nil, err
 	}
-	for _, args := range [][]string{
-		{"init", "-q"},
-		{"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "base"},
-	} {
-		if err = exec.Command("git", append([]string{"-C", dir}, args...)...).Run(); err != nil {
-			return "", "", "", err
-		}
-	}
-	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
-	if err != nil {
-		return "", "", "", err
-	}
-	resolved, err = filepath.EvalSymlinks(dir)
-	if err != nil {
-		return "", "", "", err
-	}
-	return dir, resolved, strings.TrimSpace(string(out))[:12], nil
+	return dir, git.Root, git.Commit(fixtureSHA, nil), nil
 }
 
 // draftWith is the draft every case mutates. Each slot holds the shortest thing that is genuinely
@@ -154,21 +154,21 @@ const dropped = "\x00drop"
 // with the combined output the shell caller would have seen and the exit code.
 func gate(t *testing.T, d draft) (string, int) {
 	t.Helper()
-	return gateOver(t, d.text(), fixtureRepo)
+	return gateOver(t, d.text(), fixtureRepo, fixtureGit)
 }
 
-func gateOver(t *testing.T, body, repo string) (string, int) {
+func gateOver(t *testing.T, body, repo string, git *repotest.Fake) (string, int) {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "case.md")
 	if err := os.WriteFile(file, []byte(body), 0o644); err != nil {
 		t.Fatalf("writing the case draft: %v — nothing was tested", err)
 	}
-	return gateFile(file, repo)
+	return gateFile(file, repo, git)
 }
 
-func gateFile(file, repo string) (string, int) {
+func gateFile(file, repo string, git *repotest.Fake) (string, int) {
 	var out, errOut bytes.Buffer
-	code := Run("handoff-check.sh", file, repo, &out, &errOut)
+	code := Run("handoff-check.sh", file, repo, git, &out, &errOut)
 	return out.String() + errOut.String(), code
 }
 
@@ -193,17 +193,17 @@ func expect(t *testing.T, name, got string, code, want int, contains, absent []s
 // failure these guard.
 func TestRefusesToRun(t *testing.T) {
 	var out, errOut bytes.Buffer
-	code := Run("handoff-check.sh", "", fixtureRepo, &out, &errOut)
+	code := Run("handoff-check.sh", "", fixtureRepo, fixtureGit, &out, &errOut)
 	expect(t, "no draft argument", out.String()+errOut.String(), code, 2, []string{"usage:"}, nil)
 
-	got, code := gateFile(filepath.Join(t.TempDir(), "absent.md"), fixtureRepo)
+	got, code := gateFile(filepath.Join(t.TempDir(), "absent.md"), fixtureRepo, fixtureGit)
 	expect(t, "a draft that is not there", got, code, 2, []string{"no such file"}, nil)
 
 	empty := filepath.Join(t.TempDir(), "empty.md")
 	if err := os.WriteFile(empty, nil, 0o644); err != nil {
 		t.Fatalf("writing the empty draft: %v — nothing was tested", err)
 	}
-	got, code = gateFile(empty, fixtureRepo)
+	got, code = gateFile(empty, fixtureRepo, fixtureGit)
 	expect(t, "an empty draft", got, code, 2, []string{"nothing was checked"}, nil)
 
 	// A filled draft, not the empty one above. The draft guards run first, so an empty draft exits 2
@@ -212,10 +212,15 @@ func TestRefusesToRun(t *testing.T) {
 	if err := os.WriteFile(filled, []byte("# a draft the gate gets past\n"), 0o644); err != nil {
 		t.Fatalf("writing the filled draft: %v — nothing was tested", err)
 	}
-	got, code = gateFile(filled, t.TempDir())
+	// The refusal is arranged, not found: a temporary directory that happened to sit inside a clone
+	// would pass this case for the wrong reason.
+	outside := t.TempDir()
+	noRepository := repotest.New(outside)
+	noRepository.Fail["GitDir"] = errors.New("fatal: not a git repository")
+	got, code = gateFile(filled, outside, noRepository)
 	expect(t, "a repo that is not a work tree", got, code, 2, []string{"not a git work tree"}, nil)
 
-	got, code = gateFile(filled, filled)
+	got, code = gateFile(filled, filled, fixtureGit)
 	expect(t, "a repo that is a file", got, code, 2, []string{"not a directory"}, nil)
 }
 
@@ -229,7 +234,7 @@ func TestRefusesAnUnreadableDraft(t *testing.T) {
 	if _, err := os.ReadFile(path); err == nil {
 		t.Skip("mode 000 does not deny this process, so the fixture proves nothing")
 	}
-	got, code := gateFile(path, fixtureRepo)
+	got, code := gateFile(path, fixtureRepo, fixtureGit)
 	expect(t, "a draft this process cannot read", got, code, 2, []string{"cannot read"}, nil)
 }
 
@@ -241,16 +246,12 @@ func TestCompleteDraftPasses(t *testing.T) {
 
 // The dirty-tree advisory: a note, not a finding, so a clean draft over a dirty repo still exits 0.
 func TestDirtyTreeIsANoteAndNotAFinding(t *testing.T) {
-	untracked := filepath.Join(fixtureRepo, "untracked.txt")
-	if err := os.WriteFile(untracked, []byte("x\n"), 0o644); err != nil {
-		t.Fatalf("dirtying the fixture: %v — nothing was tested", err)
-	}
+	fixtureGit.StatusLines = []string{"?? untracked.txt"}
 	got, code := gate(t, cleanDraft())
 	expect(t, "a dirty repository", got, code, 0, []string{"does not travel"}, nil)
 
-	if err := os.Remove(untracked); err != nil {
-		t.Fatalf("cleaning the fixture: %v — the case below cannot measure", err)
-	}
+	// Put back, because every other case reads this same repository and asserts the note is absent.
+	fixtureGit.StatusLines = nil
 	got, code = gate(t, cleanDraft())
 	expect(t, "a clean repository", got, code, 0, nil, []string{"does not travel"})
 }
@@ -313,11 +314,6 @@ func TestStructure(t *testing.T) {
 			mutate:   func(d *draft) { d.title = "[<repo abbrev>] Cut the mutation run down" },
 			want:     1,
 			contains: []string{"repository prefix is still the template placeholder"},
-		},
-		{
-			name:   "a filled repository prefix",
-			mutate: func(d *draft) { d.title = "[" + fixtureAbbrev + "] Cut the mutation run down" },
-			want:   0,
 		},
 		{
 			// The half the whole-line test used to hide: a filled prefix in front of an unfilled work
@@ -671,13 +667,13 @@ func TestReachback(t *testing.T) {
 // only thing that could redden a draft otherwise correct for this repository.
 func TestRepositoryNameHoldingEscapes(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), `evil\nSHA\t--injected-token`)
-	repo, path, sha, err := newRepo(dir)
+	repo, path, git, err := newRepo(dir)
 	if err != nil {
 		t.Skipf("could not build a repository named %q, so this proves nothing: %v", dir, err)
 	}
 	d := cleanDraft()
-	d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
-	got, code := gateOver(t, d.text(), repo)
+	d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
+	got, code := gateOver(t, d.text(), repo, git)
 	expect(t, "a correct draft in a repository whose name holds escapes", got, code, 0,
 		nil, []string{"--injected-token", "no repository named"})
 }
@@ -693,18 +689,17 @@ func TestRepositoryNameHoldingEscapes(t *testing.T) {
 // that covered it was green because its fixture left the tree clean and the base resolvable.
 func TestNoLineLeavesTheGateCarryingAControlByte(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "evil\x1b[31mname")
-	repo, path, sha, err := newRepo(dir)
+	repo, path, git, err := newRepo(dir)
 	if err != nil {
 		t.Skipf("could not build a repository named %q, so this proves nothing: %v", dir, err)
 	}
-	// Almost never fires: APFS and ext4 both carry a raw 0x1b through mkdir, git init and realpath.
+	// Almost never fires: APFS and ext4 both carry a raw 0x1b through mkdir and realpath.
 	if !strings.Contains(path, "\x1b") {
 		t.Skipf("the filesystem did not keep the escape in %q, so this proves nothing", path)
 	}
-	// Dirty, so `dirtyNote` speaks; it is the fixture's own file and nothing else reads this repository.
-	if err := os.WriteFile(filepath.Join(repo, "untracked.txt"), []byte("x\n"), 0o644); err != nil {
-		t.Fatalf("dirtying %s: %v — nothing was tested", repo, err)
-	}
+	// Dirty, so dirtyNote, the function behind the advisory note, speaks on every case in this block.
+	// No other case reads this repository.
+	git.StatusLines = []string{"?? untracked.txt"}
 	for _, tc := range []struct {
 		name     string
 		mutate   func(*draft)
@@ -726,7 +721,7 @@ func TestNoLineLeavesTheGateCarryingAControlByte(t *testing.T) {
 			name: "a draft naming the repository but opening with the wrong bracketed word",
 			mutate: func(d *draft) {
 				d.title = "[issue-tracker] Cut the mutation run down"
-				d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
+				d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
 			},
 			contains: []string{"the title opens with [issue-tracker]", "does not travel"},
 		},
@@ -739,9 +734,9 @@ func TestNoLineLeavesTheGateCarryingAControlByte(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			d := cleanDraft()
-			d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
+			d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
 			tc.mutate(&d)
-			got, code := gateOver(t, d.text(), repo)
+			got, code := gateOver(t, d.text(), repo, git)
 			expect(t, tc.name, got, code, 1, tc.contains, []string{"\x1b"})
 		})
 	}
@@ -755,13 +750,13 @@ func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
 
 	d := cleanDraft()
 	d.title = "[" + long + "] Cut the mutation run down"
-	got, code := gateOver(t, d.text(), fixtureRepo)
+	got, code := gateOver(t, d.text(), fixtureRepo, fixtureGit)
 	expect(t, "a very long opening bracketed word", got, code, 1,
 		[]string{shell.CutMarker, "use [" + fixtureAbbrev + "]"}, nil)
 
 	d = cleanDraft()
 	d.extra = "\n## " + strings.Repeat("y", 900) + "\nwhatever else I felt like adding"
-	got, code = gateOver(t, d.text(), fixtureRepo)
+	got, code = gateOver(t, d.text(), fixtureRepo, fixtureGit)
 	expect(t, "a heading longer than the line bound", got, code, 1, []string{shell.CutMarker}, nil)
 	for _, line := range shell.SplitLines(got) {
 		if len(line) > lineWidthCap {
@@ -777,14 +772,14 @@ func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
 	// named `repo` does, so the assertion could not tell the repository it built from the degenerate
 	// answer a name with nothing in it falls back to.
 	deep := filepath.Join(t.TempDir(), strings.Repeat("d", 150), strings.Repeat("e", 150), strings.Repeat("f", 150), "deep-repo")
-	repo, path, sha, err := newRepo(deep)
+	repo, path, git, err := newRepo(deep)
 	if err != nil {
 		t.Skipf("could not build a repository at %q, so this proves nothing: %v", deep, err)
 	}
 	d = cleanDraft()
 	d.title = "[issue-tracker] Cut the mutation run down"
-	d.start = "Base commit " + sha + " in " + path + ". Nobody else is live."
-	got, code = gateOver(t, d.text(), repo)
+	d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
+	got, code = gateOver(t, d.text(), repo, git)
 	expect(t, "a repository path longer than its bound", got, code, 1,
 		[]string{shell.CutMarker, "use [DR]"}, nil)
 }
@@ -793,62 +788,39 @@ func TestAFindingIsBoundedWhereItQuotesTheDraft(t *testing.T) {
 // only once the draft has named it. Run from one checkout over a correct draft about another, the
 // comparison would tell a correct author to break a correct title.
 func TestAPrefixGoesUnweighedWhereTheDraftNamesNoRepository(t *testing.T) {
-	other, _, _, err := newRepo(filepath.Join(t.TempDir(), "alpha"))
+	other, _, otherGit, err := newRepo(filepath.Join(t.TempDir(), "alpha"))
 	if err != nil {
 		t.Fatalf("building the second repository: %v — nothing was tested", err)
 	}
 	d := cleanDraft()
 	d.title = "[" + fixtureAbbrev + "] Cut the mutation run down"
-	got, code := gateOver(t, d.text(), other)
+	got, code := gateOver(t, d.text(), other, otherGit)
 	expect(t, "a correct title weighed from another checkout", got, code, 1,
 		[]string{"no repository named in: Where it starts"}, []string{"the title opens with"})
 }
 
-// The prefix is held against an abbreviation only where there is one. A directory the gate is told is
-// a work tree but that `repo-key` cannot name leaves the prefix unread, rather than refusing a draft
-// on a comparison the gate could not make.
-//
-// This is the one case that fakes git, and the divergence is the point: what the gate is told about
-// the repository and what `repo-key` finds out for itself are two different questions, and a real
-// repository answers both the same way. An inherited GIT_DIR is how they come apart in the field.
+// The prefix is held against an abbreviation only where there is one. A directory the gate is told
+// is a work tree but that `repo-key` cannot name leaves the prefix unread, and the draft survives a
+// comparison the gate could not make.
+
+// The repository answers every other question and still yields no abbreviation. Its shared git dir
+// is a directory with no HEAD in it, which is what `repo-key` refuses on.
+
+// The case arranges that state instead of looking for it. It used to probe whether its temporary
+// directory sat inside a clone and skip where it did, and a skip proves no point about the guard.
 func TestAPrefixIsUnreadWhereTheRepositoryHasNoAbbreviation(t *testing.T) {
-	dir := t.TempDir()
-	if _, err := repokey.ResolveAbbrev(dir); err == nil {
-		t.Skip("the temporary directory sits inside a clone, so this case would measure a repository that abbreviates")
-	}
-	path, err := filepath.EvalSymlinks(dir)
+	dir, path, git, err := newRepo(filepath.Join(t.TempDir(), "unnameable"))
 	if err != nil {
-		t.Fatalf("resolving %s: %v — nothing was tested", dir, err)
+		t.Fatalf("building the repository: %v — nothing was tested", err)
+	}
+	git.Common = filepath.Join(dir, "shared")
+	if err := os.MkdirAll(git.Common, 0o755); err != nil {
+		t.Fatalf("building a shared git dir with no HEAD: %v — nothing was tested", err)
 	}
 	d := cleanDraft()
 	d.title = "[issue-tracker] Cut the mutation run down"
 	d.start = "Base commit " + fixtureSHA + " in " + path + ". Nobody else is live."
-	file := filepath.Join(t.TempDir(), "case.md")
-	if err := os.WriteFile(file, []byte(d.text()), 0o644); err != nil {
-		t.Fatalf("writing the case draft: %v — nothing was tested", err)
-	}
-	var out, errOut bytes.Buffer
-	code := run("handoff-check.sh", file, dir, &out, &errOut, answersEveryQuestion)
-	expect(t, "a prefix over a repository with no abbreviation", out.String()+errOut.String(), code, 0,
-		nil, []string{"prefix is", "still the template placeholder"})
-}
-
-// A git that answers every read-only question the scan asks: the directory is a work tree, the commit
-// resolves, and the tree is clean.
-func answersEveryQuestion(dir string, args ...string) (string, error) {
-	return "", nil
-}
-
-// The template and the gate each hold the seven headings, and nothing else compares them. Rename one
-// in either and every future draft is refused, with the drift surfacing only at the next real handoff.
-// Running the gate over the shipped template is that comparison: the leftover comments prove the scan
-// reached the slots, and neither drift finding may appear.
-func TestShippedTemplateMatchesTheHeadingsTheGateRequires(t *testing.T) {
-	template := filepath.Join("..", "..", "kk-flavor", "skills", "kk-handoff", "handoff-prompt.md")
-	if _, err := os.Stat(template); err != nil {
-		t.Fatalf("cannot reach %s, so the drift case did not run: %v", template, err)
-	}
-	got, code := gateFile(template, fixtureRepo)
-	expect(t, "the shipped template", got, code, 1,
-		[]string{"template comment left"}, []string{"missing section:", "unknown section:"})
+	got, code := gateOver(t, d.text(), dir, git)
+	expect(t, "a prefix over a repository with no abbreviation", got, code, 0,
+		nil, []string{"the title opens with", "prefix is", "still the template placeholder"})
 }

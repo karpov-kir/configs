@@ -32,24 +32,22 @@ jobs:
   release-tools:
     runs-on: ubuntu-latest
     env:
-      # The tools that ship. `go-mutate` is a developer harness and stays out deliberately —
-      # ai/tools/shipped_test.go fails if this list and that judgement drift apart.
-      SHIPPED: eco-check eco-stats eco-report eco-guide rule-echo cite-graph handoff-check cadence comment-density tree-fingerprint gate dup-literals bloat-judge model-policy model-check repo-key
+      # The tools that ship. ai/tools/shipped_test.go fails when this list and the module's main
+      # packages stop agreeing.
+      SHIPPED: eco-check eco-stats eco-report eco-guide rule-echo cite-graph handoff-check cadence voice-check comment-strip tree-fingerprint gate dup-literals reader-judge model-policy model-check repo-key wait-reap mcp-sync project-mcp env-bootstrap ai-bootstrap install-project project-skills
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
-          go-version-file: ai/tools/go.mod
-          # Off for the reason `.github/workflows/gates.yml` states in its header: setup-go looks for
-          # its cache key file in the repo root, and this module is in ai/tools.
+          go-version-file: go.mod
+          # Off for the reason `.github/workflows/gates.yml` states in its header: this module declares
+          # no dependencies, and the only thing a hit restores is a build cache.
           cache: false
 
-      # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: the test
-      # cache is keyed on the module, and several suites read files from outside it. The measurement
-      # and the negative control are there.
+      # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: this job
+      # exists to measure the commit, and a runner's cache is warm between steps.
       - name: Gate
-        working-directory: ai/tools
         run: |
           unformatted=$(gofmt -l .)
           if [ -n "$unformatted" ]; then
@@ -58,9 +56,9 @@ jobs:
             exit 1
           fi
           go vet ./...
-          # -timeout, and this value, for the reason ai/tools/gate/run.go states at goSuiteTimeout.
-          # The two have to match.
-          go test -count=1 -timeout 30m ./...
+          # -timeout, and this value, for the reason ai/tools/gate/gate.go states at
+          # suiteTimeoutSeconds, the const holding the bound. The two have to match.
+          go test -count=1 -timeout 300s ./...
 
       # CGO_ENABLED=0 is what makes one runner able to emit all four targets: no host toolchain is
       # consulted, so darwin binaries built here are the same bytes a darwin host would produce.

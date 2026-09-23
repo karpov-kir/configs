@@ -4,8 +4,8 @@
 // seeding that file with its own header when there is none.
 //
 // It is a library with a thin command beside it, for the reason ecocheck is one: the suite that
-// proves it drives it once per case, and a process spawn per case is the cost that makes a mutation
-// run take hours. Nothing here writes to os.Stdout or calls os.Exit — Run reports through the writers
+// proves it drives it once per case, and a process spawn per case is what puts a suite over the time budget
+// testing.md sets. No code here writes to os.Stdout or calls os.Exit — Run reports through the writers
 // it is handed and returns the code the command exits on — and nothing here holds state between
 // calls, so two runs in one process cannot see each other's refusal counters.
 //
@@ -14,8 +14,8 @@
 // every delta a later pass reads is taken off the rows below it.
 //
 // What it once held byte-identical with check.sh through a shared region now lives in
-// kk-flavor/tools/shell and kk-flavor/tools/eco-root, one copy for both tools. A change here needs a
-// case in stats_test.go beside it, and a mutation in go-mutate is what shows that case can fail.
+// the shell and ecoroot packages, one copy for both tools. A change here needs a
+// case in stats_test.go beside it, seen to fail before the change that makes it pass.
 // `stats.sh` in kk-reduce's scripts/ is the stub that reaches this binary.
 package ecostats
 
@@ -24,8 +24,8 @@ import (
 	"io"
 	"strings"
 
-	ecoroot "kk-flavor/tools/eco-root"
-	"kk-flavor/tools/shell"
+	ecoroot "configs/ai/tools/eco-root"
+	"configs/ai/tools/shell"
 )
 
 // The most a row's note takes. A note is read by the next pass off a table cell, not by a human

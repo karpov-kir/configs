@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The four bounded heads are passed to addBounded as the class, so each also heads its own bound

@@ -1,0 +1,32 @@
+expect: written
+note: written
+floor: 60
+keeps: claimsschemethroughstandardapi
+bars: warmupposting | warm-up | warm up | warmup | combinationclaim
+why: run 7 wrote three hops on this function, ending at a caller in another file: the ledgers that ignore the scheme are the ones that stall, the combination claim reports those ledgers as Unknown, and so the warm-up gates on this function; a reviewer read it on 2026-09-22 and said it was hard to follow; `bears_on` is never a caller and it is never a function in another file either, so the hops go back as `belongs at` and this block keeps the fact that bears on this function
+labelled: 2026-09-22
+--- code
+export async function claimsSchemeThroughStandardApi(
+  scheme: PostingScheme,
+  formatName: string,
+): Promise<boolean> {
+  return requestSchemeAccess(schemeIdOf(scheme), [{ formatName }]).then(
+    () => true,
+    () => false,
+  );
+}
+--- callers
+// postings/warmup/PostingWarmUp.ts
+export async function warmUpPosting(scheme: PostingScheme, formatName: string): Promise<void> {
+  if (!(await claimsSchemeThroughStandardApi(scheme, formatName))) {
+    return;
+  }
+
+  await openPostingSession(scheme, formatName);
+}
+--- facts
+The standard scheme API rejects where a ledger refuses the scheme, and it resolves where the ledger takes it.
+
+# claimed at this site by an earlier run:
+The ledgers that ignore the settlement scheme are the ones whose first posting stalls.
+combinationClaim, the claim for a combination, reports those ledgers as Unknown, so the posting warm-up gates on this function.

@@ -51,17 +51,6 @@ func readyIntent(extraFrontmatter ...string) string {
 	}...), "\n")
 }
 
-func (f *fixture) writeIntent(slug, body string) {
-	f.t.Helper()
-	f.mkdirAll(f.scratch() + "/intents")
-	f.write(f.shipDir(slug)+"/intent.md", body)
-}
-
-func (f *fixture) writeArchivedIntent(slug, body string) {
-	f.t.Helper()
-	f.write(f.archiveDir(slug)+"/intent.md", body)
-}
-
 func TestIntentReadyClearsAFilledIceAndBlocksOnEachDefect(t *testing.T) {
 	t.Parallel()
 	f := newRepo(t)

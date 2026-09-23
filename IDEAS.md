@@ -2,6 +2,143 @@
 
 Deferred proposals, not active agent instructions. Keep at most 20 open ideas; review and consolidate this backlog when the owner requests a review or before exceeding that limit.
 
+## 1x | 2026-09-21 | Thin the four package-main tools, but not for the gate's clock
+
+`cite-graph`, `rule-echo`, `install-project` and `project-skills` keep their logic in `package main`,
+which no test can import, so `ai/tools/stub_usage_test.go` builds and executes those four and drives
+the other twenty in process. Lifting them into libraries behind a thin `cmd/<tool>/main.go` was
+proposed during the test-redundancy pass and withdrawn on the figures below. The destination is right.
+
+**It buys no gate time.** The root package's own fold took `ai/tools` from 24.4s to 7.4s with the four
+builds still in it, and the root package is not the gate's slowest. Four fewer execs move the suite
+total and not the bound.
+
+**It is a production refactor, not a test fold.** `cite-graph/main.go` is 11.2K and holds `printable`,
+`target` and `newTarget`, with `main_test.go` in `package main` testing them. Four extractions move
+statements between packages, so `cite-graph` and `rule-echo` take new baselines rather than drift from
+their old ones.
+
+**`stub_reach_test.go` does not cover the wiring.** `stub_usage_test.go` hands it that duty, but
+`buildTool` there is called once, for `eco-stats`, and is the only real build in the file. So the four
+execs are the sole route to those binaries, and the usage mismatch the cases exist for was found in
+`cite-graph` and `rule-echo`.
+
+**Thin the mains, then read them.** One `os.Exit(x.Run(...))` line is provable by reading it for the
+`Run` call and its `filepath.Base(os.Args[0])`, and a main that grows a second line is not, so
+converting before thinning drops the driven proof before the read is sound.
+
+## 1x | 2026-09-21 | The gate's remaining spawns are its differentials, and cutting them costs proof
+
+The 100-second budget holds at 67-83s cold on a quiet-ish laptop and was measured at 102s with exit 1
+at load 12 by a second session. Two coverage-neutral cuts were proposed and both turn out to be
+unavailable. This entry records the measurement so the next reader does not re-derive it.
+
+**Where the spawns are.** 360 shell and git spawns across the suite, counted one package at a time
+with a PATH shim. `tree-fingerprint` holds 138 and `repo` 90, which is 63% between them. The rest are
+under 30 each.
+
+**The proposal was a seed built once and copied per case.** `tree-fingerprint` already calls
+`newFixture` exactly once for the whole file, and its cases are subtests over that one fixture. The
+138 spawns are one fixture of about 17, plus roughly 17 readings at about 5 git processes each. The
+readings are the cut, and the readings are the differential against real git.
+
+**Copying such a fixture is harder than it looks anyway.** It carries a linked worktree, and git
+stores absolute paths in `.git/worktrees/<name>/gitdir` and in the worktree's own `.git` file. A copy
+leaves those pointing at the original. The worktree cases would then read a tree that is not the one
+the case built, and pass or fail for a reason the case does not name.
+
+**The other proposal was sharing a build across the lock cases.** Those cases are about two processes
+contending for one `bin/<tool>.lock`, they run in parallel, and each takes its own tools directory.
+Sharing the build means sharing the contended state that is the subject.
+
+**What the differential has already caught**, which is what makes its resolution the product rather
+than an expense: the fake treating a pathspec as root-relative, where two subdirectory cases passed
+for the reason production would fail; and an adapter answering a listing from a subdirectory with that
+subtree in place of the commit.
+
+**The one cut still open** is the stamp double-run. `resolve.sh` runs `source-stamp.sh` in
+`built_from_this_source` and again before the build, and a run that waits on the lock takes it three
+times. Folding is safe in the conservative direction, because a stamp older than the source it is
+written beside makes the next run rebuild rather than serve. It is left because the value is computed
+on either side of a lock wait that can be minutes, and which moment the stamp describes is a
+correctness decision about the binary-and-stamp pairing a security review went through on the same
+day. Settle that question before folding it, not while.
+
+**So the open question is not which spawns to cut.** It is whether a wall-clock bound is the right
+shape on a machine that is never idle. The alternatives are a bound on spawns or CPU rather than wall
+clock, or accepting the number as a quiet-machine one and a red under two concurrent gates. Whoever
+picks should know that nothing is left to cut that does not cost proof.
+
+## 1x | 2026-09-17 | What the 100-second gate left open
+
+Four things this branch measured and deferred. Three are now closed and are recorded here for the
+finding rather than the fix; the fourth is the one that is still open, and it is the general rule
+behind the narrowest of them.
+
+**Closed: `jq` is installed and nothing uses it.** Its last consumer was `ai/mcp-sync.sh`'s JSON
+handling, which is Go now; the only mention left in the tree is `gh api --jq`, which is gh's own
+embedded engine. Removing it left the default tier installing no formula at all, which turned up a
+second defect the first was hiding: the step asked whether brew was there before it asked whether the
+tier wanted anything, so a machine without brew failed an install that needed nothing from it.
+
+**Closed: `comment-density.sh --bar <base>..<head>` cost a spawn per baseline file.** 40.4s and 31.8s
+wall for 3.06s of user CPU on a 454-file repository, against 0.22s for the bare form.
+`repo.Git.ContentsAt` answers a whole list at one revision through a single `git cat-file --batch -z`:
+0.84s and 0.55s after, with git spawns over the range down from about 390 to 8.
+
+**Closed: a suite reading the checkout from inside a subpackage.** Go's test cache is keyed on the
+MODULE, so a file above `ai/tools` is invisible to it — measured twice, on `ai/README.md` and on
+`ai/kk-flavor/standards/records.md`, both answering `ok (cached)` over a changed file. The route out
+was smaller than the one first costed: only what READS THE CHECKOUT had to move, not the fixture
+helpers around it. Every such case is now in the `ai/tools` root package, which `ai/gate.sh` forces
+with `-count=1` on every run, and `gate/gate.go` says so.
+
+**Open: a case about a BOUNDED message can be decided by the machine's temp path.** Three were, and
+macOS CI caught them the day this branch put macOS on the Go job. A sweep under a longer TMPDIR found
+six in `eco-check`, and the grep for `CutMarker` reached none of them: every one asserts that a path
+appears WHOLE, not that it was cut. That is why the general answer won over six more short-root call
+sites — `report.go` cuts EVERY finding line at 500 bytes, so any case quoting a fixture path is in the
+class whether it says so or not, and nothing enumerates that set. `eco-check` and `eco-stats` now take
+every fixture root from one `newBase` helper, 14 to 16 bytes under `/tmp`, and
+`TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines` in each holds the root under 24 bytes with
+TMPDIR moved to a macOS-length path. Measured: both green up to a 349-byte TMPDIR, where six failed at
+145.
+
+What stays open is the rule everywhere else. `handoff-check`'s
+`TestNoLineLeavesTheGateCarryingAControlByte` is the same shape and turns red between 300 and 350
+bytes — past any real machine, so latent rather than live — and `diffscan`, `comment-density` and
+`dup-literals` bound messages with no such rule of their own. Worth stating once for all of them: a
+suite whose subject is where a message is cut owns the length of its own fixture root.
+
+## 1x | 2026-09-21 | A comment is data to a checker, and a rewrite can silently change it
+
+Rewriting this branch's own comments to the register rule broke two checks and nearly broke a third,
+in the same way each time. A comment is prose to a reader and input to a tool at the same time, and
+the tools give no sign when they stop finding what they read.
+
+**A blank line inside a shell script's header hides everything under it.** The leading comment block
+ends at the first line that is not a comment, and that block is where the wiring check reads a
+script's `usage:` line and its test position. Splitting a long header with a real blank line, which is
+how every overlong comment block in this branch was brought under its limit without losing reasons,
+truncated two headers so the declarations below fell outside the block any scan sees. Neither `go
+test` nor `go vet` can see this; only the wiring check can, and only if somebody runs it.
+
+**A phrase a regexp matches must not wrap.** The same scan matches `the Go suite in <package>/` on one
+line. A rewrite that put the phrase at the end of a line and the path at the start of the next left
+two scripts declaring no test position at all.
+
+**A masking match is worse than a missing one.** Eleven headers read "the Go suite beside the tool,
+X" and then "the shared stub region by the Go suite in reach". Only the second clause carried the
+phrase, so all eleven declared reach, each script's real package went unchecked, and the scan stayed
+quiet. The scan now holds every suite a header names rather than the first, which turns that silence
+into a finding. The wrapping and the blank line have no such guard.
+
+What is worth doing is making the tools say when they read nothing. A script whose leading block
+carries a `#` line below a blank one is almost certainly a header somebody split, and a scan that
+found no declaration could say which lines it read rather than only that it found none. The same
+holds for the register scan itself: the only reason these were caught is that somebody ran a check
+that was not part of the loop the sweep was verifying against.
+
 ## 3x | 2026-09-14 | Type every edge, then collapse the tooling that reads them
 
 `--graph` prints `reads` for 27 edges because a path citation carries no kind. `cite-graph` prints 10
@@ -222,17 +359,19 @@ one check a wrong declaration cannot survive, and it is also the only way to ans
 changes saved anything — the question below has been open for four steps. It needs a recording
 mechanism that does not exist, so it waits until the declarations it would audit are in the tree.
 
-## 3x | 2026-09-17 | What the judge corpus cannot yet decide
+## 4x | 2026-09-22 | What the judge corpus cannot yet decide
 
 **Eleven cases still cannot settle a close call, but they were enough to find something eight could
 not.** Three cases went in — a real `IDEAS.md` entry, a plan report and a landing reply, taking
 `record-entry` and `reply` off zero coverage — and the false-cut count moved from a handful scattered
-across runs to a cluster that repeats. Over three runs of the finished corpus, codex made 5, 4 and 3
-false cuts and claude/haiku 8 and 7 — the separation holds, and is wider than it was. What eleven
-cases still cannot do is rank two configurations a single false cut apart, and the answer to that is
-what it was: more real artifacts, labelled when they are written and the reading is fresh. `ticket` and `slack` remain
-at zero cases, deliberately — this repo produces neither, and a case someone invents to fill a row
-measures the inventor.
+across runs to a cluster that repeats. Over three runs, codex made 5, 4 and 3 false cuts and
+claude/haiku 8 and 7 — the separation holds, and is wider than it was. Those figures are the eleven
+cases as they stood on 2026-09-17; three `comment` cases have since joined and nothing has re-measured
+against fourteen, so read them as a reading of that corpus rather than of this one. What it still
+cannot do is rank two configurations a single false cut apart, and the answer to that is what it was:
+more real artifacts, labelled when they are written and the reading is fresh. `ticket` and `slack`
+remain at zero cases, deliberately — this repo produces neither, and a case someone invents to fill a
+row measures the inventor.
 
 **`defaultRollDeadline` is measured now, and it moved to 900s — but what it is guarding against is
 still unexplained.** Twenty runs of the shipped path over 9KB, 18KB, 36KB and 53KB of this repo's own
@@ -249,7 +388,7 @@ Nothing here identifies the stall. What the number can do is survive it, which a
 
 **A managed policy setting still reaches a judge roll, and nothing here can refuse it.** The client's
 setting sources and the roll's environment are both allow-lists now, and `runBounded` is the single
-seam both `bloat-judge` and `model-check` shell out through, so one list covers every provider call
+seam both `reader-judge` and `model-check` shell out through, so one list covers every provider call
 this repo makes. A managed setting is merged above all of them by the client itself. Nothing in the
 tree can close that; what it can do is stop claiming isolation, which
 [model-policy.md](ai/kk-flavor/standards/model-policy.md) now does.
@@ -278,20 +417,22 @@ restated the one above it, and that cut was taken. It cannot tell a forward-look
 something found nowhere else from one that only repeats what the reader has just read. A rule that
 spared both would buy the accuracy back by making the judge useless against ordinary sign-off.
 
-The repair is a sentence in `Prompt()` and it is not made here: a peer is editing that same function
-on `claude/comments-overhaul-69d0ac`, and two sessions rewriting one prompt against two evals would
-leave neither measurable. It lands after theirs, measured against this corpus, which is now large
-enough to tell whether it worked.
+The repair is a sentence in `Prompt()`, it is still unmade, and nothing is holding it up any more. It
+waited on a peer editing that same function — that work landed, and the clause in today's prompt
+about a summary on a declaration is theirs. Their rewrite did not fix this by accident: the message
+recording that it landed was judged against the new prompt and lost the paragraph saying the repair
+was now unblocked, a fifth instance of the same cut. What is left is to write it and measure it
+against the corpus, which is large enough to tell whether it worked.
 
 **A slow roll now says so, and every other wait in this pipeline still does not.** The two stalls
 above printed nothing on either stream for five and a half minutes, which from the outside is
 indistinguishable from the hang the deadline exists to end — and the gate that hosts the judge shows
-the same face during a 29-minute mutation unit. The judge answers for itself now, a line a minute
+the same face through any unit that runs for minutes. The judge answers for itself now, a line a minute
 naming the elapsed time and the bound; the rule that a long wait must say it is still a wait is
 stated nowhere, and no other tool here follows it.
 
 **A scanner now names the build that answered it, and the rest of the tree does not.**
-`comment-density --bar` leads with `measured by: comment-density build <id>`, after two opposite
+`voice-check --bar` leads with `measured by: voice-check build <id>`, after two opposite
 verdicts an hour apart on identical inputs with nothing saying the tool had been rebuilt between
 them. That is [quality-pipeline.md](ai/kk-flavor/standards/quality-pipeline.md)'s "names the commit
 you measured" one level up — there the unnamed thing is the tree, here the instrument — and the rule
@@ -390,25 +531,3 @@ Measure cold/warm latency, peak memory pressure and swap, impact on concurrent b
 Later trial: use 30–50 representative extraction/editing/log tasks with known expected outcomes, including lost-negation and altered-number cases. Compare the local candidate with the configured cloud helper, then test unavailable server, missing model, busy queue, oversized input, malformed output and timeout/cancellation. Separately evaluate semantic errors that pass schema validation. Keep the feature disabled unless it preserves required quality and improves measured cost or responsiveness under ordinary machine load.
 
 Standing cost: model downloads of several GB, a local runner to update, memory residency while active, one Go adapter and a maintained evaluation set. Prepare the acceptance cases before requesting installation; build the production adapter only after the benchmark earns it.
-
-## 1x | 2026-09-08 | Reusable gate evidence
-
-Typed stage ingestion shipped; `idsd-qualify/stage-results.md` is its procedure. What it bought was fewer report calls and stronger result accounting, not lower latency — coordinator turns, provider tokens and real-project savings stayed unmeasured, and a three-trial comparison had median elapsed time rising from 7.24s to 9.17s on a tiny fixture.
-
-Gate reuse is what remains, and it is deferred. Finalize still reruns build gates because report stamps hold no command, tool, dependency or environment evidence that could justify avoiding them. Keep those reruns until an explicit receipt establishes equivalent inputs and a successful real execution. Store evidence in scratch, separate from human project records. Include commands, working directory, exit status, candidate/dependency identity, relevant tool/configuration identity and logs without secrets. External or otherwise unbounded inputs require rerunning the gate.
-
-Before building gate reuse, measure repeated gates in representative releases. Compare saved runtime with receipt validation and maintenance costs; exercise changed commands, dependencies, toolchains and environments as negative controls. Keep local-model evaluation separate from this decision.
-
-Standing cost of typed ingestion: a versioned format, retained manifests, caller migration and crash-recovery tests. In-flight releases use a frozen old tool bundle until completion; new passes use the typed contract. No scheduler, provider runtime or gate cache was added.
-
-## 2x | 2026-09-11 | Where the gate's remaining wall clock is, and what not to try
-
-A cold `ai/gate.sh --full` is its default lane end to end: the shell lane runs alongside and finishes inside it, so speeding the shell suites up does not move the gate at all. After grouping the mutation units by suite set, one unit is most of the whole run — two cold `--full` runs put `mutants:go:eco-report` at 630s of 1357s and at 658s of 1194s, 46% and 55%, where the next largest is `mutants:go:eco-check` at 163–174s and nothing else exceeds 60s. Any further reduction lives in that one unit, which means in the eco-report suite it runs as its baseline, not in the gate's own scheduling.
-
-Three things not to try. **Widening the gate's lanes gains nothing**: `go-mutate` already runs its mutants `NumCPU-2` wide, so overlapping mutation units over-subscribes the machine rather than filling it, and the non-mutation checks total single-digit seconds warm. **`serialGroupFor`'s shell/non-shell boundary is not a scheduling choice** — it is containment, with a recorded incident where a suite escaped and overwrote real config files, and widening it would buy nothing anyway for the reason above. Read it as the gate's own lanes and nothing wider: it says nothing about how `ai/run-tests.sh` schedules suites inside one shell unit, which is a separate question with a separate answer below. **The mutation baseline cannot be left to Go's test cache** to avoid re-running per unit: measured on 2026-09-08, with `./eco-report` cached green, breaking a file the fixtures copy in from outside the module still answered `ok (cached)` while the same tree run with `-count=1` failed. A cached baseline is a green served over a red suite.
-
-`ai/run-tests.sh` run on its own gains about 1.31x from running its suites several at a time, and its pole is `ai/bootstrap-test.sh` — 224s as the gate measures it, against a 348s whole-run. Further gain there lives inside that suite rather than in the runner. That scheduling stays in shell rather than moving into Go beside the gate's own in `gate/run.go`. The reason is in the runner's header: `ai/bootstrap.sh --verify` calls it on a machine that may have no Go and no downloaded binary.
-
-That runner's own containment check proves less than its name suggests. `tree_state` is `git status` over the checkout, so it catches a suite writing into the repository and is blind to one that escapes its temp HOME and writes the real one — and the recorded incident reached the checkout only because a fixture write followed a symlink there. Overlap does not create that leak; a suite that escapes escapes alone just as well. It decides one default instead: `bootstrap.sh --verify` calls the runner immediately after writing `$HOME/.claude`, `$HOME/.kk-flavor` and `$HOME/.codex`, so that path takes a single lane and everything else keeps the 1.31x.
-
-Figures are from one 12-core machine and move with load: the same gate has measured 116s and 2877s on identical code. Read the per-unit times and the lane totals, never a single wall clock.

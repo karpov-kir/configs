@@ -4,7 +4,7 @@ You are one correctness review. You are given **a change set** and the standards
 
 **Correctness, not quality** — bugs, broken logic, violated invariants and constraints, leaks, races, misuse that makes the code do the wrong thing. Style, naming, duplication, abstraction, and structure are `refactor`'s lane — never flag them here; broad security auditing is `security-review`'s. A security rule the project's agent instructions state is in scope — violating one is a constraint bug.
 
-**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`; deltas below. This reviews *changes* — no whole-project mode by design.
+**Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`. The deltas follow. This reviews *changes* — no whole-project mode by design.
 
 ## Review dimensions
 
@@ -12,7 +12,7 @@ Check every changed file against all five:
 
 1. **Standards correctness rules** — violations (kk-flavor standards or the project's agent instructions) whose breach causes bugs: bypassed type checks, unchecked assertions, swallowed errors, unhandled absence.
    - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `refactor`'s.
-2. **Bug scan** — read the changed lines; flag real bugs.
+2. **Bug scan** — read the changed lines, then flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
 4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding.
 5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits. Name the behaviour that is unguarded; writing the test is `refactor`'s gated testing lane.

@@ -6,9 +6,10 @@ dist/
 # a ~3MB binary. gitignore cannot say "a file named after its directory", so this list is written out,
 # and gitignore_test.go is what notices when a tool is added and this list is not.
 /cmd/cadence/cadence
-/cmd/comment-density/comment-density
+/cmd/comment-strip/comment-strip
+/cmd/voice-check/voice-check
 /cmd/eco-check/eco-check
-/cmd/bloat-judge/bloat-judge
+/cmd/reader-judge/reader-judge
 /cmd/tree-fingerprint/tree-fingerprint
 /cmd/gate/gate
 /cmd/dup-literals/dup-literals
@@ -16,10 +17,15 @@ dist/
 /cmd/eco-stats/eco-stats
 /cmd/eco-guide/eco-guide
 /cmd/handoff-check/handoff-check
-/cmd/nomeasure/nomeasure
 /cmd/model-policy/model-policy
 /cmd/model-check/model-check
 /cmd/repo-key/repo-key
+/cmd/mcp-sync/mcp-sync
+/cmd/project-mcp/project-mcp
 /cite-graph/cite-graph
-/go-mutate/go-mutate
 /rule-echo/rule-echo
+/cmd/ai-bootstrap/ai-bootstrap
+/cmd/env-bootstrap/env-bootstrap
+/cmd/wait-reap/wait-reap
+/install-project/install-project
+/project-skills/project-skills

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/shell"
 )
 
 // The half of the flag finding that names the flag and the script, which is what a case asserting
@@ -116,7 +116,7 @@ func TestFlagCallSites(t *testing.T) {
 		f.reports(flagFinding("--full"))
 	})
 
-	// Lowercase, the spelling subcommands.go and tool-stub-test.sh already hold every script to. A
+	// Lowercase, the spelling subcommands.go and ai/tools/stub_usage_test.go hold every script to. A
 	// capitalised `Usage:` is a script with no usage line, which is the other finding and not a pass.
 	t.Run("reads a capitalised Usage: as no usage line at all", func(t *testing.T) {
 		f := newFlagScript(t, "#   Usage: toy.sh [--gate]")
@@ -284,6 +284,9 @@ func TestTheFlagScanStaysWithinItsBounds(t *testing.T) {
 	// The flag name is the instruction file's own text and nothing bounds its length. Uncut, its tail
 	// takes the printer's 500-byte bound and the sentence naming the defect goes with it. Marked,
 	// because an unmarked cut leaves a shorter wrong flag name reading as a whole one.
+	//
+	// The 400 below is what has to spend that bound, and newBase, a helper in harness_test.go, keeps
+	// an ambient path from spending it first.
 	t.Run("and marks a flag name the instruction file made too long to print", func(t *testing.T) {
 		f := newFlagScript(t, "#   usage: toy.sh [--gate]")
 		f.newCallSites("toy.sh --" + strings.Repeat("a", 400))
@@ -303,19 +306,16 @@ func TestTheFlagScanStaysWithinItsBounds(t *testing.T) {
 // NOT checked" and "it states no usage line" about one script. The second is a claim, and no run may
 // make one about content it refused to read.
 func TestAScriptTheFlagScanCouldNotRead(t *testing.T) {
-	t.Run("is not reported as one that states no usage line", func(t *testing.T) {
-		f := newRoot(t)
-		f.newFlagSuiteScript()
-		f.newScript("toy.sh", "#!/usr/bin/env bash\n#   usage: toy.sh [--gate]\n# tested by: toy-test.sh\ntrue")
-		f.writeOversize(f.root + "/kk-flavor/skills/toy.sh")
-		f.newCallSites("toy.sh --agent=claude")
-		output := f.run()
-		// The control: the refusal itself is reported, so the two absences below are absences from a
-		// run that did reach this script rather than from one that never saw it.
-		f.found(output, ecocheck.FileTooLargeToScan+f.root+"/kk-flavor/skills/toy.sh")
-		f.absent(output, noUsageLine)
-		f.absent(output, undocumentedFlag)
-	})
+	f := newRoot(t)
+	f.newFlagSuiteScript()
+	f.newScript("toy.sh", "#!/usr/bin/env bash\n#   usage: toy.sh [--gate]\n# tested by: toy-test.sh\ntrue")
+	f.writeOversize(f.root + "/kk-flavor/skills/toy.sh")
+	f.newCallSites("toy.sh --agent=claude")
+	output := f.run()
+	// The control: the refusal itself is reported, so the two absences asserted beside it come from a
+	// run that did reach this script, and never from one that skipped it.
+	f.found(output, ecocheck.FileTooLargeToScan+f.root+"/kk-flavor/skills/toy.sh")
+	f.absent(output, noUsageLine, undocumentedFlag)
 }
 
 // The path half of a finding is the tree's own text, and a committed directory name carries whatever

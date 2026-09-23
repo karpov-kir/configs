@@ -1,0 +1,280 @@
+package voicecheck
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+
+	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
+)
+
+const barDidNotRun = " — the bar did NOT run"
+
+func refusal(what string) error {
+	return errors.New(what + barDidNotRun)
+}
+
+// A bad revision, an unborn HEAD and a missing object all fail the same call, and one sentence for the
+// three sends a reader looking in the wrong place. The port keeps git's own words on the error it
+// returns, which is what lets that account ride under the refusal.
+func gitRefusal(what string, err error) error {
+	if reason := strings.TrimSpace(err.Error()); reason != "" {
+		return errors.New(what + barDidNotRun + "\n  git said: " + reason)
+	}
+	return refusal(what)
+}
+
+// hostRepo is the repository under review; every path below is relative to root. cwd is where the caller
+// ran, and the one place a pathspec they passed after `--` is relative to.
+type hostRepo struct {
+	git      repo.Git
+	root     string
+	cwd      string
+	maxBytes int64
+	// The revision whole-file content is read at, empty for the working tree. Set only for a closed
+	// range; see contentRevision.
+	contentRev string
+}
+
+// git names a diff's files from the repository's top whatever directory it ran in, so reading them
+// against cwd from a subdirectory finds none of them and the change set silently shrinks to its
+// untracked half.
+func newHostRepo(cwd string, git repo.Git, maxBytes int64) (hostRepo, error) {
+	root, err := git.TopLevel(cwd)
+	if err != nil {
+		return hostRepo{}, refusal(cwd + " is not inside a git repository")
+	}
+	return hostRepo{git: git, root: root, cwd: cwd, maxBytes: maxBytes}, nil
+}
+
+// splitPathspec divides the arguments at `--`. RefuseNonRevisions tells a caller to put paths after it,
+// so this is the form the tool itself asks for; left among the revisions, `--` becomes the base every
+// listing fails on.
+func splitPathspec(args []string) (revisions, pathspec []string) {
+	for i, arg := range args {
+		if arg == "--" {
+			return args[:i], args[i+1:]
+		}
+	}
+	return args, nil
+}
+
+func (h hostRepo) hasCommit() bool {
+	head, err := h.git.Resolve(h.root, "HEAD")
+	return err == nil && head != ""
+}
+
+// sourcesOf keeps this repository's own source files out of a listing the port answered.
+func sourcesOf(names []string) []string {
+	var paths []string
+	for _, name := range names {
+		if name != "" && !notThisRepositorysSource(name) {
+			paths = append(paths, name)
+		}
+	}
+	return paths
+}
+
+// With content pinned to a revision the listing moves there too. A list taken from today's index names
+// files that revision never held. Each of those reads as unreadable, and the baseline is left with no
+// word at all. That is the defect this pinning exists to end, moved one step.
+
+// The listing comes from the index. A filesystem walk would pull in vendored trees and build output
+// written outside this repository.
+func (h hostRepo) trackedSources() ([]string, error) {
+	var names []string
+	var err error
+	what := "could not list the repo's tracked files"
+	if h.contentRev == "" {
+		names, err = h.git.Tracked(h.root)
+	} else {
+		names, err = h.git.NamesAt(h.root, h.contentRev)
+		what = "could not list the files at " + h.contentRev
+	}
+	if err != nil {
+		return nil, gitRefusal(what, err)
+	}
+	paths := sourcesOf(names)
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// changedSources is the set the bar judges: every source file the diff names, deleted ones aside, as it
+// sits in the working tree. Named by `--name-only`, not by added lines: the pass this mode serves cuts
+// comments, and a file the change only deleted from would otherwise leave the set and join the baseline.
+// Untracked files join only with no revisions, as in Run; without them a set of new files reads as empty.
+// A narrowed listing runs from cwd, where its pathspec is relative to. An unnarrowed one runs at root:
+// `ls-files` lists only what sits under the directory git ran in, and from a subdirectory the untracked
+// files elsewhere in the tree would silently leave the set.
+func (h hostRepo) changedSources(revisions, pathspec []string) ([]string, error) {
+	dir := h.root
+	if len(pathspec) > 0 {
+		dir = h.cwd
+	}
+	// The port names a diff's files from the repository's top whatever directory it ran in. It pins the
+	// flags that keep it that way under a reviewer's own git config, and repo/exec.go carries which and
+	// why. `HEAD` is spelled here because the bare form diffs against the INDEX, and a scan taking
+	// git's default would report a clean tree over every change already staged.
+	named := revisions
+	if len(named) == 0 {
+		named = []string{"HEAD"}
+	}
+	changed, err := h.git.Changed(dir, named, pathspec)
+	if err != nil {
+		// A repository with no commit fails the same diff, and "rejected these arguments" would send its
+		// reader to arguments they never passed.
+		if !h.hasCommit() {
+			return nil, refusal("this repository has no commit yet, so no file outside the change can set a rate")
+		}
+		return nil, gitRefusal("git rejected these arguments", err)
+	}
+	paths := sourcesOf(changed)
+	if len(revisions) == 0 {
+		untracked, err := h.git.Untracked(dir, pathspec...)
+		if err != nil {
+			return nil, gitRefusal("could not list untracked files", err)
+		}
+		paths = append(paths, sourcesOf(untracked)...)
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// newSinceBase is the changed files the diff's base did not hold: the ones perFileCeiling judges on
+// their own.
+func (h hostRepo) newSinceBase(revisions, changed []string) (map[string]bool, error) {
+	base, err := h.baseRevision(revisions)
+	if err != nil {
+		return nil, err
+	}
+	held, err := h.git.NamesAt(h.root, base)
+	if err != nil {
+		return nil, gitRefusal(fmt.Sprintf("could not list the files at %s", base), err)
+	}
+	return setOf(without(changed, sourcesOf(held))), nil
+}
+
+func setOf(names []string) map[string]bool {
+	set := make(map[string]bool, len(names))
+	for _, name := range names {
+		set[name] = true
+	}
+	return set
+}
+
+func without(names, excluded []string) []string {
+	skip := setOf(excluded)
+	kept := make([]string, 0, len(names))
+	for _, name := range names {
+		if !skip[name] {
+			kept = append(kept, name)
+		}
+	}
+	return kept
+}
+
+// baseRevision is the commit `git diff <revisions>` compared the working tree or the second revision
+// against: HEAD with none, the left side of `a..b` or `a b`, and the merge base of `a...b`.
+func (h hostRepo) baseRevision(revisions []string) (string, error) {
+	if len(revisions) == 0 {
+		return "HEAD", nil
+	}
+	first := revisions[0]
+	if left, right, symmetric := strings.Cut(first, "..."); symmetric {
+		if left == "" {
+			left = "HEAD"
+		}
+		if right == "" {
+			right = "HEAD"
+		}
+		// Each half on its own. diffscan.RefuseNonRevisions, the guard the arguments passed, reads the
+		// leading byte of the whole argument, so `a...--foo` reaches here whole and splits into a half
+		// that opens with a dash. What that half reaches is a git argv.
+		for _, half := range []string{left, right} {
+			if strings.HasPrefix(half, "-") {
+				return "", fmt.Errorf("'%s' is an option, not a git-diff revision — the scan did NOT run", half)
+			}
+		}
+		base, err := h.git.MergeBase(h.root, left, right)
+		if err != nil {
+			return "", gitRefusal(fmt.Sprintf("%s and %s have no merge base", left, right), err)
+		}
+		return base, nil
+	}
+	left, _, _ := strings.Cut(first, "..")
+	if left == "" {
+		return "HEAD", nil
+	}
+	return left, nil
+}
+
+// readCappedAt reads a file as it stood at a revision. A file the change touched is still the repo's own
+// content up to this change, so the baseline holds it at the content it had before, rather than dropping
+// it and measuring the change against a repo its own edit made leaner. A symlink's blob here is its
+// target string, counted as one code line, so nothing outside the repository is opened on this path.
+func (h hostRepo) readCappedAt(rev, rel string) (string, bool) {
+	out, err := h.git.Show(h.root, rev, rel)
+	if err != nil || int64(len(out)) > h.maxBytes || strings.IndexByte(string(out), 0) >= 0 {
+		return "", false
+	}
+	return string(out), true
+}
+
+// Reads from the working tree, or from the revision a closed range named. Lstat on the tree path, so a
+// symlink is skipped rather than followed: the paths come from the branch under review, and a link it
+// plants at a file outside the repository would otherwise be read from the reviewer's machine and its
+// line counts reported. `a..b` asks what b holds, and
+// the tree stops holding it the moment it moves — reading the tree anyway measures today's files under
+// yesterday's file list and hands back a plausible number with no error, which is the worse of the two
+// failures. A single revision is not this case: `HEAD` means "since HEAD", whose content IS the tree.
+func (h hostRepo) readCapped(rel string) (string, bool) {
+	if h.contentRev != "" {
+		return h.readCappedAt(h.contentRev, rel)
+	}
+	path := shell.Join(h.root, rel)
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > h.maxBytes {
+		return "", false
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil || strings.IndexByte(string(raw), 0) >= 0 {
+		return "", false
+	}
+	return string(raw), true
+}
+
+// The revision whole-file content belongs to, or empty when that is the working tree. Only a closed
+// range pins content to a commit: `a..b` and `a...b` both ask about what the right-hand side holds, an
+// empty side meaning HEAD. Everything else — no revision, or a single one — measures work the tree still
+// holds, and reading a commit there would drop exactly the uncommitted lines the caller is asking about.
+func contentRevision(revisions []string) string {
+	switch {
+	case len(revisions) == 0:
+		return ""
+	// `git diff a b` is the same closed comparison as `a..b`, and baseRevision already reads it that
+	// way, so its content is b. Three or more is git's combined-merge form, whose content is the merge
+	// named first rather than any parent — left on the tree rather than read off the wrong side.
+	case len(revisions) == 2:
+		return revisions[1]
+	case len(revisions) > 2:
+		return ""
+	}
+	// `...` first: it contains `..`, so cutting on the shorter separator would read a symmetric range's
+	// right side as ".b" and resolve nothing.
+	right, closed := "", false
+	if _, after, found := strings.Cut(revisions[0], "..."); found {
+		right, closed = after, true
+	} else if _, after, found := strings.Cut(revisions[0], ".."); found {
+		right, closed = after, true
+	}
+	if !closed {
+		return ""
+	}
+	if right == "" {
+		return "HEAD"
+	}
+	return right
+}

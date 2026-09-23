@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	bloatjudge "kk-flavor/tools/bloat-judge"
-	modelpolicy "kk-flavor/tools/model-policy"
+	modelpolicy "configs/ai/tools/model-policy"
+	readerjudge "configs/ai/tools/reader-judge"
 )
 
 // Two rows and one model per client that the order ranks and no row names, so a case can refuse
@@ -49,13 +49,16 @@ func run(t *testing.T, probe Probe, path string) (int, string, string) {
 
 // Every selection the file holds is asked about once, rows and tier order alike, and nothing else is.
 // A name invented here would send the check asking a provider about a string this file never chose.
+//
+// It is also the clean run every refusal case below is read against. A clean file exits 0 and prints
+// no REFUSED line, and a report that fires on every input passes those refusal cases too.
 func TestEverySelectionTheFileHoldsIsAskedAboutOnce(t *testing.T) {
 	var asked []string
 	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {
 		asked = append(asked, selection.Client+"/"+selection.Model+"/"+selection.Effort)
 		return nil
 	}, policyFile(t))
-	if status != 0 {
+	if status != 0 || strings.Contains(out, "REFUSED") {
 		t.Fatalf("status = %d, want 0\n%s%s", status, out, errOut)
 	}
 	want := "codex/cheap-codex/low claude/cheap-claude/ codex/dear-codex/high claude/dear-claude/ " +
@@ -71,7 +74,7 @@ func TestARefusedNameFailsAndNamesTheConfig(t *testing.T) {
 	path := policyFile(t)
 	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {
 		if selection.Model == "cheap-codex" {
-			return &bloatjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
+			return &readerjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
 		}
 		return nil
 	}, path)
@@ -83,15 +86,6 @@ func TestARefusedNameFailsAndNamesTheConfig(t *testing.T) {
 	}
 	if !strings.Contains(errOut, path) {
 		t.Errorf("the summary does not name %s:\n%s", path, errOut)
-	}
-}
-
-// The negative control the case above is read against: the same names, nothing refused, and the check
-// has to come back clean. A report that failed unconditionally would pass that case too.
-func TestNothingRefusedIsAPass(t *testing.T) {
-	status, out, errOut := run(t, func(modelpolicy.Selection) error { return nil }, policyFile(t))
-	if status != 0 || strings.Contains(out, "REFUSED") {
-		t.Fatalf("status = %d, want 0\n%s%s", status, out, errOut)
 	}
 }
 

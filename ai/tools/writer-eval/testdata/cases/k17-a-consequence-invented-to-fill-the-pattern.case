@@ -1,0 +1,14 @@
+expect: written
+note: written
+floor: 60
+bars: fresh history | files a renamed | under a new history
+keeps: hash
+why: the fact is that an audit hash derives from these names, and the pattern asked for a consequence at every site, so the writer invented one about an archive it cannot read; Kirill on 2026-09-22: "The second part is garbage, and hard to follow"; the fact stands on its own and the second half is what the note pattern bought; this case fails on the rules that landed on 2026-09-22 and is recorded failing, floor unchanged: four readings on four rule texts that barely touch it came back 7, 10, 3 and 4 of 15, a case sitting near a third of rolls whose spread the no-change pair's band does not cover; the invented consequence has the same form as the consequences reviewers keep on data declarations, so no token check separates them, and a blind reader built to catch it was measured on 2026-09-23 and deleted by its bar, so code review is where this residual is caught
+labelled: 2026-09-22
+--- code
+export enum SettlementScheme {
+  DirectCash = 'direct-cash',
+  EscrowCredit = 'escrow-credit',
+}
+--- facts
+The audit hash derives from these names, so the archive files a renamed member's results under a fresh history.

@@ -80,21 +80,114 @@ func IsSymlink(path string) bool {
 	return err == nil && info.Mode()&os.ModeSymlink != 0
 }
 
-// The directory a real path resolves to, symlinks followed. Empty when the path is not a directory or
-// cannot be resolved, and every caller reads that emptiness as "not there".
+// The path goes through RealPath, for the reason RealPath states. filepath.Abs cleans `..`
+// lexically, so a path reached through a symlinked directory resolves against the link's parent
+// instead of the real one.
+
+// Roots here are spelled that way: `--root=ai/../ai`, and the bucket link a post-checkout hook steps
+// back out of. This answer is what every containment test compares.
+
+// CanonicalDir is RealPath narrowed to a directory: the real path a directory resolves to, symlinks
+// followed. It is empty for a path that is no directory or resolves nowhere. Every caller reads that
+// emptiness as "not there".
 func CanonicalDir(path string) string {
 	if !IsDir(path) {
 		return ""
 	}
-	absolute, err := filepath.Abs(path)
-	if err != nil {
-		return ""
-	}
-	resolved, err := filepath.EvalSymlinks(absolute)
+	resolved, err := RealPath(path)
 	if err != nil {
 		return ""
 	}
 	return resolved
+}
+
+// One predicate serves every containment test in these tools. That covers a write bounded to a
+// tree, a mount owned by a checkout, a file counted as a checkout's own, and a pathspec covering a
+// listing.
+
+// Both sides are compared exactly as they arrive. Neither is cleaned or followed here, because the
+// caller has already resolved both. A comparison that resolved one side alone would answer about two
+// different directories.
+
+// An empty path is within no root. An empty root contains no path. That is the case a scattered copy
+// gets wrong. `strings.HasPrefix(path, ""+"/")` is true for every absolute path, so a guard with an
+// unresolved root admits the entire filesystem at the moment it knows least.
+
+// IsWithin reports whether path sits AT root or under it.
+func IsWithin(path, root string) bool {
+	if path == "" || root == "" {
+		return false
+	}
+	if path == root {
+		return true
+	}
+	// "/" is its own separator, so the prefix is the root itself, with no separator appended.
+	if root == "/" {
+		return strings.HasPrefix(path, "/")
+	}
+	return strings.HasPrefix(path, root+"/")
+}
+
+// The walk goes past the immediate parent, because a write creates the missing directories under
+// that ancestor. The ancestor is the deepest point a symlink can still redirect. The names under it
+// exist nowhere yet, so none of them can redirect a write.
+
+// A DIRECTORY, and never merely a name that resolves. A regular file resolves perfectly well, and no
+// write can land under one. A walk stopping there judges a write by a path it could never have
+// landed in.
+
+// NearestExistingParent is the deepest existing ancestor of path, resolved physically, or empty when
+// none exists.
+func NearestExistingParent(path string) string {
+	for dir := DirName(path); ; dir = DirName(dir) {
+		if resolved := CanonicalDir(dir); resolved != "" {
+			return resolved
+		}
+		if dir == "/" || dir == "." {
+			return ""
+		}
+	}
+}
+
+// The working directory is prepended by concatenation, and that is the whole reason this exists.
+// filepath.Abs cleans `..` lexically, against the name the path was reached by instead of the
+// directory it really names.
+
+// `$HOME/.kk-flavor/../project-skills.sh` becomes `$HOME/project-skills.sh` under Abs, and
+// `.kk-flavor` is a link into a checkout whose real parent is somewhere else entirely.
+
+// Every `..` stays in the path, and EvalSymlinks pops each one against the directory it has already
+// resolved. That is what the shell's own `cd -P` does.
+
+// RealPath is realpath(1): the absolute path with every symlink followed, and the error the
+// resolution failed with when something along the way is missing.
+func RealPath(path string) (string, error) {
+	absolute := path
+	if !filepath.IsAbs(absolute) {
+		working, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		absolute = Join(working, absolute)
+	}
+	return filepath.EvalSymlinks(absolute)
+}
+
+// Every tool here reads its skills, declarations and sibling scripts from beside the stub argv[0]
+// names, so this is what names them. The process's own working directory is wherever the human
+// happened to be standing, and this ignores it.
+
+// One implementation serves all six entry points. filepath.Dir is safe on what RealPath answers,
+// which is absolute and already clean.
+
+// OwnDirectory is the real directory a program is running from. The argv[0] the stub preserved with
+// `exec -a` is where it comes from.
+func OwnDirectory(invocation string) (string, error) {
+	real, err := RealPath(invocation)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(real), nil
 }
 
 // Fnmatch is fnmatch as find(1)'s -name and -path use it: no FNM_PATHNAME, so `*` spans `/` too, and

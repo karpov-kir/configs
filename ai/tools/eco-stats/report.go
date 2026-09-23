@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	ecoroot "kk-flavor/tools/eco-root"
+	ecoroot "configs/ai/tools/eco-root"
 )
 
 func (s *stats) alwaysLoaded() int { return s.alwaysLoadedWords + s.descriptionWords }

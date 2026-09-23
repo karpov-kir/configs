@@ -1,11 +1,12 @@
 package ecocheck_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	"kk-flavor/tools/shell"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/shell"
 )
 
 func TestDelimitedSectionCitations(t *testing.T) {
@@ -45,12 +46,8 @@ func TestCitationTargetMustBeARegularFile(t *testing.T) {
 		return f
 	}
 
-	t.Run("fires on a cited path that resolves to a device", func(t *testing.T) {
-		newDeviceTarget(t).reports(notRegular)
-	})
-
-	t.Run("and says it was not read rather than reading part of it", func(t *testing.T) {
-		newDeviceTarget(t).reports("it was NOT read")
+	t.Run("fires on a cited path that resolves to a device, saying it was not read", func(t *testing.T) {
+		newDeviceTarget(t).reports(notRegular, "it was NOT read")
 	})
 }
 
@@ -119,39 +116,43 @@ func newCitation(t *testing.T, citation string) *fixture {
 // all, for the reason citations.go → globInCitation gives. Both ways of writing a citation reach the
 // refusal, so both are covered here.
 func TestAPatternInACitedPathIsRefusedRatherThanMatched(t *testing.T) {
-	// The target carries no section, so every pattern below matches a file that has no `One home`
-	// heading: a resolver that still globbed would resolve the path and say `dangling section ref`
-	// against it. That is why each case asserts the refusal *and* that nothing resolved — asserting
-	// only the refusal would pass over a resolver answering these as find(1) does.
-	newPatternProbe := func(t *testing.T, citation string) *fixture {
+	newPatternProbe := func(t *testing.T, citations ...string) *fixture {
 		t.Helper()
 		f := newCitedTarget(t, "")
-		f.write(f.root+"/kk-flavor/standards/citer.md", citation+"\n")
+		f.write(f.root+"/kk-flavor/standards/citer.md", strings.Join(citations, "\n")+"\n")
 		return f
 	}
-	refused := func(t *testing.T, f *fixture, ref string) {
-		t.Helper()
+
+	// The target carries no section heading, so every pattern here matches a file that lacks
+	// `One home`. A resolver that still globbed would resolve the path and say `dangling section ref`
+	// against it. Both halves are asserted: the refusals, and the absence of any resolution. A case
+	// that asserted the refusals alone passes over a resolver answering these as find(1) does.
+	t.Run("refuses every metacharacter, in both forms a citation is written in", func(t *testing.T) {
+		// One line per metacharacter, because the refusal names the byte it found and each is a
+		// separate way in. Go's own literal is what doubles the `\`. The last line is the
+		// markdown-link form, whose token comes from the other arm of the parser, filtered `[^()]*`.
+		// A refusal in one arm alone leaves the other resolving patterns.
+		refs := []string{"standards/targ*t.md", "standards/targ?t.md", "standards/[st]arget.md",
+			"standards/targe\\t.md", "targ*t.md"}
+		// Every refusal is a per-citation answer carrying its own line number, so one fixture and one
+		// run hold all five apart.
+		f := newPatternProbe(t,
+			"see `"+refs[0]+"` → **One home** for the rule",
+			"see `"+refs[1]+"` → **One home** for the rule",
+			"see `"+refs[2]+"` → **One home** for the rule",
+			"see `"+refs[3]+"` → **One home** for the rule",
+			"see [x]("+refs[4]+") → **One home** for the rule")
+
 		output := f.run()
-		f.found(output, ecocheck.CitationPathIsPattern+f.root+"/kk-flavor/standards/citer.md:1 -> "+ref)
+		for line, ref := range refs {
+			f.found(output, fmt.Sprintf("%s%s/kk-flavor/standards/citer.md:%d -> %s",
+				ecocheck.CitationPathIsPattern, f.root, line+1, ref))
+		}
 		f.absent(output, dangling, unresolved)
-	}
-
-	// One case per metacharacter, because the refusal names the byte it found and each is a separate
-	// way in. `\` is doubled only for Go's own literal.
-	for _, ref := range []string{"standards/targ*t.md", "standards/targ?t.md", "standards/[st]arget.md", "standards/targe\\t.md"} {
-		t.Run("refuses a backticked citation holding "+ref, func(t *testing.T) {
-			refused(t, newPatternProbe(t, "see `"+ref+"` → **One home** for the rule"), ref)
-		})
-	}
-
-	// The link form takes its token from a different arm of the parser, whose filter is `[^()]*` — so
-	// refusing in only one of the two arms would leave the other resolving patterns.
-	t.Run("and a markdown-link citation holding one", func(t *testing.T) {
-		refused(t, newPatternProbe(t, "see [x](targ*t.md) → **One home** for the rule"), "targ*t.md")
 	})
 
-	// The control: the same citation without the metacharacter resolves, so the refusal above cannot be
-	// a scan that stopped reading citations altogether.
+	// The control: the same citation without the metacharacter resolves, so the metacharacter refusals
+	// cannot be a scan that stopped reading citations altogether.
 	t.Run("while the same citation naming the file outright still resolves", func(t *testing.T) {
 		f := newPatternProbe(t, "see `standards/target.md` → **One home** for the rule")
 		output := f.run()
@@ -342,14 +343,13 @@ func TestAnUncheckableCitationSaysWhenItsHeadWasCut(t *testing.T) {
 	// and the finding under test is the one that fires.
 	longHead := strings.Repeat("kk-qualify-", 10)
 
-	t.Run("fires on a head that runs past the bound (control for the case below)", func(t *testing.T) {
-		newBacktickedHead(t, "`"+longHead+"` → **The residue** decides").reports(uncheckable)
-	})
-
-	// Matched on the marker together with the text the finding puts after the head, so the assertion
-	// is about where the cut is reported and not about a "..." landing anywhere in the output.
-	t.Run("and marks the head it cut rather than quoting a shorter wrong one", func(t *testing.T) {
-		newBacktickedHead(t, "`"+longHead+"` → **The residue** decides").reports(shell.CutMarker + "` → ")
+	// The mark is matched together with the text the finding puts after the head. The assertion is
+	// about the place the cut is reported, and a bare "..." somewhere else in the output fails it.
+	// The finding itself is asserted beside it as the control: take it away and the mark passes over
+	// a silent run.
+	t.Run("fires on a head that runs past the bound, marking the head it cut", func(t *testing.T) {
+		newBacktickedHead(t, "`"+longHead+"` → **The residue** decides").
+			reports(uncheckable, shell.CutMarker+"` → ")
 	})
 
 	// The other direction: a head inside the bound is quoted whole, or the marker starts saying a
@@ -467,28 +467,19 @@ func newDanglingVariant(t *testing.T, body, section string) *fixture {
 // This file writes its own citations out, because no scan reads a `.go` file. A shell suite covering
 // the same ground could not, which is the asymmetry that note answers.
 func TestACitationInATestHarnessSaysWhatToDoAboutIt(t *testing.T) {
-	t.Run("names the rule on a finding against a suite", func(t *testing.T) {
-		newHarnessCitation(t, "fixture-test.sh").reports(ecocheck.HarnessCitationNote)
+	// The note, and the cost this choice takes: the rule offers no escape hatch. A harness may carry
+	// zero citation literals, and the finding still fires, which is what makes the rule bind.
+	t.Run("names the rule on a finding against a suite, and reports it all the same", func(t *testing.T) {
+		newHarnessCitation(t, "fixture-test.sh").reports(ecocheck.HarnessCitationNote, dangling)
 	})
 
-	t.Run("and on one against a mutation list", func(t *testing.T) {
-		newHarnessCitation(t, "fixture-mutate.sh").reports(ecocheck.HarnessCitationNote)
-	})
-
-	// The cost this choice takes, stated as a case: there is no escape hatch, so a harness may carry no
-	// citation literal at all. The finding still fires, and that is what makes the rule bind.
-	t.Run("and reports it all the same, since nothing here exempts a harness", func(t *testing.T) {
-		newHarnessCitation(t, "fixture-test.sh").reports(dangling)
-	})
-
-	// The note is scoped to a harness. Every other script pays nothing for it.
-	t.Run("says nothing of the sort on an ordinary script", func(t *testing.T) {
-		newHarnessCitation(t, "fixture.sh").doesNotReport(ecocheck.HarnessCitationNote)
-	})
-
-	// Without this the case above passes on a fixture whose citation was never read.
-	t.Run("while still reporting that script's citation (control for the case above)", func(t *testing.T) {
-		newHarnessCitation(t, "fixture.sh").reports(dangling)
+	// The note is scoped to a harness, and every other script pays no price for it. The citation is
+	// still reported, or this half would pass on a fixture whose citation was never read.
+	t.Run("says nothing of the sort on an ordinary script, whose citation is still reported", func(t *testing.T) {
+		f := newHarnessCitation(t, "fixture.sh")
+		output := f.run()
+		f.found(output, dangling)
+		f.absent(output, ecocheck.HarnessCitationNote)
 	})
 }
 

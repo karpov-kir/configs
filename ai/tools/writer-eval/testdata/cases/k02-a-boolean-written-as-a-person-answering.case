@@ -1,0 +1,9 @@
+expect: written
+why: a yes as a noun, a coined compound and a figure for a mechanism, in one sentence
+labelled: 2026-09-20
+--- code
+export function claimFromAnswerWithoutScheme(clearing: Clearing, answer: boolean): LedgerClaim {
+  return answer ? LedgerClaim.Supported : LedgerClaim.Unsupported;
+}
+--- facts
+Escrow settles in the credit scheme alone, so a scheme-blind yes still settles escrow.

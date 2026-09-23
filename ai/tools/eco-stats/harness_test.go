@@ -3,9 +3,8 @@ package ecostats_test
 // The fixture builders and the assertions the cases in stats_test.go are written against. This is the
 // only suite over these measurements, so a case removed here is coverage gone rather than moved.
 //
-// Fixtures are built with os.MkdirAll and os.WriteFile rather than by shelling out: a mutation harness
-// multiplies every fork by the length of its mutation list. `ai/tools/go-mutate` is what shows a case
-// here can fail.
+// Fixtures are built with os.MkdirAll and os.WriteFile. A forked process costs about 100ms on the
+// machine these were written on, and a file write is too cheap to measure.
 
 import (
 	"bytes"
@@ -16,8 +15,9 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
-	ecostats "kk-flavor/tools/eco-stats"
+	ecocheck "configs/ai/tools/eco-check"
+	ecostats "configs/ai/tools/eco-stats"
+	"configs/ai/tools/repo"
 )
 
 // The figures a case reads back out of the report, and the two forms of the always-loaded line the
@@ -44,7 +44,7 @@ type fixture struct {
 // measurement.
 func newRoot(t *testing.T) *fixture {
 	t.Helper()
-	base := t.TempDir()
+	base := newBase(t)
 	f := &fixture{t: t, base: base, root: base + "/r"}
 	f.mkdirAll(f.root + "/kk-flavor/standards")
 	f.mkdirAll(f.root + "/kk-flavor/skills")
@@ -117,6 +117,12 @@ func (f *fixture) runAs(agent string, args ...string) (stdout, stderr string, st
 func (f *fixture) figure(name string) string {
 	f.t.Helper()
 	stdout, _, _ := f.run(f.root)
+	return figureIn(stdout, name)
+}
+
+// The same read, off a report a case already has, so a case asserting a figure and a message together
+// runs the tool once.
+func figureIn(stdout, name string) string {
 	return firstSubmatch(regexp.MustCompile(`(?m)^`+regexp.QuoteMeta(name)+`: *([0-9]*) words`), stdout)
 }
 
@@ -136,11 +142,15 @@ func (f *fixture) routerWordsFromStats() string {
 	return firstSubmatch(statsRouterWords, stdout)
 }
 
+// The runs in this file pass no `--gate`, and that flag is the only thing in check.sh that puts a
+// question to a repository. A repository here would have no question to answer.
+var noRepository repo.Git
+
 func (f *fixture) routerWordsFromCheck() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{"--agent=claude", f.root}, &out, io.Discard)
+	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, ecocheck.InstalledBash{}, &out, io.Discard)
 	return firstSubmatch(checkRouterWords, out.String())
 }
 
@@ -149,7 +159,7 @@ func (f *fixture) checkOutput() string {
 	f.t.Helper()
 	f.prepare()
 	var out bytes.Buffer
-	ecocheck.Run([]string{"--agent=claude", f.root}, &out, &out)
+	ecocheck.Run([]string{"--agent=claude", f.root}, noRepository, ecocheck.InstalledBash{}, &out, &out)
 	return out.String()
 }
 
@@ -172,19 +182,6 @@ func rowsIn(t *testing.T, path string) int {
 		}
 	}
 	return rows
-}
-
-// Everything a ledger says before its column header — the half the seed block writes and the live
-// file is compared against.
-func ledgerProse(text string) string {
-	var prose strings.Builder
-	for _, line := range strings.Split(text, "\n") {
-		if strings.HasPrefix(line, "| date |") {
-			break
-		}
-		prose.WriteString(line + "\n")
-	}
-	return prose.String()
 }
 
 func firstSubmatch(pattern *regexp.Regexp, text string) string {
@@ -239,4 +236,61 @@ func indent(text string) string {
 		fmt.Fprintf(&out, "          %s\n", line)
 	}
 	return out.String()
+}
+
+// Several of these cases assert where a BOUNDED message was cut, and the messages that quote a path
+// are bounded at 80 or 160 bytes. What the root spends, the case's own content cannot.
+
+// `t.TempDir()` makes that length ambient: about 140 bytes on a macOS runner (`/var/folders/<two>/<28
+// random>/T/<the test's own name>/001`) against around 60 on Linux. The answer is then a property of
+// the machine before it is a property of the code. Two cases here passed on one macOS temp path and
+// failed on another with no other change, and finding that cost a CI leg.
+
+// So no fixture here reaches back for `t.TempDir()`, and none reads TMPDIR: a short base under `/tmp`
+// leaves the whole of every bound for the case's own content to spend. A case that wants a root long
+// enough to spend a bound grows one itself.
+
+// The byte budget a fixture root gets. A case holds it, because a helper reaching back for t.TempDir
+// passes every other case in this file and brings back the defect that cost the CI leg.
+const maxFixtureRootBytes = 24
+
+// The bound is read under a long TMPDIR as well as the ambient one, and that second leg is the point.
+// This machine's own temp path is short enough to hide the defect.
+
+// os.MkdirTemp appends a run of eight to ten digits, so a root wobbles by two bytes inside the budget.
+// The two legs are compared on length and never on sameness.
+func TestAFixtureRootIsTheSuitesToSpendAndNotTheMachines(t *testing.T) {
+	// t.TempDir makes one directory per test and numbers the rest inside it. A base built that way sits
+	// in a tree already pinned to the ambient TMPDIR, and the second leg's moved TMPDIR goes unread.
+	// That leg is what this case is for, which is why os.MkdirTemp is here.
+	long, err := os.MkdirTemp("/tmp", strings.Repeat("d", 120))
+	if err != nil {
+		t.Fatalf("building the long temp path this case moves TMPDIR to: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(long) })
+
+	for _, leg := range []struct{ what, tmpdir string }{
+		{"under a TMPDIR as long as a macOS runner's", long},
+		{"under a short TMPDIR", "/tmp"},
+	} {
+		t.Setenv("TMPDIR", leg.tmpdir)
+		if root := newRoot(t).root; len(root) > maxFixtureRootBytes {
+			t.Errorf("a fixture root %s is %d bytes, past the %d this suite allows itself — that much of "+
+				"every bounded message is spent before the case writes anything: %s",
+				leg.what, len(root), maxFixtureRootBytes, root)
+		}
+	}
+}
+
+// The scratch directory every fixture above is built under, 14 to 16 bytes wherever it runs: `/tmp/e`
+// plus the eight-to-ten digit run os.MkdirTemp appends. This suite fixes that length, and the machine
+// does not choose it. The directory is removed on the way out, like t.TempDir's own.
+func newBase(t *testing.T) string {
+	t.Helper()
+	base, err := os.MkdirTemp("/tmp", "e")
+	if err != nil {
+		t.Fatalf("building a fixture root: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+	return base
 }

@@ -4,7 +4,7 @@ import (
 	"io"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 const (

@@ -20,6 +20,15 @@ Beyond [writing.md](writing.md) → **Density**: no anecdotes, counts, dates, "o
 
 A rule about form may carry one before-and-after pair. The pair is the rule's statement of the shape it requires, not evidence that the shape is better.
 
+## No outside names
+
+Our ecosystem must not mention exact packages, repos, etc.
+
+No file here names a repository, a path, a package, a symbol or an identifier belonging to a codebase
+this tree is used on. Write the shape, or a name from a domain invented for the purpose. A count is a
+number and brings no name with it. A fixture reads private source through an environment variable, and
+a case in it is named by its position in the sorted set.
+
 ## One home
 
 Every rule lives in exactly one file; everywhere else cross-references it by path.
@@ -102,7 +111,7 @@ A move away from the common path is only a win when that path genuinely never ne
 - **A change to a shared script lands its call site in the same edit.**
 - **A script is held to the bar it enforces** — converting prose into a script moves the cost rather than removing it.
 - **A script is Go under `ai/tools/`, reached by the `shared:tool-stub` region; shell only where Go cannot yet run.** The install path and the stub settle whether Go can run, at the moment the script runs.
-- **The conversion is a win only where the enforcement is known to fire.** Each shell script's header states its test position: the `-test.sh` that covers it, or `# untested: <why>`. The instruction lane's wiring check proves both — that the position is stated, and that the `-test.sh` it names exists.
+- **The conversion is a win only where the enforcement is known to fire.** Each shell script's header states its test position: the Go package under `ai/tools/` that holds its cases, or `# untested: <why>`. The instruction lane's wiring check proves both — that the position is stated, and that the package it names holds a Go test.
 
 ## Memory
 

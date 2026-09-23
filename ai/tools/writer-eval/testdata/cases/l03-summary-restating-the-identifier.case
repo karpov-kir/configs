@@ -1,0 +1,18 @@
+expect: none
+floor: 40
+why: the name and the return type say it, and the pairing is what the body shows; no step reaches it, since the claim paraphrases the body in words the code does not spell, so the writer's judgement decides it and the floor is 2 of 5
+labelled: 2026-09-17
+--- code
+export function listPostingCells(): PostingCell[] {
+  const cells: PostingCell[] = [];
+
+  Object.values(Account).forEach(account => {
+    Object.values(Settlement).forEach(settlement => {
+      cells.push({ account, settlement });
+    });
+  });
+
+  return cells;
+}
+--- facts
+Lists every combination of account and settlement, account-major.

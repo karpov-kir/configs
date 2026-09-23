@@ -1,0 +1,10 @@
+expect: rename
+why: the coined compound is the code's own word, so a rename comes back instead of the word in prose; no step reaches it, since the coined-identifier check reads prose and this compound sits only in the identifier, so the writer's judgement decides it and the floor is 2 of 5
+floor: 40
+labelled: 2026-09-20
+--- code
+export function interpretPeriodBlindAnswer(clearing: Clearing, ask: (house: string) => boolean): LedgerClaim {
+  return claimFromPeriodBlindYes(clearing, getClearingIdentifiers(clearing).some(ask));
+}
+--- facts
+Reads an answer given without a period and turns it into a claim about the clearing house.

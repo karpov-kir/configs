@@ -12,7 +12,7 @@ Show the human a send you cannot recall before it goes ([live-systems.md](live-s
 
 Run the **edit lane** over every outward artifact in what you present for approval, delivery or publication: PR titles and bodies, commit messages, tickets, docs, messages to others, and code comments. Run it whoever wrote the text. Authorship sets where the edit lands and does not decide whether the lane runs: your own text it edits, another's it proposes. How they say a thing stays theirs. How much of it there is answers to the bar.
 
-Apply the lane inline by default, and dispatch a separate worker only where you want one. Run the judge over anything this lane covers whose kind it names; `bloat-judge.sh` lists the kinds when asked for one it has not got. Where a measured bar also says the artifact is over it, the bar decides how many units go. Treat boilerplate as context and never as a unit: a repo template's own lines and any tool-generated block stay, whatever the judge makes of them. Recheck changed text after a substantive revision. Leave an unchanged artifact the lane already covered alone.
+Apply the lane inline by default, and dispatch a separate worker only where you want one. Run the judge over anything this lane covers whose kind it names; `reader-judge.sh` lists the kinds when asked for one it has not got. Where a measured bar also says the artifact is over it, the bar decides how many units go. Treat boilerplate as context and never as a unit: a repo template's own lines and any tool-generated block stay, whatever the judge makes of them. Recheck changed text after a substantive revision. Leave an unchanged artifact the lane already covered alone.
 
 Do not run the judge over a reply, a worker's structured return or a report, though it names a kind for all three. A reply and a return take no lane at all: apply the writing rules to them directly. A report takes the lane inline, and never a separate worker. Agent instructions take their wording pass inside the instruction lane, after semantics and structure settle.
 
@@ -24,7 +24,7 @@ Then, sentence by sentence, name the edit the sentence causes or the answer only
 
 Preserve the artifact's required meaning: facts, negation, exceptions, numbers, tense, conditionality, commitments, severity and open questions. Where a sentence carries one of these in a PR body, a ticket or a message, shorten its expression and keep its substance. This does not hold for a code comment. A comment pays the bar by deleting whole notes ([code-style.md](code-style.md) → **Comments**), because a note compressed to fit a bar stops being readable. Keep quoted text unchanged.
 
-Apply this check within the current editing pass. External voting is an explicit tool for a disputed durable deletion, and no lane requires it for each reply, review return or artifact.
+Apply this check within the current editing pass. External voting is an explicit tool for a disputed durable deletion. No lane requires it for each reply, review return or artifact.
 
 Leave your method out of the content: the machine you drove on, what you substituted for something unavailable, the concerns you checked and found clean. A verification *result* can earn a line; the route you took to it does not. Name the gap a verdict rests on and leave out the search that found it.
 
@@ -32,9 +32,9 @@ Length is the tell you can measure, and it has two causes. The first is explaini
 
 ## AI tells
 
-A watch-list, and not a complete set.
+A watch-list; more exist than are listed here.
 
-**House voice** — the tells these instructions themselves taught, which is why they come first. Contrast as the sentence's spine (`X rather than Y`, `X, never Y`, `X, not Y`) where the reader did not ask about Y. A sentence that opens on the counterfactual (`Read it alone and …`, `Left whole, …`, `Without this, …`, `Otherwise …`). A past participle with no subject (`Counted across …`, `Guarded with …`). Claim-colon-justification as a habit. `nothing`, `nobody` and `the one` as intensifiers. A positional reference (`the token above`) where a name exists. Metaphor for mechanism (`climbs`, `slips past`, `rubber-stamps`, `hedge`, `settles`, `load-bearing`). Bold inside text that is not markdown. The edit lane measures this group.
+**House voice** — the tells these instructions themselves taught, which is why they come first. Contrast as the sentence's spine (`X rather than Y`, `X, never Y`, `X, not Y`) where the reader did not ask about Y. A sentence that opens on the counterfactual (`Read it alone and …`, `Left whole, …`, `Without this, …`, `Otherwise …`). A past participle with no subject (`Counted across …`, `Guarded with …`). Claim-colon-justification as a habit. `nothing`, `nobody` and `the one` as intensifiers. A positional reference (`the token above`) where a name exists. Metaphor for mechanism (`climbs`, `slips past`, `rubber-stamps`, `hedge`, `settles`, `load-bearing`). Bold inside text that is not markdown. The edit lane measures this group. In a code comment the naming idiom is a coined phrase, where plain English says absent, not listed or not defined. The check carries `has no name`, `names no`, `names nothing` and `a name it does not hold`.
 
 **Typography & structure** — em dashes stitching clauses (use commas or periods); bold-prefixed parallel bullets ("**Speed:** …"); emoji headers; Title Case Headings; bullets where two sentences would do.
 
@@ -60,10 +60,16 @@ Cover three things, in this order, and only while each has content. What changes
 
 Leave out why the code is right, because deciding that is the reviewer's job. Leave out what ran, because CI reports itself. What CI cannot produce — a manual drive, a migration against real data — falls to **Budget**.
 
+One PR is 110 words of your own prose or fewer. Fifty of the host repository's merged before 2026-06-01 were counted, leaving out the template's own lines and the stack map. They run to a median of 48 words and a 90th percentile of 110. A description over 110 is a finding. The median prints beside it, so an author reads the reference and the line together. The count is per PR, and a stack earns more PRs at the same width. Measured 2026-09-22. A figure moves in `comment-voice.conf`, and this line records what was counted.
+
+## Tickets
+
+A ticket takes the same 110 words until a body of tickets is measured. The PR figure stands in for one that has yet to be counted. This line says so.
+
 ## Review comments
 
-The reviewer's side, for an author deciding what to change. Put each note on the line it concerns. Put in the body the verdict, any mismatch with what was asked, and no point a line could have held.
+The reviewer's side, for an author deciding what to change. Put each note on the line it concerns. Put in the body the verdict and any mismatch with what was asked. A point a line could have held belongs on the line.
 
 Drop a note that fails **Budget**'s keep test, and do not mark it optional instead. Write no coverage accounting — the reviewer writing about the review.
 
-Treat a reply as a review comment. Open it on what changes; the thread already holds the case, and the change shows the agreement. Resolve a thread with `Done <link to the commit>` and no other text.
+Treat a reply as a review comment. Open it on what changes; the thread already holds the case, and the change shows the agreement. Resolve a thread with `Done <link to the commit>`, and leave the reply at that.

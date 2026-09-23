@@ -1,0 +1,25 @@
+expect: none
+why: both claims the facts carry are named by a test in the change set, almost in the test's own words, so question 3's carried-by-a-test step reaches each of them; the case held a third claim no test carries and called the site none for it, which is why it read 7 of 15 at baseline and why it is split
+labelled: 2026-09-22
+--- code
+export enum Settlement {
+  Unsettled = 'unsettled',
+  DirectCash = 'direct-cash',
+  BrokerCash = 'broker-cash',
+  DirectCredit = 'direct-credit',
+  BrokerCredit = 'broker-credit',
+  EscrowCredit = 'escrow-credit',
+}
+--- facts
+Only pairings that exist in practice are members, so an impossible one like escrow with cash has no name. Members
+are ordered by settlement scheme to match the posting catalog, so an account's cells under one scheme sit together
+in both.
+--- tests
+// SettlementOrder.test.ts in the change set
+it('orders settlements by scheme so an account\'s cells sit together in the catalog', () => {
+  expect(Object.values(Settlement)).toEqual(catalogOrderedSettlements());
+});
+
+it('offers escrow only under the credit scheme', () => {
+  expect(Object.values(Settlement).filter(isEscrow)).toEqual([Settlement.EscrowCredit]);
+});

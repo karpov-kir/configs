@@ -9,7 +9,7 @@
 //
 // Nothing here knows anything about the ecosystem, and that is the boundary. A checkout, the mount it
 // is compared against, and the `@import` names that load alongside it are facts about one tree rather
-// than about `sed`, so they live in `kk-flavor/tools/eco-root` with the root every path is built from.
+// than about `sed`, so they live in `ai/tools/eco-root` with the root every path is built from.
 // It is also why there is no readability test here: `[ -r ]` has two answers — open(2)'s and
 // access(2)'s — and each caller keeps the one it means rather than inheriting a shared guess.
 //

@@ -1,0 +1,19 @@
+expect: written
+note: written
+floor: 60
+keeps: postingformat
+keeps: value | values
+bars: fresh history | a renamed member
+why: run 7 wrote "The run hash derives from these names, so the dataset files a renamed member's results under a fresh history" on an enum whose members' values name the ledger's format cells; a reviewer read it on 2026-09-22 and said the second part was garbage and hard to follow, and code review found it false: the cell name is the member's value, so renaming a member that keeps its value changes nothing, and "a rename" reads either way; the fact is that the results dataset keys on the member's value, and the tie names the enum and what a changed value does
+labelled: 2026-09-22
+--- code
+export enum PostingFormat {
+  Accrual = 'accrual',
+  Deferred = 'deferred',
+  Reversal = 'reversal',
+}
+--- facts
+The results dataset keys each stored row on a member's value, and no row is found again under a value that changed.
+
+# claimed at this site by an earlier run:
+The run hash derives from these names, so the dataset files a renamed member's results under a fresh history.

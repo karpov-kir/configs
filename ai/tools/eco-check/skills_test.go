@@ -3,20 +3,15 @@ package ecocheck_test
 import (
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
+	"configs/ai/tools/runtest"
 )
 
 func TestSkillDirectory(t *testing.T) {
-	t.Run("fires on a skill directory holding no SKILL.md", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports(ecocheck.SkillDirWithoutSkillFile)
-	})
-
-	t.Run("fires when the frontmatter name is not the directory name", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports(ecocheck.SkillNameDirMismatch)
-	})
-
-	t.Run("fires on a SKILL.md carrying no description", func(t *testing.T) {
-		newBrokenSkillDirs(t).reports(ecocheck.SkillWithoutDescription)
+	// One tree holds all three defects, one per skill directory, so one run answers for all three.
+	t.Run("fires on a directory with no SKILL.md, a mismatched name and a missing description", func(t *testing.T) {
+		newBrokenSkillDirs(t).reports(ecocheck.SkillDirWithoutSkillFile,
+			ecocheck.SkillNameDirMismatch, ecocheck.SkillWithoutDescription)
 	})
 
 	// A `name:` line in the body is not a declaration. The loader reads the frontmatter block, so a
@@ -34,23 +29,20 @@ func TestAnUnreadableSkillFileIsNotReportedAsDeclaringNothing(t *testing.T) {
 	// The mounted skill's SKILL.md carries no frontmatter at all, so readable it raises both findings.
 	// That is what makes the two silences below a refusal rather than a compliant fixture.
 	newUnreadableSkill := func(t *testing.T) *fixture {
-		skipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
+		runtest.SkipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
 		f := newRoot(t)
 		f.newMountedSkill("kk-drive")
 		f.chmod(f.root+"/kk-flavor/skills/kk-drive/SKILL.md", 0o000)
 		return f
 	}
 
-	t.Run("names the file it could not read (control for the two below)", func(t *testing.T) {
-		newUnreadableSkill(t).reports(ecocheck.FileCouldNotBeRead)
-	})
-
-	t.Run("does not claim it declares an empty name", func(t *testing.T) {
-		newUnreadableSkill(t).doesNotReport(ecocheck.SkillNameDirMismatch)
-	})
-
-	t.Run("nor that it carries no description", func(t *testing.T) {
-		newUnreadableSkill(t).doesNotReport(ecocheck.SkillWithoutDescription)
+	// The refusal is the control for the two silences beside it: take it away and they hold over a run
+	// that stopped short of the file.
+	t.Run("names the file it could not read, claiming neither an empty name nor a missing description", func(t *testing.T) {
+		f := newUnreadableSkill(t)
+		output := f.run()
+		f.found(output, ecocheck.FileCouldNotBeRead)
+		f.absent(output, ecocheck.SkillNameDirMismatch, ecocheck.SkillWithoutDescription)
 	})
 }
 
@@ -78,7 +70,7 @@ func TestAnUnreadableSkillFileIsNotCountedAsADescriptionThatWasRead(t *testing.T
 	})
 
 	t.Run("drops the one it could not read out of what it claims to have measured", func(t *testing.T) {
-		skipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
+		runtest.SkipUnlessModeDeniesRead(t, "an unreadable SKILL.md cannot be built here")
 		f := newTwoSkills(t)
 		f.chmod(f.root+"/kk-flavor/skills/kk-beta/SKILL.md", 0o000)
 		// The total still counts it: the skill is in the tree, which is what that number says.

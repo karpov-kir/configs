@@ -14,7 +14,7 @@ Callers: standalone, or `idsd-ship`'s quality pass. The current coordinator owns
 ## Running a pass
 
 1. **`~/.kk-flavor/skills/idsd-qualify/scripts/report.sh check-ignore`**, before anything else (**Report**).
-2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing; follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
+2. **Set the base — the report this pass appends to.** With none for this intent, `report.sh init "<NNN-slug>"`, or `init "review: <description>"` for a standalone review. Over an existing one `init` refuses and prints the routing. Follow it. `report.sh` resolves the repo from the shell's cwd, so confirm the path `init` prints is the change set's repo.
 3. **`report.sh invalidate <intent>`**, once the report is set. Retain its JSON context for this attempt; pass it to the stage workers with their candidate scope.
 4. For applicability-based skips, run `report.sh scope <base-ref> <intent>` with the review's explicit base. It records the exact candidate and worktree. Without a valid scope receipt, run every stage rather than inventing a skip. If repairs change the candidate, refresh this receipt against the same base and revalidate affected evidence before stamping.
 

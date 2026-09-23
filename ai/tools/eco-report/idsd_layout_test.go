@@ -179,7 +179,7 @@ func TestReportWritesCannotFollowAnAgentDirectoryLink(t *testing.T) {
 func TestLayoutMigrationUpdatesOnlyOwnedIgnoreRules(t *testing.T) {
 	f := newRepo(t)
 	f.write(f.treeIdsd()+"/charter.md", "# Charter\n")
-	f.mustGit("add", ".idsd/charter.md")
+	f.track(".idsd/charter.md")
 	old := "# owner comment\n*.secret\n.idsd/intents/*/qualify-report.md\n"
 	f.write(f.repo+"/.gitignore", old)
 	f.runReport("layout", "migrate", "--dry-run")
@@ -200,7 +200,7 @@ func TestLayoutMigrationRefusesLinkedIgnoreFilesBeforeMovingArtifacts(t *testing
 		f := newRepo(t)
 		f.write(f.treeIdsd()+"/charter.md", "# Charter\n")
 		f.write(f.treeIdsd()+"/language.md", "term bytes\n")
-		f.mustGit("add", ".idsd/charter.md")
+		f.track(".idsd/charter.md")
 		outside := f.base + "/ignore-source"
 		f.write(outside, "*.secret\n")
 		if kind == "symlink" {
@@ -216,7 +216,7 @@ func TestLayoutMigrationRefusesLinkedIgnoreFilesBeforeMovingArtifacts(t *testing
 func TestLayoutMigrationKeepsScratchIgnoredAfterANegation(t *testing.T) {
 	f := newRepo(t)
 	f.write(f.treeIdsd()+"/charter.md", "# Charter\n")
-	f.mustGit("add", ".idsd/charter.md")
+	f.track(".idsd/charter.md")
 	negation := "!.idsd/intents/**/qualify-report.md"
 	f.write(f.repo+"/.gitignore", ".idsd/intents/*/qualify-report.md\n"+negation+"\n")
 	f.runReport("layout", "migrate", "--apply")

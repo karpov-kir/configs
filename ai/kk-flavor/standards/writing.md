@@ -8,7 +8,9 @@ Write so the reader understands the text on the first read, without backtracking
 * Define a term at first use in prose, or leave it out. Never cite an identifier or rule ID that resolves in no file.
 * In code and in comments, use the identifier's name or the domain's own word. A coined term belongs in neither.
 * Put one idea in a sentence, and keep it under about 25 words.
+* Two ideas joined by a semicolon are two sentences.
 * Name the actor.
+* Name the thing again where a pronoun would stand for something last named two clauses back.
 * Stack no more than three words into a noun.
 * Use plain words, direct verbs and whole sentences. Contractions are fine.
 * Put the point alone in the first sentence and the caveat after it, and put a warning before the step it guards.
@@ -27,7 +29,7 @@ Write so the reader understands the text on the first read, without backtracking
 
 ## Replying to a human
 
-Your own reply in the session, and not a message you compose for someone else. [human-writing.md](human-writing.md) → **AI tells** binds here as well, because a tell marks manufactured writing whoever reads it.
+Your own reply in the session. A message you compose for someone else is outward text and takes [human-writing.md](human-writing.md). [human-writing.md](human-writing.md) → **AI tells** binds here as well, because a tell marks manufactured writing whoever reads it.
 
 * Carry only what they must know, decide or do. Cut file lists, step-by-step narration, recaps of what you did, and preambles about what you will do. Edit the reply directly.
 * Use no headings, and no bold lead-in restating its own line. Render items as a `*` list.

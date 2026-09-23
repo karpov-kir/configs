@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // The report's frontmatter: the three lines every later reader greps, and the two rewrites that

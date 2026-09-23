@@ -18,7 +18,7 @@ import (
 	"slices"
 	"strings"
 
-	"kk-flavor/tools/shell"
+	"configs/ai/tools/shell"
 )
 
 // Path returns where the tracked default named name lives. Empty when home is not absolute: there is

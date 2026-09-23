@@ -3,7 +3,7 @@ package ecocheck_test
 import (
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // A dropped flag leaves every path resolving, so no other check here sees it. The defect this catches
@@ -13,18 +13,18 @@ func TestInvocationSpellingScan(t *testing.T) {
 	t.Run("fires on a dispatch naming fewer flags than the owning lane", func(t *testing.T) {
 		f := newTwoLaneTree(t)
 		f.write(f.root+"/kk-flavor/skills/kk-humanize/SKILL.md",
-			"run `~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh --bar` over the change\n")
+			"run `~/.kk-flavor/skills/kk-humanize/scripts/voice-check.sh --bar` over the change\n")
 		f.write(f.root+"/kk-flavor/skills/kk-drive/SKILL.md",
-			"the scanner is `~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh`\n")
+			"the scanner is `~/.kk-flavor/skills/kk-humanize/scripts/voice-check.sh`\n")
 		f.reports(ecocheck.DispatchNamesFewerFlags)
 	})
 
 	t.Run("stays quiet when the dispatch spells the lane's own flags", func(t *testing.T) {
 		f := newTwoLaneTree(t)
 		f.write(f.root+"/kk-flavor/skills/kk-humanize/SKILL.md",
-			"run `~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh --bar` over the change\n")
+			"run `~/.kk-flavor/skills/kk-humanize/scripts/voice-check.sh --bar` over the change\n")
 		f.write(f.root+"/kk-flavor/skills/kk-drive/SKILL.md",
-			"the scanner is `~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh --bar`\n")
+			"the scanner is `~/.kk-flavor/skills/kk-humanize/scripts/voice-check.sh --bar`\n")
 		f.doesNotReport(ecocheck.DispatchNamesFewerFlags)
 	})
 
@@ -32,9 +32,9 @@ func TestInvocationSpellingScan(t *testing.T) {
 	t.Run("stays quiet on prose that merely names the script", func(t *testing.T) {
 		f := newTwoLaneTree(t)
 		f.write(f.root+"/kk-flavor/skills/kk-humanize/SKILL.md",
-			"run `~/.kk-flavor/skills/kk-humanize/scripts/comment-density.sh --bar` over the change\n")
+			"run `~/.kk-flavor/skills/kk-humanize/scripts/voice-check.sh --bar` over the change\n")
 		f.write(f.root+"/kk-flavor/skills/kk-drive/SKILL.md",
-			"open: comment-density.sh's baseline scan has no case for this\n")
+			"open: voice-check.sh's baseline scan has no case for this\n")
 		f.doesNotReport(ecocheck.DispatchNamesFewerFlags)
 	})
 }

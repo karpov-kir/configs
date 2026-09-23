@@ -43,7 +43,6 @@ Read this file, the standards the flavor's router (`~/.kk-flavor/inject.md`) poi
 - **Write each verdict to a ledger as you emit it**, at the path your caller names, or `<scratch>/<skill>-queue.md` standalone. One entry per file: its path and its verdict as emitted. The gates you ran and the negative controls you proved go in it too — your caller reads them when it needs them. The scratch dir is **outside the repository**. On starting, validate existing evidence before resuming at the first file without a current verdict.
 - **One ledger per spawn, never per skill.** The scratch dir is per *session*, so an orchestrator spawning a skill more than once names a distinct path each time. Reusing it makes the second spawn adopt the first's completed queue, find no unverdicted file, and close having read nothing.
 - **A ledger records scope and evidence, not permission to skip changed work.** Head it with the tree fingerprint and resolved file list. Use `~/.kk-flavor/scripts/tree-fingerprint.sh`, never an index-mutating substitute. Record the file/dependency content and relevant instructions/tools behind each verdict. If the tree changes, invalidate affected entries; retain others only when those inputs are provably unchanged. Missing or unparseable evidence requires review again. A workflow's whole-tree stamp remains its own stricter gate.
-- **Prove a file you are about to read is this run's, with a stamp you wrote and read back.** `noclobber` makes `> file` refuse when the file exists, so the command never runs and whatever sat at that path stays — and non-empty does not distinguish that from your own output. Neither does a fresh `mktemp` path: it creates the file, so a plain `>` to it is refused too. Write `>|`. What survives is as likely another lane's data as your own, and it reads as a result.
 
 ## Loop
 
@@ -91,13 +90,24 @@ A handoff carries **only the files that opened the lane** — the ones you chang
 - Manufacture findings — `OK` with no edits is correct when nothing earns action.
 - Change anything your lens doesn't flag (no rewording for taste).
 
+## Waiting for work you dispatched
+
+Take the runtime's own completion event where there is one. A task that notifies on exit needs no watcher, and repeating a status read against unchanged output is a watcher. Never invent a marker or a close-agent operation the runtime does not provide.
+
+Where you have to poll, **poll in the foreground**, and re-issue the call until the subject arrives. **A foreground call that hits its timeout does not end.** The runtime moves it to the background and returns a handle for it, so end that handle before you re-issue. A wait left running is parented to a daemon that outlives the session, its archive and its worktree. `~/.kk-flavor/scripts/wait-reap.sh` lists what earlier runs left running, and ends the ones it can prove abandoned.
+
+- **Never detach a loop whose only job is to wait**, and never park a turn on a condition you do not intend to satisfy. A sentinel no session will write keeps a process alive until the machine reboots. A stage that cannot yield ends its turn and returns instead.
+- **Never wait on a process name.** `pgrep -f <pattern>` excludes itself and its own ancestors, and matches a sibling waiter carrying the same pattern. Two waiters on one pattern hold each other open for good. Wait on a pid, on a file, or on the runtime's own status.
+- **Every wait carries a deadline and a failure signal.** A loop watching only for the success marker stays silent when the job dies. Silence reads exactly like still running.
+- **Keep the job's log**, and report what moved in it since your last read.
+
 ## Orchestrators — interactive first
 
 Prefer asking the human live over deferring to a digest. Ask a blocking decision (defined below) now. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. A subagent's `blocked` return relays the same way; answer it, then resume **that** subagent by its ID, never a fresh spawn — which re-reads what it already read.
 
 **Before concurrent writes, establish who holds each path.** Tell affected peers when ownership changes. Dispatch ready leaf workers within the runtime's actual capacity; a full pool queues work rather than spawning proxy orchestrators. Reuse a worker for a scoped continuation when its context is still valid.
 
-**Use native completion waits when no independent work remains.** Prefer completion or failure events to repeated status reads. For external commands, wait on the process and retain its log; communicate meaningful progress without repeatedly loading unchanged output. Never invent a marker or a close-agent operation the runtime does not provide.
+**Use native completion waits when no independent work remains** (**Waiting for work you dispatched**).
 
 **While a stage is live, the history under it must not move**: no rebase, cherry-pick, reset, amend, branch switch or base change until it returns. A working-tree edit is a different thing, already answered by **Loop**. Finish the stage or abandon it, do the maintenance, then spawn it fresh against the new HEAD; a separate worktree is the only safe overlap.
 

@@ -1,0 +1,17 @@
+expect: written
+note: written
+floor: 40
+keeps: width | four
+why: the code names four attributes and the claim calls them "an attribute", so a reader has to go and find which; the remedy is their names, or their kind with the count as in "any of the four size attributes"; no check reaches this, since a generic noun is ordinary English, so judgement decides it and the floor is 2 of 5
+labelled: 2026-09-21
+--- code
+export function sizeOf(track: LedgerTrack): Size | undefined {
+  for (const key of ['width', 'height', 'bandwidth', 'frameRate'] as const) {
+    if (typeof track[key] !== 'number' || track[key] <= 0) {
+      return undefined;
+    }
+  }
+  return { width: track.width, height: track.height };
+}
+--- facts
+A posting is rejected where an attribute is absent or not positive, so this returns undefined there.

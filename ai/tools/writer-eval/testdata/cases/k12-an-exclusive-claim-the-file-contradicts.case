@@ -1,0 +1,19 @@
+expect: written
+note: written
+floor: 60
+bars: no other | and none other | accepts only the accrual | only that source
+why: the claim says the legacy poster takes one source and no other, and postRow in the same file sends every row through it when the modern poster is absent; the stale step reads the facts file against the code, so a claim written fresh carries no reader at all, and run 7 found two blocks whose own new sentences the file contradicted; the word of exclusivity is dropped or the claim goes back as `unverified:`, and the audit is where the reading happens
+labelled: 2026-09-21
+--- code
+export function postThroughLegacy(row: LedgerRow): Receipt {
+  return legacyPoster.post(row, 'accrual-eu');
+}
+
+export function postRow(row: LedgerRow): Receipt {
+  if (modernPoster === undefined) {
+    return postThroughLegacy(row);
+  }
+  return modernPoster.post(row);
+}
+--- facts
+The legacy poster accepts the accrual-eu source and no other.

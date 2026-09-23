@@ -20,13 +20,12 @@ func TestEveryWorktreeOfACloneSeesTheOneScratchDirectory(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "001-shared")
 	f.newIntentFile("001-shared")
-	second := f.base + "/second-worktree"
-	f.mustGit("worktree", "add", "-q", second, "-b", "second")
-	if !f.exists(second) {
-		t.Skip("git worktree add is unavailable here, so this case cannot be built")
-	}
-	f.record("fixture: git reports two worktrees",
-		countLinesWithPrefix(f.mustGit("worktree", "list", "--porcelain"), "worktree ") == 2, "")
+	second := f.newLinkedWorktree("second-worktree")
+	// The fixture's own precondition: a linked worktree's git dir is its OWN and its common dir is the
+	// clone's, which is the whole shape the two answers here turn on. A `.git` this tool read as an
+	// ordinary directory would resolve one location twice and pass.
+	f.record("fixture: the second checkout is a linked worktree of the first",
+		f.read(second+"/.git") != "" && f.read(f.repo+"/.git/worktrees/second-worktree/commondir") != "", "")
 
 	// Asked from the second worktree, which is the vantage point that used to see nothing.
 	fromSecond := f.runReportStdoutIn(second, "root")
@@ -60,7 +59,10 @@ func TestTheScratchDirectorySurvivesABranchSwitch(t *testing.T) {
 	f := newShip(t, "001-branching")
 	f.newIntentFile("001-branching")
 	before := f.runReportStdout("root")
-	f.mustGit("checkout", "-q", "-b", "elsewhere")
+	// A branch switch, as the layout sees one: the `.git` directory is the same directory whatever HEAD
+	// names, which is exactly why the location must not move. What git does to the WORKING TREE on a
+	// checkout is git's own and `repo/exec_test.go`'s.
+	f.write(f.repo+"/.git/HEAD", "ref: refs/heads/elsewhere\n")
 	// `before != ""` because two refusals both print nothing, and empty is unchanged from empty: without
 	// it the case passes for a tool that resolved nothing.
 	f.record("the location is unchanged by a branch switch", f.runReportStdout("root") == before && before != "", before)
@@ -90,14 +92,11 @@ func TestTheLocationIsResolvedFromTheRootNotTheCallersDirectory(t *testing.T) {
 func TestScratchSitsWhereGitAddAllCannotReachIt(t *testing.T) {
 	t.Parallel()
 	// The property that replaced the local exclusion; treeIsFreeOfScratch says why it is the stronger of
-	// the two, and asks git rather than the layout.
+	// the two, and what it looks at.
 	f := newShip(t, "001-unreachable")
 	f.newIntentFile("001-unreachable")
 	f.armFullPass("001-unreachable")
 	f.record("a full pass leaves the working tree with nothing to hide", f.treeIsFreeOfScratch(), f.evidence())
-	dirty, _ := f.git("status", "--porcelain")
-	f.record("and git status says nothing about idsd at all",
-		!strings.Contains(dirty, "idsd"), "git status --porcelain:\n"+dirty)
 	// Named rather than merely true: check-ignore is what a skill runs first, and its line is where the
 	// human learns which directory this run is writing to.
 	f.runReport("check-ignore")
@@ -153,11 +152,7 @@ func TestAnOverrideKeyIsTheCloneNotTheWorktree(t *testing.T) {
 	f := newShip(t, "001-keyed")
 	elsewhere := f.base + "/elsewhere"
 	f.writeOverride("root " + elsewhere + "\n")
-	second := f.base + "/wt-named-differently"
-	f.mustGit("worktree", "add", "-q", second, "-b", "second")
-	if !f.exists(second) {
-		t.Skip("git worktree add is unavailable here, so this case cannot be built")
-	}
+	second := f.newLinkedWorktree("wt-named-differently")
 	fromRoot := f.runReportStdout("root")
 	fromWorktree := f.runReportStdoutIn(second, "root")
 	// Checked before comparing them: two refusals both print nothing, and empty equals empty, so without
@@ -177,11 +172,7 @@ func TestTwoClonesOfOneRepoNeverShareAScratchDirectory(t *testing.T) {
 	f := newRepo(t)
 	elsewhere := f.base + "/elsewhere"
 	f.writeOverride("root " + elsewhere + "\n")
-	clone := f.base + "/second-clone/r"
-	f.mkdirAll(f.base + "/second-clone")
-	if _, status := f.gitIn(f.base+"/second-clone", "clone", "-q", f.repo, "r"); status != 0 {
-		t.Skip("git clone is unavailable here, so this case cannot be built")
-	}
+	clone := f.newSecondClone("second-clone/r")
 	first := f.runReportStdout("root")
 	second := f.runReportStdoutIn(clone, "root")
 	f.record("two clones of one repository resolve different scratch directories",
@@ -312,11 +303,11 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 		exclude := f.repo + "/.git/info/exclude"
 		f.appendTo(exclude, "*.scratch\n.idsd/\nbuild/\n")
 		f.runReport("check-ignore")
+		// Their lines, whole and in place. Whether a rule still MATCHES once its neighbour is gone is
+		// git's own question, and `repo/exec_test.go` holds git to it.
 		f.record("their rules survive",
 			containsLine(f.read(exclude), "*.scratch") && containsLine(f.read(exclude), "build/") &&
 				!containsLine(f.read(exclude), ".idsd/"), f.read(exclude))
-		_, theirs := f.git("check-ignore", "-q", "keep.scratch")
-		f.record("and still take effect", theirs == 0, "check-ignore keep.scratch exited "+strconv.Itoa(theirs))
 	})
 
 	// Ordering, and it matters: cleaning before the in-tree reconcile refuses would strip the rule and
@@ -344,7 +335,7 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 		f.record("promote succeeds",
 			f.status == 0 && f.runReportStdout("repo-mode") == "committed", f.evidence())
 		f.record("and the stale rule is gone", !containsLine(f.read(exclude), ".idsd/"), f.read(exclude))
-		staged, _ := f.git("diff", "--cached", "--name-only")
+		staged := f.staged()
 		f.record("and the intent it moved is actually staged",
 			strings.Contains(staged, ".idsd/intents/001-promoting-stale/intent.md"), "staged:\n"+staged)
 	})
@@ -353,11 +344,7 @@ func TestTheStaleExclusionRuleIsCleanedUp(t *testing.T) {
 func TestStageResultsStayOutsideALinkedWorktree(t *testing.T) {
 	t.Parallel()
 	f := newShip(t, "001-markers")
-	second := f.base + "/marker-worktree"
-	f.mustGit("worktree", "add", "-q", second, "-b", "markers")
-	if !f.exists(second) {
-		t.Skip("git worktree add is unavailable here, so this case cannot be built")
-	}
+	second := f.newLinkedWorktree("marker-worktree")
 	// What the worktree held before the write, so a stray is detected by what appeared rather than by
 	// guessing the shape of the wrong path. Naming a prefix cannot work: the stray mirrors wherever the
 	// fixture happens to live — /private/var here, something else on CI — so a literal `/Users` check
@@ -382,11 +369,7 @@ func TestStageResultsStayOutsideALinkedWorktree(t *testing.T) {
 func TestStageResultsStayOutsideALinkedWorktreeWithLayoutOverrides(t *testing.T) {
 	t.Setenv("GIT_CEILING_DIRECTORIES", t.TempDir()+"/elsewhere")
 	f := newShip(t, "002-markers")
-	second := f.base + "/override-worktree"
-	f.mustGit("worktree", "add", "-q", second, "-b", "override-markers")
-	if !f.exists(second) {
-		t.Skip("git worktree add is unavailable here, so this case cannot be built")
-	}
+	second := f.newLinkedWorktree("override-worktree")
 	before := strings.Join(f.entries(second), "\n")
 	f.runReportIn(second, "invalidate", "002-markers")
 	f.recordCleanStageIn(cleanStageOptions{dir: second, stage: "code-review", intent: "002-markers"})
@@ -411,11 +394,7 @@ func TestASiblingWorktreeCannotReadAStampItNeverEarned(t *testing.T) {
 	// So the sibling read a ship it never ran as its own `ready`, and `gate` passed it.
 	f := newShip(t, "090-twin")
 	f.newIntentFile("090-twin")
-	twin := f.base + "/twin-worktree"
-	f.mustGit("worktree", "add", "-q", twin, "-b", "twin")
-	if !f.exists(twin) {
-		t.Skip("git worktree add is unavailable here, so this case cannot be built")
-	}
+	twin := f.newLinkedWorktree("twin-worktree")
 	// Stamped in the main checkout only. Both trees are clean and at the same commit, which is exactly
 	// the state a freshly added worktree is in.
 	f.stampFullPass("090-twin")
@@ -486,11 +465,7 @@ func TestAWorktreeIdentityIsNotItsPath(t *testing.T) {
 	t.Run("a new worktree at a reused path does not inherit the stamp", func(t *testing.T) {
 		f := newShip(t, "092-recycled")
 		f.newIntentFile("092-recycled")
-		reused := f.base + "/recycled"
-		f.mustGit("worktree", "add", "-q", reused, "-b", "first")
-		if !f.exists(reused) {
-			t.Skip("git worktree add is unavailable here, so this case cannot be built")
-		}
+		reused := f.newLinkedWorktree("recycled")
 		// Stamped by the first occupant of that path, which then gates clean there.
 		f.stampFullPassIn(reused, "092-recycled")
 		f.runReportIn(reused, "gate", "092-recycled")
@@ -498,8 +473,8 @@ func TestAWorktreeIdentityIsNotItsPath(t *testing.T) {
 
 		// Removed and recreated at the SAME path — ordinary practice for a scratch worktree, and a
 		// brand-new worktree that has run nothing.
-		f.mustGit("worktree", "remove", reused)
-		f.mustGit("worktree", "add", "-q", reused, "-b", "second")
+		f.removeLinkedWorktree("recycled")
+		reused = f.newLinkedWorktree("recycled")
 		f.runReportIn(reused, "gate", "092-recycled")
 		f.record("the replacement does not inherit its predecessor's clean gate",
 			f.status != 0, f.evidence())
@@ -510,15 +485,9 @@ func TestAWorktreeIdentityIsNotItsPath(t *testing.T) {
 	t.Run("a moved worktree keeps its own stamp", func(t *testing.T) {
 		f := newShip(t, "093-moved")
 		f.newIntentFile("093-moved")
-		from, to := f.base+"/before-move", f.base+"/after-move"
-		f.mustGit("worktree", "add", "-q", from, "-b", "mover")
-		if !f.exists(from) {
-			t.Skip("git worktree add is unavailable here, so this case cannot be built")
-		}
+		from, to := f.newLinkedWorktree("before-move"), f.base+"/after-move"
 		f.stampFullPassIn(from, "093-moved")
-		if _, status := f.git("worktree", "move", from, to); status != 0 {
-			t.Skip("git worktree move is unavailable here, so this case cannot be built")
-		}
+		f.moveLinkedWorktree(from, to)
 		// The worktree that did the work is the same worktree, wherever it now sits. Telling it
 		// otherwise costs a whole re-qualify for a directory rename.
 		f.runReportIn(to, "gate", "093-moved")
@@ -555,11 +524,7 @@ func TestAnIdentityThatCannotBeEstablishedIsNotAnIdentity(t *testing.T) {
 	t.Run("and two worktrees that cannot mint do not gate clean off each other", func(t *testing.T) {
 		f := newShip(t, "095-both-broken")
 		f.newIntentFile("095-both-broken")
-		twin := f.base + "/broken-twin"
-		f.mustGit("worktree", "add", "-q", twin, "-b", "broken")
-		if !f.exists(twin) {
-			t.Skip("git worktree add is unavailable here, so this case cannot be built")
-		}
+		twin := f.newLinkedWorktree("broken-twin")
 		// Stamped while identity works, so there is a real review to steal.
 		f.stampFullPass("095-both-broken")
 		// Now break minting on BOTH sides, which is how the condition actually occurs — the private git
@@ -712,11 +677,7 @@ func TestTheGateClaimsIdenticalTreesOnlyWhenTheyAre(t *testing.T) {
 
 	// A sibling worktree makes the token mismatch; editing the tree makes the fingerprints differ. Both
 	// blocks now fire, and the pair must not contradict each other.
-	twin := f.base + "/contradiction-twin"
-	f.mustGit("worktree", "add", "-q", twin, "-b", "twin")
-	if !f.exists(twin) {
-		t.Skip("git worktree add is unavailable here, so this case cannot be built")
-	}
+	twin := f.newLinkedWorktree("contradiction-twin")
 	f.write(twin+"/moved.txt", "the tree is now different here\n")
 	f.runReportIn(twin, "gate", "102-contradiction")
 	f.record("both blocks fire", f.status != 0, f.evidence())
@@ -728,8 +689,7 @@ func TestTheGateClaimsIdenticalTreesOnlyWhenTheyAre(t *testing.T) {
 	// is what explains why a matching fingerprint did not clear the block.
 	same := newShip(t, "103-identical")
 	same.newIntentFile("103-identical")
-	sameTwin := same.base + "/identical-twin"
-	same.mustGit("worktree", "add", "-q", sameTwin, "-b", "identical")
+	sameTwin := same.newLinkedWorktree("identical-twin")
 	same.stampFullPass("103-identical")
 	same.runReportIn(sameTwin, "gate", "103-identical")
 	same.record("while identical trees still get the sentence that explains them",

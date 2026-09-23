@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	ecocheck "kk-flavor/tools/eco-check"
+	ecocheck "configs/ai/tools/eco-check"
 )
 
 // A link target is written by the branch under review, and `..` is in its charset, so the scan used
@@ -13,8 +13,10 @@ import (
 // missing, so the silence told the branch's author which files the reviewing machine holds. Both
 // answers have to look the same now.
 func TestATraversalLinkIsNotStatted(t *testing.T) {
-	// One target that exists outside the root, one that does not.
-	newProbe := func(t *testing.T) (*fixture, string, string) {
+	// One target that exists outside the root, one that does not — on one file, so one run sees both.
+	// The second needle is what closes the oracle: without it the present target goes unreported, and
+	// that gap between the two findings is the leak.
+	t.Run("reports a traversal to a file that is not there, and the one that is, identically", func(t *testing.T) {
 		f := newRoot(t)
 		f.write(f.base+"/present.md", "# here\n")
 		up := "../../../../../../../../../../../../../../../../../../../../"
@@ -22,19 +24,9 @@ func TestATraversalLinkIsNotStatted(t *testing.T) {
 		fake := up + strings.TrimPrefix(f.base+"/absent.md", "/")
 		f.write(f.root+"/kk-flavor/standards/probe.md",
 			"- [a]("+real+")\n- [b]("+fake+")\n")
-		return f, real, fake
-	}
 
-	t.Run("reports a traversal to a file that is not there", func(t *testing.T) {
-		f, _, fake := newProbe(t)
-		f.reports(ecocheck.DanglingLink + f.root + "/kk-flavor/standards/probe.md -> " + fake)
-	})
-
-	// The half that closes the oracle. Without it the present target goes unreported, and that gap
-	// between the two findings is the leak.
-	t.Run("and reports the one that is there identically", func(t *testing.T) {
-		f, real, _ := newProbe(t)
-		f.reports(ecocheck.DanglingLink + f.root + "/kk-flavor/standards/probe.md -> " + real)
+		head := ecocheck.DanglingLink + f.root + "/kk-flavor/standards/probe.md -> "
+		f.reports(head+fake, head+real)
 	})
 
 	// The control. Without it, a scan that reported every link would pass here just as well as one

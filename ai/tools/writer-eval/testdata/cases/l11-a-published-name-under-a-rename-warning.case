@@ -1,0 +1,26 @@
+expect: written
+note: written
+floor: 60
+keeps: rename | renamed | published
+why: the claim is that these names are published and carry a rename warning, which is a fact about a surface outside this file and no test in the change set names it; it rode in l01 with two claims the tests do carry, and a writer keeping this one and dropping those two was following the brief while the case counted a miss
+labelled: 2026-09-22
+--- code
+export enum Settlement {
+  Unsettled = 'unsettled',
+  DirectCash = 'direct-cash',
+  BrokerCash = 'broker-cash',
+  DirectCredit = 'direct-credit',
+  BrokerCredit = 'broker-credit',
+  EscrowCredit = 'escrow-credit',
+}
+--- facts
+Names every settlement the ledger measures, published names under the same rename warning as {@link Account}.
+--- tests
+// SettlementOrder.test.ts in the change set
+it('orders settlements by scheme so an account\'s cells sit together in the catalog', () => {
+  expect(Object.values(Settlement)).toEqual(catalogOrderedSettlements());
+});
+
+it('offers escrow only under the credit scheme', () => {
+  expect(Object.values(Settlement).filter(isEscrow)).toEqual([Settlement.EscrowCredit]);
+});

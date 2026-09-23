@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	ecostats "kk-flavor/tools/eco-stats"
+	ecostats "configs/ai/tools/eco-stats"
 )
 
 func TestStatsRequiresAgentAndMeasuresCodexBudget(t *testing.T) {
@@ -21,10 +21,8 @@ func TestStatsRequiresAgentAndMeasuresCodexBudget(t *testing.T) {
 		t.Fatalf("%d: %s", code, out.String())
 	}
 	// The scope note is not asserted here: TestTheLedgerRowAndItsLineSayWhatTheFigureLeavesOut owns it.
-	for _, expected := range []string{"= 5 router"} {
-		if !strings.Contains(out.String(), expected) {
-			t.Errorf("missing %q: %s", expected, out.String())
-		}
+	if !strings.Contains(out.String(), "= 5 router") {
+		t.Errorf("missing %q: %s", "= 5 router", out.String())
 	}
 	if strings.Contains(out.String(), "uncounted import") {
 		t.Fatal(out.String())

@@ -93,8 +93,9 @@ func (r *run) candidateResultContext(attempt string) resultContext {
 	if !ok {
 		r.exit(2)
 	}
-	head, status := r.memoGit(r.errOut, "rev-parse", "--verify", "HEAD")
-	if status != 0 || head == "" {
+	head, err := r.askOnce("HEAD", func() (string, error) { return r.git.Resolve(r.root, "HEAD") })
+	if err != nil || head == "" {
+		r.sayWhatGitSaid(err)
 		r.refuse("error: could not identify qualification HEAD")
 	}
 	worktree, ok := r.worktreeToken()

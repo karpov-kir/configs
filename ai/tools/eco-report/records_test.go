@@ -269,7 +269,7 @@ func TestAFullRecordRefusesTheAppendAndAdmitIsTheWayIn(t *testing.T) {
 		f.evidence())
 	f.record("and promises no contest that always resolves",
 		!strings.Contains(f.out, "loses") && !strings.Contains(f.out, "tie"), f.evidence())
-	// Exit 2 is `bloat-judge.sh` saying it did NOT run, and it prints the same empty stdout as exit 0.
+	// Exit 2 is `reader-judge.sh` saying it did NOT run, and it prints the same empty stdout as exit 0.
 	// An agent holding only the exit-0 reading takes that silence for "the judge named nothing" and
 	// calls the cap held — a verdict nothing reached. Measured in the field on a 109-entry record.
 	f.record("and reads exit 2 as the judge not having run, leaving the append refused",
@@ -642,8 +642,8 @@ func TestARecordWriteWaitsForTheLockRatherThanRacingIt(t *testing.T) {
 //
 // Reports false the moment the write finishes instead — which is what a lock excluding nothing does,
 // and the only other end this loop has. Nothing here is bounded by the clock. A starved machine merely
-// sends the loop round more times, and `go test -timeout 30m` (gate/run.go, goSuiteTimeout) is what
-// ends a run whose write never arrives at all.
+// sends the loop round more times. The suite timeout the gate gives every package (budgetSeconds, the
+// const in gate/gate.go) is what ends a run whose write never arrives at all.
 func awaitTheWriteParkedOnTheLock(id string, landed <-chan struct{}) (string, bool) {
 	confirmed := false
 	for {
@@ -751,9 +751,8 @@ func TestARecordIsNeverWrittenWhereGitCanReachIt(t *testing.T) {
 	// entries land in the human's own `git add -A`.
 	f.runReport("record", "append", "project-decisions", "this must not reach the working tree")
 	f.assertRefused("and record refuses that layout rather than writing into it")
-	status, _ := f.git("status", "--porcelain")
-	f.record("so nothing of the record reaches git",
-		!strings.Contains(status, "inside-the-tree"), "git status --porcelain:\n"+status)
+	f.record("so nothing of the record reaches the working tree at all",
+		!f.exists(f.repo+"/inside-the-tree"), joinLines(f.entries(f.repo)))
 }
 
 func TestAnEvictLeavesNoTailOfWhatItRemoved(t *testing.T) {
