@@ -1,9 +1,9 @@
 // Package flavorconfig reads the tracked defaults the flavor ships under `kk-flavor/configs/`.
 //
-// One shape for every tool with a tunable: `<key> <value>` a line, `#` comments, and the file read
-// through the installed mount, so an arbitrary repository being judged does not set the bounds it is
-// judged under (`~/.kk-flavor/standards/ecosystem.md` → "Conventions a new file joins"). In the
-// flavor's own checkout the mount is the working tree.
+// One shape for every tool with a tunable: `<key> <value>` a line, `#` comments. The file comes from
+// the checkout the running binary was built in, so a config is exactly as trusted as the code reading
+// it, and an arbitrary repository being judged does not set the bounds it is judged under
+// (`~/.kk-flavor/standards/ecosystem.md` → "Conventions a new file joins").
 //
 // This package parses. What a value means and what a refusal costs the run are each caller's.
 //
@@ -21,13 +21,48 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// Path returns where the tracked default named name lives. Empty when home is not absolute: there is
-// then no mount for one to sit in, which the caller reads the same way as having none.
+// Path returns where the tracked default named name lives. Empty when there is nowhere for one to sit,
+// which the caller reads the same way as having none.
 func Path(home, name string) string {
+	exe, err := os.Executable()
+	if err != nil {
+		exe = ""
+	}
+	dir := dirFor(exe, home)
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, name)
+}
+
+// dirFor is Path's decision, with the executable passed in so a case can name one.
+//
+// A binary the resolver builds or downloads sits at `<checkout>/ai/tools/bin/<tool>`, and that
+// checkout's configs are the ones this reads. Two things follow. A worktree tests its own configs
+// rather than whatever the installed mount has checked out, and CI, which has no mount, reads the
+// configs it built from. A host repository still cannot choose them: a skill runs a script through
+// `~/.kk-flavor` wherever the working directory holds code the human did not write, and that stub
+// resolves to the installed checkout's binary.
+//
+// A binary anywhere else — a `go test` build, a `go run` — falls back to the mount under home. Empty
+// when home is not absolute: there is then no mount for one to sit in.
+func dirFor(exe, home string) string {
+	if exe != "" {
+		if real, err := filepath.EvalSymlinks(exe); err == nil {
+			exe = real
+		}
+		bin := filepath.Dir(exe)
+		if filepath.Base(bin) == "bin" && filepath.Base(filepath.Dir(bin)) == "tools" {
+			beside := filepath.Join(filepath.Dir(filepath.Dir(bin)), "kk-flavor", "configs")
+			if info, err := os.Stat(beside); err == nil && info.IsDir() {
+				return beside
+			}
+		}
+	}
 	if !filepath.IsAbs(home) {
 		return ""
 	}
-	return filepath.Join(home, ".kk-flavor", "configs", name)
+	return filepath.Join(home, ".kk-flavor", "configs")
 }
 
 // Read returns the settings the file at path holds, or nil when there is no such file. allowed lists

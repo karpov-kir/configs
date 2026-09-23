@@ -378,7 +378,7 @@ func TestTheShippedConfigParsesAndMatchesTheBuiltInDefaults(t *testing.T) {
 		t.Fatalf("the shipped dup-literals.conf sets %v, and this tool reads %v", settings, configKeys)
 	}
 	if settings["min-length"] != fmt.Sprint(defaultMinLength) || settings["max-file-bytes"] != fmt.Sprint(defaultMaxFileBytes) {
-		t.Fatalf("the shipped config holds %v and the built-in defaults are %d/%d — a run that cannot reach the mount would scan against different thresholds",
+		t.Fatalf("the shipped config holds %v and the built-in defaults are %d/%d — a run that finds no configs would scan against different thresholds",
 			settings, defaultMinLength, defaultMaxFileBytes)
 	}
 }

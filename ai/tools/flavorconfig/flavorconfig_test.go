@@ -25,6 +25,45 @@ func TestPathResolvesInsideTheMountAndIsEmptyWithoutOne(t *testing.T) {
 	}
 }
 
+// A binary in a checkout's `ai/tools/bin/` reads that checkout's configs, whatever the mount holds.
+// That is the whole of why a worktree can change a config and gate it before it lands.
+func TestABinaryInACheckoutReadsThatCheckoutsConfigs(t *testing.T) {
+	root := t.TempDir()
+	configs := filepath.Join(root, "ai", "kk-flavor", "configs")
+	bin := filepath.Join(root, "ai", "tools", "bin")
+	for _, dir := range []string{configs, bin} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exe := filepath.Join(bin, "reader-judge")
+	if err := os.WriteFile(exe, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The temp root may itself sit behind a symlink, as macOS's /var does, and the binary's path is
+	// resolved before its checkout is read off it.
+	real, err := filepath.EvalSymlinks(configs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := dirFor(exe, "/home/someone"); got != real {
+		t.Fatalf("got %q, want the checkout's own %q", got, real)
+	}
+}
+
+// Anywhere else — a test build, a checkout that ships no configs — the mount under home answers.
+func TestABinaryOutsideACheckoutFallsBackToTheMount(t *testing.T) {
+	stray := filepath.Join(t.TempDir(), "tools", "bin")
+	if err := os.MkdirAll(stray, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, exe := range []string{"", "/tmp/go-build1/b001/x.test", filepath.Join(stray, "x")} {
+		if got := dirFor(exe, "/home/someone"); got != "/home/someone/.kk-flavor/configs" {
+			t.Errorf("%q answered %q, want the mount", exe, got)
+		}
+	}
+}
+
 func TestAnAbsentConfigIsQuiet(t *testing.T) {
 	for _, path := range []string{"", filepath.Join(t.TempDir(), "nothing.conf")} {
 		settings, err := Read(path, []string{"key"})

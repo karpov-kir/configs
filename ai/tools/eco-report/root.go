@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"configs/ai/tools/flavorconfig"
 	repokey "configs/ai/tools/repo-key"
 	"configs/ai/tools/shell"
 )
@@ -73,14 +74,11 @@ func (r *run) overrideConfigPath() string {
 	return config + "/kk-flavor/idsd.conf"
 }
 
-// The tracked default the flavor tree on this machine ships. It is read through the mount, so an
-// arbitrary repository being qualified does not choose where its own reports are written or what
-// `discard` removes.
+// The tracked default, from the checkout this binary was built in. flavorconfig.Path says why that
+// keeps an arbitrary repository being qualified from choosing where its own reports are written or
+// what `discard` removes. Only the location is shared: the reading stays here, for its guards.
 func (r *run) defaultConfigPath() string {
-	if !filepath.IsAbs(r.home) {
-		return ""
-	}
-	return r.home + "/.kk-flavor/configs/idsd.conf"
+	return flavorconfig.Path(r.home, "idsd.conf")
 }
 
 // The root the config at path names, or empty when there is no such file. Absent is quiet, and a file

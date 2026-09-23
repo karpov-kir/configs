@@ -32,8 +32,8 @@ import (
 // itself generous. 900 restores the ratio. Concurrency is what makes it affordable, every roll of a
 // vote waiting at once — one at a time it would bound a run at 45 minutes.
 //
-// `configs/reader-judge.conf` ships this same number and wins wherever the mount is reachable, so the
-// two move together. This constant is the bound for a checkout run straight out of the tree.
+// `configs/reader-judge.conf` ships this same number and wins wherever a configs directory is found,
+// so the two move together. This constant is the bound when none is.
 const defaultRollDeadline = 900 * time.Second
 
 const overrideKey = "roll-timeout"

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -453,22 +454,67 @@ func TestAnAllowlistDropsOnlyTheFindingItNames(t *testing.T) {
 	}
 }
 
-// The conf is the repository's before the machine's: a coined word is a property of the codebase, and
-// a machine-wide list would answer for every repository the human works in.
-func TestTheRepositorysOwnConfComesBeforeTheMachines(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".kk-flavor"), 0o755); err != nil {
+// Writes a conf at the path the flavor ships one, under a HOME of the case's own. A test build is not
+// in a checkout's ai/tools/bin/, so flavorconfig answers with the mount under HOME.
+func shipConf(t *testing.T, home, body string) string {
+	t.Helper()
+	dir := filepath.Join(home, ".kk-flavor", "configs")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	repoConf := filepath.Join(dir, ".kk-flavor", voiceConfName)
-	if err := os.WriteFile(repoConf, []byte("coined climb\n"), 0o644); err != nil {
-		t.Fatal(err)
+	path := filepath.Join(dir, voiceConfName)
+	if body != "" {
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	t.Setenv("XDG_CONFIG_HOME", dir+"/machine")
+	return path
+}
+
+// The shipped conf and the machine's add together. One codebase's vocabulary on this machine must not
+// hide the flavor's own, which an override would do wherever the other file was found first.
+func TestTheShippedAndMachineConfsAddTogether(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	t.Setenv("COMMENT_VOICE_CONF", "")
-	got, origin, ok := voiceConfPath(dir)
-	if !ok || got != repoConf || origin != confRepository {
-		t.Fatalf("resolved %q as %q (found %v), want the repository's own conf at %q", got, origin, ok, repoConf)
+	shipConf(t, home, "domain reader-judge\n")
+	machine := filepath.Join(home, "machine")
+	if err := os.MkdirAll(filepath.Join(machine, "kk-flavor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(machine, "kk-flavor", voiceConfName), []byte("coined climb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", machine)
+	coined, domain, _, answered, err := voiceConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(coined, "climb") || !slices.Contains(domain, "reader-judge") {
+		t.Fatalf("got coined %v and domain %v, want the machine's word and the shipped one", coined, domain)
+	}
+	if !strings.Contains(answered, confShipped) || !strings.Contains(answered, confMachine) {
+		t.Fatalf("the run names %q, want both files named", answered)
+	}
+}
+
+// A repository under review does not get a say. Its own `.kk-flavor/comment-voice.conf` could list
+// every finding the change carries as one to keep, and the check would pass over text nobody read.
+func TestAConfInsideTheRepositoryUnderReviewIsNotRead(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".kk-flavor"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, ".kk-flavor", voiceConfName), []byte("coined climb\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(repo)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(repo, "no-machine-conf"))
+	t.Setenv("COMMENT_VOICE_CONF", "")
+	coined, _, _, answered, err := voiceConfig()
+	if err != nil || len(coined) != 0 || answered != "" {
+		t.Fatalf("got coined %v from %q (%v), want nothing read from the repository", coined, answered, err)
 	}
 }
 
@@ -479,16 +525,17 @@ func TestAConfThatDoesNotParseRefusesTheRunRatherThanScanningWithHalfOfIt(t *tes
 		t.Fatal(err)
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
-	if _, _, _, _, err := voiceConfig(dir); err == nil {
+	if _, _, _, _, err := voiceConfig(); err == nil {
 		t.Fatal("a conf with an entry carrying no reason was accepted")
 	}
 }
 
 func TestAMissingConfIsNotAnError(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("HOME", dir)
 	t.Setenv("COMMENT_VOICE_CONF", "")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "absent"))
-	coined, _, allowed, _, err := voiceConfig(dir)
+	coined, _, allowed, _, err := voiceConfig()
 	if err != nil || len(coined) != 0 || len(allowed) != 0 {
 		t.Fatalf("got %v/%v/%v, want an empty configuration and no error", coined, allowed, err)
 	}
@@ -839,8 +886,7 @@ func TestARunThatReadAConfNamesIt(t *testing.T) {
 	}
 }
 
-// The conf path is one a repository can ship, so it is one a repository can ship as a symlink. A
-// non-regular file is declined, and the refusal names the file rather than what it found inside it.
+// A conf can be a symlink wherever it sits. A non-regular file is declined, and the refusal names the file rather than what it found inside it.
 func TestANonRegularConfIsDeclinedWithoutEchoingIt(t *testing.T) {
 	dir := t.TempDir()
 	secret := filepath.Join(dir, "elsewhere")
@@ -852,7 +898,7 @@ func TestANonRegularConfIsDeclinedWithoutEchoingIt(t *testing.T) {
 		t.Skipf("this filesystem does not take symlinks: %v", err)
 	}
 	t.Setenv("COMMENT_VOICE_CONF", conf)
-	_, _, _, _, err := voiceConfig(dir)
+	_, _, _, _, err := voiceConfig()
 	if err == nil {
 		t.Fatal("a symlinked conf was read")
 	}
@@ -1012,21 +1058,19 @@ func TestAConfLineThatIsNotUTF8IsRefusedWithoutEchoingIt(t *testing.T) {
 	}
 }
 
-// A conf present but unusable refuses rather than falling back. A dangling symlink at either searched
-// path would otherwise leave the scan running with no coined words and no allowlist, reporting clean —
-// and a default quietly restored cannot be told from the override working.
+// A conf present but unusable refuses rather than falling back. A dangling symlink where the flavor
+// ships one would otherwise leave the scan running with no coined words and no allowlist, reporting
+// clean — and a default quietly restored cannot be told from the config working.
 func TestAConfPresentButUnusableRefusesRatherThanFallingBack(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, ".kk-flavor"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	conf := filepath.Join(dir, ".kk-flavor", voiceConfName)
-	if err := os.Symlink(filepath.Join(dir, "absent"), conf); err != nil {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	conf := shipConf(t, home, "")
+	if err := os.Symlink(filepath.Join(home, "absent"), conf); err != nil {
 		t.Skipf("this filesystem does not take symlinks: %v", err)
 	}
 	t.Setenv("COMMENT_VOICE_CONF", "")
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "machine"))
-	if _, _, _, _, err := voiceConfig(dir); err == nil {
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "machine"))
+	if _, _, _, _, err := voiceConfig(); err == nil {
 		t.Fatal("a dangling conf symlink was treated as no conf at all")
 	}
 }

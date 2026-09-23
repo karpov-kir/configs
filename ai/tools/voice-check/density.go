@@ -12,7 +12,9 @@ import (
 	"strconv"
 	"strings"
 
+	"configs/ai/tools/flavorconfig"
 	"configs/ai/tools/repo"
+	"configs/ai/tools/shell"
 )
 
 const (
@@ -77,15 +79,27 @@ type Config struct {
 	MaxFileBytes int64
 }
 
-// ConfigFromEnv reads the only override. A value that does not parse refuses the run. A caller who set
-// it asked for a bound, and falling back to the default would report a scan against a bound they did
-// not pick.
+const configName = "voice-check.conf"
+
+// ConfigFromEnv resolves the byte cap: the tracked default in `configs/voice-check.conf`, then this
+// run's environment over it. A value that does not parse refuses the run. A caller who set one asked
+// for a bound, and falling back to the default would report a scan against a bound they did not pick.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MaxFileBytes: defaultMaxFileBytes}
-	if raw, ok := lookup("DENSITY_MAX_FILE_BYTES"); ok && raw != "" {
+	home, _ := lookup("HOME")
+	path := flavorconfig.Path(home, configName)
+	shipped, err := flavorconfig.Read(path, []string{"max-file-bytes"})
+	if err != nil {
+		return cfg, fmt.Errorf("%w — the scan did NOT run", err)
+	}
+	raw, source := shipped["max-file-bytes"], path+"'s `max-file-bytes`"
+	if set, ok := lookup("DENSITY_MAX_FILE_BYTES"); ok && set != "" {
+		raw, source = set, "DENSITY_MAX_FILE_BYTES"
+	}
+	if raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || value < 0 {
-			return cfg, fmt.Errorf("DENSITY_MAX_FILE_BYTES is %q, which is no whole number of bytes — the scan did NOT run", raw)
+			return cfg, fmt.Errorf("%s is %q, which is no whole number of bytes — the scan did NOT run", source, shell.Oneline(raw))
 		}
 		cfg.MaxFileBytes = value
 	}
