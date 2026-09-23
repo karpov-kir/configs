@@ -14,12 +14,11 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// The names a reader places without being told: the ones the language resolves at the site. A hand
-// list of them reached 10 names and missed the rest. Of 89 bare-identifier findings on a reviewed
-// set of 60 files, 51 named a web API, a compiler flag, a test matcher or a specification attribute.
-// The vocabulary is read from the repository's own type environment instead: the tsconfig `lib`
-// declarations, the `@types` packages, and the test framework's matchers. A name from this
-// repository declared in another file is in none of them, and stays a finding.
+// The names a reader places without being told are the ones the language resolves at the site. Of 89
+// bare-identifier findings on 60 reviewed files, 51 named a web API, a compiler flag or a test matcher.
+//
+// So the vocabulary comes from the repository's type environment: its tsconfig libs, its `@types`
+// packages and its test matchers. A name the repository declares is in none of them.
 
 // maxDeclarationBytes bounds one declaration file. TypeScript's largest lib file is under 1 MiB.
 const maxDeclarationBytes = 4 << 20
@@ -35,8 +34,8 @@ var (
 	reTrailingComma = regexp.MustCompile(`,(\s*[}\]])`)
 )
 
-// tsconfigLibs is the `lib` list a repository's tsconfig.json names, or the default where it names
-// none. A tsconfig carries comments and trailing commas that JSON refuses, so both go first.
+// tsconfigLibs is the `lib` list a repository's tsconfig.json sets, or the default where it sets
+// no list. A tsconfig carries comments and trailing commas that JSON refuses, so both go first.
 func tsconfigLibs(root string) []string {
 	raw, err := os.ReadFile(filepath.Join(root, "tsconfig.json"))
 	if err != nil {
@@ -90,8 +89,8 @@ func declarationFiles(root string) []string {
 	return out
 }
 
-// declaredNames reads the names a declaration file declares, its members included: an interface's
-// `canPlayType` is placed the same as the interface.
+// declaredNames reads the names a declaration file declares, its members included. A member of an
+// interface is placed the same as the interface.
 func declaredNames(body string, into map[string]bool) {
 	for _, re := range []*regexp.Regexp{reDeclaredName, reMemberName} {
 		for _, m := range re.FindAllStringSubmatch(body, -1) {
@@ -101,8 +100,8 @@ func declaredNames(body string, into map[string]bool) {
 }
 
 // DerivedVocabulary is the names the repository at root resolves from outside its own source, lower-
-// cased. It reads the files once and keeps the result under the cache, keyed by the files it read and
-// their sizes, so a new dependency or a new tsconfig gives a new key.
+// cased. It reads the files once and keeps the result in the cache. The cache key is the files it read
+// and their sizes, and a new dependency or a new tsconfig changes it.
 func DerivedVocabulary(root, cacheHome string) map[string]bool {
 	files := declarationFiles(root)
 	if len(files) == 0 {
