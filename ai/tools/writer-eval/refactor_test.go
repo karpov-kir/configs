@@ -80,7 +80,10 @@ func TestTheRefactorCasesParse(t *testing.T) {
 	}
 }
 
-var verdictOpens = regexp.MustCompile(`(?im)^\s*(carried by|stays:|blocked:|for the pr body)`)
+// verdictOpens is the first verdict a return names, wherever on its line it stands. The lane writes a
+// path or a backtick before it as often as not, and reading only a line's opening took ten of fifteen
+// `carried by` returns for no verdict at all.
+var verdictOpens = regexp.MustCompile(`(?i)(carried by|stays:|blocked:|for the pr body)`)
 
 func refactorPrompt(t *testing.T, c refactorCase) string {
 	t.Helper()
@@ -123,6 +126,7 @@ func TestRefactorVerdicts(t *testing.T) {
 	for _, c := range cases {
 		text := refactorPrompt(t, c)
 		got := make([]string, evalRolls)
+		raws := make([]string, evalRolls)
 		var wait sync.WaitGroup
 		slots := make(chan struct{}, parallelCalls(t))
 		for r := range got {
@@ -132,6 +136,7 @@ func TestRefactorVerdicts(t *testing.T) {
 				defer wait.Done()
 				defer func() { <-slots }()
 				raw, err := callWriter(decision.Requested, text)
+				raws[r] = raw
 				if err != nil {
 					got[r] = "error"
 					return
@@ -156,6 +161,13 @@ func TestRefactorVerdicts(t *testing.T) {
 			failed++
 		}
 		fmt.Fprintf(&report, "%-50s %d of %d (floor %d)  %v\n", c.name, passed, evalRolls, floor, tally)
+		// A failing roll's own words, one line each, since the tally says only which shape it missed by.
+		for r, verdict := range got {
+			if strings.HasPrefix(verdict, c.expect) && (c.bars == "" || !strings.HasPrefix(verdict, c.bars)) {
+				continue
+			}
+			fmt.Fprintf(&report, "    %s: %s\n", verdict, oneLine(raws[r]))
+		}
 	}
 	t.Logf("\nrefactor row: %s, %d roll(s) each\n%s", decision.Requested.Model, evalRolls, report.String())
 	if failed > 0 {
