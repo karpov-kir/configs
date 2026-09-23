@@ -1,0 +1,9 @@
+kind: ticket
+expect: cut
+cut: released
+why: the second sentence repeats what the linked page already lists, the build's release date; it is the only sentence to go, and the problem and the wanted behaviour stay
+--- context
+Title: Deferred postings refused on build 4.1
+Linked page: Ledger builds. Build 4.1 was released on 2026-03-02, and build 4.2 on 2026-06-15.
+--- body
+Deferred postings are refused on build 4.1 while the book lists the format as accepted. Build 4.1 was released on 2026-03-02, three months before 4.2. The poster should accept a format the book accepts.

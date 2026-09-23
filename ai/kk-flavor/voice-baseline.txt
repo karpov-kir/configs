@@ -40,9 +40,9 @@
 25 ai/kk-flavor/skills/kk-handoff/handoff-prompt.md
 24 ai/kk-flavor/workers/patrol/fixer.md
 18 ai/kk-flavor/workers/idsd/qualify/reconcile.md
-18 ai/kk-flavor/standards/human-writing.md
 18 ai/kk-flavor/skills/kk-reduce/AGENT-BRIEF.md
 17 ai/kk-flavor/workers/security-review.md
+17 ai/kk-flavor/standards/human-writing.md
 16 ai/kk-flavor/workers/patrol/scout.md
 16 ai/kk-flavor/workers/code-review.md
 15 ai/kk-flavor/workers/grill/facts.md

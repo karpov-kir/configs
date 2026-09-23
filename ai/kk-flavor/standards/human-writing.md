@@ -56,15 +56,13 @@ Give a PR based on another open PR's branch the stack map, one line beside the t
 
 Write prose and add no headings of your own. A heading you add is a slot, and **Budget** rules what fills one. A repo template's headings stand.
 
-Cover three things, in this order, and only while each has content. What changes and why. Lead with the outcome the consumer sees. A surface that arrived, went or changed shape belongs in that outcome, and takes no note of its own. Then what you chose and what it cost, where the diff does not carry it: an alternative you rejected, a duplication kept on purpose, an invariant now split across two files. Then what this leaves someone to do, such as a release to cut or a pin to drop.
+Keep what a reviewer cannot get anywhere else. That is why the change took this shape and what was rejected, what changed for a user, and what is deliberately left out. It is also what a reviewer must check that the code does not make obvious, and any risk.
 
-Leave out why the code is right, because deciding that is the reviewer's job. Leave out what ran, because CI reports itself. What CI cannot produce — a manual drive, a migration against real data — falls to **Budget**.
-
-One PR is 110 words of your own prose or fewer. Fifty of the host repository's merged before 2026-06-01 were counted, leaving out the template's own lines and the stack map. They run to a median of 48 words and a 90th percentile of 110. A description over 110 is a finding. The median prints beside it, so an author reads the reference and the line together. The count is per PR, and a stack earns more PRs at the same width. Measured 2026-09-22. A figure moves here and nowhere else, and this line records what was counted.
+Then cut by sentence. A sentence that only says what the diff, the ticket, the stack map, a linked page, the title or the template already shows is a finding. That sentence goes, and the rest stays. A sentence narrating what ran is one of them, since CI reports itself. A sentence arguing that the code is right goes too, because deciding that is the reviewer's job. Length follows from the test. A template section the test leaves empty stays empty.
 
 ## Tickets
 
-A ticket takes the same 110 words until a body of tickets is measured. The PR figure stands in for one that has yet to be counted. This line says so.
+A ticket keeps what its reader cannot get anywhere else. That is the observed problem and its evidence, the behaviour wanted, what done looks like, and what is out of scope. It also links what already exists that the work builds on. The sentence test above applies, with the ticket's template and its linked pages among what already shows a fact.
 
 ## Review comments
 
