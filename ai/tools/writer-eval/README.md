@@ -50,7 +50,7 @@ The pair measured on 690b548, at fifteen rolls, with the tree the same for both 
 the instrument does. At five rolls the same cases swung by four, so the count is what bought the band.
 
 k17 on 44d4720, the same way, came back 6 and 3. Four earlier readings across rule texts that
-barely touch it read 7, 10, 3 and 4. So k17 alone spreads by three, one past the band above, and
+barely touch it read 7, 10, 3 and 4. So k17 alone spreads by three, one past the band this section gives, and
 a move on k17 of three or fewer is inside what the instrument does there.
 
 A floor is a share of the rolls in whole percent. Floors were counts once, written against five
@@ -64,7 +64,7 @@ on the machine, and the runs queue behind each other.
 
 The four-minute deadline on a call did not hold. Both stalled runs ended with every slot in flight
 held by a call past sixteen minutes, alive, a second and a half of processor time each, waiting on
-the network. `WaitDelay` now closes the pipes shortly after the kill. The first full set run with it in place finished in 33 minutes, where the two before it had not finished at all. **That is evidence and not a diagnosis.** Where a run wedges again, read it before anything else lands. Read `pmset -g log` for sleep first. The call deadline runs on a clock that stops while the machine sleeps, and `ps` elapsed time does not. A run on 2026-09-23 took 3 h 40 m through fifteen-minute sleep cycles, with calls showing 33 minutes against a four-minute deadline. `caffeinate -i -s -w <pid>` holds the machine awake for one test process and ends when it does. The two stalled runs of 2026-09-22 ran before 08:31 that morning, and the power log shows the machine sleeping in every hour from midnight to eight. Sleep fits both stalls, so `WaitDelay` may have fixed nothing, and the run after it may simply have run awake.
+the network. `WaitDelay` now closes the pipes shortly after the kill. The first full set run with it in place finished in 33 minutes, where the two before it had not finished at all. **That is evidence and not a diagnosis.** Where a run wedges again, read it before anything else lands. Check `pmset -g log` for sleep first. The call deadline runs on a clock that stops while the machine sleeps, and `ps` elapsed time does not. A run on 2026-09-23 took 3 h 40 m through fifteen-minute sleep cycles, with calls showing 33 minutes against a four-minute deadline. `caffeinate -i -s -w <pid>` holds the machine awake for one test process and ends when it does. The two stalled runs of 2026-09-22 ran before 08:31 that morning, and the power log shows the machine sleeping in every hour from midnight to eight. Sleep fits both stalls, so `WaitDelay` may not have been the fix, and the run after it may simply have run awake.
 
 Read the run's own processes by the test binary's path and never by a name a shell wrapper also carries. A check for the wedge timed `go test` and `sed` as though they were calls, because `pgrep -f writer-eval.test` matches the wrapper's command line too. Whether that is the whole of it is unmeasured: the runs were
 stopped, not diagnosed.
@@ -125,3 +125,22 @@ shape. Four cuts of it, each at fifteen rolls, came back written 15, 15, 13 and 
 two-roll move sits inside the no-change band this file's first section gives. The rule k18 pins
 landed on the evidence from the change set. The case pins the correct answer, and it guards against
 no defect.
+
+## The blind reader, measured and deleted
+
+A reader saw a block and the line under it, and answered what that line does because of the block,
+or `cannot say`. A `cannot say` went back to the writer. The bar came before the reader. It had to
+answer `cannot say` on the ten blocks a reviewer flagged or a run left as a residual. Then at most one
+note in twenty of the reviewed set could get that answer. It ran on sonnet, fifteen rolls a block.
+
+The first brief asked what the line does because of the block, and 8 of 10 failed as the bar wants.
+The two it passed it read off the code alone and left the fact out. A single allowed round asked for
+the sentence to rest on the fact, with a constant's value counting as what a fact bears on. It then
+connected nearly anything: 6 of 10, with k20, k21 and k07 passed on every roll. The bar deleted it,
+and the plain half never ran. Its brief and harness stay on the `comment/read-gate` branch.
+
+Three readings from it outlive it. A three-roll majority agreed with fifteen on every labelled block.
+The invented consequence at k17 and k23 got through on one roll in fifteen under the first brief.
+Under the second it got through on four at k17, so a model reader accepts that shape too. The branch
+writer's own k07 block claims to tie its fact, and the reader found it tied on fifteen rolls of
+fifteen.
