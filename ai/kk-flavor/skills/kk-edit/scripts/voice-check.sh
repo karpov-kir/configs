@@ -42,7 +42,7 @@
 #
 # `--record`, with `--source`, reads a note's record above a `---` line: `fact:`, `bears_on:`, `does:`.
 # The block and its declaration sit under the line. `bears_on` has to be declared there and said in the
-# block, and `does` has to share a word with the body. `does: none` stands on a one-line declaration.
+# block, and `does` has to share a word with the body. `does: none` stands on a data declaration: an enum, an interface, a type, a constant or a field.
 #
 # Its checks are record-slot-missing, bears-on-elsewhere, block-omits-bears-on and does-untied.
 #
