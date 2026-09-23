@@ -1,0 +1,13 @@
+expect: none
+note: none
+floor: 60
+returns: does not fit
+withholds: for the pr body
+why: the fact is about the regulator's filing portal and bears on nothing this file declares; run 7 routed facts of this kind to `for the PR body` and put 704 words of them into a PR body, where the change is described; a fact about the world that fits no note here comes back as `does not fit` for the human, and the PR body keeps the change
+labelled: 2026-09-23
+--- code
+export function formatLabel(format: PostingFormat): string {
+  return FORMAT_LABELS[format];
+}
+--- facts
+The regulator's filing portal rejects a ledger export over 40 MB, and the vendor splits a larger export by quarter before upload.

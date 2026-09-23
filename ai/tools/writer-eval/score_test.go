@@ -15,7 +15,7 @@ func TestNoneIsReadAsDecliningTheSite(t *testing.T) {
 
 func TestTheAuditLinesComeOutOfTheBlock(t *testing.T) {
 	r := ParseReturn("/** A closing period posts in the base currency. */\n" +
-		"term: closing period — domain\n" +
+		"term: closing period — identifier\n" +
 		"term: base currency — domain\n" +
 		"verb: posts — literal\n")
 	if got := r.Text(); got != "A closing period posts in the base currency." {
@@ -24,7 +24,7 @@ func TestTheAuditLinesComeOutOfTheBlock(t *testing.T) {
 	if len(r.Terms) != 2 || len(r.Verbs) != 1 {
 		t.Fatalf("%d term(s) and %d verb(s), want 2 and 1", len(r.Terms), len(r.Verbs))
 	}
-	if r.Terms[0].Word != "closing period" || r.Terms[0].Class != "domain" {
+	if r.Terms[0].Word != "closing period" || r.Terms[0].Class != "identifier" {
 		t.Errorf("first term %+v", r.Terms[0])
 	}
 }
@@ -239,5 +239,30 @@ func TestAVerdictLineIsNotPartOfTheBlock(t *testing.T) {
 		if !ParseReturn("summary: none\nnote: none\nnone\n" + line + "\n").None {
 			t.Errorf("a declined site read as written beside %q", line)
 		}
+	}
+}
+
+// A case scores where a fact went: the fates its return has to name and the ones it may not.
+func TestACaseScoresTheFateItRoutes(t *testing.T) {
+	c, err := ParseCase("routing", "expect: none\nnote: none\nwhy: a fixture\nlabelled: 2026-09-23\n returns : does not fit\nwithholds: for the PR body\n--- code\nconst X = 1;\n--- facts\nA fact.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Returns) != 1 || c.Returns[0] != "does not fit" || len(c.Withholds) != 1 || c.Withholds[0] != "for the pr body" {
+		t.Fatalf("returns %q, withholds %q", c.Returns, c.Withholds)
+	}
+	failures := func(raw string) []string {
+		var out []string
+		for _, f := range JudgeCase(c, ParseReturn(raw)).Failures {
+			out = append(out, f.Check)
+		}
+		return out
+	}
+	if got := failures("summary: none\nnote: none\nnone\ndoes not fit: 1: A fact."); len(got) != 0 {
+		t.Fatalf("a return routing the fact as the case asks fails %v", got)
+	}
+	got := failures("summary: none\nnote: none\nnone\nfor the PR body: 1: A fact.")
+	if strings.Join(got, ",") != "routed-it-elsewhere,routed-to-a-withheld-fate" {
+		t.Fatalf("a return routing the fact to the PR body fails %v", got)
 	}
 }

@@ -38,6 +38,9 @@ type Return struct {
 	// Carried says the return sent the claim somewhere else in the tree. A claim about a row of data
 	// goes to a field on that row, and a block is the wrong home for it however well written.
 	Carried bool
+	// Routed is the fates the return named, one entry per routed line, lower-cased: `for the pr body`,
+	// `does not fit`, `stale` and the rest. A case asking where a fact went reads this.
+	Routed []string
 }
 
 // Part is what one half of a block came back as.
@@ -66,7 +69,7 @@ var placedLine = regexp.MustCompile(`(?i)^\s*at:\s*(\d+)\s*$`)
 // The lines a writer returns beside its block: what it dropped and where that went. They are the
 // return's own bookkeeping, and reading one as prose scored a correct `carried by` as a written
 // block. Three of l07's five rolls answered correctly and one was counted.
-var verdictLine = regexp.MustCompile(`(?i)^\s*(shown by the body|carried by [^:]*|stale|for the pr body|invariant diverged|about this code):`)
+var verdictLine = regexp.MustCompile(`(?i)^\s*(shown by the body|carried by [^:]*|stale|for the pr body|does not fit|belongs at [^:]*|invariant diverged|about this code):`)
 
 var summaryLine = regexp.MustCompile(`(?i)^\s*summary:\s*(needed|none)\s*$`)
 var noteLine = regexp.MustCompile(`(?i)^\s*note:\s*(written|none)\s*$`)
@@ -104,9 +107,11 @@ func ParseReturn(raw string) Return {
 			continue
 		}
 		if m := verdictLine.FindStringSubmatch(line); m != nil {
-			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(m[1])), "carried by") {
+			fate := strings.ToLower(strings.TrimSpace(m[1]))
+			if strings.HasPrefix(fate, "carried by") {
 				out.Carried = true
 			}
+			out.Routed = append(out.Routed, fate)
 			continue
 		}
 		if m := auditLine.FindStringSubmatch(line); m != nil {
@@ -211,7 +216,7 @@ func Score(r Return) []Failure {
 		}
 	}
 	for _, t := range r.Terms {
-		if t.Class != "identifier" && t.Class != "domain" && t.Class != "plain" {
+		if t.Class != "identifier" && t.Class != "plain" {
 			add("term-audited-as-none-of-the-three", t.Word+" — "+t.Class)
 		}
 	}

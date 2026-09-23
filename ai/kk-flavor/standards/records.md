@@ -8,6 +8,8 @@ A record agents **append to** across many runs rather than rewrite: a decision l
 
 A human-curated charter constraint section is not an appended record: its owning lane controls its format, cap and approval.
 
+A spawn's **ledger** is not one of these either. It is a working file for one run, and [skill-protocol.md](skill-protocol.md) → **Queue** says what it holds.
+
 A **generated** file is not one of these. Regenerated from a source that is itself bounded, it needs no cap and no promotion — pruning its source is the whole of it.
 
 A record of **measurements** carries a different entry: a row of figures, dated when it was taken and carrying no count, read against the rows around it rather than re-confirmed. None of the moves below revises such a row in place. The cap and the pruning point still bind.

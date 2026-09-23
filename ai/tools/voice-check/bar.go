@@ -7,6 +7,7 @@
 package voicecheck
 
 import (
+	census "configs/ai/tools/comment-census"
 	"fmt"
 	"os"
 	"sort"
@@ -352,18 +353,44 @@ func bar(out console, args []string, cwd string, git repo.Git, cfg Config) int {
 	if set.total() == 0 {
 		return out.refuse(refusal("no changed source file could be read, so this run says nothing about the change set"))
 	}
-	return out.reportBar(base, set)
+	return out.reportBar(base, set, soShareOf(host, without(tracked, changed)), soShareOf(host, changed))
+}
+
+// soShare is the blocks carrying a note and how many of them reach for `, so `. Run 8 counted it by
+// hand, 20 of 44, and the host's own share is what makes a change set's readable.
+type soShare struct{ notes, withSo int }
+
+func (s soShare) String() string {
+	if s.notes == 0 {
+		return "no block with a note"
+	}
+	return fmt.Sprintf("%d of %d blocks with a note (%.0f%%)", s.withSo, s.notes, float64(s.withSo)*100/float64(s.notes))
+}
+
+func soShareOf(host hostRepo, files []string) soShare {
+	var out soShare
+	for _, rel := range files {
+		body, ok := host.readCapped(rel)
+		if !ok {
+			continue
+		}
+		notes, withSo := census.SoShare(shell.SplitLines(body))
+		out.notes += notes
+		out.withSo += withSo
+	}
+	return out
 }
 
 // Exit 1 means over the bar, and the report says how many lines: a share tells nobody what to delete. At
 // most maxShown of the per-file lines are printed and the rest announced, for the reason at maxShown;
 // every one of them is a finding.
-func (c console) reportBar(base baseline, set changeSet) int {
+func (c console) reportBar(base baseline, set changeSet, hostSo, setSo soShare) int {
 	fmt.Fprintf(c.stdout, "measured by: voice-check build %s, tree %s\n", toolBuild(), toolTree())
 	fmt.Fprintf(c.stdout, "host repo: %.1f%% comment lines, %.1f-line mean block, %.0f%% of blocks over %d lines (%d file(s) in the baseline)\n",
 		base.stats.ratio()*100, base.stats.meanBlock(), base.stats.longShare()*100, longBlockLines, base.files)
 	fmt.Fprintf(c.stdout, "change set: %.1f%% comment lines (%d comment / %d code), %.1f-line mean block, %.0f%% of blocks over %d lines\n",
 		set.ratio()*100, set.comments, set.code, set.meanBlock(), set.longShare()*100, longBlockLines)
+	fmt.Fprintf(c.stdout, "`, so` in a note: change set %s; host repo %s\n", setSo, hostSo)
 
 	findings := len(set.over)
 	if cut := cutToRatio(set.stats, base.stats); cut > 0 {

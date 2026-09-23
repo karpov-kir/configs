@@ -497,3 +497,51 @@ func TestARenamedDeclarationKeepsTheRecordAtItsOwnSite(t *testing.T) {
 		t.Errorf("the renamed site lost its earlier claim:\n%s", got)
 	}
 }
+
+// A record whose declaration left the file is offered with no line. Its recorded line holds a brace,
+// a blank or another declaration now, and run 8 put 30 records on lines like that.
+func TestARecordWhoseDeclarationLeftTheFileHasNoLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "y.go")
+	archive := filepath.Join(dir, "archive")
+	stripOnce(t, dir, path, archive, "package d\n\n// A fact about the vendor export.\nfunc gamma() {}\n", "facts1")
+	if err := os.WriteFile(path, []byte("package d\n\nfunc delta() {}\n\nfunc epsilon() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts2"), "--archive=" + archive, path},
+		dir, noRepository, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, path+":0 ") {
+		t.Fatalf("the site printed as %q, and a declaration renamed away has no line", got)
+	}
+	if got := read(t, filepath.Join(dir, "facts2"), "1.facts"); !strings.Contains(got, "A fact about the vendor export") {
+		t.Errorf("the claim did not reach the writer:\n%s", got)
+	}
+}
+
+// Two records reading to one line are one site, with both records' claims in its facts file.
+// Run 8 offered 11 lines twice, and each writer answered the second offer `none`.
+func TestTwoRecordsReadingToOneLineAreOneSite(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "y.go")
+	archive := filepath.Join(dir, "archive")
+	stripOnce(t, dir, path, archive,
+		"package d\n\n// A fact about gamma.\nfunc gamma() {}\n\n// A fact about zeta.\nfunc zeta() {}\n", "facts1")
+	if err := os.WriteFile(path, []byte("package d\n\nfunc delta() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--facts=" + filepath.Join(dir, "facts2"), "--archive=" + archive, path},
+		dir, noRepository, &out, &errOut); code != exitCut {
+		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
+	}
+	if sites := strings.Count(out.String(), "\n"); sites != 1 {
+		t.Fatalf("%d sites offered, want one:\n%s", sites, out.String())
+	}
+	got := read(t, filepath.Join(dir, "facts2"), "1.facts")
+	if !strings.Contains(got, "A fact about gamma") || !strings.Contains(got, "A fact about zeta") {
+		t.Errorf("the one site does not carry both claims:\n%s", got)
+	}
+}

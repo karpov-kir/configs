@@ -3,7 +3,7 @@
 # which sentences are written in the register the rule forbids. With `--density` it reports how many
 # comment lines the set carries beside the host repository's own rate.
 #
-#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [--source] [--record] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [--source] [--record] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
 #   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread (default 262144)
@@ -59,10 +59,9 @@
 # word a codebase may have coined. `coined-identifier` is the comment profile's, since it asks whether
 # the code spells a compound. The three sentence shapes read a comment and a body and skip a rule
 # file, for the same reason `coined` does. `coined` also carries a built-in list of the phrases every
-# repository coins by accident, the house idiom of naming, so each conf can leave them out. `comment-voice.conf` names the words this repository coined and the findings it has decided
-# to keep, looked for at COMMENT_VOICE_CONF, then `<repo>/.kk-flavor/comment-voice.conf`, then
-# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. An allow entry with no reason is
-# refused, and a missing file is no error.
+# repository coins by accident, the house idiom of naming. No repository keeps a word list: the
+# hyphenated names a repository spells in its paths and its code are read off its tree. A finding that
+# must stand is a defect in the check, fixed there.
 #
 # tested by: the Go suite in ai/tools/voice-check/. The shared stub region and the resolver it
 # calls have their own cases in the Go suite in ai/tools/reach/.
