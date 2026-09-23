@@ -44,8 +44,7 @@ func (c *calls) flat() string {
 	return strings.Join(out, "\n")
 }
 
-// The declaration this repository actually ships, in the shape a checkout has it: two stdio servers
-// launched through the wrapper.
+// A declaration in the shape a checkout has it: two stdio servers launched through the wrapper.
 const declaration = `// a comment owning its whole line
 {
   "mcpServers": {

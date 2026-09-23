@@ -32,7 +32,7 @@ const (
 // The public servers that declaration ships, as a literal this file states. Every other case here
 // derives its expectation from the file under test, so they stay green as the declaration empties
 // out. This literal is what goes red on that edit.
-var shippedServers = []string{"chrome-devtools", "playwright"}
+var shippedServers = []string{"chrome-devtools"}
 
 // The wrapper every project entry reaches, named once per entry in both file formats. This is the
 // single word of `projectmcp`'s launcher program that identifies an entry, and the program's shape is
