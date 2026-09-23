@@ -35,7 +35,7 @@ Escalate on something you can name: the change crosses several lanes at once, a 
 | The work | The answer |
 |---|---|
 | Something is broken, slow or flaky, and the cause is unknown | `kk-diagnose`, alone, and **before any change exists to review** — a lane reading a diff cannot reach a cause nobody has reproduced. |
-| A settled requirement to build, with nothing written yet | `kk-build`, alone — it owns the loop and the gates inside it. The pass that reads the result afterwards is the row below, and it is that skill's to call, not yours to queue beside this one. |
+| A settled requirement to build, with nothing written yet | `kk-build`, alone — it owns the loop, the gates inside it and the `kk-qualify` pass that ends it. Queuing the row below beside it runs that pass twice. |
 | Code or tooling changed | `kk-qualify`, alone — it owns the stage order and what each stage's trigger is. Queuing those stages here instead runs the pipeline without its round. |
 | A PR to review | `kk-pr review`, alone — it spawns the pipeline's stages itself, so queuing the code row over the same diff reviews it twice. **A PR the human wants left ready rather than commented on takes `kk-pr review-and-address`** — the code row would leave those fixes uncommitted. |
 | Changes were requested on a PR | `kk-pr address-review`, alone — it fixes, gates and pushes inside its own loop, so queuing the build or code rows beside it repeats work it already does. |

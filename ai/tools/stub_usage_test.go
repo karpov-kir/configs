@@ -44,6 +44,7 @@ import (
 	"time"
 
 	aibootstrap "configs/ai/tools/ai-bootstrap"
+	buildgate "configs/ai/tools/build-gate"
 	"configs/ai/tools/cadence"
 	commentstrip "configs/ai/tools/comment-strip"
 	duplicates "configs/ai/tools/dup-literals"
@@ -189,6 +190,10 @@ var refusals = []refusal{
 	// is valid and ends processes.
 	{stub: "ai/kk-flavor/scripts/wait-reap.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return waitreap.Run(i.args, i.out, i.out)
+	}},
+	// The tool refuses an unknown verb before it asks git anything.
+	{stub: "ai/kk-flavor/scripts/build-gate.sh", args: []string{"nope"}, call: func(i invocation) int {
+		return buildgate.Run(buildgate.Options{Args: i.args, Dir: i.cwd, Git: repo.Exec{}, Fingerprint: treefingerprint.Fingerprint, Out: i.out, ErrOut: i.out})
 	}},
 	{stub: "ai/kk-flavor/skills/idsd-qualify/scripts/report.sh", args: []string{"nope"}, call: func(i invocation) int {
 		// The only tool here that resolves a repository before it dispatches, so the working directory it
