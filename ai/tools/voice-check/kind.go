@@ -10,7 +10,7 @@ import (
 )
 
 // The kinds a prose text can be read as. A PR body and a ticket each come with a template, and `kind`
-// names which one, so the checks read the author's sentences and leave the template's alone.
+// names which one. The checks then read the author's sentences and leave the template's alone.
 const (
 	KindPRBody = "pr-body"
 	KindTicket = "ticket"
@@ -34,8 +34,8 @@ var templateGlobs = map[string][]string{
 		".github/issue_template.md", ".github/ISSUE_TEMPLATE.md", "issue_template.md"},
 }
 
-// templateLines is the repository's template for the kind, one line each as templateKey reads it. The
-// author did not write those lines, so no check reads them as the author's.
+// templateLines is the repository's template for the kind, one line each, as the template match reads
+// it. Those lines are the template's, and the checks leave them unread.
 func templateLines(root, kind string) map[string]bool {
 	out := map[string]bool{}
 	for _, pattern := range templateGlobs[kind] {
@@ -72,9 +72,9 @@ var (
 	reFence       = regexp.MustCompile("^\\s*(```|~~~)")
 )
 
-// AuthoredLines is the body with every line its author did not write blanked: the template's lines, a
-// checkbox ticked or not, headings, the stack map, HTML comments, fenced code and a generated line. The
-// blanks keep each line's number, so a finding names the line the author sees.
+// AuthoredLines is the body with only its author's lines left standing. It blanks the template's
+// lines, a checkbox ticked or not, headings, the stack map, HTML comments, fenced code and a generated
+// line. The blanks keep each line's number, so a finding names the line the author sees.
 func AuthoredLines(body string, template map[string]bool) []string {
 	body = reHTMLComment.ReplaceAllStringFunc(body, func(comment string) string {
 		return strings.Repeat("\n", strings.Count(comment, "\n"))

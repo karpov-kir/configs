@@ -11,9 +11,9 @@ func authoredWords(lines []string) int {
 	return len(strings.Fields(strings.Join(lines, " ")))
 }
 
-// A template filled with thirty words of the author's own reads as those thirty words and no more:
-// the template's headings, its checklist ticked, its comments, the stack map and a generated line are
-// the template's and the tooling's.
+// A template filled with thirty words of the author's own reads as those thirty words. The template's
+// headings, its ticked checklist, its comments, the stack map and a generated line belong to the
+// template and the tooling.
 func TestAuthoredLinesAreTheAuthorsAlone(t *testing.T) {
 	template := map[string]bool{"## Summary": true, "## Tests": true, "- [ ] I have run the tests": true,
 		"Closes the ticket named below.": true}

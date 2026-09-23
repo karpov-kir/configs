@@ -13,9 +13,9 @@ import (
 	modelpolicy "configs/ai/tools/model-policy"
 )
 
-// The description rule, measured as the edit lane applies it: keep what a reader cannot get elsewhere,
-// and cut a sentence only where the diff, the ticket, the stack map, a linked page, the title or the
-// template already shows it. The length of a body decides nothing.
+// The description rule is measured as the edit lane applies it. A description keeps what a reader
+// cannot get elsewhere. A sentence goes where the diff, the ticket, the stack map, a linked page, the
+// title or the template already shows it, and a body's length decides no cut.
 const descriptionsDir = "testdata/descriptions"
 
 const descriptionStandard = "../../kk-flavor/standards/human-writing.md"
