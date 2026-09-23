@@ -1,6 +1,7 @@
 package voicecheck
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -144,5 +145,31 @@ func TestSegmentsAreNotSubstrings(t *testing.T) {
 	}
 	if spellsTheName("getFormatClaim", "// the format this row carries") {
 		t.Fatal("a shared hump reads as the whole name")
+	}
+}
+
+// A data declaration takes `does: none` whatever its length, because the value beneath is the tie.
+// Run 9's writers filled `does` on an enum, an interface and an object constant to get past a check.
+// The check read the opening brace as a body, and the writers invented the tie the rule removes.
+func TestADataDeclarationOfAnyLengthTakesDoesNone(t *testing.T) {
+	record := "fact: The vendor names these in its own export.\nbears_on: %s\ndoes: none\n---\n// The vendor names these in its own export, and `%s` keeps its spelling.\n"
+	for _, tc := range []struct{ kind, name, code string }{
+		{"enum", "SettlementScheme", "export enum SettlementScheme {\n  Accrual = 'accrual',\n}"},
+		{"interface", "PostingRow", "export interface PostingRow {\n  format: string;\n}"},
+		{"type", "PostingShape", "export type PostingShape = {\n  format: string;\n};"},
+		{"object constant", "schemeIdentifiers", "export const schemeIdentifiers: Record<Scheme, string[]> = {\n  accrual: ['a'],\n};"},
+		{"array constant", "LEDGER_SOURCES", "export const LEDGER_SOURCES: LedgerSource[] = [\n  { id: 'accrual-eu' },\n];"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			text := fmt.Sprintf(record, tc.name, tc.name) + tc.code
+			if got := checksOf(RecordFindings("-", shell.SplitLines(text))); len(got) != 0 {
+				t.Fatalf("a %s with does: none reports %v", tc.kind, got)
+			}
+		})
+	}
+	// A function still owes its tie.
+	fn := fmt.Sprintf(record, "readRate", "readRate") + "export function readRate(book: LedgerBook): number {\n  return book.rate;\n}"
+	if got := checksOf(RecordFindings("-", shell.SplitLines(fn))); len(got) != 1 || got[0] != checkRecordSlot {
+		t.Fatalf("a function with does: none reports %v, want record-slot-missing", got)
 	}
 }

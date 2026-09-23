@@ -42,9 +42,13 @@
 #
 # `--record`, with `--source`, reads a note's record above a `---` line: `fact:`, `bears_on:`, `does:`.
 # The block and its declaration sit under the line. `bears_on` has to be declared there and said in the
-# block, and `does` has to share a word with the body. `does: none` stands on a one-line declaration.
+# block, and `does` has to share a word with the body. `does: none` stands on a data declaration: an enum, an interface, a type, a constant or a field.
 #
 # Its checks are record-slot-missing, bears-on-elsewhere, block-omits-bears-on and does-untied.
+#
+# `bare-identifier` places a name the repository resolves from outside its own source: the tsconfig
+# `lib` files, the `@types` packages and the test matchers, read once and cached under
+# `${XDG_CACHE_HOME:-~/.cache}/kk-flavor/vocabulary`. A name the repository declares stays a finding.
 #
 # Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, long-block,
 # coined, coined-identifier, counterfactual-consequence, anthropomorphism, elided-verb, long-sentence,
