@@ -1035,7 +1035,7 @@ flags:
 		}
 	}
 
-	coined, domain, allowed, conf, err := voiceConfig()
+	coined, domain, allowed, conf, err := voiceConfig(cwd)
 	if err != nil {
 		return out.refuse(err)
 	}

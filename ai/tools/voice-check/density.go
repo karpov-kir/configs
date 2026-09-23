@@ -81,7 +81,7 @@ type Config struct {
 
 const configName = "voice-check.conf"
 
-// ConfigFromEnv resolves the byte cap: the tracked default in `configs/voice-check.conf`, then this
+// ConfigFromEnv resolves the byte cap: the tracked default this tool ships in configs, then this
 // run's environment on top. A value that does not parse refuses the run. A caller who set one asked
 // for a bound, and falling back to the default would report a scan against a bound they did not pick.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {

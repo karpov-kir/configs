@@ -1,16 +1,14 @@
-// The voice check's configuration: the words a codebase coined, and the findings it has decided to
-// keep. Both live in one file so the vocabulary is stated once.
+// The voice check's configuration: the words this repository coined, and the findings it has decided
+// to keep. Both live in one file so a repository states its own vocabulary once.
 //
-// The file is `comment-voice.conf`. When COMMENT_VOICE_CONF names a file, that is the only file read.
-// Without it, the flavor's copy in its configs directory and this machine's
-// `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf` are read, and their entries add up.
-// An override would drop one codebase's words wherever the other file answered first.
+// The file is `comment-voice.conf`, looked for in this order: COMMENT_VOICE_CONF, then the
+// repository's own `.kk-flavor/comment-voice.conf`, then
+// `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. The repository's own copy comes before
+// the machine's because a coined word is a property of the codebase, not of who is typing.
 //
-// The repository being checked keeps no copy. A tree under review that could list findings to keep
-// could silence the check on itself.
-//
-// Where no conf exists, the scan runs with an empty vocabulary and allowlist, the setting every
-// codebase starts at. A file COMMENT_VOICE_CONF names must exist, because the caller asked for it.
+// No conf on the search path is not an error: the scan runs with no coined words and no allowlist,
+// which is the setting every repository starts at. A conf NAMED by COMMENT_VOICE_CONF and then absent
+// is an error, because the caller asked for a file and did not get it.
 package voicecheck
 
 import (
@@ -22,7 +20,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"configs/ai/tools/flavorconfig"
 	"configs/ai/tools/shell"
 )
 
@@ -66,62 +63,52 @@ func (a allowlist) covers(f Finding) bool {
 // The conf is a settings file, not a corpus. A file over this is not one somebody typed.
 const maxVoiceConfBytes = 64 * 1024
 
-// Where a conf came from, which the run prints. The flavor's conf and the operator's own carry
-// different weight, and the path does not show it.
+// Where a conf came from, so a run can say which one answered. A conf shipped by the tree under review
+// and a conf the operator set on their own machine carry different weight, and a reader of the report
+// cannot tell them apart from a path alone.
 const (
-	confNamed   = "named by COMMENT_VOICE_CONF"
-	confShipped = "shipped with the flavor"
-	confMachine = "this machine's"
+	confNamed      = "named by COMMENT_VOICE_CONF"
+	confRepository = "shipped by this working tree"
+	confMachine    = "this machine's"
 )
 
-type voiceConfSource struct {
-	path   string
-	origin string
-}
-
-// voiceConfig reads every conf that applies and adds up their entries. It returns the coined words,
-// the domain words, the allowlist, and a phrase naming the files it read. A conf that does not parse
-// refuses the run. A scan that skipped half its allowlist would report findings a human answered.
+// voiceConfig reads the conf, returning the coined words, the allowlist, a phrase naming what answered,
+// and nothing at all where no conf exists. A conf that does not parse refuses the run: a scan that
+// silently ignored half its own allowlist would report findings a human already answered.
 //
-// A conf that is present and unusable also refuses: a dangling symlink, a directory, an unreadable
-// file. Skipped, it would leave the scan clean without that file's entries, and that looks the same as
-// the config working (ecosystem.md → Conventions a new file joins).
-func voiceConfig() ([]string, []string, allowlist, string, error) {
-	var coined, domain []string
-	var allowed allowlist
-	var answered []string
-	for _, source := range voiceConfSources() {
-		c, d, a, err := readVoiceConf(source)
-		if err != nil {
-			return nil, nil, nil, "", err
-		}
-		coined, domain, allowed = append(coined, c...), append(domain, d...), append(allowed, a...)
-		answered = append(answered, source.origin+" "+shell.CutBytesMarked(shell.Oneline(source.path), maxPathBytes))
+// Present-but-unusable refuses rather than falling back. A dangling symlink, a directory or an
+// unreadable file at either path would otherwise leave the scan running with no coined words and no
+// allowlist, reporting clean — and a default quietly restored is indistinguishable from the override
+// working (ecosystem.md → Conventions a new file joins).
+//
+// One Lstat decides both selection and validity. Split across two calls, the tree under review could
+// ship a symlink that passes selection and fails validation, which refuses the run and takes the
+// machine's own conf out of reach — a branch disabling the check for anyone who reads it.
+func voiceConfig(cwd string) ([]string, []string, allowlist, string, error) {
+	path, origin, found := voiceConfPath(cwd)
+	if !found {
+		return nil, nil, nil, "", nil
 	}
-	return coined, domain, allowed, strings.Join(answered, " and "), nil
-}
-
-func readVoiceConf(source voiceConfSource) ([]string, []string, allowlist, error) {
-	named := shell.CutBytesMarked(shell.Oneline(source.path), maxPathBytes)
-	refuse := func(why string) ([]string, []string, allowlist, error) {
-		return nil, nil, nil, fmt.Errorf("%s (%s) %s — exit 2, the scan did NOT run", named, source.origin, why)
+	named := shell.CutBytesMarked(shell.Oneline(path), maxPathBytes)
+	refuse := func(why string) ([]string, []string, allowlist, string, error) {
+		return nil, nil, nil, "", fmt.Errorf("%s (%s) %s — exit 2, the scan did NOT run", named, origin, why)
 	}
-	info, err := os.Lstat(source.path)
+	info, err := os.Lstat(path)
 	if err != nil {
 		return refuse("is not there")
 	}
 	if !info.Mode().IsRegular() {
 		return refuse("is not a regular file this scan will read")
 	}
-	body, err := readCapped(source.path, maxVoiceConfBytes)
+	body, err := readCapped(path, maxVoiceConfBytes)
 	if err != nil {
 		return refuse(err.Error())
 	}
 	coined, domain, allowed, err := parseVoiceConf(body)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("%s (%s): %w — exit 2, the scan did NOT run", named, source.origin, err)
+		return nil, nil, nil, "", fmt.Errorf("%s (%s): %w — exit 2, the scan did NOT run", named, origin, err)
 	}
-	return coined, domain, allowed, nil
+	return coined, domain, allowed, origin + " " + named, nil
 }
 
 // readCapped reads a file and refuses one that is larger than the cap. The cap is enforced on the READ
@@ -143,28 +130,27 @@ func readCapped(path string, cap int64) (string, error) {
 	return string(body), nil
 }
 
-// voiceConfSources says which confs apply. A path the environment names always applies, because the
-// caller asked for it. Each of the other two applies when something sits at its path. Lstat does the
-// probing, so a dangling symlink counts as present and the read refuses it.
-func voiceConfSources() []voiceConfSource {
+// voiceConfPath says which conf answers and where it came from. A path named by the environment is
+// always "found": the caller asked for that file, so its absence is a refusal rather than a fallback.
+// The two searched paths are probed with Lstat, so a dangling symlink counts as present and is refused
+// by the caller rather than skipped over in silence.
+func voiceConfPath(cwd string) (path, origin string, found bool) {
 	if named, set := os.LookupEnv("COMMENT_VOICE_CONF"); set && named != "" {
-		return []voiceConfSource{{named, confNamed}}
+		return named, confNamed, true
 	}
-	home, _ := os.UserHomeDir()
-	var sources []voiceConfSource
-	if shipped := flavorconfig.Path(home, voiceConfName); shipped != "" && exists(shipped) {
-		sources = append(sources, voiceConfSource{shipped, confShipped})
+	if repo := shell.Join(shell.Join(cwd, ".kk-flavor"), voiceConfName); exists(repo) {
+		return repo, confRepository, true
 	}
 	base := os.Getenv("XDG_CONFIG_HOME")
-	if base == "" && home != "" {
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", "", false
+		}
 		base = shell.Join(home, ".config")
 	}
-	if base != "" {
-		if machine := shell.Join(shell.Join(base, "kk-flavor"), voiceConfName); exists(machine) {
-			sources = append(sources, voiceConfSource{machine, confMachine})
-		}
-	}
-	return sources
+	machine := shell.Join(shell.Join(base, "kk-flavor"), voiceConfName)
+	return machine, confMachine, exists(machine)
 }
 
 func exists(path string) bool {

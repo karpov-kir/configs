@@ -60,9 +60,9 @@
 # the code spells a compound. The three sentence shapes read a comment and a body and skip a rule
 # file, for the same reason `coined` does. `coined` also carries a built-in list of the phrases every
 # repository coins by accident, the house idiom of naming, so each conf can leave them out. `comment-voice.conf` names the words this repository coined and the findings it has decided
-# to keep. COMMENT_VOICE_CONF names one file to read. Without it, the flavor's copy in
-# `ai/kk-flavor/configs/` and `~/.config/kk-flavor/comment-voice.conf` are read together. An allow
-# entry needs its reason, and a missing file is fine.
+# to keep, looked for at COMMENT_VOICE_CONF, then `<repo>/.kk-flavor/comment-voice.conf`, then
+# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/comment-voice.conf`. An allow entry with no reason is
+# refused, and a missing file is no error.
 #
 # tested by: the Go suite in ai/tools/voice-check/. The shared stub region and the resolver it
 # calls have their own cases in the Go suite in ai/tools/reach/.
