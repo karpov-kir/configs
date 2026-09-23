@@ -120,6 +120,10 @@ whatever `--- callers` and `--- tests` sections the case carries, and it answers
 writer working a real change set has the repository: it follows a field's consumer into another
 file and decides what it found there.
 
+A case also hands the writer its callers in a `--- callers` section, which no run has. In a run the
+strip emits no such section, and the writer finds a caller by `grep` under question 1. A case reads
+what the writer does with callers it has, and says nothing about whether it would have found them.
+
 So a defect that turns on what the writer goes and finds cannot go red here. Case k18 is that
 shape. Four cuts of it, each at fifteen rolls, came back written 15, 15, 13 and 15 times. That
 two-roll move sits inside the no-change band this file's first section gives. The rule k18 pins
