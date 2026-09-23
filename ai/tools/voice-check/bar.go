@@ -202,12 +202,7 @@ type changeSet struct {
 	// the change did not create is marked carried: its comments are counted here because the file lands
 	// with them, but they are the repo's and `code-style.md` reports them rather than charging them.
 	mass []fileMass
-	// chargeable weights each file by how much of its comment mass this change wrote. Carried mass is reported and never
-	// charged, so the overage — which counts every changed file whole — is the workings and this is the
-	// figure a reader acts on. They differ by more than the overage itself on a change that brushes a
-	// comment-heavy file.
-	chargeable stats
-	read       int
+	read int
 }
 
 type fileMass struct {
@@ -218,6 +213,8 @@ type fileMass struct {
 	// whole-file share would call it inherited and charge nothing for a mass entirely the change's own.
 	// It is a fraction of the file as it stands, never a ratio of one delta to another.
 	written float64
+	// code is the file's landed code lines, which its own charge is read against.
+	code int
 }
 
 func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, authored map[string]int) changeSet {
@@ -232,12 +229,8 @@ func (h hostRepo) measureChangeSet(paths []string, ceiling perFileCeiling, autho
 		if file.comments > 0 && !ceiling.isNew[rel] {
 			written = min(float64(authored[rel])/float64(file.comments), 1)
 		}
-		set.chargeable.add(stats{
-			comments: int(float64(file.comments)*written + 0.5),
-			code:     int(float64(file.code)*written + 0.5),
-		})
 		if file.comments > 0 {
-			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, written: written})
+			set.mass = append(set.mass, fileMass{rel: rel, comments: file.comments, written: written, code: file.code})
 		}
 	})
 	return set
@@ -272,6 +265,25 @@ func (h hostRepo) authoredComments(revisions, changed []string) (map[string]int,
 
 // carriers names the files holding the first half of the change set's comment mass, heaviest first. Half
 // rather than a chosen count: it answers "where is this" without a number invented to make a report fit.
+// charges is what the change owes, file by file: the lines a file runs over the host's rate, up to the
+// lines this change wrote in it. The charge was read off the change set's total once, and a lean file
+// of the change's own hid a file it wrote whole and over the rate. The report said `nothing chargeable`
+// beside it. The second return names each charged file with its charge.
+func (c changeSet) charges(base stats) (int, []fileMass) {
+	owed := 0
+	var charged []fileMass
+	for _, file := range c.mass {
+		over := cutToRatio(stats{comments: file.comments, code: file.code}, base)
+		mine := int(float64(file.comments)*file.written + 0.5)
+		if charge := min(over, mine); charge > 0 {
+			owed += charge
+			charged = append(charged, fileMass{rel: file.rel, comments: charge})
+		}
+	}
+	sort.Slice(charged, func(i, j int) bool { return charged[i].rel < charged[j].rel })
+	return owed, charged
+}
+
 func (c changeSet) carriers() []fileMass {
 	ranked := append([]fileMass(nil), c.mass...)
 	sort.Slice(ranked, func(i, j int) bool {
@@ -386,8 +398,12 @@ func (c console) reportBar(base baseline, set changeSet, hostSo, setSo soShare) 
 		fmt.Fprintf(c.stdout, "over on lines: cut %d comment line(s) to reach %.1f%%\n", cut, base.stats.ratio()*100)
 	}
 	if cutToRatio(set.stats, base.stats) > 0 {
-		if owed := cutToRatio(set.chargeable, base.stats); owed > 0 {
+		if owed, charged := set.charges(base.stats); owed > 0 {
 			fmt.Fprintf(c.stdout, "chargeable: %d comment line(s), in the files this change wrote\n", owed)
+			for _, file := range charged {
+				fmt.Fprintf(c.stdout, "%s: %d comment line(s) charged\n",
+					shell.CutBytesMarked(shell.Oneline(file.rel), maxPathBytes), file.comments)
+			}
 		} else {
 			fmt.Fprintf(c.stdout, "chargeable: nothing chargeable — the overage is in files this change did not write\n")
 		}

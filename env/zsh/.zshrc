@@ -28,6 +28,12 @@ if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
 
+# Prezto's directory module turns `clobber` off, and then `> file` onto an existing file fails while the command runs on.
+# Claude Code and the Codex apps replay this shell's options before every command, so this branch runs `setopt clobber`.
+if [[ -n "$CLAUDECODE" || -n "$CODEX_INTERNAL_ORIGINATOR_OVERRIDE" ]]; then
+  setopt clobber
+fi
+
 # Starship prompt (must init after Prezto so its precmd hook wins)
 eval "$(starship init zsh)"
 
