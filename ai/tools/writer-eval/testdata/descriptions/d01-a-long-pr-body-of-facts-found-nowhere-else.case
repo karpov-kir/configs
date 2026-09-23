@@ -1,0 +1,17 @@
+kind: pr-body
+expect: none
+why: every sentence carries something the diff, the ticket and the stack map do not show: the reason for the shape, the alternative rejected, the change a user sees, what a reviewer must check and the risk; Kirill on 2026-09-23: "We do not want to lose important information"; the body runs long and nothing in it goes
+--- context
+Title: Read the book's format claim before the probe's
+Ticket LED-412: Postings in the deferred scheme fail on ledgers that report the format late.
+Diff: ledger/FormatClaims.ts changes getFormatClaim to consult getBookFormatClaim first; tests/FormatClaims.test.ts adds two cases.
+--- body
+The probe on the older ledger builds reports a format months after the book already accepts it, so asking the probe first refused postings the book would have taken.
+
+We considered caching the probe's answer per ledger build instead. That keeps the probe as the authority and still refuses the first posting on every new build, which is the failure the ticket reports, so it was dropped.
+
+A user posting in the deferred scheme on an older build now sees the posting go through where it was refused. Nothing changes on current builds, where the book and the probe agree.
+
+Please check the fallback when the book answers Unknown: the code then takes the probe's answer, and a probe that errors there would now surface as a refusal rather than as a retry.
+
+The risk is a book that claims a format it cannot post. We have not seen one, and the posting service still rejects such a posting downstream.

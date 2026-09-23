@@ -1,0 +1,16 @@
+kind: ticket
+expect: none
+why: every sentence is the observed problem and its evidence, the behaviour wanted, what done looks like, what is out of scope, or a link to what exists; none of it is on the linked page or in the title, and the ticket runs long with nothing to cut
+--- context
+Title: Deferred postings refused on older ledger builds
+Linked page: Ledger builds, a table of build numbers and their release dates.
+--- body
+Postings in the deferred scheme are refused on ledger builds before 4.2, while the same posting goes through on 4.2 and later. The poster log for build 4.1 shows the probe answering Unknown for the deferred format while the book already lists it as accepted.
+
+The poster should accept a format the book accepts, even while the probe has not caught up.
+
+Done means a deferred posting on build 4.1 goes through in the staging ledger, and the regression suite gains a case for a build whose probe lags its book.
+
+Changing how the probe itself reports formats is out of scope; that belongs to the ledger team.
+
+The book's claim is already read by getBookFormatClaim in ledger/FormatClaims.ts, which this work builds on.
