@@ -615,9 +615,8 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 // scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
 // file uses as structure: its frontmatter, its fenced code, and its headings.
 //
-// A paragraph is a run of lines with no blank line in it. The flavor asks for one paragraph to a line
-// in a field you type into, and repository files wrap, so both shapes arrive here and both are read
-// the same way.
+// A paragraph is a run of lines with no blank line in it. A list item starts a new one. A table row
+// ends one and is read a cell at a time. Typed fields and wrapped files both arrive here.
 func (s scanner) scanProse(file string, lines []string) []Finding {
 	var found []Finding
 	inFence, inFrontmatter := false, false
@@ -663,6 +662,11 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 		if line == "" {
 			flush(at - 1)
 			continue
+		}
+		// Items often carry no closing period, so a run of them joined into one paragraph reads as one
+		// long sentence.
+		if _, isItem := shell.ListMarker(line); isItem {
+			flush(at - 1)
 		}
 		if paragraph == 0 {
 			paragraph = at

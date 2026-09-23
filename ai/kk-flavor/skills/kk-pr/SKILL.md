@@ -42,7 +42,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
    - **A mode that pushes needs `maintainerCanModify` over a fork.** False means the push has nowhere to land: say so and stop before the work, not after it.
 2. **Check the branch out, where the mode reads code.** `gh pr checkout` into a disposable worktree — that resolves the right repository and remote, where a hardcoded `origin` does not: on a fork clone, `gh`'s default repo is the parent and `origin` is the fork. **Assert the checked-out `HEAD` equals `headRefOid` before anything reads it**; a mismatch means you fetched a different PR, and every line you draft is written against the wrong diff and then landed on the right one. The scope is `<base>...HEAD`.
    - **Remove the worktree on every exit path, abort included** — kill whatever the drive started first, then `git worktree remove --force` and `git worktree prune`. Push before you remove it.
-   - `refine-description` reads `gh pr diff <N>` and no code, so it skips this step.
+   - `refine-description` reads no code, so it skips this step. It takes the diff from `gh pr diff <N>`.
 
 ## Continue the round
 
@@ -62,8 +62,8 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 1. **Select, don't transcribe.** The bar for what earns a line and the shape of one is `~/.kk-flavor/standards/human-writing.md` → **Review comments**, or, in `refine-description`, that file's **Change descriptions (PRs)**; below is only what GitHub adds.
    - **The defect, then the fix, in two or three sentences.** A ` ```suggestion ` block replaces that prose when the fix is code on the diff's own lines. Severity and an exploit scenario stay on a security finding.
    - **A finding that fails that bar is dropped, not lost** — it reaches the human in your closing reply, who decides what becomes its own change.
-   - **Nothing outside the diff is posted as a line comment** — a duplicated site elsewhere, a gated proposal, a pre-existing defect. What the diff owes is the verdict block's.
-2. **Edit the draft inline with `kk-edit`.** The target is text you already hold. Preserve every finding, severity and required decision; read the final draft before sending. An independent rewrite is warranted only when unresolved wording needs another judgment.
+   - **Post line comments only on lines inside the diff.** A duplicated site elsewhere, a gated proposal and a pre-existing defect get no line comment. What the diff owes is the verdict block's.
+2. **Edit the draft inline with `kk-edit`.** The target is text you already hold. Preserve every finding, severity and required decision. Read the final draft before sending. An independent rewrite is warranted only when unresolved wording needs another judgment.
    - **Run `kk-edit`'s voice check in its `prose` profile over every body, line comment and reply before the send**, each on stdin. Make the edits it names. This is the last reading between the house register and a human who does not share it.
 
 3. **Scan for secrets before anything reaches GitHub.** Check every suggestion body, comment and reply for credential-shaped strings, and mask any per `~/.kk-flavor/workers/security-review.md`'s secret-handling rule, replacing the suggestion with the fix described in words. **A secret in the PR's own diff is a Critical finding and is never quoted — however that quoting is authorised** (`~/.kk-flavor/standards/skill-protocol.md` → **Caller**): the comment publishes it the instant it exists and no later instruction un-publishes it. This is the last check between a credential and a network write — nothing after you catches what you sent.
@@ -85,7 +85,7 @@ You run under `~/.kk-flavor/standards/skill-protocol.md` as an orchestrator (→
 - **A finding with no single line to anchor to**: a requirement in the body or the linked issue the diff does not deliver, a change the diff owes in a file it never touches, a total the change set owes that no single thread can be the home for.
 - **A question only the author can answer, where it decides the merge** — the verdict is then not mergeable and the question is the ask. One that does not decide it goes where the mode's file says.
 - **What stopped the pass.**
-- **Which gap the verdict rests on** (`~/.kk-flavor/standards/human-writing.md` → **Budget**) — an untrusted PR's unverified gates, a drive that was needed and did not run, a fix that went out undriven. **A red or missing check is one of these** — `gh pr checks <N>`, named because *mergeable* is partly a claim about it. A green board is not restated, and a mergeable verdict still carries the gap.
+- **Which gap the verdict rests on** (`~/.kk-flavor/standards/human-writing.md` → **Budget**). Name an untrusted PR's unverified gates, a needed drive that did not run, or a fix that went out undriven. **A red or missing check is one of these** — `gh pr checks <N>`, named because *mergeable* is partly a claim about it. A green board is not restated, and a mergeable verdict still carries the gap.
 - Where you pushed, one line per commit saying what it addressed.
 
 **Nothing else goes in it.** No stage list.

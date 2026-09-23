@@ -56,7 +56,7 @@ Before retiring the report, preserve the report, stage evidence and active inten
 - **It restates one already there** → `record bump` the project's entry. **That bump is the point of the whole split**: two ships independently needing one thing becomes a count, which `~/.kk-flavor/standards/records.md` → **Promotion is the exit upward** reads as a rule nobody has written down yet.
 - **It says something new** → `record append`.
 - **It contradicts one** — and that is never a write. Finalize has no authority to choose between a project truth and a ship's, so it goes to the human before taking the slot. The ship's entry stays unmerged until they settle it.
-- **The project record is full** → `~/.kk-flavor/standards/records.md` → **Reaching the cap**, whose four moves you work in its order. This is the one place the cap is judged with the whole batch visible, which is why it is judged here and not where each entry was written.
+- **The project record is full** → `~/.kk-flavor/standards/records.md` → **Reaching the cap**, whose four moves you work in its order. Judge the cap here, because this is the one place the whole batch is visible.
 
 **Language needs the distinction spelled out, because a term is not a command.** The same term in the same sense is a duplicate and bumps. The same term carrying a different meaning, or two terms for one thing, is a **contradiction** — the check the audit worker runs set-wide, firing here per ship and on two candidates rather than on the whole set.
 
