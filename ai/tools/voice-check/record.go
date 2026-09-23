@@ -105,15 +105,27 @@ func blockAndBody(lines []string) (block, body []string) {
 	return block, lines[at:]
 }
 
-// oneLineDeclaration says the declaration under the block holds a value on one line: a constant, a
-// field, an enum member. `does` may be `none` there, because the value beneath is the tie.
-func oneLineDeclaration(body []string) bool {
+// reDataKeyword opens a declaration that holds values and performs no act: an enum, an interface or
+// a type, whatever its length.
+var reDataKeyword = regexp.MustCompile(`^\s*(export\s+)?(declare\s+)?(default\s+)?(const\s+enum|enum|interface|type)\b`)
+
+// reValueLine is a constant, a variable or a field: a name, then a type or a value.
+var reValueLine = regexp.MustCompile(`^\s*(export\s+)?((const|let|var|readonly|static|private|public|protected|declare)\s+)*[A-Za-z_$][\w$]*\??\s*[:=]`)
+
+// dataDeclaration says the declaration under the block holds values and performs no act. That is an
+// enum, an interface, a type, or a constant or field whose value is data, at any length. `does` may be
+// `none` there, because the value beneath is the tie. Run 9 read an opening brace as a body, and five
+// writers filled `does` on data to get past it.
+func dataDeclaration(body []string) bool {
 	for _, line := range body {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		return !strings.Contains(trimmed, "{") && !strings.HasSuffix(trimmed, "(")
+		if reDataKeyword.MatchString(line) {
+			return true
+		}
+		return reValueLine.MatchString(line) && !strings.Contains(line, "=>") &&
+			!strings.Contains(line, "function")
 	}
 	return false
 }
@@ -157,7 +169,7 @@ func RecordFindings(file string, lines []string) []Finding {
 	switch {
 	case does == "":
 	case strings.EqualFold(does, noDoes):
-		if !oneLineDeclaration(body) {
+		if !dataDeclaration(body) {
 			out = append(out, Finding{file, at, checkRecordSlot,
 				"does: none, and the declaration under the block has a body, which shows what the code " +
 					"does and cannot show that the fact is why"})
