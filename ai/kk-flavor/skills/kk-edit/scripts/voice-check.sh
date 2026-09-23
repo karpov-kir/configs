@@ -46,6 +46,10 @@
 #
 # Its checks are record-slot-missing, bears-on-elsewhere, block-omits-bears-on and does-untied.
 #
+# `bare-identifier` places a name the repository resolves from outside its own source: the tsconfig
+# `lib` files, the `@types` packages and the test matchers, read once and cached under
+# `${XDG_CACHE_HOME:-~/.cache}/kk-flavor/vocabulary`. A name the repository declares stays a finding.
+#
 # Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, long-block,
 # coined, coined-identifier, counterfactual-consequence, anthropomorphism, elided-verb, long-sentence,
 # clause-depth, double-negative, semicolon, `reason-by-link`, `alone-for-only`. Several are scoped by profile. `long-block` is the comment
