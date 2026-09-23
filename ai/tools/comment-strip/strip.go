@@ -569,7 +569,7 @@ func keepForLater(archive, path string, line int, decl, record string) error {
 
 // treeNames is the hyphenated names the repository spells in its paths and its code, which the
 // writer's audit reads as the code's own words beside the file's identifiers. A repository kept a list
-// of them by hand once, and on 2026-09-23 the list went: the tree is the one source.
+// of them by hand once, and on 2026-09-23 the list went. The tree is their source now.
 func treeNames(cwd string, git repo.Git) []string {
 	if git == nil {
 		return nil

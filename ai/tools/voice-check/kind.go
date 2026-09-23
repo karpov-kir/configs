@@ -22,20 +22,19 @@ const (
 )
 
 // kindChecks run only under `--kind`. They read a whole body, where the register checks read a comment
-// block, so the house corpus of blocks never exercises them.
+// block. The house corpus holds blocks, so these checks are tested on their own.
 var kindChecks = []string{checkOverBand, checkTestsNarration}
 
-// band is a kind's width: the authored words a body may carry, and the reference median printed beside
-// a finding so an author reads the line and what it was drawn from together.
+// band is a kind's width, in the authored words a body may carry. Its reference median prints beside a
+// finding, so an author reads the line and its source together.
 type band struct {
 	words  int
 	median int
 }
 
-// defaultBands are the figures `human-writing.md` -> Change descriptions (PRs) states, and that file
-// is the one place they move. Fifty merged PRs of the host repository ran to a median of 48 authored
-// words and a 90th percentile of 110, with the template's lines and the stack map left out. A ticket
-// takes the PR figure until a body of tickets is counted.
+// defaultBands are the figures `human-writing.md` -> Change descriptions (PRs) states, and they move
+// there. Fifty merged PRs of the host repository ran to a median of 48 authored words. Their 90th
+// percentile was 110. A ticket takes the PR figure until a body of tickets is counted.
 var defaultBands = map[string]band{
 	KindPRBody: {words: 110, median: 48},
 	KindTicket: {words: 110, median: 48},
@@ -84,9 +83,9 @@ var (
 	reWord        = regexp.MustCompile(`[\pL\pN]`)
 )
 
-// AuthoredWords counts the words of a body its author wrote. Template lines, the stack map, headings,
-// HTML comments, fenced code and the tool's attribution line are left out, the way the measurement
-// behind the band left the template and the stack map out.
+// AuthoredWords counts the words of a body its author wrote. It leaves out template lines, the stack
+// map, headings, HTML comments, fenced code and the tool's attribution line. The measurement behind the
+// band left out the template and the stack map the same way.
 func AuthoredWords(body string, template map[string]bool) int {
 	body = reHTMLComment.ReplaceAllString(body, "")
 	count := 0

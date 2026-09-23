@@ -14,8 +14,8 @@ import (
 )
 
 // The refactor lane's comment verdicts, measured the way the writer is. The lane's fixture file holds
-// prose probes nobody could run, and one that asked the lane for its verdict without saying it had no
-// tools got a model trying to run them.
+// prose probes with no runner. A probe that asked for a verdict and left the tools unsaid got a model
+// trying to run them.
 const refactorCasesDir = "testdata/refactor"
 
 var refactorBriefPaths = []string{
@@ -73,16 +73,16 @@ func loadRefactorCases(t *testing.T) []refactorCase {
 	return out
 }
 
-// Every refactor case parses, so a malformed one fails the suite and not a paid run.
+// Every refactor case parses, so a malformed one fails the suite before it costs a paid run.
 func TestTheRefactorCasesParse(t *testing.T) {
 	if len(loadRefactorCases(t)) == 0 {
 		t.Fatal("no refactor case")
 	}
 }
 
-// verdictOpens is the first verdict a return names, wherever on its line it stands. The lane writes a
-// path or a backtick before it as often as not, and reading only a line's opening took ten of fifteen
-// `carried by` returns for no verdict at all.
+// verdictOpens is the first verdict a return names, wherever on its line it stands. The lane often
+// writes a path or a backtick before it. A reader of a line's opening took ten of fifteen `carried by`
+// returns for no verdict.
 var verdictOpens = regexp.MustCompile(`(?i)(carried by|stays:|blocked:|for the pr body)`)
 
 func refactorPrompt(t *testing.T, c refactorCase) string {
@@ -161,7 +161,7 @@ func TestRefactorVerdicts(t *testing.T) {
 			failed++
 		}
 		fmt.Fprintf(&report, "%-50s %d of %d (floor %d)  %v\n", c.name, passed, evalRolls, floor, tally)
-		// A failing roll's own words, one line each, since the tally says only which shape it missed by.
+		// A failing roll's own words, one line each. The tally says only which shape it missed by.
 		for r, verdict := range got {
 			if strings.HasPrefix(verdict, c.expect) && (c.bars == "" || !strings.HasPrefix(verdict, c.bars)) {
 				continue

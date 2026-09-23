@@ -10,9 +10,13 @@ import (
 	"unicode/utf8"
 )
 
-// defaultWidth is the line width a comment keeps where the repository's formatter sets none. Prettier
-// wraps code and leaves a comment line as written, so a comment is the one line nothing else bounds.
+// defaultWidth is the line width a comment keeps where the repository's formatter sets no width.
+// Prettier wraps code and leaves a comment line as written, so a comment line has no other bound.
 const defaultWidth = 120
+
+// prettierFormats is the extensions prettier formats. Its width applies to those files.
+var prettierFormats = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true,
+	".cjs": true, ".mts": true, ".cts": true, ".vue": true}
 
 var prettierConfigs = []string{".prettierrc", ".prettierrc.json", ".prettierrc.js", ".prettierrc.cjs",
 	"prettier.config.js", "prettier.config.cjs", "prettier.config.mjs"}
@@ -22,8 +26,8 @@ var (
 	reRequire    = regexp.MustCompile(`require\(\s*['"]([^'"]+)['"]\s*\)`)
 )
 
-// prettierWidth is the printWidth the repository at root formats to. A config that extends another
-// through `require` is followed one step into node_modules, which is where a shared config sets it.
+// prettierWidth is the print width the repository at root formats to. A config extending another
+// through `require` is followed one step into node_modules. A shared config sets its width there.
 func prettierWidth(root string) int {
 	var texts []string
 	for _, name := range prettierConfigs {
@@ -72,6 +76,11 @@ func prettierWidth(root string) int {
 // longLines finds a block's comment lines wider than the repository formats code to. A writer's line
 // of 139 characters stood in a repository whose code wraps at 120, and no gate read it.
 func (s scanner) longLines(file string, b block, lines []string) []Finding {
+	// The width is prettier's, and prettier formats only these files. A piped block is a writer's, and
+	// the writer checks it before it lands in one of them.
+	if file != "-" && !prettierFormats[strings.ToLower(filepath.Ext(file))] {
+		return nil
+	}
 	width := s.width
 	if width == 0 {
 		width = defaultWidth

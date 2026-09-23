@@ -5,7 +5,7 @@ import (
 )
 
 // A hyphenated name is the repository's own where its tree spells it: a file, a directory, a flag on a
-// line of code. A compound a comment alone spells is no name of the repository's.
+// line of code. A compound only a comment spells is no name of the repository's.
 func TestDerivedNamesAreWhatTheTreeSpells(t *testing.T) {
 	r := newRepo(t)
 	r.write("scripts/mcp-sync.sh", "echo sync\n")

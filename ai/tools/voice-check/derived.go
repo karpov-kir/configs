@@ -13,11 +13,11 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// The hyphenated names a repository spells itself, derived from its tree. A compound in a comment
-// whose camelCase join the code spells is the code's coined word, and the rename lane owns it. The
-// same compound is the code's own name where the tree spells it hyphenated: a file called mcp-sync.sh,
-// a directory called reader-judge, a flag written `--dry-run`. A hand list per repository named those
-// once, and Kirill ruled on 2026-09-23 that no word list stays: "It needs to be replaced."
+// A compound in a comment whose camelCase join the code spells is the code's coined word, and the
+// rename lane owns it. It is the code's own name where the tree spells it hyphenated: a file called
+// mcp-sync.sh, a directory called reader-judge, a flag written `--dry-run`.
+//
+// A hand list per repository named those once. Kirill ruled on 2026-09-23 that it goes.
 
 // reHyphenName is a hyphenated compound as a path or a string spells it.
 var reHyphenName = regexp.MustCompile(`[a-z0-9]+(?:-[a-z0-9]+)+`)
@@ -26,8 +26,8 @@ var reHyphenName = regexp.MustCompile(`[a-z0-9]+(?:-[a-z0-9]+)+`)
 const maxDerivedFileBytes = 1 << 20
 
 // DerivedNames is every hyphenated compound the repository at root spells in a tracked path or on a
-// line of code, lower-cased. Comment lines are left out, since a comment is where a coined word would
-// be learnt from. It is cached under cacheHome by the tree it read.
+// line of code, lower-cased. Comment lines are left out, because a coined word is learnt from a
+// comment. It is cached under cacheHome by the tree it read.
 func DerivedNames(root string, git repo.Git, cacheHome string) map[string]bool {
 	files, err := git.Tracked(root)
 	if err != nil || len(files) == 0 {

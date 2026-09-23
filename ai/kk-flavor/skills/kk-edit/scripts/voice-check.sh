@@ -59,9 +59,9 @@
 # word a codebase may have coined. `coined-identifier` is the comment profile's, since it asks whether
 # the code spells a compound. The three sentence shapes read a comment and a body and skip a rule
 # file, for the same reason `coined` does. `coined` also carries a built-in list of the phrases every
-# repository coins by accident, the house idiom of naming. No repository keeps a word list. The hyphenated names a
-# repository spells in its paths and its code are read off its tree, and a finding that must stand is a
-# defect in the check, fixed there.
+# repository coins by accident, the house idiom of naming. No repository keeps a word list: the
+# hyphenated names a repository spells in its paths and its code are read off its tree. A finding that
+# must stand is a defect in the check, fixed there.
 #
 # tested by: the Go suite in ai/tools/voice-check/. The shared stub region and the resolver it
 # calls have their own cases in the Go suite in ai/tools/reach/.
