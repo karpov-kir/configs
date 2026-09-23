@@ -6,6 +6,7 @@
  * Where an older entry carries another currency, it can total something else entirely and still be
  * recorded as a match.
  */
+import { Element } from './dom';
 
 export interface EntryInBook {
   entry: Element;

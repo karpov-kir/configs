@@ -6,6 +6,8 @@
  * currency to choose from.
  */
 
+import { Element } from './dom';
+
 export interface EntryInBook {
   entry: Element;
   book: Element;

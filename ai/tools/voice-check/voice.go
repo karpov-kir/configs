@@ -97,32 +97,37 @@ func (f Finding) String() string {
 
 // The checks, each named so an allowlist entry can name it.
 const (
-	checkBold          = "bold"
-	checkContrast      = "contrast"
-	checkCounterfactal = "counterfactual-opener"
-	checkNoSubject     = "no-subject"
-	checkIntensifier   = "intensifier"
-	checkPositional    = "positional"
-	checkLongBlock     = "long-block"
-	checkCoined        = "coined"
-	checkCoinedIdent   = "coined-identifier"
-	checkCounterfact   = "counterfactual-consequence"
-	checkAnthropo      = "anthropomorphism"
-	checkElidedVerb    = "elided-verb"
-	checkBareIdent     = "bare-identifier"
-	checkLongSentence  = "long-sentence"
-	checkClauseDepth   = "clause-depth"
-	checkDoubleNeg     = "double-negative"
-	checkSemicolon     = "semicolon"
-	checkReasonAway    = "reason-by-link"
-	checkAloneForOnly  = "alone-for-only"
+	checkBold           = "bold"
+	checkContrast       = "contrast"
+	checkCounterfactal  = "counterfactual-opener"
+	checkNoSubject      = "no-subject"
+	checkIntensifier    = "intensifier"
+	checkPositional     = "positional"
+	checkLongBlock      = "long-block"
+	checkCoined         = "coined"
+	checkCoinedIdent    = "coined-identifier"
+	checkCounterfact    = "counterfactual-consequence"
+	checkAnthropo       = "anthropomorphism"
+	checkElidedVerb     = "elided-verb"
+	checkBareIdent      = "bare-identifier"
+	checkLongSentence   = "long-sentence"
+	checkClauseDepth    = "clause-depth"
+	checkDoubleNeg      = "double-negative"
+	checkSemicolon      = "semicolon"
+	checkReasonAway     = "reason-by-link"
+	checkAloneForOnly   = "alone-for-only"
+	checkHeaderOnImport = "header-on-import"
 )
 
 // AllChecks is every check name, for the allowlist parser to refuse an entry naming none of them.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
-	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly}
+	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
+	checkHeaderOnImport}
+
+// reImportLine opens an import, in the languages whose files open on one.
+var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
 
 // reAlone is the word itself. What it follows decides whether it is the exclusivity word or the
 // ordinary one.
@@ -573,6 +578,13 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
 		limit := voiceLongBlock
 		header := b.isFileHeader(lines, held)
+		// A file header stands apart from the code under it. The strip takes the blank line under a
+		// header with the header, and three rewritten headers of run 8 then sat directly on an import.
+		// A Go package comment sits on `package` with no blank, so only an import under one is read.
+		if header && b.end < len(whole) && reImportLine.MatchString(whole[b.end]) {
+			found = append(found, Finding{File: file, Line: b.end, Check: checkHeaderOnImport,
+				Text: strings.TrimSpace(whole[b.end])})
+		}
 		if header {
 			limit = voiceLongHeader
 		}

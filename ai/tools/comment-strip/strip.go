@@ -284,12 +284,23 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	if archive != "" {
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
+		offered := map[int]bool{}
+		for _, s := range sites {
+			offered[s.line] = true
+		}
 		for _, record := range records {
 			if _, found := held[record.name]; found {
 				continue
 			}
 			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))
 			held[record.name] = at
+			// Two records reading to one line are one site. earlierFacts, the writer of a site's earlier
+			// claims, gathers every record held at a line. A second site there doubled them. Run 8 offered 11
+			// lines twice, and the writers answered each duplicate `none`.
+			if offered[at] {
+				continue
+			}
+			offered[at] = true
 			sites = append(sites, site{line: at, facts: fmt.Sprintf("%d.facts", len(sites)+1), decl: record.decl})
 		}
 	}
@@ -476,9 +487,10 @@ func recordSites(records []archived, sites []site, shared map[string]bool) map[s
 	return at
 }
 
-// declarationLine is where a record's declaration stands in the file now. A file holding it nowhere
-// gives up `fallback`. An archived site is offered here, because the recorded line put 45 of run 7's
-// 118 archived-only sites on a line their declaration had left.
+// declarationLine is where a record's declaration stands in the file now. A record keeping no
+// declaration gives up `fallback`, its recorded line. Where the file holds the declaration nowhere, it
+// gives up fileLevel, the site line meaning none. The recorded line of a renamed declaration is a
+// brace, a blank or another declaration by then, and run 8 put 30 records there.
 func declarationLine(lines []string, decl string, recorded, fallback int) int {
 	if decl == "" {
 		return fallback
@@ -493,10 +505,14 @@ func declarationLine(lines []string, decl string, recorded, fallback int) int {
 		}
 	}
 	if at == 0 {
-		return fallback
+		return fileLevel
 	}
 	return at
 }
+
+// fileLevel is the site line of a claim whose declaration left the file. The writer places such a
+// claim anywhere in the file or declines it.
+const fileLevel = 0
 
 func abs(n int) int {
 	if n < 0 {
