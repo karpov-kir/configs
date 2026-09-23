@@ -1,6 +1,7 @@
 The ten blocks the bar was fixed over: the eight a reviewer flagged on 2026-09-21 and 2026-09-22, in
-the ledger domain as the writer-eval cases carry them, and the two the landed rules still write at
-k17 and k07. The reader answers `cannot say` on every one, or the gate is deleted.
+the ledger domain as the writer-eval cases carry them, and the two residuals the landed rules carry at
+k17 and k07, each as a run wrote it and a reviewer read it. The reader answers `cannot say` on
+every one, or the gate is deleted.
 
 === k15
 // Reads postings out of a ledger book, following the field inheritance the specification defines.
@@ -52,7 +53,6 @@ export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, form
 export enum SettlementScheme {
 
 === k07
-// A ledger can choose a settlement the preferred settlements do not name.
-// `withOnlySettlement` returns a source whose `settlements` holds the given scheme and no other.
+// The ledger can choose a settlement that preferredSettlements does not name, so withOnlySettlement removes the others.
 --- line
 export function withOnlySettlement(source: SourceConfig, scheme: Settlement): SourceConfig {

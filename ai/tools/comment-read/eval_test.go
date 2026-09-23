@@ -289,3 +289,36 @@ func plainSites(t *testing.T, dir string, budget int) []Site {
 	}
 	return out
 }
+
+const readingsPath = "testdata/readings.txt"
+
+// The readings are blocks run for what the reader says about them. They are never gated: a reading
+// is evidence about the block, and a bar over it would tune the reader to the writer's output.
+func TestReaderReadings(t *testing.T) {
+	if os.Getenv(evalEnv) == "" {
+		t.Skipf("%s is unset; this spends a model call per roll", evalEnv)
+	}
+	raw, err := os.ReadFile(readingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sites, err := ParseSites(string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	answers := read(t, sites, intFromEnv(t, rollsEnv, defaultRolls), intFromEnv(t, parallelEnv, 4))
+	var report strings.Builder
+	for i, s := range sites {
+		yes, counted := 0, 0
+		for _, a := range answers[i] {
+			if a.Parsed {
+				counted++
+				if a.CannotSay {
+					yes++
+				}
+			}
+		}
+		fmt.Fprintf(&report, "%s: %d of %d cannot say\n", s.Name, yes, counted)
+	}
+	t.Logf("\n%s", report.String())
+}

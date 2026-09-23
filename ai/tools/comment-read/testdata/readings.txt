@@ -1,0 +1,8 @@
+Blocks the reader is run over for what it says about them, and never gated on. The branch writer's
+output at k07 claims to tie its fact; the reader passing it says the block ties.
+
+=== k07-branch
+// A ledger can choose a settlement the preferred settlements do not name.
+// `withOnlySettlement` returns a source whose `settlements` holds the given scheme and no other.
+--- line
+export function withOnlySettlement(source: SourceConfig, scheme: Settlement): SourceConfig {
