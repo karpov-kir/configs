@@ -1346,6 +1346,9 @@ func (s scanner) readUntracked(a *addedLines, cwd string, git repo.Git, cfg Conf
 	if err != nil {
 		return errors.New("could not list untracked files — exit 2, the scan did NOT run over them.")
 	}
+	for _, name := range result.Declined {
+		a.declined[name] = true
+	}
 	return nil
 }
 

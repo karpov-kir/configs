@@ -44,6 +44,9 @@ type Result struct {
 	// SkippedUnread is files the scan declined without scanning: over the byte cap, binary, or named as
 	// secret-bearing. They have to reach the tally or the summary claims a denominator it never covered.
 	SkippedUnread int
+	// Declined names each file SkippedUnread counts, apart from a secret-named one, whose notice
+	// already names it.
+	Declined []string
 	BinaryLines   int
 }
 
@@ -259,20 +262,32 @@ func (r *Result) bodyToScan(full, name string, opts Options) ([]byte, bool) {
 	// points at, so it is declined and counted rather than followed. Nothing is lost: a target that is
 	// itself untracked and in the repo is already listed under its own name.
 	info, err := os.Lstat(full)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > opts.MaxFileBytes {
-		r.SkippedUnread++
-		return nil, false
+	if err != nil || !info.Mode().IsRegular() {
+		return r.decline(name, "it is not a regular file", opts)
+	}
+	if info.Size() > opts.MaxFileBytes {
+		return r.decline(name, fmt.Sprintf("it is %d bytes, over the %d-byte cap", info.Size(), opts.MaxFileBytes), opts)
 	}
 	body, err := os.ReadFile(full)
 	if err != nil {
-		r.SkippedUnread++
-		return nil, false
+		return r.decline(name, "it could not be read", opts)
 	}
 	if isBinary(body) {
-		r.SkippedUnread++
-		return nil, false
+		return r.decline(name, "it is binary", opts)
 	}
 	return body, true
+}
+
+// decline counts a file the scan did not read, keeps its name, and says so. A drive gate on 2026-09-24
+// ran the comment scan over a tree holding a file over the cap, and the summary read `0 declined
+// unread` over a file it never opened.
+func (r *Result) decline(name, why string, opts Options) ([]byte, bool) {
+	r.SkippedUnread++
+	r.Declined = append(r.Declined, name)
+	if opts.Announce != nil {
+		opts.Announce(fmt.Sprintf("skipping '%s' — %s; it was NOT scanned.", name, why))
+	}
+	return nil, false
 }
 
 // A scanner that echoes file CONTENT is a route from an untracked secret into the transcript, the
