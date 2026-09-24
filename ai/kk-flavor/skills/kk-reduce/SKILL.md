@@ -52,7 +52,7 @@ The reading and the arbitration are yours; `~/.kk-flavor/workers/reduce/reconcil
 - **Stale claims.** A wiring check proves the path and the heading a citation names; nothing proves that section still says the thing. Read every citation into a file that was heavily cut.
 - **Prefer the mechanism.** Move prose a script can assert into the script (`~/.kk-flavor/standards/ecosystem.md` → **Prefer the mechanism**).
 - **Trace the real runs.** Walk each end-to-end path as the agent would, loading files in order, and find where the instruction runs out: a step naming something no file defines, an invocation whose receiving skill no longer expects what the sender sends, a contract with one half deleted.
-- **Skill shape**, where skills were cut — dispatch `~/.kk-flavor/workers/skillcraft.md`. Run it here and not in Phase 3: what to extract depends on what survived.
+- **Skill shape**, where skills were cut — dispatch `~/.kk-flavor/workers/skillcraft.md`. Run it here, after Phase 3's fan-out, because what to extract depends on what survived.
 
 ## 5. Converge
 

@@ -327,3 +327,26 @@ func UnknownLayer(lines []string) (string, bool) {
 	}
 	return "", false
 }
+
+// ListMarker reads the list marker a line opens on. It returns the empty string for a bullet, the
+// digits for an ordered item, or false when no space or tab follows the marker.
+func ListMarker(line string) (string, bool) {
+	number, rest := "", ""
+	switch {
+	case strings.HasPrefix(line, "-"), strings.HasPrefix(line, "*"), strings.HasPrefix(line, "+"):
+		rest = line[1:]
+	default:
+		digits := 0
+		for digits < len(line) && line[digits] >= '0' && line[digits] <= '9' {
+			digits++
+		}
+		if digits == 0 || digits+1 > len(line) || (line[digits] != '.' && line[digits] != ')') {
+			return "", false
+		}
+		number, rest = line[:digits], line[digits+1:]
+	}
+	if rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
+		return "", false
+	}
+	return number, true
+}

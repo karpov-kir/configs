@@ -124,7 +124,7 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
-	checkOverBand, checkTestsNarration, checkHeaderOnImport,
+	checkTestsNarration, checkHeaderOnImport,
 	checkLongLine}
 
 // reImportLine opens an import, in the languages whose files open on one.
@@ -491,10 +491,9 @@ type scanner struct {
 	// record says the text opens with the note's record, which RecordFindings reads against the block
 	// and the source under it. The register checks read the prose either way.
 	record bool
-	// kind is the body a prose text is read as, empty for none. bands and template are what its
-	// checks count against.
+	// kind is the body a prose text is read as, empty for none. template is its template's lines,
+	// which the checks leave unread.
 	kind     string
-	bands    map[string]band
 	template map[string]bool
 	// vocabulary is the names the repository resolves from outside its own source, which a reader
 	// places without an appositive. Nil where the repository has no type environment to read.
@@ -616,9 +615,8 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 // scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
 // file uses as structure: its frontmatter, its fenced code, and its headings.
 //
-// A paragraph is a run of lines with no blank line in it. The flavor asks for one paragraph to a line
-// in a field you type into, and repository files wrap, so both shapes arrive here and both are read
-// the same way.
+// A paragraph is a run of lines with no blank line in it. A list item starts a new one. A table row
+// ends one and is read a cell at a time. Typed fields and wrapped files both arrive here.
 func (s scanner) scanProse(file string, lines []string) []Finding {
 	var found []Finding
 	inFence, inFrontmatter := false, false
@@ -664,6 +662,11 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 		if line == "" {
 			flush(at - 1)
 			continue
+		}
+		// Items often carry no closing period, so a run of them joined into one paragraph reads as one
+		// long sentence.
+		if _, isItem := shell.ListMarker(line); isItem {
+			flush(at - 1)
 		}
 		if paragraph == 0 {
 			paragraph = at
@@ -1011,7 +1014,7 @@ flags:
 			record = true
 		case strings.HasPrefix(args[0], "--kind="):
 			kind = strings.TrimPrefix(args[0], "--kind=")
-			if _, known := defaultBands[kind]; !known {
+			if !kinds[kind] {
 				return out.refuseArguments(fmt.Errorf("no kind %q — the scan did NOT run. Kinds: %s %s",
 					shell.CutBytesMarked(shell.Oneline(kind), 40), KindPRBody, KindTicket))
 			}
@@ -1063,8 +1066,7 @@ flags:
 			root = top
 		}
 		if kind != "" {
-			s.bands = defaultBands
-			s.template = templateLines(root)
+			s.template = templateLines(root, kind)
 		}
 		if profile == ProfileComment {
 			s.width = prettierWidth(root)
@@ -1361,11 +1363,11 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			_, under, _ := splitRecord(lines)
 			return append(found, s.scanSource(file, under, nil, under)...)
 		}
-		found := s.scanProse(file, lines)
-		if s.kind != "" {
-			found = append(found, KindFindings(file, strings.Join(lines, "\n"), s.kind, s.bands, s.template)...)
+		if s.kind == "" {
+			return s.scanProse(file, lines)
 		}
-		return found
+		authored := AuthoredLines(strings.Join(lines, "\n"), s.template)
+		return append(s.scanProse(file, authored), KindFindings(file, lines, authored)...)
 	}
 	if len(args) == 0 {
 		return nil, fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", s.profile)

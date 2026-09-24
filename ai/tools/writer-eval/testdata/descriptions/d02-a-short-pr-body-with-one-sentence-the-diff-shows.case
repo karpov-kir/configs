@@ -1,0 +1,9 @@
+kind: pr-body
+expect: cut
+cut: renames
+why: the second sentence says what the diff already shows, a rename and its callers, and it is the only sentence to go; the first carries the reason and the third the risk
+--- context
+Title: Rename postingFormat to format
+Diff: ledger/Ledger.ts renames the field postingFormat to format; ledger/Poster.ts, ledger/Report.ts and ledger/Export.ts update their reads of it.
+--- body
+The ledger's export calls this field format, and matching it lets the export map rows without a translation table. This PR renames postingFormat to format in Ledger.ts and updates its three callers. A stored snapshot written before this change still holds the old key, so a reader of an old snapshot needs the migration in LED-419.

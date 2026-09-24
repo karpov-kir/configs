@@ -112,7 +112,7 @@ func proseBlocks(lines []string) []Unit {
 			found[len(found)-1].Span++
 		default:
 			found = append(found, Unit{Line: i + 1, Span: 1})
-			number, isItem := listMarker(line)
+			number, isItem := shell.ListMarker(line)
 			inParagraph, inOrdered = wraps(line), isItem && number != ""
 		}
 	}
@@ -128,7 +128,7 @@ func opensBlock(line string, inOrdered bool) bool {
 	case strings.HasPrefix(line, "#"), strings.HasPrefix(line, ">"), strings.HasPrefix(line, "|"):
 		return true
 	}
-	number, marked := listMarker(line)
+	number, marked := shell.ListMarker(line)
 	return marked && (number == "" || number == "1" || inOrdered)
 }
 
@@ -138,31 +138,6 @@ func opensBlock(line string, inOrdered bool) bool {
 // heading too, and a table row's neighbour is another row or the end of the table.
 func wraps(line string) bool {
 	return !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "|")
-}
-
-// listMarker reads a line's list marker: the empty string for a bullet, the digits for an ordered
-// item, and false where there is no marker or no space after one. A marker needs that space —
-// `**Bold**` opening a paragraph and `--- a comparison` are not list items, and reading them as ones
-// would split a paragraph the writer did not split.
-func listMarker(line string) (string, bool) {
-	number, rest := "", ""
-	switch {
-	case strings.HasPrefix(line, "-"), strings.HasPrefix(line, "*"), strings.HasPrefix(line, "+"):
-		rest = line[1:]
-	default:
-		digits := 0
-		for digits < len(line) && line[digits] >= '0' && line[digits] <= '9' {
-			digits++
-		}
-		if digits == 0 || digits+1 > len(line) || (line[digits] != '.' && line[digits] != ')') {
-			return "", false
-		}
-		number, rest = line[:digits], line[digits+1:]
-	}
-	if rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
-		return "", false
-	}
-	return number, true
 }
 
 // offerFor is which candidates a kind puts to the vote — `Kind.Trailers` for what a commit withholds.
