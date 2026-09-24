@@ -2,7 +2,7 @@ expect: written
 note: written
 floor: 60
 keeps: getformatclaim
-keeps: accepted | bookclaim
+keeps: accepted | bookclaim | book's claim
 why: the fact is a piece of the book's history and the site is a function combining two answers about a format; a writer on 2026-09-22 wrote the history and stopped, and a reviewer read the block and asked "and what?"; the block owes the tie: what `getFormatClaim` does about the fact, which is take either answer as `Accepted`, or fall back to the book's claim where the probe answers `Unknown`, since the probe lagging the book explains both acts; a function's body shows what the code does and cannot show that the fact is why, so the tie is never `shown by the body`
 labelled: 2026-09-22
 --- code
