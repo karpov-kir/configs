@@ -176,9 +176,9 @@ sources plus that list and not as isolation: a managed policy setting is merged 
 
 **Three levers sit outside the file, and no row can move them.** The session an orchestrator runs in
 takes the model the human chose before the skill loaded, so a cheap reactor or patrol loop is bought
-with that choice and not with an assignment. The judge's roll deadline stays machine-local in
-`reader-judge.conf` on purpose (`ai/tools/reader-judge/deadline.go`) — a timeout tuned in the tree would
-travel to everyone on the next commit.
+with that choice and not with an assignment. The judge's roll deadline is `configs/reader-judge.conf`'s
+(`ai/tools/reader-judge/deadline.go` holds why), and a machine retunes it only in its own machine-local
+copy. A timeout tuned in the tree would travel to everyone on the next commit.
 
 **The third is which client judges, and it is `JUDGE_PROVIDER`'s.** Every row names a model for both
 clients and nothing in the file chooses between them, so the caller does. **A call site defaults to

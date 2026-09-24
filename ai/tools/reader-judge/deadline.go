@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"configs/ai/tools/flavorconfig"
+	"configs/ai/tools/shell"
 )
 
 // defaultRollDeadline bounds one roll of the model. A vote rolls every roll at once, so a judge run is
@@ -31,15 +32,14 @@ import (
 // 420 was 2.8 times the slowest roll then known; against 343 it had become 1.22 while still calling
 // itself generous. 900 restores the ratio. Concurrency is what makes it affordable, every roll of a
 // vote waiting at once — one at a time it would bound a run at 45 minutes.
-//
-// `configs/reader-judge.conf` ships this same number and wins wherever a configs directory is found,
-// so the two move together. This constant is the bound when none is.
 const defaultRollDeadline = 900 * time.Second
 
-const overrideKey = "roll-timeout"
+const rollTimeoutKey = "roll-timeout"
 
 const configName = "reader-judge.conf"
 
+// A day, and no roll needs one. The ceiling also keeps `time.Duration(seconds)` far from its overflow
+// near 9.2e9 seconds, where the deadline turns negative and every roll is cancelled before it starts.
 const maxRollSeconds = 86400
 
 // overridePath is where this machine tunes the deadline — the one place ecosystem.md → **Conventions
@@ -105,25 +105,23 @@ func rollDeadline(configHome, home string) (time.Duration, string, error) {
 // `fallback` is the number the refusal offers when it asks for the file to be removed. It is the
 // number removing the file restores.
 func secondsIn(path string, fallback time.Duration) (int, error) {
-	settings, err := flavorconfig.Read(path, []string{overrideKey})
+	settings, err := flavorconfig.Read(path, []string{rollTimeoutKey})
 	if err != nil {
 		return 0, fmt.Errorf("%w, so how long a roll of the model gets is unknown", err)
 	}
 	if settings == nil {
 		return 0, nil
 	}
-	raw, set := settings[overrideKey]
+	raw, set := settings[rollTimeoutKey]
 	if !set {
 		return 0, fmt.Errorf("%s sets no %s — add a `%s <seconds>` line, or remove the file to use the default of %s",
-			path, overrideKey, overrideKey, fallback)
+			path, rollTimeoutKey, rollTimeoutKey, fallback)
 	}
-	// Both ends are bounded. Under one second there is no roll. Over a day, `time.Duration(seconds)`
-	// overflows int64 nanoseconds into a negative duration. Every roll is then cancelled before it
-	// starts, and the judge jams at exit 2 on a line that reads like an ordinary number.
+	// Both ends are bounded. Under one second there is no roll.
 	seconds, err := strconv.Atoi(raw)
 	if err != nil || seconds < 1 || seconds > maxRollSeconds {
 		return 0, fmt.Errorf("%s sets %s to %s, which is not a whole number of seconds between 1 and %d",
-			path, overrideKey, echoable(raw), maxRollSeconds)
+			path, rollTimeoutKey, shell.Echoable(raw), maxRollSeconds)
 	}
 	return seconds, nil
 }

@@ -99,7 +99,7 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	if raw != "" {
 		value, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || value < 0 {
-			return cfg, fmt.Errorf("%s is %q, which is no whole number of bytes — the scan did NOT run", source, shell.Oneline(raw))
+			return cfg, fmt.Errorf("%s is %q, which is no whole number of bytes — the scan did NOT run", source, shell.Echoable(raw))
 		}
 		cfg.MaxFileBytes = value
 	}

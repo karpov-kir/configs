@@ -6,7 +6,7 @@
 // Model assignments come from kk-flavor/configs/models.json. JUDGE_MODEL is retired and refused.
 // A provider refusing that name fails as a refusal naming the policy file that chose it, not as a roll
 // that did not answer. model-check asks the same question of every name in that file, as a gate unit.
-// Calls use the selected CLI's existing login and the deadline kk-flavor/configs/bloat-judge.conf sets.
+// Calls use the selected CLI's existing login and the deadline kk-flavor/configs/reader-judge.conf sets.
 // Codex ignores config, rules and workspace instructions, disables external tools, and uses
 // a read-only sandbox. Built-in utility tools and apply_patch may remain exposed.
 //
@@ -124,7 +124,7 @@ func grammarRefusal(self string, args []string) (numbersOnly, changed bool, revi
 			revisions = strings.Fields(strings.TrimPrefix(args[0], "--changed="))
 		default:
 			return numbersOnly, changed, revisions, nil,
-				fmt.Sprintf("%s: unknown option %s — the judge did NOT run", self, echoable(args[0]))
+				fmt.Sprintf("%s: unknown option %s — the judge did NOT run", self, shell.Echoable(args[0]))
 		}
 		args = args[1:]
 	}
@@ -173,7 +173,7 @@ func RunIn(self string, args []string, cwd string, git repo.Git, stdin io.Reader
 		}
 		raw, err := os.ReadFile(readPath)
 		if err != nil {
-			fmt.Fprintf(stderr, "%s: cannot read %s — the judge did NOT run\n", self, echoable(args[1]))
+			fmt.Fprintf(stderr, "%s: cannot read %s — the judge did NOT run\n", self, shell.Echoable(args[1]))
 			return exitDidNotRun
 		}
 		content = string(raw)
@@ -210,7 +210,7 @@ func RunIn(self string, args []string, cwd string, git repo.Git, stdin io.Reader
 	if kind.Verdicts {
 		name := "-"
 		if len(args) == 2 {
-			name = echoable(args[1])
+			name = shell.Echoable(args[1])
 		}
 		labelKey := kindName + "\n" + offeredKey(units)
 		labels, recorded := memo.lookupLabels(labelKey, content, len(units))
@@ -279,14 +279,6 @@ func RunIn(self string, args []string, cwd string, git repo.Git, stdin io.Reader
 		return exitClean
 	}
 	return exitCut
-}
-
-// echoable is how an argument reaches a message. A refusal names the argument the caller typed, and
-// an argument carrying a newline forges a second line of output that the orchestrator reading this
-// stream cannot tell from one the tool wrote. Sanitised and bounded, the way ecoroot.UncountedNames
-// treats every name it echoes.
-func echoable(arg string) string {
-	return shell.CutBytesMarked(shell.Oneline(arg), 80)
 }
 
 func kindNames() string {

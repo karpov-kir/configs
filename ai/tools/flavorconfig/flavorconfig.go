@@ -1,14 +1,11 @@
-// Package flavorconfig reads the tracked defaults the flavor ships under `kk-flavor/configs/`.
+// Package flavorconfig reads the tracked defaults the flavor ships under `kk-flavor/configs/`, one
+// `<key> <value>` a line with `#` comments. The file comes from the checkout the running binary was
+// built in. A config is then as trusted as the code reading it, and a repository being judged cannot
+// set its own bounds (`~/.kk-flavor/standards/ecosystem.md`).
 //
-// One shape for every tool with a tunable: `<key> <value>` a line, `#` comments. The file comes from
-// the checkout the running binary was built in. A config is then exactly as trusted as the code
-// reading it. A repository being judged cannot set the bounds it is judged under
-// (`~/.kk-flavor/standards/ecosystem.md` → "Conventions a new file joins").
-//
-// This package parses. What a value means and what a refusal costs the run are each caller's.
-//
-// Every value read here is a bounded number. A key naming a path, a deletion target or a command
-// needs the guards in `eco-report`'s own reader.
+// This package parses. What a value means and what a refusal costs the run are each caller's. Every
+// value read here is a bounded number. A key naming a path, a deletion target or a command needs the
+// guards in `eco-report`'s own reader.
 package flavorconfig
 
 import (
@@ -35,26 +32,39 @@ func Path(home, name string) string {
 	return filepath.Join(dir, name)
 }
 
-// dirFor is Path's decision, with the executable passed in so a case can name one. The resolver puts
-// a binary at `<checkout>/ai/tools/bin/<tool>`, and this reads that checkout's configs. A worktree
-// then tests its own configs, and CI reads the configs it built from.
+// dirFor is Path's decision, with the executable passed in so a case can name one. A worktree tests
+// its own configs this way, and CI reads the configs it built from.
 func dirFor(exe, home string) string {
-	// A host repository cannot choose these. A skill runs a script through `~/.kk-flavor` wherever the
-	// working directory holds code the human did not write, and that stub runs the installed binary.
-	if exe != "" {
-		if real, err := filepath.EvalSymlinks(exe); err == nil {
-			exe = real
-		}
-		bin := filepath.Dir(exe)
-		if filepath.Base(bin) == "bin" && filepath.Base(filepath.Dir(bin)) == "tools" {
-			beside := filepath.Join(filepath.Dir(filepath.Dir(bin)), "kk-flavor", "configs")
-			if info, err := os.Stat(beside); err == nil && info.IsDir() {
-				return beside
-			}
-		}
+	if dir := configsBesideBinary(exe); dir != "" {
+		return dir
 	}
-	// Any other binary, such as a `go test` build, reads the mount under home. A relative home has no
-	// mount to read.
+	return configsInMount(home)
+}
+
+// configsBesideBinary answers for a binary at `<checkout>/ai/tools/bin/<tool>`, where the resolver
+// puts one. A host repository cannot choose it. A skill runs a script through `~/.kk-flavor` wherever
+// the working directory holds code the human did not write. That stub runs the installed binary.
+func configsBesideBinary(exe string) string {
+	if exe == "" {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	bin := filepath.Dir(exe)
+	if filepath.Base(bin) != "bin" || filepath.Base(filepath.Dir(bin)) != "tools" {
+		return ""
+	}
+	beside := filepath.Join(filepath.Dir(filepath.Dir(bin)), "kk-flavor", "configs")
+	if info, err := os.Stat(beside); err != nil || !info.IsDir() {
+		return ""
+	}
+	return beside
+}
+
+// configsInMount answers for any other binary, such as a `go test` build. A relative home has no
+// mount to read.
+func configsInMount(home string) string {
 	if !filepath.IsAbs(home) {
 		return ""
 	}
@@ -91,12 +101,10 @@ func Read(path string, allowed []string) (map[string]string, error) {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		// One-lined and cut, since a human writes these files and the echo reaches a terminal. A line
-		// with no newline is as long as the file, and echoed whole it buries its own refusal.
 		fields := shell.SplitFields(trimmed)
 		if len(fields) != 2 || !slices.Contains(allowed, fields[0]) {
 			return nil, fmt.Errorf("%s has a line this does not understand: %s — the supported lines are %s",
-				path, echoable(trimmed), supported(allowed))
+				path, shell.Echoable(trimmed), supported(allowed))
 		}
 		if _, repeated := settings[fields[0]]; repeated {
 			return nil, fmt.Errorf("%s sets %s more than once — which one wins is not this tool's guess to make", path, fields[0])
@@ -106,17 +114,12 @@ func Read(path string, allowed []string) (map[string]string, error) {
 	return settings, nil
 }
 
-// Returns the link's target, or a stand-in when it cannot be read.
 func readLink(path string) string {
 	target, err := os.Readlink(path)
 	if err != nil {
 		return "(unreadable)"
 	}
 	return target
-}
-
-func echoable(line string) string {
-	return shell.CutBytesMarked(shell.Oneline(line), 80)
 }
 
 func supported(allowed []string) string {

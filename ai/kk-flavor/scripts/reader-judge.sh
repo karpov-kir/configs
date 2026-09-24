@@ -15,7 +15,7 @@
 #
 # Every attempted roll is bounded. Cancellation supplies no verdict.
 # `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/reader-judge.conf` retunes the bound on this machine
-# with a `roll-timeout <seconds>` line. `ai/tools/reader-judge/deadline.go` holds the figure it replaces.
+# with a `roll-timeout <seconds>` line. `~/.kk-flavor/configs/reader-judge.conf` holds the figure it replaces.
 #
 # What the model may do, and why it is safe, is the package doc in `ai/tools/reader-judge/judge.go`.
 #

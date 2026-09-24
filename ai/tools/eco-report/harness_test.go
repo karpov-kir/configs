@@ -368,29 +368,6 @@ func (f *fixture) writeOverride(content string) {
 	f.write(f.configHome+"/kk-flavor/idsd.conf", content)
 }
 
-// The tracked default, as the installed flavor ships one. It goes under the fixture's own HOME, like
-// the machine override. Only a case that asks for it gets one, and every other case measures the
-// git-dir fallback.
-func (f *fixture) writeShippedDefault(content string) {
-	f.t.Helper()
-	f.mkdirAll(f.home + "/.kk-flavor/configs")
-	f.write(f.home+"/.kk-flavor/configs/idsd.conf", content)
-}
-
-// The configs this checkout actually ships. The fixture links them into its HOME, so the tool reads
-// the real files. A change to a shipped file then reaches every case that mounts them.
-func (f *fixture) mountShippedConfigs() {
-	f.t.Helper()
-	source, err := filepath.Abs("../../kk-flavor/configs")
-	if err != nil {
-		f.t.Fatal(err)
-	}
-	f.mkdirAll(f.home + "/.kk-flavor")
-	if err := os.Symlink(source, f.home+"/.kk-flavor/configs"); err != nil {
-		f.t.Fatal(err)
-	}
-}
-
 // The invariant that replaced the local exclusion: an external idsd sits where `git add -A` cannot
 // reach it, so there is nothing to hide and no exclusion to keep in step across worktrees. Stronger
 // than what it replaced — an exclude entry can be edited away, a path outside the tree cannot.

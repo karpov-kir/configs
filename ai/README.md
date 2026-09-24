@@ -104,11 +104,9 @@ and cannot reach** says why codex. `ai/tools/reader-judge/eval_test.go` is the c
 JUDGE_PROVIDER=codex ~/.kk-flavor/scripts/reader-judge.sh instruction instructions.md
 ```
 
-Every tunable value is a file in [kk-flavor/configs/](kk-flavor/configs), and nowhere else. A tool
-reads the configs of the checkout its own binary was built in, never those of the repository being
-worked on. Each `.conf` header says how to retune it without editing the checkout: a machine-local
-`.conf`, an environment variable, or neither. [Ecosystem](kk-flavor/standards/ecosystem.md) → **Conventions a new
-file joins** holds what those files are held to.
+Every tunable value is a file in [kk-flavor/configs/](kk-flavor/configs). Each `.conf` header says
+how to retune it without editing the checkout, and [Ecosystem](kk-flavor/standards/ecosystem.md) →
+**Conventions a new file joins** holds what those files are held to.
 
 Every dispatch site's model lives in [models.json](kk-flavor/configs/models.json) — the one place to
 tune what a run costs. It holds `workers` — the model a dispatch actually sets — and `sessions`, the

@@ -30,8 +30,6 @@ func TestTheShippedByteCapParsesAndMatchesTheBuiltInDefault(t *testing.T) {
 	}
 }
 
-// The shipped value applies and the environment wins over it. A shipped value that does not parse
-// refuses the run, and the constant in code stays out of it.
 func TestTheEnvironmentWinsOverTheShippedByteCapAndABrokenOneRefuses(t *testing.T) {
 	home := t.TempDir()
 	configs := filepath.Join(home, ".kk-flavor", "configs")

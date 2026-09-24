@@ -17,10 +17,10 @@ func write(t *testing.T, content string) string {
 }
 
 func TestPathResolvesInsideTheMountAndIsEmptyWithoutOne(t *testing.T) {
-	if got := Path("/home/someone", "idsd.conf"); got != "/home/someone/.kk-flavor/configs/idsd.conf" {
+	if got := Path("/home/someone", "reader-judge.conf"); got != "/home/someone/.kk-flavor/configs/reader-judge.conf" {
 		t.Fatalf("got %q", got)
 	}
-	if got := Path("home", "idsd.conf"); got != "" {
+	if got := Path("home", "reader-judge.conf"); got != "" {
 		t.Fatalf("a relative home resolved to %q, which is a path inside whatever directory the caller stood in", got)
 	}
 }

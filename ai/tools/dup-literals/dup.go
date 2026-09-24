@@ -66,7 +66,7 @@ const configName = "dup-literals.conf"
 
 var configKeys = []string{"min-length", "max-file-bytes"}
 
-// ConfigFromEnv resolves both thresholds: the tracked default under `~/.kk-flavor/configs/`, then
+// ConfigFromEnv resolves both thresholds: the tracked default in configs, then
 // this run's environment over it.
 func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MinLength: defaultMinLength, MaxFileBytes: defaultMaxFileBytes}
@@ -85,14 +85,14 @@ func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
 	if raw, source := setting("DUP_MIN_LEN", "min-length"); raw != "" {
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 1 {
-			return cfg, fmt.Errorf("%s is '%s', which is no positive whole number — the scan did NOT run", source, shell.Oneline(raw))
+			return cfg, fmt.Errorf("%s is '%s', which is no positive whole number — the scan did NOT run", source, shell.Echoable(raw))
 		}
 		cfg.MinLength = n
 	}
 	if raw, source := setting("DUP_MAX_FILE_BYTES", "max-file-bytes"); raw != "" {
 		n, err := strconv.ParseInt(raw, 10, 64)
 		if err != nil || n < 0 {
-			return cfg, fmt.Errorf("%s is '%s', which is no whole number — the scan did NOT run", source, shell.Oneline(raw))
+			return cfg, fmt.Errorf("%s is '%s', which is no whole number — the scan did NOT run", source, shell.Echoable(raw))
 		}
 		cfg.MaxFileBytes = n
 	}

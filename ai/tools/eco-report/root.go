@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"configs/ai/tools/flavorconfig"
 	repokey "configs/ai/tools/repo-key"
 	"configs/ai/tools/shell"
 )
@@ -74,18 +73,14 @@ func (r *run) overrideConfigPath() string {
 	return config + "/kk-flavor/idsd.conf"
 }
 
-// The tracked default, from the checkout this binary was built in. flavorconfig.Path says why that
-// keeps an arbitrary repository being qualified from choosing where its own reports are written or
-// what `discard` removes. Only the location is shared: the reading stays here, for its guards.
-func (r *run) defaultConfigPath() string {
-	return flavorconfig.Path(r.home, "idsd.conf")
-}
-
-// The root the config at path names, or empty when there is no such file. An absent file is quiet. A
-// file that is present and unusable refuses the run, because a silent fallback would write this
-// clone's intents into a directory the human was never told about. `restores` names what removing this
-// file falls back to, which differs between the two sources.
-func (r *run) configuredRoot(path, restores string) string {
+// The override's root, or empty when there is no override file.
+//
+// Strict: a file that is present but unusable refuses, and no path here falls back to the default. A
+// silent fallback would write this clone's intents into a directory the human was never told about,
+// which is the one failure an override must not have. Absent is different from broken, and only absent
+// is quiet.
+func (r *run) overrideRoot() string {
+	path := r.overrideConfigPath()
 	// `IsSymlink` as well, so a dangling link refuses instead of reading as absent — an existence test
 	// alone cannot see one.
 	if !shell.PathExists(path) && !shell.IsSymlink(path) {
@@ -93,9 +88,9 @@ func (r *run) configuredRoot(path, restores string) string {
 	}
 	if !shell.IsRegularFile(path) || !isReadable(path) {
 		r.refuse("error: "+path+" is not a readable file — the idsd location is unknown.",
-			"  Fix it or remove it. Falling back would put this repo's idsd directory somewhere you were not told about.")
+			"  Fix it or remove it. Falling back to the default would put this repo's idsd directory somewhere you were not told about.")
 	}
-	r.assertIdsdConfigIsTrustworthy(path)
+	r.assertOverrideConfigIsTrustworthy(path)
 	content, err := os.ReadFile(path)
 	if err != nil {
 		r.refuse("error: could not read " + path + " (" + err.Error() + ") — the idsd location is unknown, and nothing was read or written.")
@@ -121,7 +116,7 @@ func (r *run) configuredRoot(path, restores string) string {
 	}
 	if root == "" {
 		r.refuse("error: "+path+" sets no `root` — the idsd location is unknown.",
-			"  Add a `root <path>` line, or remove the file to use "+restores+".")
+			"  Add a `root <path>` line, or remove the file to use the default (this repository's shared git dir).")
 	}
 	// `~` expanded here because this file is written by hand, where `~/…` is what a person types and
 	// nothing else would expand it. Only the `~/` prefix: a bare `~user` form would need passwd lookup
@@ -134,7 +129,7 @@ func (r *run) configuredRoot(path, restores string) string {
 			"  A relative path would resolve against whatever directory the caller stood in, so it must be absolute (or start with `~/`).")
 	}
 	root = filepath.Clean(root)
-	r.assertIdsdRootIsTrustworthy(path, root)
+	r.assertOverrideRootIsTrustworthy(path, root)
 	return root
 }
 
@@ -147,7 +142,7 @@ func (r *run) configuredRoot(path, restores string) string {
 // A symlinked config is refused outright rather than judged by its target. `IsRegularFile` above
 // follows the link, so a link to a good file passes there — but whoever can repoint the link chooses
 // the root on the next run, which is the same substitution the ancestor walk exists to stop.
-func (r *run) assertIdsdConfigIsTrustworthy(path string) {
+func (r *run) assertOverrideConfigIsTrustworthy(path string) {
 	if shell.IsSymlink(path) {
 		r.refuse("error: "+shell.Oneline(path)+" is a symlink -> "+shell.Oneline(readLink(path))+" — nothing was read or written.",
 			"  Whoever can repoint it chooses where this repo's reports are written and what `discard` removes.",
@@ -197,7 +192,7 @@ func (r *run) assertIdsdConfigIsTrustworthy(path string) {
 // world-writable ancestor is fine when it is sticky; isSubstitutableDir holds why. The root itself
 // gets neither allowance: it is the value the human wrote in the config, and the
 // one this tool can fairly hold them to.
-func (r *run) assertIdsdRootIsTrustworthy(configPath, root string) {
+func (r *run) assertOverrideRootIsTrustworthy(configPath, root string) {
 	if shell.IsSymlink(root) {
 		r.refuse("error: "+configPath+" sets a root that is a symlink ("+shell.Oneline(root)+" -> "+shell.Oneline(readLink(root))+") — nothing was read or written.",
 			"  `discard` removes this directory, so whoever can repoint the link chooses what that removes.",
@@ -345,17 +340,9 @@ func (r *run) resolveIdsdDir() {
 		r.idsdDir = r.treeIdsdDir()
 		return
 	}
-	if override := r.configuredRoot(r.overrideConfigPath(), "the tracked default the flavor ships"); override != "" {
+	if override := r.overrideRoot(); override != "" {
 		r.idsdDir = override + "/" + r.repoKey()
-		r.idsdConfigPath = r.overrideConfigPath()
 		r.overrideNote = "note: idsd location overridden by " + r.overrideConfigPath() + " — using " + r.idsdDir
-		return
-	}
-	// The shipped default stays silent. The override announces itself so a tuned machine never looks
-	// like an untuned one.
-	if shipped := r.configuredRoot(r.defaultConfigPath(), "this repository's shared git dir"); shipped != "" {
-		r.idsdDir = shipped + "/" + r.repoKey()
-		r.idsdConfigPath = r.defaultConfigPath()
 		return
 	}
 	r.idsdDir = r.gitCommonPath(sharedDirName)
@@ -394,7 +381,7 @@ func (r *run) assertScratchIsUnreachableByGit() {
 	}
 	r.refuse("error: the external idsd location "+r.idsdDir+" is inside this checkout's working tree — nothing was read or written.",
 		"  An external idsd must sit where `git add -A` cannot reach it, or every report lands inside the tree it fingerprints",
-		"  and no stamp can ever be fresh. Point `root` in "+r.idsdConfigPath+" outside "+root+", or remove that file to use the default.")
+		"  and no stamp can ever be fresh. Point `root` in "+r.overrideConfigPath()+" outside "+root+", or remove that file to use the default.")
 }
 
 // The canonical form of a path that may not exist yet: resolve the deepest ancestor that does, then
