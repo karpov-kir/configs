@@ -24,8 +24,4 @@ export function withOnlyScheme(source: SourceConfig, scheme: PostingScheme): Sou
   return { ...source, settlement: { [measuredProperty]: { ...measuredScheme } } };
 }
 --- facts
-Returns a copy of `source`, or throws when `source` does not configure `scheme`.
-The service tries every scheme a source configures, and its ranking setting changes only the order. `withOnlyScheme` copies only the `scheme` entry into the returned `settlement`.
-
-# claimed at this site by an earlier run:
 The service prefers EscrowCredit ahead of DirectCash by default, so a source offering both never measures DirectCash.
