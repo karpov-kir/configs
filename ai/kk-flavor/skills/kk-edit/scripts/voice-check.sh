@@ -50,14 +50,11 @@
 #
 # Its checks are record-slot-missing, bears-on-elsewhere, block-omits-bears-on and does-untied.
 #
-# `--source` with revisions in place of a path reads every block of each source file those revisions
-# touch, as the file stands in the working tree.
+# `--source` with revisions in place of a path reads every block of each source file they touch.
 #
-# `--carriers=<facts dir>`, as the first argument, reads the code a change set added against the blocks
-# the strip archived in that directory, and exits 1 on a carrier that carries nothing: a string sharing
-# six words in a row with a block (carrier-quotes-the-block), a declared name of more than five words
-# (carrier-sentence-name), or a constant or type member no line of the tree reads (carrier-unread). A
-# unit test's file is left out, and so is a lint rule's or an error's message.
+# `--carriers=<facts dir>`, as the first argument, reads a change set's added code against the blocks
+# the strip archived there. It exits 1 on a landing that is no carrier: a string sharing six words in a
+# row with a block, a declared name of more than five words, or an unread constant or type member.
 #
 # `bare-identifier` places a name the repository resolves from outside its own source: the tsconfig
 # `lib` files, the `@types` packages and the test matchers, read once and cached under

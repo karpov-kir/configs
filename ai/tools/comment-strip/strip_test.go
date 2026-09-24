@@ -9,7 +9,7 @@ import (
 	gitrepo "configs/ai/tools/repo"
 )
 
-// What a case hands a run that reads no tree names. The strip asks a nil repository nothing.
+// What a case hands a run that reads no tree names. The strip asks a nil repository no question.
 var noRepository gitrepo.Git
 
 // One source file under a directory of its own, with the facts directory beside it. Every case here
@@ -274,7 +274,7 @@ func TestStripRefusesASecondArgument(t *testing.T) {
 	}
 }
 
-// Every block in a file the change touches is a site, the one from before the change too. Run 10
+// Every block in a file the change touches is a site, including a block older than the change. Run 10
 // narrowed the strip to the blocks its diff touched, and a block code review found wrong stood in a
 // file no lane rewrote.
 func TestStripTakesEveryBlockAndRefusesToNarrow(t *testing.T) {

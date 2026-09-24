@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// addedFrom builds the added lines of one file, numbered from 1.
+// addedFrom builds the added lines of one file, and the first is line 1.
 func addedFrom(file string, lines ...string) *addedLines {
 	a := newAddedLines()
 	for i, line := range lines {
@@ -66,8 +66,8 @@ func TestAStringCarrierOnAFieldNobodyReadsIsThreeFindings(t *testing.T) {
 	}
 }
 
-// The carriers the contract names pass: a field some code reads, a short constant name, a lint
-// message a human reads when the rule fires, and a test named for the fact.
+// The carriers the contract names pass. They are a read field, a short constant name, a lint rule's
+// message and a test named for the fact.
 func TestARealCarrierPasses(t *testing.T) {
 	block := "// A posting is retried three times, and the poster gives up on it after the third."
 	added := addedFrom("src/postings/Retry.ts",
@@ -98,8 +98,8 @@ func TestAConstantNobodyReadsIsUnread(t *testing.T) {
 	}
 }
 
-// An object literal's entry passes a value to whatever reads it, often a library the tree never
-// spells, so it is no field of the tree's own.
+// An object literal's entry passes a value to whatever reads it, often a library outside the tree.
+// The check reads only a type's members as fields.
 func TestAnObjectEntryIsNoUnreadField(t *testing.T) {
 	added := addedFrom("jest.config.js", "  testTimeout: 5000,")
 	if got := carrierChecks(t, []string{"// a block"}, added, treeOf("  testTimeout: 5000,")); len(got) != 0 {

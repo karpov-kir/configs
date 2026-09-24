@@ -10,11 +10,9 @@ import (
 	"testing"
 )
 
-// The pipeline's writer runs the record check on each block before it writes it. It rewrites for
-// every finding and answers `none` after two rewrites, with the facts returned as `does not fit`. The
-// eval's writer had no tools and read the check instead of running it. Run 10 sent one fact to the
-// human after the check refused its block twice, and the harness read 14 of 15 at that case, because
-// no check ever refused the harness's writer. The loop below is the pipeline's, run by the harness.
+// The pipeline's writer runs the record check on each block, rewrites for every finding, and answers
+// `none` after two rewrites. The eval's writer had no tools, so no check ever refused it. Run 10's
+// check refused one block twice and sent its fact to the human. The harness now runs the same loop.
 
 // writerCall is one call to the writer row.
 type writerCall func(text string) (string, error)
@@ -175,7 +173,7 @@ func TestABlockRefusedAfterTwoRewritesIsNone(t *testing.T) {
 	}
 }
 
-// A block with no note carries no record, and the check reads its prose alone.
+// A summary on its own has no record to pipe, and the check reads only its prose.
 func TestASummaryAloneIsCheckedWithoutARecord(t *testing.T) {
 	call := func(string) (string, error) {
 		return "summary: needed\nnote: none\nat: 1\n// Lists the postings of a closed book.", nil

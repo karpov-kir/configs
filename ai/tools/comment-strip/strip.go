@@ -144,8 +144,8 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		args = args[1:]
 	}
 	// Every block in a file the change touches is a site. `--changed` offered only the blocks the diff
-	// touched. Run 10 left a block from before the change standing in a file whose other blocks went,
-	// and code review then found that one wrong with no lane to rewrite it.
+	// touched. Run 10 left an older block standing in a file whose other blocks went. Code review then
+	// found it wrong, and no lane rewrote it.
 	if len(args) > 0 && (args[0] == "--changed" || strings.HasPrefix(args[0], "--changed=")) {
 		return refuse("%s", "--changed is gone: every block in a file the change touches is a site")
 	}

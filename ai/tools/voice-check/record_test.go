@@ -106,8 +106,8 @@ const HEDGED = 'maybe';`,
 			want: []string{checkRecordSlot, checkRecordSlot},
 		},
 		{
-			// Run 10's shape: a block on an object member, piped with the line above it for context. The
-			// check read an empty block and refused the name the block spelled, twice.
+			// Run 10's shape is a block on an object member, and the writer piped the member's enclosing
+			// `return {` first. The check read an empty block and refused the name the block spelled.
 			name: "code piped above the block is context, and the block still says bears_on",
 			text: `fact: how a ledger treats a book left with no posting is unknown
 bears_on: keepsBook

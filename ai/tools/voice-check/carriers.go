@@ -13,13 +13,9 @@ import (
 	"configs/ai/tools/repo"
 )
 
-// A carrier is code that reads or enforces a fact: a type that fails the build, a test, a check, the
-// declaration's own name, or a message a human sees when the rule fires. Run 10 landed six blocks as
-// string constants on a catalogue field no code reads, each named as a sentence. The refactor lane
-// called each one `carried by`, and the fact then had no comment and no reader.
-//
-// `--carriers=<facts dir>` reads a change set's added code against the blocks the strip archived
-// there, and reports the three shapes that carry nothing.
+// A carrier is code that reads or enforces a fact. Run 10 landed six blocks as string constants on a
+// field no code read, and the facts lost their reader. `--carriers=<facts dir>` reads the code a
+// change set adds against the blocks the strip archived, and reports three landings that are no carrier.
 const (
 	checkCarrierQuotes   = "carrier-quotes-the-block"
 	checkCarrierSentence = "carrier-sentence-name"
@@ -35,7 +31,8 @@ const carrierNameWords = 5
 
 var reCarrierWord = regexp.MustCompile(`[a-z0-9]+`)
 
-// wordRuns is every run of carrierRunWords words the text holds, lower-cased, in the text's order.
+// wordRuns lists the text's word runs, lower-cased and in order, each as long as carrierRunWords, the
+// run length.
 func wordRuns(text string) []string {
 	words := reCarrierWord.FindAllString(strings.ToLower(text), -1)
 	var out []string
@@ -215,7 +212,7 @@ func readArchivedBlocks(dir string) ([]string, error) {
 	return blocks, nil
 }
 
-// carriers is the `--carriers=<dir>` mode: the change set named by the revisions, read against the
+// carriers is the `--carriers=<dir>` mode. It reads the change set the revisions name against the
 // blocks the strip archived.
 func carriers(out console, dir string, args []string, cwd string, git repo.Git, cfg Config) int {
 	blocks, err := readArchivedBlocks(dir)

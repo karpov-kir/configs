@@ -1480,6 +1480,7 @@ func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
 	source := []string{
 		"export const BOOK_REASON = " + doubt + ";",
 		"const PATTERN = /unverified|pending/;",
+		"var fates = regexp.MustCompile(`(shown by the body|unverified|none):`)",
 		"const KEY = 'unverified';",
 	}
 	var got []int
@@ -1497,7 +1498,7 @@ func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
 			t.Errorf("reported %q in a test file's fixture string", f.Text)
 		}
 	}
-	// Over a diff the scan holds the added lines alone, and a string the change did not add is not its.
+	// Over a diff the scan holds only the added lines, and it leaves a string the change kept.
 	for _, f := range voiceScanner().scanSource("src/Catalogue.ts", source, map[int]bool{3: true}, nil) {
 		if f.Check == checkToolingDoubt {
 			t.Errorf("reported %q on a line the change did not add", f.Text)

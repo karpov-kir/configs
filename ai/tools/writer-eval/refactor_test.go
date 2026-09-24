@@ -176,7 +176,7 @@ func TestRefactorVerdicts(t *testing.T) {
 }
 
 // kk-edit refuses a refactor line by a grep its skill states. Run 10's refusal matched `licen`, and the
-// domain's license refused two `stays:` for nothing. The pattern is read from the skill, so this case
+// domain's license refused two correct `stays:` lines. The pattern is read from the skill, so this case
 // reads what a run reads.
 func TestTheRefusalPatternMatchesTheGuardAndNotTheDomainWord(t *testing.T) {
 	body, err := os.ReadFile("../../kk-flavor/skills/kk-edit/SKILL.md")

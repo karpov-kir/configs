@@ -146,8 +146,8 @@ func ParseReturn(raw string) Return {
 	return out
 }
 
-// CommentLines is the block's comment lines as the writer wrote them, markers kept, which is what the
-// record check reads above the declaration.
+// CommentLines is the block's comment lines as the writer wrote them, markers kept. The record check
+// pipes them with the declaration.
 func (r Return) CommentLines() []string {
 	var out []string
 	inSpan := false

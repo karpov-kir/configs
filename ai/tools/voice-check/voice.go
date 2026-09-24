@@ -619,9 +619,9 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 }
 
 // reToolingDoubt is the tooling's own doubt about a claim it moved. Run 10 wrote into six string
-// values of a product's catalogue that each claim came from an earlier comment and that nobody had
-// checked it against a device. A claim someone archived is its author's. A lane that cannot check it
-// routes it to review, and the artifact never carries the lane's doubt.
+// values of a product's catalogue that each claim came from an earlier comment and stood unchecked.
+// A claim someone archived is its author's. A lane that cannot check it routes it to review, and the
+// artifact never carries the lane's doubt.
 var reToolingDoubt = regexp.MustCompile(`(?i)\b(unverified|carried over|not checked)\b`)
 
 // doubtIn reports the tooling's doubt on the lines from..to, each read through prose.
@@ -638,8 +638,8 @@ func doubtIn(file string, from, to int, lines []string, prose func(string) strin
 // reStringLiteral is a quoted string on one line, in the three quotes the source languages use.
 var reStringLiteral = regexp.MustCompile("'(?:[^'\\\\]|\\\\.)*'|\"(?:[^\"\\\\]|\\\\.)*\"|`[^`]*`")
 
-// reProseWords is a word a person writes, and a literal holding three of them in a row reads as a
-// sentence. A pattern, a path or a key holds none in a row, so the check leaves it alone.
+// reProseWords is three words in a row, and a literal holding them reads as a sentence. A path or a key
+// holds no such run. A pattern holds `|` or a backslash, and the check passes over it too.
 var reProseWords = regexp.MustCompile(`[A-Za-z]+[,.:]?\s+[A-Za-z]+[,.:]?\s+[A-Za-z]+`)
 
 // doubtInStrings reads the string literals on the code lines this scan holds. Comment prose moved
@@ -652,7 +652,7 @@ func doubtInStrings(file string, lines []string, held present) []Finding {
 			continue
 		}
 		for _, literal := range reStringLiteral.FindAllString(raw, -1) {
-			if !reProseWords.MatchString(literal) {
+			if !reProseWords.MatchString(literal) || strings.ContainsAny(literal, "|\\") {
 				continue
 			}
 			if m := reToolingDoubt.FindString(literal); m != "" {
@@ -1155,8 +1155,8 @@ flags:
 	return reportVoice(out, profile, found, over)
 }
 
-// namesRevisions says the arguments open with a revision and not a file or stdin. Writer I of run 10
-// asked `--source` for a revision range, and the scan read the range as a path and exited 2.
+// namesRevisions says the first argument is a revision. Writer I of run 10 asked `--source` for a
+// revision range, and the scan read the range as a path and exited 2.
 func namesRevisions(git repo.Git, cwd string, args []string) bool {
 	if len(args) == 0 || args[0] == "-" || args[0] == "--" {
 		return false
