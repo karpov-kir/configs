@@ -38,9 +38,11 @@ const rollTimeoutKey = "roll-timeout"
 
 const configName = "reader-judge.conf"
 
-// A day, and no roll needs one. The ceiling also keeps `time.Duration(seconds)` far from its overflow
-// near 9.2e9 seconds, where the deadline turns negative and every roll is cancelled before it starts.
-const maxRollSeconds = 86400
+const minRollSeconds = 1
+
+// The ceiling keeps `time.Duration(seconds)` far from its overflow near 9.2e9 seconds, where the
+// deadline turns negative and every roll is cancelled before it starts.
+const maxRollSeconds = 24 * 60 * 60
 
 // overridePath is where this machine tunes the deadline — the one place ecosystem.md → **Conventions
 // a new file joins** puts a machine-local value. Never in the tree: `~/.kk-flavor` is a symlink into
@@ -117,11 +119,10 @@ func secondsIn(path string, fallback time.Duration) (int, error) {
 		return 0, fmt.Errorf("%s sets no %s — add a `%s <seconds>` line, or remove the file to use the default of %s",
 			path, rollTimeoutKey, rollTimeoutKey, fallback)
 	}
-	// Both ends are bounded. Under one second there is no roll.
 	seconds, err := strconv.Atoi(raw)
-	if err != nil || seconds < 1 || seconds > maxRollSeconds {
-		return 0, fmt.Errorf("%s sets %s to %s, which is not a whole number of seconds between 1 and %d",
-			path, rollTimeoutKey, shell.Echoable(raw), maxRollSeconds)
+	if err != nil || seconds < minRollSeconds || seconds > maxRollSeconds {
+		return 0, fmt.Errorf("%s sets %s to %s, which is not a whole number of seconds between %d and %d",
+			path, rollTimeoutKey, shell.Echoable(raw), minRollSeconds, maxRollSeconds)
 	}
 	return seconds, nil
 }

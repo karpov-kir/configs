@@ -13,9 +13,8 @@
 # kind, an unreadable path, a provider that refused that model name, a model that did not answer
 # inside its deadline, or an answer that was not numbers.
 #
-# Every attempted roll is bounded. Cancellation supplies no verdict.
-# `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/reader-judge.conf` retunes the bound on this machine
-# with a `roll-timeout <seconds>` line. `~/.kk-flavor/configs/reader-judge.conf` holds the figure it replaces.
+# Every attempted roll is bounded. Cancellation supplies no verdict. `~/.kk-flavor/configs/reader-judge.conf`
+# holds the bound and names where one machine retunes it.
 #
 # What the model may do, and why it is safe, is the package doc in `ai/tools/reader-judge/judge.go`.
 #

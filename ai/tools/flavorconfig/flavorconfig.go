@@ -1,7 +1,6 @@
-// Package flavorconfig reads the tracked defaults the flavor ships under `kk-flavor/configs/`, one
-// `<key> <value>` a line with `#` comments. The file comes from the checkout the running binary was
-// built in. A config is then as trusted as the code reading it, and a repository being judged cannot
-// set its own bounds (`~/.kk-flavor/standards/ecosystem.md`).
+// Package flavorconfig reads the tracked defaults the flavor ships under `kk-flavor/configs/`. Each is
+// one `<key> <value>` a line with `#` comments. The file comes from the checkout the running binary was
+// built in, and `~/.kk-flavor/standards/ecosystem.md` holds why.
 //
 // This package parses. What a value means and what a refusal costs the run are each caller's. Every
 // value read here is a bounded number. A key naming a path, a deletion target or a command needs the
@@ -41,9 +40,8 @@ func dirFor(exe, home string) string {
 	return configsInMount(home)
 }
 
-// configsBesideBinary answers for a binary at `<checkout>/ai/tools/bin/<tool>`, where the resolver
-// puts one. A host repository cannot choose it. A skill runs a script through `~/.kk-flavor` wherever
-// the working directory holds code the human did not write. That stub runs the installed binary.
+// A skill runs a script through `~/.kk-flavor` wherever the working directory holds code the human did
+// not write. That stub runs the installed binary.
 func configsBesideBinary(exe string) string {
 	if exe == "" {
 		return ""
@@ -62,8 +60,6 @@ func configsBesideBinary(exe string) string {
 	return beside
 }
 
-// configsInMount answers for any other binary, such as a `go test` build. A relative home has no
-// mount to read.
 func configsInMount(home string) string {
 	if !filepath.IsAbs(home) {
 		return ""
