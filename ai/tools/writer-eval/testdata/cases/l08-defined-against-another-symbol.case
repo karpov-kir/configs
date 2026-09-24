@@ -1,5 +1,5 @@
 expect: written
-why: the return needs a plain summary, and the budget fact needs more room than a note
+why: the return needs a plain summary; this is k31's site, and since 2026-09-24 the budget fact is written at the branch returning false, as k31 asks, where the label of 2026-09-17 sent it out as needing more room than a note; the case scores the site as written either way
 labelled: 2026-09-17
 --- code
 export async function claimsClearingThroughStandardApi(clearing: Clearing, entryType: string): Promise<boolean> {
