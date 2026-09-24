@@ -20,4 +20,7 @@ export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, form
   return false;
 }
 --- facts
-Opening a scheme session on a ledger with only a prefixed interface spends a posting budget on a scheme the service's current pipeline never uses.
+`claimsSchemeThroughStandardApi` asks each scheme id with no settlement mode.
+
+# claimed at this site by an earlier run:
+A ledger with only a prefixed interface answers no, because opening a scheme session there would spend a full posting budget on a scheme the service's current pipeline does not use.

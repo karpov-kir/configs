@@ -19,5 +19,11 @@ export async function getSchemeClaim(requirement: SchemeRequirement, formatName:
   return LedgerClaim.Unknown;
 }
 --- facts
-`LegacyLedgerKeys`, the vendor's prefixed interface, answers for DirectCash only.
-On the vendor's ledgers the standard scheme API answers DirectCash as unsupported.
+`LegacyLedgerKeys` is the vendor's prefixed scheme interface.
+The vendor's ledgers answer DirectCash as unsupported through the standard API, so this branch asks `LegacyLedgerKeys` first.
+
+# claimed at this site by an earlier run:
+`window.LegacyLedgerKeys` is the vendor's prefixed interface, and it knows DirectCash alone. Such a ledger reports DirectCash as unsupported through the standard scheme API.
+
+# claimed at this site by an earlier run:
+A ledger exposing the vendor's prefixed API answers about DirectCash only there, so a DirectCash question goes to it first. Only DirectCash goes there, because the prefixed API knows the vendor's scheme alone and would answer `Unsupported` about EscrowCredit.

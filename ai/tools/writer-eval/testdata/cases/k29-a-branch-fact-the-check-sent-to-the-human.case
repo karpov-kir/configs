@@ -18,4 +18,8 @@ export function newBookNarrowing(currency: string): BookNarrowing {
   };
 }
 --- facts
-How a ledger treats a book left holding no posting is unknown.
+How a ledger treats an empty book is unknown.
+`keepsBook` returns false for a posting book where no posting declares the currency.
+
+# claimed at this site by an earlier run:
+A ledger's handling of an empty book is unknown, so the narrowing drops the whole book.

@@ -16,4 +16,7 @@ export const schemeIds: Record<SchemeName, string[]> = {
   clearing: ['org.clearing.basic'],
 };
 --- facts
-Each key of `schemeIds`, and each id list under it, must match the service's own scheme table, `SchemeMap` in `src/core/settlement/Schemes.ts`.
+The keys and id lists of `schemeIds` must match the service's own scheme table.
+
+# claimed at this site by an earlier run:
+schemeIds must match the service's own scheme table, `SchemeMap` in `src/core/settlement/Schemes.ts`.
