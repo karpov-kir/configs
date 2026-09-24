@@ -989,3 +989,49 @@ func TestABarIsAPattern(t *testing.T) {
 		t.Fatalf("the corrected claim failed: %v", v.Failures)
 	}
 }
+
+// rescoreEnv names a dump to score again against the case files as they are now. A label ruled while
+// a table runs is read at scoring, so the rolls already taken are scored again and never re-rolled.
+// It reads rolls taken with the check off: a roll the loop ended at none keeps a note in its answer.
+const rescoreEnv = "WRITER_EVAL_RESCORE"
+
+func TestRescoreADump(t *testing.T) {
+	path := os.Getenv(rescoreEnv)
+	if path == "" {
+		t.Skipf("%s is unset", rescoreEnv)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []dumped
+	if err := json.Unmarshal(body, &rows); err != nil {
+		t.Fatal(err)
+	}
+	cases, err := LoadCases(casesDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]Case{}
+	for _, c := range cases {
+		byName[c.Name] = c
+	}
+	clean, rolls := map[string]int{}, map[string]int{}
+	var names []string
+	for _, row := range rows {
+		c, known := byName[row.Case]
+		if !known || !strings.HasPrefix(row.Case, os.Getenv(caseEnv)) {
+			continue
+		}
+		if rolls[row.Case] == 0 {
+			names = append(names, row.Case)
+		}
+		rolls[row.Case]++
+		if JudgeCase(c, ParseReturn(row.Raw)).Passed() {
+			clean[row.Case]++
+		}
+	}
+	for _, name := range names {
+		t.Logf("%-46s %d of %d (floor %d)", name, clean[name], rolls[name], floorFor(byName[name]))
+	}
+}
