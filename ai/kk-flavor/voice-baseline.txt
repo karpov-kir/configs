@@ -47,10 +47,10 @@
 16 ai/kk-flavor/workers/code-review.md
 15 ai/kk-flavor/workers/grill/facts.md
 15 ai/kk-flavor/workers/conform.md
-15 ai/kk-flavor/standards/code-style.md
 15 ai/kk-flavor/skills/kk-handoff/SKILL.md
 15 ai/kk-flavor/skills/kk-ecosystem/SKILL.md
 15 ai/kk-flavor/skills/idsd-charter/SKILL.md
+14 ai/kk-flavor/standards/code-style.md
 14 ai/kk-flavor/skills/kk-reduce/stats.md
 13 ai/kk-flavor/workers/reduce/reconcile.md
 13 ai/kk-flavor/workers/reduce/arbitrate.md

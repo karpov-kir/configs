@@ -113,6 +113,22 @@ A run also measures the rule files as they stood when it started, which `readRul
 code. So a rule edit during a run leaves a table naming text the run measured nowhere, and the header
 hash is the only thing that says so. Finish the run, or kill it and start again.
 
+## The record check runs inside a roll
+
+The pipeline's writer runs the record check on each block before it writes it. It rewrites for each
+finding, and after two rewrites it answers `none` and sends the facts to the human. The eval's writer
+used to read the check instead of running it, so no check ever sent a block back here. Run 10's check
+refused one block twice over a defect in the check itself, and the fact reached the human. The case
+for that site read 14 of 15, because no roll met the check.
+
+So a roll now runs that loop. The writer returns its record beside the block, the harness pipes both
+to the checkout's `voice-check.sh --profile=comment --source --record -`, and a finding goes back to
+the writer as its next turn. A block still refused after two rewrites is scored as the pipeline ends
+it: `none`, with `does not fit` routed. The table counts the rolls the check sent back.
+
+A roll can now cost three calls instead of one, and every column measured before 2026-09-24 was read
+without the loop. A move between such a column and a later one mixes the rule's change with the loop's.
+
 ## What a case cannot measure
 
 The writer a case runs is told it has no tools. Every case hands it the code, the facts, and
