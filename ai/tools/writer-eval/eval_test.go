@@ -351,30 +351,26 @@ func prompt(t *testing.T, c Case) string {
 		"The facts file for the site holds:\n\n%s\n\n", c.Name, c.Site, numbered(c.Code), c.Facts)
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
 	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
-	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
+	fmt.Fprintf(&out, "=== identifiers.txt ===\n%s\n\n",
 		strings.Join(append(census.IdentifierWords(strings.Split(c.Code, "\n")), hyphenatedNames(c.Code)...), " "))
 	if c.Callers != "" {
 		fmt.Fprintf(&out, "=== the callers ===\nA grep over the repository finds these call sites and no "+
 			"other:\n\n```ts\n%s\n```\n\n", c.Callers)
 	}
 	if c.Tests != "" {
-		fmt.Fprintf(&out, "=== the change set's tests ===\nQuestion 3 greps these for a fact's nouns:\n\n"+
+		fmt.Fprintf(&out, "=== the change set's tests ===\n"+
 			"```ts\n%s\n```\n\n", c.Tests)
 	}
-	out.WriteString("You have no tools here. The harness runs the worker's record check on your block " +
-		"after you answer, the way the pipeline runs it, and hands you back any finding it prints.\n\n" +
-		"The offered site is where the block stood before. You may write the block above any declaration " +
-		"in this file, and you answer with a line `at: <line number>` saying which one you chose.\n\n" +
-		"Answer with a line `summary: needed` or `summary: none`, a line `note: written` or " +
-		"`note: none`, a line `at: <line number>`, then the block you would write above that " +
-		"declaration, or the single word none, " +
-		"or a line `rename: <what to rename>`. The site is none only where both parts are none. Where " +
-		"a part was needed and you answer none for it, show the attempts first, one per line, as " +
-		"`attempt 1: <part> — <finding>`. Where you write a note, give its record first, one slot per " +
-		"line, as `fact: <the fact>`, `bears_on: <identifier>` and `does: <the act>`. Add your audit " +
-		"lines, one per line, as `term: <phrase> — identifier|plain|path` and `verb: <word> — " +
-		"literal|figure`, and your routed lines in the shapes the worker's verdict section gives. " +
-		"Answer with nothing else.")
+	// The brief says where a block goes, when a site is none, how attempts are shown and what the check
+	// is. The prompt restated each in its own words until 2026-09-24, and a restatement is text the
+	// pipeline's writer never reads. What stays is what the brief cannot say: that no tool runs here, and
+	// the shape the harness parses.
+	out.WriteString("You have no tools here. Answer with a line `summary: needed` or `summary: none`, a line " +
+		"`note: written` or `note: none`, a line `at: <line number>` naming the declaration the block sits " +
+		"on, then the block, or the single word none, or a line `rename: <what to rename>`. Where you write " +
+		"a note, give its record first, one slot per line: `fact:`, `bears_on:` and `does:`. Add the " +
+		"attempt lines, the audit lines and the routed lines in the shapes the brief gives. Answer with " +
+		"nothing else.")
 	return out.String()
 }
 
