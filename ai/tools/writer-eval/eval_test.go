@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -304,6 +305,26 @@ func readRules(t *testing.T) []ruleFile {
 	return ruleHeld
 }
 
+// reHyphenatedName is a name spelled with hyphens, such as a string value or a file's name.
+var reHyphenatedName = regexp.MustCompile(`[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+`)
+
+// hyphenatedNames is each hyphenated name the code spells, in both cases. The strip writes them into
+// identifiers.txt from the tree, and a case's list lacked them until 2026-09-24. Six of k06's rolls
+// then returned a string value of the code as a coined word to rename.
+func hyphenatedNames(code string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, name := range reHyphenatedName.FindAllString(code, -1) {
+		for _, spelled := range []string{name, strings.ToLower(name)} {
+			if !seen[spelled] {
+				seen[spelled] = true
+				out = append(out, spelled)
+			}
+		}
+	}
+	return out
+}
+
 // numbered puts a line number in front of each line. The writer answers with the number of the
 // declaration it chose, and a file it reads unnumbered leaves it guessing at one.
 func numbered(code string) string {
@@ -331,7 +352,7 @@ func prompt(t *testing.T, c Case) string {
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
 	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
-		strings.Join(census.IdentifierWords(strings.Split(c.Code, "\n")), " "))
+		strings.Join(append(census.IdentifierWords(strings.Split(c.Code, "\n")), hyphenatedNames(c.Code)...), " "))
 	if c.Callers != "" {
 		fmt.Fprintf(&out, "=== the callers ===\nA grep over the repository finds these call sites and no "+
 			"other:\n\n```ts\n%s\n```\n\n", c.Callers)
