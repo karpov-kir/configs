@@ -973,3 +973,19 @@ func TestACaseSaysWhichDeclarationTheBlockBelongsOn(t *testing.T) {
 		t.Errorf("the prompt shows the writer no line numbers to answer with")
 	}
 }
+
+// A bar is a pattern. k35's false claim reads with any words between the throw and the failure, and a
+// fixed phrase barred one wording of it.
+func TestABarIsAPattern(t *testing.T) {
+	c := Case{Name: "k", Expect: ExpectWritten, Bars: []string{"throw[^,.]*makes[^,.]*fail"}}
+	barred := Return{Summary: PartNone, Note: PartWritten,
+		Block: "// A throw from the preprocessing function makes the service fail the load."}
+	if v := JudgeCase(c, barred); v.Passed() {
+		t.Fatal("a throw said to fail the load passed the bar")
+	}
+	kept := Return{Summary: PartNone, Note: PartWritten,
+		Block: "// The service catches a throw, and only a rejected promise fails the load."}
+	if v := JudgeCase(c, kept); !v.Passed() {
+		t.Fatalf("the corrected claim failed: %v", v.Failures)
+	}
+}

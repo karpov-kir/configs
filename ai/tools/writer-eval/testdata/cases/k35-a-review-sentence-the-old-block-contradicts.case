@@ -1,8 +1,8 @@
 expect: written
 note: written
-keeps: rejected | reject | catches | caught
-bars: throw makes | throw fails | function makes the service fail
-why: the old block said a throw from a preprocessing function fails the export load, and code review read the service's source: it catches a synchronous throw and loads the response unchanged, and only a rejected promise fails the load; run 10 left the old clause standing with review's finding reported beside it, so the sentence goes back to the writer as a fact at the site, and the note is written from it
+keeps: reject | rejected
+bars: throw[^,.]*makes[^,.]*fail
+why: the old block said a throw from a preprocessing function fails the export load, and code review read the service's source: it catches a synchronous throw and loads the response unchanged, and only a rejected promise fails the load; run 10 left the old clause standing with review's finding reported beside it, so the sentence goes back to the writer as a fact at the site, and the note is written from it; the keep carries the label, only a rejected promise fails the load, and the bar is the one false shape seen, a throw said to make the service fail, which barred none of 75 correct blocks where broader patterns barred up to 31
 labelled: 2026-09-24
 --- code
 export function newBookHooks(currency: string): BookHooks {

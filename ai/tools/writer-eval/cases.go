@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,7 +44,8 @@ type Case struct {
 	// sent back on 2026-09-22 sat where the archive had put them.
 	Site  int
 	Lands string
-	// Bars is the wording the block may not carry, as alternatives of which none may appear. It holds a
+	// Bars is the wording the block may not carry, as alternatives of which none may appear. Each is a
+	// pattern, so `throw.*fail` bars a throw said to fail the load in any words between. It holds a
 	// shape a review already rejected at this site. A rule the writer reads can be rewritten, and a
 	// rewrite that reverses the reason for an earlier fix would let the rejected shape back without
 	// anything noticing. The case is what notices.
@@ -165,6 +167,9 @@ func ParseCase(name, raw string) (Case, error) {
 		case "bars":
 			for _, wording := range strings.Split(value, "|") {
 				if trimmed := strings.TrimSpace(wording); trimmed != "" {
+					if _, err := regexp.Compile(strings.ToLower(trimmed)); err != nil {
+						return c, fmt.Errorf("%s bars %q, which is no pattern: %v", name, trimmed, err)
+					}
 					c.Bars = append(c.Bars, strings.ToLower(trimmed))
 				}
 			}
@@ -300,7 +305,7 @@ func JudgeCase(c Case, r Return) Verdict {
 		}
 	}
 	for _, wording := range c.Bars {
-		if r.Block != "" && strings.Contains(strings.ToLower(r.Text()), wording) {
+		if r.Block != "" && regexp.MustCompile(wording).MatchString(strings.ToLower(r.Text())) {
 			v.Failures = append(v.Failures, Failure{"wrote-the-barred-shape", "the block carries " + wording})
 		}
 	}
