@@ -20,7 +20,7 @@ type ModelRefused struct {
 }
 
 func (r *ModelRefused) Error() string {
-	return fmt.Sprintf("%s refused the model %s", r.Client, echoable(r.Model))
+	return fmt.Sprintf("%s refused the model %s", r.Client, shell.Echoable(r.Model))
 }
 
 // What each CLI was measured saying when it will not run the model it was given. 2026-09-15, on this

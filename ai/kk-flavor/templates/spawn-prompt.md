@@ -4,7 +4,7 @@
 
 Apply the `<the skill or the worker prompt this spawn runs>` contract for the requested scope. Read its common procedure and only the branch references this task needs. Work as a leaf; return further-work requests to the caller.
 
-Model: <the task name from `~/.kk-flavor/models.json` and the settings it resolved to; name it, since a dispatch that omits it inherits mine>
+Model: <the task name from `~/.kk-flavor/configs/models.json` and the settings it resolved to; name it, since a dispatch that omits it inherits mine>
 
 Candidate and evidence: <base, current scope identity, reusable verdicts and their unchanged inputs, or none>
 

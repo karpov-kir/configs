@@ -32,10 +32,14 @@ type fixtureSkill struct {
 	frontmatter string
 }
 
+func policyPath(root string) string {
+	return filepath.Join(root, "kk-flavor", "configs", "models.json")
+}
+
 func newRoot(t *testing.T, template string, skills ...fixtureSkill) string {
 	t.Helper()
 	root := t.TempDir()
-	for _, dir := range []string{"kk-flavor", "kk-flavor/skills", "tools/eco-guide"} {
+	for _, dir := range []string{"kk-flavor", "kk-flavor/configs", "kk-flavor/skills", "tools/eco-guide"} {
 		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
 			t.Fatalf("fixture root: %v", err)
 		}
@@ -53,7 +57,7 @@ func newRoot(t *testing.T, template string, skills ...fixtureSkill) string {
 	if err := os.WriteFile(filepath.Join(root, templateRelative), []byte(template), 0o644); err != nil {
 		t.Fatalf("fixture template: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "kk-flavor", "models.json"), []byte(fixturePolicy), 0o644); err != nil {
+	if err := os.WriteFile(policyPath(root), []byte(fixturePolicy), 0o644); err != nil {
 		t.Fatalf("fixture policy: %v", err)
 	}
 	writeWorkers(t, root, reviewer)

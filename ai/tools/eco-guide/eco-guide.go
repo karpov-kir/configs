@@ -131,7 +131,7 @@ func Run(self string, args []string, out, errOut io.Writer) int {
 	// come out of the same resolver a dispatch calls, so nothing here can print a model the run
 	// would not take. A row the policy refuses resolves to nothing and the card says so; the policy
 	// failing to parse at all is fatal, because then every tier would say nothing.
-	policyPath := shell.Join(root.Flavor(), "models.json")
+	policyPath := shell.Join(root.Flavor(), "configs/models.json")
 	rawPolicy, err := os.ReadFile(policyPath)
 	if err != nil {
 		return fail("cannot read the model policy at %s: %v — %s", policyPath, err, producing)

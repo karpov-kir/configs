@@ -25,7 +25,7 @@ const casesDir = "testdata/cases"
 
 // policyPath is the checkout's own policy. The eval runs the row this checkout assigns, so a row
 // changed in the same branch is the row the table reports.
-const policyPath = "../../kk-flavor/models.json"
+const policyPath = "../../kk-flavor/configs/models.json"
 
 // writerRow is the policy row whose model writes comment blocks. The eval runs the row the pipeline
 // runs, so a table here says what a change to the rule does to the real writer.

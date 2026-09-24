@@ -38,7 +38,7 @@ func ParseVerdict(reply string, count int) ([]int, error) {
 	for _, field := range strings.FieldsFunc(trimmed, func(r rune) bool { return r == ',' || r == ' ' || r == '\n' || r == '\t' }) {
 		n, err := strconv.Atoi(field)
 		if err != nil {
-			return nil, fmt.Errorf("the judge answered %q, which is not a list of unit numbers", echoable(trimmed))
+			return nil, fmt.Errorf("the judge answered %q, which is not a list of unit numbers", shell.Echoable(trimmed))
 		}
 		if n < 1 || n > count {
 			return nil, fmt.Errorf("the judge named unit %d of %d", n, count)

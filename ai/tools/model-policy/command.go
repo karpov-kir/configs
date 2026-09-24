@@ -31,11 +31,11 @@ func InstalledPath(invocation string) (string, error) {
 	switch filepath.Base(real) {
 	case "model-policy.sh", "reader-judge.sh", "model-check.sh":
 		if filepath.Base(dir) == "scripts" {
-			return filepath.Join(dir, "..", "models.json"), nil
+			return filepath.Join(dir, "..", "configs", "models.json"), nil
 		}
 	case "model-policy", "reader-judge", "model-check":
 		if filepath.Base(dir) == "bin" {
-			return filepath.Join(dir, "..", "..", "kk-flavor", "models.json"), nil
+			return filepath.Join(dir, "..", "..", "kk-flavor", "configs", "models.json"), nil
 		}
 	}
 	return "", fmt.Errorf("cannot locate installed model policy from %q; name --config explicitly", invocation)
@@ -51,7 +51,7 @@ type Command struct {
 func Run(command Command) int {
 	flags := flag.NewFlagSet("model-policy", flag.ContinueOnError)
 	flags.SetOutput(command.Stderr)
-	config := flags.String("config", "", "policy JSON file; defaults to models.json beside the installed flavor scripts")
+	config := flags.String("config", "", "policy JSON file; defaults to models.json in the installed flavor's configs directory")
 	client := flags.String("client", "", "required: codex or claude")
 	task := flags.String("task", "", "task from the policy, such as code-review or patrol/scout")
 	limits := flags.Bool("limits", false, "emit the policy's limits instead of a task's settings")

@@ -77,7 +77,7 @@ type Command struct {
 func Run(command Command) int {
 	flags := flag.NewFlagSet("model-check", flag.ContinueOnError)
 	flags.SetOutput(command.Stderr)
-	config := flags.String("config", "", "policy JSON file; defaults to models.json beside the installed flavor scripts")
+	config := flags.String("config", "", "policy JSON file; defaults to models.json in the installed flavor's configs directory")
 	flags.Usage = func() {
 		fmt.Fprintln(command.Stderr, "usage: model-check.sh [--config <policy.json>]\nAsks each provider whether it will run the model selections models.json holds. It judges no text.")
 		flags.PrintDefaults()

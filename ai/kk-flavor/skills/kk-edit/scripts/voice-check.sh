@@ -6,7 +6,8 @@
 #   usage: voice-check.sh [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
-#   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread (default 262144)
+#   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread. The default is in
+#          `~/.kk-flavor/configs/voice-check.conf`.
 #
 # Exits 1 with findings, 0 when clean, 2 when the scan did not run — git rejecting the arguments, a
 # path passed where a revision belongs, or a threshold that is no number. Prose/data files (md, txt,

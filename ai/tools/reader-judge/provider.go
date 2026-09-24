@@ -12,6 +12,7 @@ import (
 	"time"
 
 	modelpolicy "configs/ai/tools/model-policy"
+	"configs/ai/tools/shell"
 )
 
 // judgeTask is the tool's own models.json row, and the fallback for a kind with no row of its own.
@@ -96,7 +97,7 @@ func namingTheFileThatDecides(call Caller, policyPath, overridePath string) Call
 		var cutOff *RollTimedOut
 		if errors.As(err, &cutOff) && overridePath != "" {
 			return "", fmt.Errorf("%w — raise it with a `%s <seconds>` line in %s, or run the judge over less at once",
-				err, overrideKey, overridePath)
+				err, rollTimeoutKey, overridePath)
 		}
 		return reply, err
 	}
@@ -158,7 +159,7 @@ func resolveProvider() (string, error) {
 		return "", fmt.Errorf("JUDGE_PROVIDER is required: set JUDGE_PROVIDER=claude or JUDGE_PROVIDER=codex")
 	}
 	if provider != "claude" && provider != "codex" {
-		return "", fmt.Errorf("JUDGE_PROVIDER must be claude or codex, got %s", echoable(provider))
+		return "", fmt.Errorf("JUDGE_PROVIDER must be claude or codex, got %s", shell.Echoable(provider))
 	}
 	if _, err := exec.LookPath(provider); err != nil {
 		return "", fmt.Errorf("JUDGE_PROVIDER=%s requires %s on PATH", provider, provider)
