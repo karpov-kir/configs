@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -92,6 +93,19 @@ func writeChecked(call writerCall, check recordCheck, asked, code string) (Retur
 		r = ParseReturn(raw)
 		r.Rounds = attempt
 	}
+}
+
+// checkEnv set to `off` runs each roll as one call, with no check. Every column before 2026-09-24 was
+// read that way, and the loop widens a case's spread past the band those columns set. A rule change
+// measured against such a column runs with the check off.
+const checkEnv = "WRITER_EVAL_CHECK"
+
+// recordCheckFor is the check a roll runs, or one that passes everything where checkEnv is off.
+func recordCheckFor() recordCheck {
+	if os.Getenv(checkEnv) == "off" {
+		return func(string, bool) ([]string, error) { return nil, nil }
+	}
+	return runRecordCheck
 }
 
 // voiceCheckScript is the edit lane's check, run from this checkout.

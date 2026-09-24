@@ -129,6 +129,10 @@ it: `none`, with `does not fit` routed. The table counts the rolls the check sen
 A roll can now cost three calls instead of one, and every column measured before 2026-09-24 was read
 without the loop. A move between such a column and a later one mixes the rule's change with the loop's.
 
+`WRITER_EVAL_CHECK=off` runs each roll as one call again. Two near-identical rule sets read under the
+loop on 2026-09-24 moved unrelated cases by up to seven rolls, so a rule change is measured against an
+older column with the check off until the loop's own band is recorded.
+
 ## What a case cannot measure
 
 The writer a case runs is told it has no tools. Every case hands it the code, the facts, and

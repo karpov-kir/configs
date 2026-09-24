@@ -1,6 +1,6 @@
 expect: written
 note: written
-keeps: catches | caught
+keeps: rejected | reject | catches | caught
 bars: throw makes | throw fails | function makes the service fail
 why: the old block said a throw from a preprocessing function fails the export load, and code review read the service's source: it catches a synchronous throw and loads the response unchanged, and only a rejected promise fails the load; run 10 left the old clause standing with review's finding reported beside it, so the sentence goes back to the writer as a fact at the site, and the note is written from it
 labelled: 2026-09-24

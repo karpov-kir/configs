@@ -450,7 +450,7 @@ func TestWriterEval(t *testing.T) {
 				defer wait.Done()
 				gate <- struct{}{}
 				defer func() { <-gate }()
-				r, raw, err := writeChecked(writerOf(settings), runRecordCheck, prompt(t, c), c.Code)
+				r, raw, err := writeChecked(writerOf(settings), recordCheckFor(), prompt(t, c), c.Code)
 				if err != nil {
 					rolls[i][roll] = Verdict{Name: c.Name, Want: c.Expect, Got: "error"}
 					answers[i][roll] = err.Error()
@@ -767,7 +767,7 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 			defer wait.Done()
 			gate <- struct{}{}
 			defer func() { <-gate }()
-			parsed, raw, err := writeChecked(writerOf(settings), runRecordCheck, prompt(t, c), c.Code)
+			parsed, raw, err := writeChecked(writerOf(settings), recordCheckFor(), prompt(t, c), c.Code)
 			if err != nil {
 				verdicts[i] = Verdict{Name: c.Name, Got: "error"}
 				raws[i] = err.Error()
