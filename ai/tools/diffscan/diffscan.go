@@ -46,8 +46,8 @@ type Result struct {
 	SkippedUnread int
 	// Declined names each file SkippedUnread counts, apart from a secret-named one, whose notice
 	// already names it.
-	Declined []string
-	BinaryLines   int
+	Declined    []string
+	BinaryLines int
 }
 
 // An added line, with the file it belongs to. File is empty for a diff whose header the scan could not
@@ -278,9 +278,8 @@ func (r *Result) bodyToScan(full, name string, opts Options) ([]byte, bool) {
 	return body, true
 }
 
-// decline counts a file the scan did not read, keeps its name, and says so. A drive gate on 2026-09-24
-// ran the comment scan over a tree holding a file over the cap, and the summary read `0 declined
-// unread` over a file it never opened.
+// decline counts a file the scan did not read, keeps its name, and says so. On 2026-09-24 a comment
+// scan left out a file over the cap. Its summary read `0 declined unread`.
 func (r *Result) decline(name, why string, opts Options) ([]byte, bool) {
 	r.SkippedUnread++
 	r.Declined = append(r.Declined, name)
