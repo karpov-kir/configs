@@ -11,7 +11,7 @@ import (
 )
 
 // The pipeline's writer runs the record check on each block, rewrites for every finding, and answers
-// `none` after two rewrites. The eval's writer ran without tools, so a check refused it never. Run 10's
+// `none` after two rewrites. The eval's writer read the check instead of running it. Run 10's
 // check refused one block twice and sent its fact to the human. The harness now runs the same loop.
 
 // writerCall is one call to the writer row.
