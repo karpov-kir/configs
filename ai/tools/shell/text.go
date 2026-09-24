@@ -126,6 +126,13 @@ func CutBytesMarked(text string, n int) string {
 	return CutBytes(text, n-len(CutMarker)) + CutMarker
 }
 
+// Echoable is how a value a human typed reaches a message: on one line, and at most 80 bytes. A
+// newline in it would forge a second line of output that looks like the tool's own. A value with no
+// newline can be as long as its file and bury the refusal it belongs to.
+func Echoable(text string) string {
+	return CutBytesMarked(Oneline(text), 80)
+}
+
 // SpaceBytes is the C-locale `[[:space:]]` as a cutset, for the strings.Trim family. IsSpaceByte is
 // the same set as a predicate, and reads it, so a scan that trims whitespace and a scan that tests
 // for it cannot come to different answers about a byte.

@@ -145,7 +145,7 @@ func TestConfiguredJudgeUsesTheCentralPolicy(t *testing.T) {
 	t.Setenv("JUDGE_PROVIDER", "codex")
 	t.Setenv("JUDGE_MODEL", "")
 	os.Unsetenv("JUDGE_MODEL")
-	configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/models.json"})
+	configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/configs/models.json"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +178,7 @@ func TestJudgeCacheSeparatesClientSelections(t *testing.T) {
 	identities := map[string]bool{}
 	for _, client := range []string{"codex", "claude"} {
 		t.Setenv("JUDGE_PROVIDER", client)
-		configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/models.json"})
+		configured, err := Configure(Configuration{Deadline: time.Second, PolicyPath: "../../kk-flavor/configs/models.json"})
 		if err != nil {
 			t.Fatal(err)
 		}

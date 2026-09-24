@@ -1,4 +1,4 @@
-// This file holds the shipped kk-flavor/models.json to what the tools resolving it depend on. These
+// This file holds the shipped kk-flavor/configs/models.json to what the tools resolving it depend on. These
 // cases live in this package with the others that read the shipped checkout, for the reason
 // shipped_tree_test.go gives.
 //

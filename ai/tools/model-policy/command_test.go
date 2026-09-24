@@ -82,7 +82,7 @@ func TestInstalledPolicyFollowsTheInvokedMount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(canonical, "owned", "kk-flavor", "models.json")
+	want := filepath.Join(canonical, "owned", "kk-flavor", "configs", "models.json")
 	if err != nil || got != want {
 		t.Fatalf("mounted policy=%q, %v; want %q", got, err, want)
 	}

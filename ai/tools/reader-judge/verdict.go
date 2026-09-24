@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"configs/ai/tools/shell"
 )
 
 // The verdicts, highest precedence first. The order is the tie-break: it runs from the verdict whose
@@ -52,18 +54,18 @@ func ParseLabels(reply string, count int) (map[int]string, error) {
 		}
 		number, name, found := strings.Cut(line, " ")
 		if !found {
-			return nil, fmt.Errorf("the judge answered %q, which is not `<block> <verdict>`", echoable(line))
+			return nil, fmt.Errorf("the judge answered %q, which is not `<block> <verdict>`", shell.Echoable(line))
 		}
 		var n int
 		if _, err := fmt.Sscanf(number, "%d", &n); err != nil {
-			return nil, fmt.Errorf("the judge answered %q, whose first field is not a block number", echoable(line))
+			return nil, fmt.Errorf("the judge answered %q, whose first field is not a block number", shell.Echoable(line))
 		}
 		if n < 1 || n > count {
 			return nil, fmt.Errorf("the judge named block %d of %d", n, count)
 		}
 		name = strings.TrimSpace(name)
 		if _, known := verdictRank[name]; !known {
-			return nil, fmt.Errorf("the judge answered verdict %q, which is not one of: %s", echoable(name), VerdictNames())
+			return nil, fmt.Errorf("the judge answered verdict %q, which is not one of: %s", shell.Echoable(name), VerdictNames())
 		}
 		if _, twice := labels[n]; twice {
 			return nil, fmt.Errorf("the judge answered block %d twice", n)

@@ -2,8 +2,8 @@
 
 # Model policy
 
-`~/.kk-flavor/models.json` assigns a model to every skill and every dispatch site, and is the only
-place to change one. Skills name a task; they never embed a model.
+`~/.kk-flavor/configs/models.json` assigns a model to every skill and every dispatch site, and is
+the only place to change one. Skills name a task; they never embed a model.
 
 Every model name this file holds *can* be asked of its provider, by `ai/gate.sh`'s `models` unit, and a name no account can run then fails at this file rather than at the next judge run. **Only a human running `ai/gate.sh` asks** — CI never runs the plain gate, and the `--mutants` run it does leaves every check unit `not asked`. **Nor does one run cover the file.** A client whose CLI that machine lacks leaves its names unresolved, and a passing unit's output is held back, so a run that reached one provider prints the same `ran ok  models` as one that reached both. **Read a green as no provider reachable from one developer's machine having refused a name, never as every name running** — and a `model` pin in that developer's client can even carry a probe for a name nothing would select (**What the policy can and cannot reach** below). With neither CLI the unit exits 2, which the gate does read as a check that did not run.
 
@@ -176,9 +176,9 @@ sources plus that list and not as isolation: a managed policy setting is merged 
 
 **Three levers sit outside the file, and no row can move them.** The session an orchestrator runs in
 takes the model the human chose before the skill loaded, so a cheap reactor or patrol loop is bought
-with that choice and not with an assignment. The judge's roll deadline stays machine-local in
-`reader-judge.conf` on purpose (`ai/tools/reader-judge/deadline.go`) — a timeout tuned in the tree would
-travel to everyone on the next commit.
+with that choice and not with an assignment. The judge's roll deadline lives in
+`~/.kk-flavor/configs/reader-judge.conf`, whose header says how one machine retunes it, and
+`ai/tools/reader-judge/deadline.go` holds why.
 
 **The third is which client judges, and it is `JUDGE_PROVIDER`'s.** Every row names a model for both
 clients and nothing in the file chooses between them, so the caller does. **A call site defaults to

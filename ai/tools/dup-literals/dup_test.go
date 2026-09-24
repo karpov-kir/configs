@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"configs/ai/tools/flavorconfig"
 	"configs/ai/tools/shell"
 )
 
@@ -353,5 +354,82 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	}
 	if cfg.MinLength != 100 || cfg.MaxFileBytes != 262144 {
 		t.Errorf("defaults are %+v, wanted length 100 and cap 262144", cfg)
+	}
+}
+
+// This case reads the file through `flavorconfig`. The shipped numbers equal the constants in code, and
+// a case built on ConfigFromEnv passes whether or not it reads the file. No other place in the
+// repository opens this file, and a typo in it shows up here first.
+func TestTheShippedConfigParsesAndMatchesTheBuiltInDefaults(t *testing.T) {
+	flavor, err := filepath.Abs("../../kk-flavor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	if err := os.Symlink(flavor, filepath.Join(home, ".kk-flavor")); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := flavorconfig.Read(flavorconfig.Path(home, configName), configKeys)
+	if err != nil {
+		t.Fatalf("the shipped dup-literals.conf does not parse: %v", err)
+	}
+	if len(settings) != len(configKeys) {
+		t.Fatalf("the shipped dup-literals.conf sets %v, and this tool reads %v", settings, configKeys)
+	}
+	if settings["min-length"] != fmt.Sprint(defaultMinLength) || settings["max-file-bytes"] != fmt.Sprint(defaultMaxFileBytes) {
+		t.Fatalf("the shipped config holds %v and the built-in defaults are %d/%d — a run that finds no configs would scan against different thresholds",
+			settings, defaultMinLength, defaultMaxFileBytes)
+	}
+}
+
+func TestTheEnvironmentWinsOverTheShippedConfigAndABrokenOneRefuses(t *testing.T) {
+	home := t.TempDir()
+	configs := filepath.Join(home, ".kk-flavor", "configs")
+	if err := os.MkdirAll(configs, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	lookup := func(extra map[string]string) func(string) (string, bool) {
+		return func(asked string) (string, bool) {
+			if asked == "HOME" {
+				return home, true
+			}
+			value, ok := extra[asked]
+			return value, ok
+		}
+	}
+	path := filepath.Join(configs, "dup-literals.conf")
+	if err := os.WriteFile(path, []byte("min-length 40\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := ConfigFromEnv(lookup(nil))
+	if err != nil || cfg.MinLength != 40 {
+		t.Fatalf("got %d %v, want the shipped file's 40", cfg.MinLength, err)
+	}
+	if cfg.MaxFileBytes != defaultMaxFileBytes {
+		t.Fatalf("a key the file leaves out took %d rather than the built-in default", cfg.MaxFileBytes)
+	}
+	cfg, err = ConfigFromEnv(lookup(map[string]string{"DUP_MIN_LEN": "70"}))
+	if err != nil || cfg.MinLength != 70 {
+		t.Fatalf("got %d %v, want the environment's 70 over the file's 40", cfg.MinLength, err)
+	}
+
+	if err := os.WriteFile(path, []byte("minlength 40\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ConfigFromEnv(lookup(nil)); err == nil {
+		t.Fatal("a shipped config the tool cannot read was replaced by the built-in defaults in silence")
+	}
+
+	// A key `flavorconfig` accepts and this tool then rejects. The refusal names the file, since that
+	// is what the human has to edit. The environment variable was never set.
+	if err := os.WriteFile(path, []byte("min-length nope\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = ConfigFromEnv(lookup(nil))
+	if err == nil {
+		t.Fatal("a non-numeric length was accepted from the shipped config")
+	}
+	if !strings.Contains(err.Error(), path) || strings.Contains(err.Error(), "DUP_MIN_LEN is") {
+		t.Fatalf("the refusal blames the environment for a value the file set: %v", err)
 	}
 }
