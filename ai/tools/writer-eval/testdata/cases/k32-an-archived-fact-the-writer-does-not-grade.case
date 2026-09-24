@@ -1,5 +1,6 @@
 expect: written
 note: written
+site: 6
 keeps: withonlyscheme
 keeps: copies | only
 bars: unverified | not checked | carried over
@@ -7,6 +8,11 @@ withholds: does not fit
 why: the service prefers `EscrowCredit` ahead of `DirectCash` by default, so a source offering both never measures `DirectCash`, and that is why `withOnlyScheme` copies one scheme into the returned `settlement`; run 10 routed the fact to the human as unverified; an archived fact is its author's, the writer does not grade it, and a claim it cannot check is kept as the note with `unverified:` routed to review
 labelled: 2026-09-24
 --- code
+const settlementPropertyOf: Record<PostingScheme, 'directCash' | 'escrowCredit'> = {
+  [PostingScheme.DirectCash]: 'directCash',
+  [PostingScheme.EscrowCredit]: 'escrowCredit',
+};
+
 export function withOnlyScheme(source: SourceConfig, scheme: PostingScheme): SourceConfig {
   const settlement = source.settlement;
   const measuredProperty = settlementPropertyOf[scheme];
