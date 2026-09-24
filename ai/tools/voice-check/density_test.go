@@ -56,7 +56,7 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name+" is refused", func(t *testing.T) {
-			_, err := ConfigFromEnv(func(key string) (string, bool) {
+			_, err := LoadConfig(func(key string) (string, bool) {
 				if key == tc.key {
 					return tc.value, true
 				}
@@ -72,7 +72,7 @@ func TestAThresholdThatDoesNotParseRefuses(t *testing.T) {
 	}
 
 	t.Run("an unset environment gives the documented defaults", func(t *testing.T) {
-		cfg, err := ConfigFromEnv(func(string) (string, bool) { return "", false })
+		cfg, err := LoadConfig(func(string) (string, bool) { return "", false })
 		if err != nil {
 			t.Fatalf("an empty environment was refused: %v", err)
 		}
@@ -95,7 +95,7 @@ func TestAThresholdOverrideTakesEffect(t *testing.T) {
 	// floor of 100.
 
 	t.Run("DENSITY_MAX_FILE_BYTES moves the untracked byte cap", func(t *testing.T) {
-		cfg, err := ConfigFromEnv(only("DENSITY_MAX_FILE_BYTES", "32"))
+		cfg, err := LoadConfig(only("DENSITY_MAX_FILE_BYTES", "32"))
 		if err != nil {
 			t.Fatalf("32 was refused: %v", err)
 		}

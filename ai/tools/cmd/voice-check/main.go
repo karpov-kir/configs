@@ -15,7 +15,7 @@ func main() {
 	if err != nil {
 		cwd = "."
 	}
-	cfg, err := voicecheck.ConfigFromEnv(os.LookupEnv)
+	cfg, err := voicecheck.LoadConfig(os.LookupEnv)
 	if err != nil {
 		os.Stderr.WriteString(self + ": " + err.Error() + "\n")
 		os.Exit(2)

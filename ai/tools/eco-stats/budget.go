@@ -80,7 +80,7 @@ func (s *stats) refuseBudgetFile(errOut io.Writer, name string) {
 	s.budgetRefusals++
 	if s.budgetRefusals <= budgetRefusalCap {
 		fmt.Fprintf(errOut, "stats.sh: budget file refused (symlink, unreadable, or resolves outside %s) — not read, not counted: %s\n",
-			s.root.Named(), shell.CutBytesMarked(shell.Oneline(name), 80))
+			s.root.Named(), shell.Echoable(name))
 	} else if s.budgetRefusals == budgetRefusalCap+1 {
 		fmt.Fprintln(errOut, "stats.sh: further budget-file refusals suppressed; the count in the exit message is the total")
 	}
@@ -104,7 +104,7 @@ func (s *stats) resolveImports(budget []string, errOut io.Writer) {
 		},
 		Refused: func(name, reason string) {
 			fmt.Fprintf(errOut, "stats.sh: import refused (%s), named but not counted: %s\n",
-				reason, shell.CutBytesMarked(shell.Oneline(name), 80))
+				reason, shell.Echoable(name))
 		},
 	})
 }

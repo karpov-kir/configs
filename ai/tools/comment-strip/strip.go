@@ -60,12 +60,6 @@ var (
 	regionInput = regexp.MustCompile(`^--- (end )?shared:[A-Za-z0-9_-]+ ---$`)
 )
 
-// echoable bounds a path this tool echoes back, the way every tool here bounds one. A path comes off
-// the command line, and a refusal naming it reaches a terminal.
-func echoable(arg string) string {
-	return shell.CutBytesMarked(shell.Oneline(arg), 80)
-}
-
 func isDirective(raw string) bool {
 	return directive.MatchString(commentText(raw))
 }
@@ -159,11 +153,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	}
 	info, err := os.Stat(readPath)
 	if err != nil {
-		return refuse("cannot read %s", echoable(path))
+		return refuse("cannot read %s", shell.Echoable(path))
 	}
 	raw, err := os.ReadFile(readPath)
 	if err != nil {
-		return refuse("cannot read %s", echoable(path))
+		return refuse("cannot read %s", shell.Echoable(path))
 	}
 	if archive != "" && !filepath.IsAbs(archive) {
 		archive = filepath.Join(cwd, archive)
@@ -172,10 +166,10 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		dir = filepath.Join(cwd, dir)
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return refuse("cannot create %s", echoable(dir))
+		return refuse("cannot create %s", shell.Echoable(dir))
 	}
 	if entries, err := os.ReadDir(dir); err != nil || len(entries) > 0 {
-		return refuse("%s is not empty, and a facts file already there reads like one this run wrote", echoable(dir))
+		return refuse("%s is not empty, and a facts file already there reads like one this run wrote", shell.Echoable(dir))
 	}
 
 	content := string(raw)
@@ -300,7 +294,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			record += earlierFacts(records, s.record, s.line, held)
 		}
 		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(record), 0o644); err != nil {
-			return refuse("cannot write %s", echoable(filepath.Join(dir, s.facts)))
+			return refuse("cannot write %s", shell.Echoable(filepath.Join(dir, s.facts)))
 		}
 		if archive != "" {
 			// What is kept is the claims alone, with the site line left off: a later run writes its
@@ -312,14 +306,14 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		}
 	}
 	if err := os.WriteFile(readPath, []byte(stripped), info.Mode().Perm()); err != nil {
-		return refuse("cannot write %s", echoable(path))
+		return refuse("cannot write %s", shell.Echoable(path))
 	}
 	// The writer's audit classifies a noun phrase as the code's word by looking it up here, so the
 	// list sits beside the facts. Absent, every noun audits as none of the three and the writer
 	// rewrites until it declines the site.
 	if err := os.WriteFile(filepath.Join(dir, identifiersFile),
 		[]byte(strings.Join(append(identifierWords(lines), treeNames(cwd, git)...), "\n")+"\n"), 0o644); err != nil {
-		return refuse("cannot write %s", echoable(filepath.Join(dir, identifiersFile)))
+		return refuse("cannot write %s", shell.Echoable(filepath.Join(dir, identifiersFile)))
 	}
 	for _, s := range sites {
 		fmt.Fprintf(stdout, "%s:%d %s\n", path, s.line, s.facts)
@@ -412,7 +406,7 @@ func readArchive(archive, path string) ([]archived, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("cannot read the archive at %s", echoable(archive))
+		return nil, fmt.Errorf("cannot read the archive at %s", shell.Echoable(archive))
 	}
 	head := strings.TrimSuffix(archiveName(path, 0), "@0.facts") + "@"
 	var names []string
@@ -426,7 +420,7 @@ func readArchive(archive, path string) ([]archived, error) {
 	for _, name := range names {
 		body, err := os.ReadFile(filepath.Join(archive, name))
 		if err != nil {
-			return nil, fmt.Errorf("cannot read %s", echoable(filepath.Join(archive, name)))
+			return nil, fmt.Errorf("cannot read %s", shell.Echoable(filepath.Join(archive, name)))
 		}
 		line, err := strconv.Atoi(strings.TrimSuffix(strings.TrimPrefix(name, head), ".facts"))
 		if err != nil {
@@ -538,14 +532,14 @@ const earlierMarker = "# claimed at this site by an earlier run:"
 // on. A later run finds the site by that declaration once an edit has moved its line.
 func keepForLater(archive, path string, line int, decl, record string) error {
 	if err := os.MkdirAll(archive, 0o755); err != nil {
-		return fmt.Errorf("cannot create the archive at %s", echoable(archive))
+		return fmt.Errorf("cannot create the archive at %s", shell.Echoable(archive))
 	}
 	if decl != "" {
 		record = declMarker + " " + decl + "\n" + record
 	}
 	name := filepath.Join(archive, archiveName(path, line))
 	if err := os.WriteFile(name, []byte(record), 0o644); err != nil {
-		return fmt.Errorf("cannot write %s", echoable(name))
+		return fmt.Errorf("cannot write %s", shell.Echoable(name))
 	}
 	return nil
 }

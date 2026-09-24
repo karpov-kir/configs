@@ -10,7 +10,7 @@ import (
 )
 
 // This case reads the file through flavorconfig. The shipped number equals the constant in code, and a
-// case built on ConfigFromEnv passes whether or not it reads the file.
+// case built on LoadConfig passes whether or not it reads the file.
 func TestTheShippedByteCapParsesAndMatchesTheBuiltInDefault(t *testing.T) {
 	flavor, err := filepath.Abs("../../kk-flavor")
 	if err != nil {
@@ -47,16 +47,16 @@ func TestTheEnvironmentWinsOverTheShippedByteCapAndABrokenOneRefuses(t *testing.
 		}
 		return func(key string) (string, bool) { v, ok := set[key]; return v, ok }
 	}
-	if cfg, err := ConfigFromEnv(env()); err != nil || cfg.MaxFileBytes != 64 {
+	if cfg, err := LoadConfig(env()); err != nil || cfg.MaxFileBytes != 64 {
 		t.Fatalf("got %+v %v, want the shipped 64", cfg, err)
 	}
-	if cfg, err := ConfigFromEnv(env("DENSITY_MAX_FILE_BYTES", "32")); err != nil || cfg.MaxFileBytes != 32 {
+	if cfg, err := LoadConfig(env("DENSITY_MAX_FILE_BYTES", "32")); err != nil || cfg.MaxFileBytes != 32 {
 		t.Fatalf("got %+v %v, want the environment's 32", cfg, err)
 	}
 	if err := os.WriteFile(conf, []byte("max-file-bytes big\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ConfigFromEnv(env()); err == nil {
+	if _, err := LoadConfig(env()); err == nil {
 		t.Fatal("a shipped cap that is no number was accepted")
 	}
 }
