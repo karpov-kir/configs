@@ -31,8 +31,6 @@ func Path(home, name string) string {
 	return filepath.Join(dir, name)
 }
 
-// dirFor is Path's decision, with the executable passed in so a case can name one. A worktree tests
-// its own configs this way, and CI reads the configs it built from.
 func dirFor(exe, home string) string {
 	if dir := configsBesideBinary(exe); dir != "" {
 		return dir
@@ -40,8 +38,8 @@ func dirFor(exe, home string) string {
 	return configsInMount(home)
 }
 
-// A skill runs a script through `~/.kk-flavor` wherever the working directory holds code the human did
-// not write. That stub runs the installed binary.
+// configsBesideBinary answers only for a binary at `<checkout>/ai/tools/bin/<tool>`, a shape that must
+// stay in step with where `ai/tools/resolve.sh` puts one.
 func configsBesideBinary(exe string) string {
 	if exe == "" {
 		return ""
@@ -67,11 +65,8 @@ func configsInMount(home string) string {
 	return filepath.Join(home, ".kk-flavor", "configs")
 }
 
-// Read returns the settings the file at path holds, or nil when there is no such file. allowed lists
-// every key the caller understands.
-//
-// Everything but an absent file refuses. A default quietly restored looks the same as the config
-// working. A key outside allowed is a setting the human believes they changed.
+// Read returns the settings the file at path holds, nil when there is no such file, and an error for
+// anything else. allowed lists every key the caller understands.
 func Read(path string, allowed []string) (map[string]string, error) {
 	// `IsSymlink` as well, so a dangling link refuses. An existence test by itself reads one as absent.
 	if path == "" || (!shell.PathExists(path) && !shell.IsSymlink(path)) {
