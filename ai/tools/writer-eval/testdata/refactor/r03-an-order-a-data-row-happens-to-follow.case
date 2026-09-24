@@ -1,0 +1,13 @@
+expect: stays
+bars: carried by
+why: the enum's members have to stay in the order of the catalogue's columns; run 10's lane deleted the block as carried by the catalogue rows, which already list the members in that order, and that is a data order the fact constrains, never a carrier; no test reads the order, so the block stays
+labelled: 2026-09-24
+--- context
+The change set touches src/settlement/Settlement.ts. The catalogue in tests/settlement/Catalogue.ts lists its columns in the members' order today. No test and no code compares the two orders.
+--- code
+// Members must stay in the order of the columns in the settlement catalogue.
+export enum Settlement {
+  DirectCash = 'DIRECT_CASH',
+  EscrowCredit = 'ESCROW_CREDIT',
+  Clearing = 'CLEARING',
+}

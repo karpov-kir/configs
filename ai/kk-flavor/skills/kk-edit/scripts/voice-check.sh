@@ -3,7 +3,7 @@
 # which sentences are written in the register the rule forbids. With `--density` it reports how many
 # comment lines the set carries beside the host repository's own rate.
 #
-#   usage: voice-check.sh [--density | --per-file | --profile=comment|prose|instruction] [--source] [--record] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
 #   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread (default 262144)
@@ -34,6 +34,10 @@
 # is `~/.kk-flavor/standards/code-style.md` -> Comments, and the tells are
 # `~/.kk-flavor/standards/human-writing.md` -> AI tells -> House voice.
 #
+# `tooling-doubt` is the comment profile's, over a block and over a string of three words or more that
+# the change adds outside a unit test's file. It names a lane's doubt about a claim it moved, which the
+# artifact never carries.
+#
 # Three profiles. `comment` (the default) reads the comment lines a diff added to source files, and
 # takes `-` to read a unified diff on stdin, which is how a branch this checkout does not hold is
 # scanned: `gh pr diff <N> | voice-check.sh -`. `prose` reads a markdown or plain-text
@@ -46,13 +50,22 @@
 #
 # Its checks are record-slot-missing, bears-on-elsewhere, block-omits-bears-on and does-untied.
 #
+# `--source` with revisions in place of a path reads every block of each source file those revisions
+# touch, as the file stands in the working tree.
+#
+# `--carriers=<facts dir>`, as the first argument, reads the code a change set added against the blocks
+# the strip archived in that directory, and exits 1 on a carrier that carries nothing: a string sharing
+# six words in a row with a block (carrier-quotes-the-block), a declared name of more than five words
+# (carrier-sentence-name), or a constant or type member no line of the tree reads (carrier-unread). A
+# unit test's file is left out, and so is a lint rule's or an error's message.
+#
 # `bare-identifier` places a name the repository resolves from outside its own source: the tsconfig
 # `lib` files, the `@types` packages and the test matchers, read once and cached under
 # `${XDG_CACHE_HOME:-~/.cache}/kk-flavor/vocabulary`. A name the repository declares stays a finding.
 #
 # Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, long-block,
 # coined, coined-identifier, counterfactual-consequence, anthropomorphism, elided-verb, long-sentence,
-# clause-depth, double-negative, semicolon, `reason-by-link`, `alone-for-only`. Several are scoped by profile. `long-block` is the comment
+# clause-depth, double-negative, semicolon, `reason-by-link`, `alone-for-only`, `tooling-doubt`. Several are scoped by profile. `long-block` is the comment
 # profile's, since only there is a block a thing. `bold` is not the instruction profile's: a rule file IS markdown, so its bold is
 # structure rather than the tell. `coined` is not the instruction profile's either: a coined word is a
 # codebase's invented vocabulary, and a rule file is prose about writing that uses the ordinary English

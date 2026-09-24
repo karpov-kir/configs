@@ -1,0 +1,23 @@
+expect: written
+note: written
+keeps: requestschemeaccess | prefixed
+keeps: false
+withholds: does not fit
+why: the first branch of `claimsSchemeThroughStandardApi` returns false where the standard API is absent, and the fact is why: opening a scheme session on a ledger with only a prefixed interface spends a posting budget on a scheme the service's current pipeline never uses; run 10 routed it to the human as fitting nowhere, and the branch that performs the act is in this function
+labelled: 2026-09-24
+--- code
+export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, formatName: string): Promise<boolean> {
+  if (typeof ledgerApi.requestSchemeAccess !== 'function') {
+    return false;
+  }
+
+  for (const schemeId of listSchemeIds(scheme)) {
+    if ((await askScheme({ schemeId, formatName })) === LedgerClaim.Accepted) {
+      return true;
+    }
+  }
+
+  return false;
+}
+--- facts
+Opening a scheme session on a ledger with only a prefixed interface spends a posting budget on a scheme the service's current pipeline never uses.

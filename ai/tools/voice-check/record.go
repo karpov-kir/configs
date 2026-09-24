@@ -86,16 +86,20 @@ func readSlots(lines []string) map[string]string {
 var commentLead = regexp.MustCompile(`^\s*(//+|/\*+|\*+/?|#)\s?`)
 
 // blockAndBody cuts the text under the marker into the block the writer wrote and the code it sits
-// on. The block is the run of comment lines the text opens with, and everything after it is the
-// declaration and its body.
+// on. The block is the first run of comment lines, and everything after it is the declaration and its
+// body. Code above that run is context the writer piped to show where the block stands, and it is
+// neither. Run 10 piped a `return {` above a block on an object member, and the check read an empty
+// block. It refused `keepsAdaptationSet` twice as unsaid in a block that spelled it, and the fact went
+// to the human as fitting nowhere.
 func blockAndBody(lines []string) (block, body []string) {
 	at := 0
+	for at < len(lines) && !commentLead.MatchString(lines[at]) {
+		at++
+	}
+	if at == len(lines) {
+		return nil, lines
+	}
 	for at < len(lines) {
-		trimmed := strings.TrimSpace(lines[at])
-		if trimmed == "" && len(block) == 0 {
-			at++
-			continue
-		}
 		if !commentLead.MatchString(lines[at]) {
 			break
 		}

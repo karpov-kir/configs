@@ -1,0 +1,13 @@
+expect: stays
+bars: carried by
+why: the skip message names the platform and leaves the reason unsaid, so it carries half the fact; run 10's lane deleted a reason of this shape as carried by the skip, and the reader of the check can no longer tell why the platform is skipped
+labelled: 2026-09-24
+--- context
+The change set touches tests/helpers/ExportHelper.ts. The block below was in the file before the change.
+--- code
+export function assertDataUriPlatform(): void {
+  // The export stub loads its fixture from a data URI, and the legacy ledger UI refuses a data URI in a posting request.
+  if (isLegacyLedgerUi()) {
+    throw new SkipException('Legacy ledger UI');
+  }
+}

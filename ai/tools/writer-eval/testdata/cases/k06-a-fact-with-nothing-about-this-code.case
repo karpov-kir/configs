@@ -1,7 +1,10 @@
-expect: carried
-why: the claim is a fact about a row of the table it sits on, so it goes to a provenance field on that row and a note is the wrong home for it; the writer tried twice on 2026-09-21 and declined both, since a constant table performs no action a consequence sentence can name; no step reaches it, since the provenance route was written for a caller of a catalogue and this site is the catalogue, so the writer's judgement decides it and the floor is 2 of 5
+expect: written
+note: written
+keeps: direct-cash-legacy
+keeps: audit
+why: the claim is a fact about a row of the table it sits on; until 2026-09-24 this case asked for a provenance field on the row, and run 10 then moved six such facts into string constants on a field no code read, where they had no reader at all; a field or constant nothing reads carries nothing, so the fact stays a note at the table, with `does: none`, as the refactor lane's carrier contract now says; relabelled from carried to written on that date
 floor: 40
-labelled: 2026-09-21
+labelled: 2026-09-21, relabelled 2026-09-24
 --- code
 export const SCHEME_NAMES: Record<Settlement, string[]> = {
   [Settlement.DirectCash]: ['direct-cash', 'direct-cash-legacy'],

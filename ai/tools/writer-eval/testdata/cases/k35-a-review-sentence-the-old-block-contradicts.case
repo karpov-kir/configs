@@ -1,0 +1,30 @@
+expect: written
+note: written
+keeps: reject
+bars: throw makes | throw fails | a throw from
+why: the old block said a throw from a preprocessing function fails the export load, and code review read the service's source: it catches a synchronous throw and loads the response unchanged, and only a rejected promise fails the load; run 10 left the old clause standing with review's finding reported beside it, so the sentence goes back to the writer as a fact at the site, and the note is written from it
+labelled: 2026-09-24
+--- code
+export function newBookHooks(currency: string): BookHooks {
+  const faults: string[] = [];
+
+  const inspectExport: PreprocessResponse = (type, response) => {
+    if (isLedgerExport(type)) {
+      const fault = checkExport(parseExport(response.body), currency);
+
+      if (fault) {
+        faults.push(fault);
+      }
+    }
+
+    return Promise.resolve(response);
+  };
+
+  return { network: { preprocessResponse: chainPreprocessing(inspectExport) }, faults };
+}
+--- facts
+A throw from a response preprocessing function makes the service fail the export load.
+`inspectExport` records each fault in `faults` and returns the response it received.
+
+# code review:
+The service catches a synchronous throw from a preprocessing function and loads the response unchanged. Only a rejected promise fails the export load.

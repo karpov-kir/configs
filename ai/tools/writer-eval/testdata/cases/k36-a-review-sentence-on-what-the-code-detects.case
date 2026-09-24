@@ -1,0 +1,21 @@
+expect: written
+keeps: claimsschemethroughstandardapi
+bars: on a ledger ignoring | returns true on a ledger that ignores | detects
+why: the old block said `claimsSchemeThroughStandardApi` returns true on a ledger ignoring the settlement mode, and code review read the body: it returns true wherever a scheme id accepts the format with no settlement mode given, and it never tests whether the ledger reads the mode; run 10 left the clause standing, so review's sentence goes back to the writer as a fact at the site
+labelled: 2026-09-24
+--- code
+export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, formatName: string): Promise<boolean> {
+  for (const schemeId of listSchemeIds(scheme)) {
+    if ((await askScheme({ schemeId, formatName })) === LedgerClaim.Accepted) {
+      return true;
+    }
+  }
+
+  return false;
+}
+--- facts
+A ledger ignoring the settlement mode stalls on its first posting under that scheme.
+`claimsSchemeThroughStandardApi` asks each scheme id with no settlement mode, and returns `true` on a ledger ignoring the mode.
+
+# code review:
+`claimsSchemeThroughStandardApi` returns true wherever a scheme id accepts the format with no settlement mode given, and it never tests whether the ledger reads the mode.

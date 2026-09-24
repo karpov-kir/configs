@@ -14,7 +14,8 @@ Check every changed file against all five:
    - Also yours: **a declaration that permits violating an invariant the code states in prose** — a parameter whose wrong value is unsafe, an optional that cannot legitimately be absent. Flag the mismatch and name the fact that makes it unsafe; a fix bigger than narrowing a type is `refactor`'s.
 2. **Bug scan** — read the changed lines, then flag real bugs.
 3. **History** — git blame/log of the file and recent commits touching it; flag bugs visible in that context.
-4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding.
+4. **Comments** — flag changes that violate guidance written in a comment, and check each factual claim a comment makes against the code, schema or migration it describes: a false comment is itself a finding. Its line names the comment line and says in one sentence what the code does, and the caller hands that sentence to the comment writer at the site. A comment line is never your edit. Leave a claim about the world outside this code, such as a device rejecting a tier, to its author: it is never a finding.
+   - **Unread data** is a finding and a safe fix: a field or a constant the change adds that the tree's code never reads. Delete it. Its value reaches no reader.
 5. **A changed behaviour no test exercises** — an added or changed body whose behaviour no test reaches at any level. The one absence CI cannot report: a run proves what it covers, never what it omits. Name the behaviour that is unguarded; writing the test is `refactor`'s gated testing lane.
 
 ## Loop deltas

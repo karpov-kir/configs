@@ -1316,6 +1316,19 @@ func TestABareIdentifierIsOnlyTheOneTheSiteDoesNotDeclare(t *testing.T) {
 			t.Errorf("reported %q, and an appositive places it", f.Text)
 		}
 	}
+	// Run 10 placed a name in backticks and the appositive after them, and the check read the closing
+	// backtick as the end of the phrase. The writer's third rewrite failed on it.
+	ticked := []string{
+		"/** Drops a claim that `preferredSettlements`, the ledger's allowed schemes, no longer names. */",
+		"export function dropStaleClaims(book: Element): Element[] {",
+		"  return [];",
+		"}",
+	}
+	for _, f := range voiceScanner().scanSource("f.ts", ticked, nil, nil) {
+		if f.Check == checkBareIdent {
+			t.Errorf("reported %q, and an appositive after its backticks places it", f.Text)
+		}
+	}
 	bare := []string{
 		"/** Drops a claim that preferredSettlements no longer names. */",
 		"export function dropStaleClaims(book: Element): Element[] {",
@@ -1458,4 +1471,36 @@ func findingsNamed(found []Finding, check string) []Finding {
 		}
 	}
 	return out
+}
+
+// Comment prose moved into a string value leaves every comment check behind. Run 10 moved six blocks
+// into catalogue strings and wrote its own doubt into each.
+func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
+	doubt := "'Unverified: carried over from an earlier comment and was not checked against a ledger.'"
+	source := []string{
+		"export const BOOK_REASON = " + doubt + ";",
+		"const PATTERN = /unverified|pending/;",
+		"const KEY = 'unverified';",
+	}
+	var got []int
+	for _, f := range voiceScanner().scanSource("src/Catalogue.ts", source, nil, nil) {
+		if f.Check == checkToolingDoubt {
+			got = append(got, f.Line)
+		}
+	}
+	if len(got) == 0 || got[0] != 1 || slices.ContainsFunc(got, func(at int) bool { return at != 1 }) {
+		t.Fatalf("findings on lines %v, want line 1 alone: a pattern and a key read as no sentence", got)
+	}
+	// A unit test's strings are fixtures, and they quote whatever the case needs.
+	for _, f := range voiceScanner().scanSource("src/Catalogue.test.ts", source, nil, nil) {
+		if f.Check == checkToolingDoubt {
+			t.Errorf("reported %q in a test file's fixture string", f.Text)
+		}
+	}
+	// Over a diff the scan holds the added lines alone, and a string the change did not add is not its.
+	for _, f := range voiceScanner().scanSource("src/Catalogue.ts", source, map[int]bool{3: true}, nil) {
+		if f.Check == checkToolingDoubt {
+			t.Errorf("reported %q on a line the change did not add", f.Text)
+		}
+	}
 }

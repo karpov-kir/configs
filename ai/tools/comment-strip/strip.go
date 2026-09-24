@@ -2,7 +2,7 @@
 // code's alone. It runs without a model: the judge's Apply with every offered unit gone, plus a
 // record of what went.
 //
-//	usage: comment-strip.sh --facts=<dir> [--changed[=<revisions>]] <path>
+//	usage: comment-strip.sh --facts=<dir> [--archive=<dir>] <path>
 //
 // The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site
 // it sat on, which the writer opens when it asks whether a note is owed. That site is the first code
@@ -32,7 +32,7 @@ const archiveOption = "--archive="
 // The grammar. It carries the stub's name where argv[0] would carry the binary's. A caller then
 // reads a usage line they can retype. A refusal states it: an argument this tool refuses comes from
 // a caller who needs the form, and the refusal alone gives them half of it.
-const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--changed[=<revisions>]] <path>"
+const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] <path>"
 
 const (
 	exitClean     = 0
@@ -120,8 +120,7 @@ func opensTheFile(lines []string, u readerjudge.Unit) bool {
 // file already there reads exactly like one this run wrote, and the writer would take another block's
 // facts as this one's.
 //
-// The repository arrives as a parameter because only --changed asks it anything, and a case driving
-// every other path should not have to build one.
+// The repository arrives as a parameter for the tree's hyphenated names, and a nil one reads none.
 func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr io.Writer) int {
 	refuse := func(format string, a ...any) int {
 		fmt.Fprintf(stderr, "%s: %s — the strip did NOT run\n", self, fmt.Sprintf(format, a...))
@@ -144,16 +143,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		}
 		args = args[1:]
 	}
-	changed := false
-	var revisions []string
-	switch {
-	case len(args) > 0 && args[0] == "--changed":
-		changed = true
-		args = args[1:]
-	case len(args) > 0 && strings.HasPrefix(args[0], "--changed="):
-		changed = true
-		revisions = strings.Fields(strings.TrimPrefix(args[0], "--changed="))
-		args = args[1:]
+	// Every block in a file the change touches is a site. `--changed` offered only the blocks the diff
+	// touched. Run 10 left a block from before the change standing in a file whose other blocks went,
+	// and code review then found that one wrong with no lane to rewrite it.
+	if len(args) > 0 && (args[0] == "--changed" || strings.HasPrefix(args[0], "--changed=")) {
+		return refuse("%s", "--changed is gone: every block in a file the change touches is a site")
 	}
 	if len(args) != 1 {
 		return refuse("%s", "the strip takes one path, and only a source file has comment blocks")
@@ -186,19 +180,8 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 
 	content := string(raw)
 	lines := shell.SplitLines(content)
-	offer := func(readerjudge.Unit) bool { return true }
-	if changed {
-		added, err := readerjudge.AddedLines(git, cwd, path, revisions)
-		if err != nil {
-			return refuse("%v", err)
-		}
-		offer = readerjudge.NarrowToDiff(offer, added)
-	}
 	var units []readerjudge.Unit
 	for _, u := range readerjudge.CommentBlocks(lines) {
-		if !offer(u) {
-			continue
-		}
 		if holdsDirective(lines, u) {
 			fmt.Fprintf(stderr, "%s:%d: a comment the toolchain reads, kept\n", path, u.Line)
 			continue

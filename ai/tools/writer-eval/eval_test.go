@@ -340,8 +340,8 @@ func prompt(t *testing.T, c Case) string {
 		fmt.Fprintf(&out, "=== the change set's tests ===\nQuestion 3 greps these for a fact's nouns:\n\n"+
 			"```ts\n%s\n```\n\n", c.Tests)
 	}
-	out.WriteString("You have no tools here, so apply the worker's voice check by reading rather than " +
-		"by running it, and report a script you would have run as a finding you read for yourself.\n\n" +
+	out.WriteString("You have no tools here. The harness runs the worker's record check on your block " +
+		"after you answer, the way the pipeline runs it, and hands you back any finding it prints.\n\n" +
 		"The offered site is where the block stood before. You may write the block above any declaration " +
 		"in this file, and you answer with a line `at: <line number>` saying which one you chose.\n\n" +
 		"Answer with a line `summary: needed` or `summary: none`, a line `note: written` or " +
@@ -349,9 +349,17 @@ func prompt(t *testing.T, c Case) string {
 		"declaration, or the single word none, " +
 		"or a line `rename: <what to rename>`. The site is none only where both parts are none. Where " +
 		"a part was needed and you answer none for it, show the attempts first, one per line, as " +
-		"`attempt 1: <part> — <finding>`. Add your audit lines, one per line, as " +
-		"`term: <phrase> — identifier|domain|plain` and `verb: <word> — literal|figure`. Answer with nothing else.")
+		"`attempt 1: <part> — <finding>`. Where you write a note, give its record first, one slot per " +
+		"line, as `fact: <the fact>`, `bears_on: <identifier>` and `does: <the act>`. Add your audit " +
+		"lines, one per line, as `term: <phrase> — identifier|plain|path` and `verb: <word> — " +
+		"literal|figure`, and your routed lines in the shapes the worker's verdict section gives. " +
+		"Answer with nothing else.")
 	return out.String()
+}
+
+// writerOf is the writer row as one call per turn.
+func writerOf(settings modelpolicy.Settings) writerCall {
+	return func(text string) (string, error) { return callWriter(settings, text) }
 }
 
 func callWriter(settings modelpolicy.Settings, text string) (string, error) {
@@ -406,9 +414,11 @@ func TestWriterEval(t *testing.T) {
 
 	rolls := make([][]Verdict, len(cases))
 	answers := make([][]string, len(cases))
+	checkRounds := make([][]int, len(cases))
 	for i := range cases {
 		rolls[i] = make([]Verdict, evalRolls)
 		answers[i] = make([]string, evalRolls)
+		checkRounds[i] = make([]int, evalRolls)
 	}
 	gate := make(chan struct{}, at)
 	var wait sync.WaitGroup
@@ -419,14 +429,15 @@ func TestWriterEval(t *testing.T) {
 				defer wait.Done()
 				gate <- struct{}{}
 				defer func() { <-gate }()
-				raw, err := callWriter(settings, prompt(t, c))
+				r, raw, err := writeChecked(writerOf(settings), runRecordCheck, prompt(t, c), c.Code)
 				if err != nil {
 					rolls[i][roll] = Verdict{Name: c.Name, Want: c.Expect, Got: "error"}
 					answers[i][roll] = err.Error()
 					return
 				}
 				answers[i][roll] = strings.TrimSpace(raw)
-				rolls[i][roll] = JudgeCase(c, ParseReturn(raw))
+				rolls[i][roll] = JudgeCase(c, r)
+				checkRounds[i][roll] = r.Rounds
 			}(i, roll, c)
 		}
 	}
@@ -475,6 +486,15 @@ func TestWriterEval(t *testing.T) {
 			checks = append(checks, check)
 		}
 		sort.Strings(checks)
+		rewritten := 0
+		for _, rounds := range checkRounds[i] {
+			if rounds > 0 {
+				rewritten++
+			}
+		}
+		if rewritten > 0 {
+			classes = append(classes, fmt.Sprintf("check sent back %d", rewritten))
+		}
 		fmt.Fprintf(&out, "%-46s %-8s %d of %d (floor %d)  %s %s\n", c.Name, c.Expect, clean, evalRolls,
 			floorFor(c), strings.Join(classes, ", "), strings.Join(checks, ", "))
 		if clean < floorFor(c) {
@@ -726,14 +746,13 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 			defer wait.Done()
 			gate <- struct{}{}
 			defer func() { <-gate }()
-			raw, err := callWriter(settings, prompt(t, c))
+			parsed, raw, err := writeChecked(writerOf(settings), runRecordCheck, prompt(t, c), c.Code)
 			if err != nil {
 				verdicts[i] = Verdict{Name: c.Name, Got: "error"}
 				raws[i] = err.Error()
 				return
 			}
 			raws[i] = strings.TrimSpace(raw)
-			parsed := ParseReturn(raw)
 			parts[i] = parsed
 			verdicts[i] = JudgeCase(c, parsed)
 		}(i, c)

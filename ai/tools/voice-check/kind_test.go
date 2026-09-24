@@ -28,6 +28,9 @@ func TestAuthoredLinesAreTheAuthorsAlone(t *testing.T) {
 		"Closes the ticket named below.",
 		"Stack, base first: #12 ← #13 ← **#14 (this one)**",
 		thirty,
+		// Run 10's body carried the map as a list item beside the ticket link, and the bold the standard
+		// asks for there came back as a finding.
+		"- Stack, base first: **#12 (this one)** ← #13",
 		"## Tests",
 		"- [x] I have run the tests",
 		"```",

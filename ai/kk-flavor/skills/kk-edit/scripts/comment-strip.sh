@@ -2,9 +2,10 @@
 # Removes a source file's comment blocks and records what each one said, so a writer reads the code
 # with the old block gone. It runs without a model.
 #
-#   usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--changed[=<revisions>]] <path>
+#   usage: comment-strip.sh --facts=<dir> [--archive=<dir>] <path>
 #
-# The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site it
+# Every comment block in the file is removed. A file the change touches is the unit, so a block from
+# before the change goes with the rest. The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site it
 # sat on, as the STRIPPED file numbers it, which is the file the writer reads. Stdout lists the same
 # sites. Exit 1 removed something, 0 removed none, 2 did not run.
 #

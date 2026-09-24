@@ -10,6 +10,8 @@ import (
 	census "configs/ai/tools/comment-census"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -440,9 +442,21 @@ func (c console) reportBar(base baseline, set changeSet, hostSo, setSo soShare) 
 // The checkout the stub resolved through, reported unknown rather than omitted for the reason toolBuild
 // gives. A different fact from the build: source can hash identically to its own tree and that tree
 // still be a commit nobody else has, which is what makes two readings taken apart incomparable.
+//
+// The environment names both where a caller sets them. The stub stopped exporting either, and run 10's
+// header read `build unknown, tree unknown` for it. The build is the stamp `resolve.sh` writes beside
+// the binary, and the tree is the commit of the checkout that binary sits in.
 func toolTree() string {
 	if tree := os.Getenv("ECO_TOOL_TREE"); tree != "" {
 		return tree
+	}
+	if exe, err := os.Executable(); err == nil {
+		tools := filepath.Dir(filepath.Dir(exe))
+		if out, err := exec.Command("git", "-C", tools, "rev-parse", "--short=12", "HEAD").Output(); err == nil {
+			if tree := strings.TrimSpace(string(out)); tree != "" {
+				return tree
+			}
+		}
 	}
 	return "unknown"
 }
@@ -450,6 +464,13 @@ func toolTree() string {
 func toolBuild() string {
 	if stamp := os.Getenv("ECO_TOOL_BUILD"); stamp != "" {
 		return stamp
+	}
+	if exe, err := os.Executable(); err == nil {
+		if held, err := os.ReadFile(exe + ".stamp"); err == nil {
+			if stamp := strings.TrimSpace(string(held)); stamp != "" {
+				return stamp
+			}
+		}
 	}
 	return "unknown"
 }

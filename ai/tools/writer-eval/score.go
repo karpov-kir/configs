@@ -41,6 +41,11 @@ type Return struct {
 	// Routed is the fates the return named, one entry per routed line, lower-cased: `for the pr body`,
 	// `does not fit`, `stale` and the rest. A case asking where a fact went reads this.
 	Routed []string
+	// Record is the note's three slot lines as the writer gave them. The record check reads them against
+	// the block, the way the pipeline's writer pipes them before it writes.
+	Record []string
+	// Rounds is how many times the record check sent the block back before this return.
+	Rounds int
 }
 
 // Part is what one half of a block came back as.
@@ -69,7 +74,10 @@ var placedLine = regexp.MustCompile(`(?i)^\s*at:\s*(\d+)\s*$`)
 // The lines a writer returns beside its block: what it dropped and where that went. They are the
 // return's own bookkeeping, and reading one as prose scored a correct `carried by` as a written
 // block. Three of l07's five rolls answered correctly and one was counted.
-var verdictLine = regexp.MustCompile(`(?i)^\s*(shown by the body|carried by [^:]*|stale|for the pr body|does not fit|belongs at [^:]*|invariant diverged|about this code):`)
+var verdictLine = regexp.MustCompile(`(?i)^\s*(shown by the body|carried by [^:]*|stale|for the pr body|does not fit|belongs at [^:]*|invariant diverged|about this code|unverified|none):`)
+
+// recordLine is one slot of the note's record.
+var recordLine = regexp.MustCompile(`(?i)^\s*(fact|bears_on|does):\s*\S`)
 
 var summaryLine = regexp.MustCompile(`(?i)^\s*summary:\s*(needed|none)\s*$`)
 var noteLine = regexp.MustCompile(`(?i)^\s*note:\s*(written|none)\s*$`)
@@ -106,6 +114,10 @@ func ParseReturn(raw string) Return {
 			out.Attempts++
 			continue
 		}
+		if recordLine.MatchString(line) {
+			out.Record = append(out.Record, strings.TrimSpace(line))
+			continue
+		}
 		if m := verdictLine.FindStringSubmatch(line); m != nil {
 			fate := strings.ToLower(strings.TrimSpace(m[1]))
 			if strings.HasPrefix(fate, "carried by") {
@@ -131,6 +143,26 @@ func ParseReturn(raw string) Return {
 		return out
 	}
 	out.Block = joined
+	return out
+}
+
+// CommentLines is the block's comment lines as the writer wrote them, markers kept, which is what the
+// record check reads above the declaration.
+func (r Return) CommentLines() []string {
+	var out []string
+	inSpan := false
+	for _, line := range strings.Split(r.Block, "\n") {
+		trimmed := strings.TrimSpace(line)
+		opens := strings.HasPrefix(trimmed, "/*")
+		if inSpan || opens || blockMarker.MatchString(line) {
+			out = append(out, line)
+		}
+		if strings.Contains(trimmed, "*/") {
+			inSpan = false
+		} else if opens {
+			inSpan = true
+		}
+	}
 	return out
 }
 
@@ -216,7 +248,7 @@ func Score(r Return) []Failure {
 		}
 	}
 	for _, t := range r.Terms {
-		if t.Class != "identifier" && t.Class != "plain" {
+		if t.Class != "identifier" && t.Class != "plain" && t.Class != "path" {
 			add("term-audited-as-none-of-the-three", t.Word+" — "+t.Class)
 		}
 	}

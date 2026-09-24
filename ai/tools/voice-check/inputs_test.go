@@ -253,3 +253,19 @@ func TestNoCaseCanReachTheConfigurationOfWhoeverRunsTheSuite(t *testing.T) {
 		}
 	}
 }
+
+// `--source` reads whole files, and a revision range names which. Writer I of run 10 passed a range,
+// the scan read it as a path, and the writer ran the check without `--source` instead.
+func TestSourceOverARevisionReadsEveryBlockOfTheFilesItTouches(t *testing.T) {
+	r := newRepo(t)
+	r.write("src/ledger.ts", "// Posts a book.\nexport function post(): void {}\n")
+	r.commit("a clean file")
+	// The block already standing carries the finding, and the change touches only the code.
+	r.write("src/ledger.ts", "// Posts a book; the ledger reads it.\nexport function post(): void {}\n")
+	r.commit("a block with a finding")
+	r.write("src/ledger.ts", "// Posts a book; the ledger reads it.\nexport function post(): number { return 0; }\n")
+	r.commit("a code change under it")
+	r.run("--source", "HEAD~1..HEAD")
+	r.expectCode(1)
+	r.expectStdoutHas("src/ledger.ts:1: semicolon")
+}

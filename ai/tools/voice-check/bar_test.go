@@ -600,7 +600,8 @@ func TestBarNamesTheBuildAndTheTreeItMeasuredOn(t *testing.T) {
 	r := newRepoWithLeanBaseline(t)
 	r.write("same.go", strings.Repeat("code()\n", 9)+"// one\n")
 
-	// The shell stub exports both names. A direct run, as here, leaves them to the case.
+	// The environment names both where a caller sets them, ahead of the stamp beside the binary. A test
+	// binary has no stamp beside it.
 	t.Setenv("ECO_TOOL_BUILD", "deadbeefcafe")
 	t.Setenv("ECO_TOOL_TREE", "feedfacedead")
 	r.runBar()
