@@ -414,19 +414,16 @@ func TestAUsageLimitStopsTheTable(t *testing.T) {
 	}
 }
 
-// shortRolls is the read a proven bystander gets: a case the change neither targets nor counts among
-// Kirill's eight, holding 14 or 15 of 15 on the kept column. Such a case passes all five about seven
-// times in ten, and the rest go on to the full read, about 9.5 calls a case against 15. A target and
-// one of the eight always get the full read: at a true 12 of 15, five of five comes up one time in
-// three, which is the regression the bar is there to catch.
+// shortRolls is the read a proven bystander gets: a case outside the change and outside Kirill's eight,
+// at 14 or 15 of 15 on the kept column. The README says why the eight and a target get the full read,
+// and what a short read costs.
 const shortRolls = 5
 
 // kirillsEight are the cases every change is read on in full.
 var kirillsEight = []string{"k15", "k19", "k20", "k21", "k22", "k23", "k25", "k26"}
 
-// shortFor says which cases a table reads short: proven on the reference column, and neither targeted
-// by the change nor one of the eight. A full table reads none short, and neither does a table with no
-// column to prove a case on.
+// shortFor says which cases a table reads short: a case proven on the reference column, outside the
+// change's targets and outside the eight. Without a column every case gets the full read.
 func shortFor(reference map[string]int, targeted map[string]bool) func(Case) bool {
 	return func(c Case) bool {
 		for _, name := range kirillsEight {

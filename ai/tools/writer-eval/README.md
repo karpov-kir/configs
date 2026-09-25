@@ -114,7 +114,8 @@ no column is kept for main's rules.
 A proven bystander, a case holding 14 or 15 of 15 on the kept column that the change neither targets
 nor counts among the eight, is read short: five rolls, and five of five passes it. One miss sends it
 to the full read. A case truly at 14 of 15 passes five of five about seven times in ten, so a proven
-case costs about 9.5 calls against 15. The table marks it `5/5 (short)`, and a short read is never kept
+case costs about 9.5 calls against 15. A target and one of the eight always get the full read: a case truly at
+12 of 15 passes five of five one time in three, and that is the regression the bar is there to catch. The table marks it `5/5 (short)`, and a short read is never kept
 in a column. `WRITER_EVAL_TARGETS` names, by prefix, the cases whose rule paragraph a change rewrites,
 so they get the full read with the cases the branch edits.
 
