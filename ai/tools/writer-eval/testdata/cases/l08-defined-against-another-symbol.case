@@ -1,5 +1,5 @@
 expect: written
-why: the return needs a plain summary, and the budget fact needs more room than a note
+why: the return needs a plain summary, and the header keeps one fact; this is k31's site, and the budget fact goes to the branch returning false where `requestSettlementAccess` is absent, as a note of its own with one record, which k31 measures; ruled on 2026-09-24 after a roll stacked both facts in the header
 labelled: 2026-09-17
 --- code
 export async function claimsClearingThroughStandardApi(clearing: Clearing, entryType: string): Promise<boolean> {

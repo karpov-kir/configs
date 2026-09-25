@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -304,6 +305,26 @@ func readRules(t *testing.T) []ruleFile {
 	return ruleHeld
 }
 
+// reHyphenatedName is a name spelled with hyphens, such as a string value or a file's name.
+var reHyphenatedName = regexp.MustCompile(`[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+`)
+
+// hyphenatedNames is each hyphenated name the code spells, in both cases. The strip writes them into
+// identifiers.txt from the tree, and a case's list lacked them until 2026-09-24. Six of k06's rolls
+// then returned a string value of the code as a coined word to rename.
+func hyphenatedNames(code string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, name := range reHyphenatedName.FindAllString(code, -1) {
+		for _, spelled := range []string{name, strings.ToLower(name)} {
+			if !seen[spelled] {
+				seen[spelled] = true
+				out = append(out, spelled)
+			}
+		}
+	}
+	return out
+}
+
 // numbered puts a line number in front of each line. The writer answers with the number of the
 // declaration it chose, and a file it reads unnumbered leaves it guessing at one.
 func numbered(code string) string {
@@ -330,28 +351,32 @@ func prompt(t *testing.T, c Case) string {
 		"The facts file for the site holds:\n\n%s\n\n", c.Name, c.Site, numbered(c.Code), c.Facts)
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
 	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
-	fmt.Fprintf(&out, "=== identifiers.txt ===\nThe audit classifies a noun as `identifier` where it is here:\n\n%s\n\n",
-		strings.Join(census.IdentifierWords(strings.Split(c.Code, "\n")), " "))
+	fmt.Fprintf(&out, "=== identifiers.txt ===\n%s\n\n",
+		strings.Join(append(census.IdentifierWords(strings.Split(c.Code, "\n")), hyphenatedNames(c.Code)...), " "))
 	if c.Callers != "" {
 		fmt.Fprintf(&out, "=== the callers ===\nA grep over the repository finds these call sites and no "+
 			"other:\n\n```ts\n%s\n```\n\n", c.Callers)
 	}
 	if c.Tests != "" {
-		fmt.Fprintf(&out, "=== the change set's tests ===\nQuestion 3 greps these for a fact's nouns:\n\n"+
+		fmt.Fprintf(&out, "=== the change set's tests ===\n"+
 			"```ts\n%s\n```\n\n", c.Tests)
 	}
-	out.WriteString("You have no tools here, so apply the worker's voice check by reading rather than " +
-		"by running it, and report a script you would have run as a finding you read for yourself.\n\n" +
-		"The offered site is where the block stood before. You may write the block above any declaration " +
-		"in this file, and you answer with a line `at: <line number>` saying which one you chose.\n\n" +
-		"Answer with a line `summary: needed` or `summary: none`, a line `note: written` or " +
-		"`note: none`, a line `at: <line number>`, then the block you would write above that " +
-		"declaration, or the single word none, " +
-		"or a line `rename: <what to rename>`. The site is none only where both parts are none. Where " +
-		"a part was needed and you answer none for it, show the attempts first, one per line, as " +
-		"`attempt 1: <part> — <finding>`. Add your audit lines, one per line, as " +
-		"`term: <phrase> — identifier|domain|plain` and `verb: <word> — literal|figure`. Answer with nothing else.")
+	// The brief says where a block goes, when a site is none, how attempts are shown and what the check
+	// is. The prompt restated each in its own words until 2026-09-24, and a restatement is text the
+	// pipeline's writer never reads. What stays is what the brief cannot say: that no tool runs here, and
+	// the shape the harness parses.
+	out.WriteString("You have no tools here. Answer with a line `summary: needed` or `summary: none`, a line " +
+		"`note: written` or `note: none`, a line `at: <line number>` naming the declaration the block sits " +
+		"on, then the block, or the single word none, or a line `rename: <what to rename>`. Where you write " +
+		"a note, give its record first, one slot per line: `fact:`, `bears_on:` and `does:`. Add the " +
+		"attempt lines, the audit lines and the routed lines in the shapes the brief gives. Answer with " +
+		"nothing else.")
 	return out.String()
+}
+
+// writerOf is the writer row as one call per turn.
+func writerOf(settings modelpolicy.Settings) writerCall {
+	return func(text string) (string, error) { return callWriter(settings, text) }
 }
 
 func callWriter(settings modelpolicy.Settings, text string) (string, error) {
@@ -406,9 +431,11 @@ func TestWriterEval(t *testing.T) {
 
 	rolls := make([][]Verdict, len(cases))
 	answers := make([][]string, len(cases))
+	checkRounds := make([][]int, len(cases))
 	for i := range cases {
 		rolls[i] = make([]Verdict, evalRolls)
 		answers[i] = make([]string, evalRolls)
+		checkRounds[i] = make([]int, evalRolls)
 	}
 	gate := make(chan struct{}, at)
 	var wait sync.WaitGroup
@@ -419,14 +446,15 @@ func TestWriterEval(t *testing.T) {
 				defer wait.Done()
 				gate <- struct{}{}
 				defer func() { <-gate }()
-				raw, err := callWriter(settings, prompt(t, c))
+				r, raw, err := writeChecked(writerOf(settings), recordCheckFor(), prompt(t, c), c.Code)
 				if err != nil {
 					rolls[i][roll] = Verdict{Name: c.Name, Want: c.Expect, Got: "error"}
 					answers[i][roll] = err.Error()
 					return
 				}
 				answers[i][roll] = strings.TrimSpace(raw)
-				rolls[i][roll] = JudgeCase(c, ParseReturn(raw))
+				rolls[i][roll] = JudgeCase(c, r)
+				checkRounds[i][roll] = r.Rounds
 			}(i, roll, c)
 		}
 	}
@@ -475,6 +503,15 @@ func TestWriterEval(t *testing.T) {
 			checks = append(checks, check)
 		}
 		sort.Strings(checks)
+		rewritten := 0
+		for _, rounds := range checkRounds[i] {
+			if rounds > 0 {
+				rewritten++
+			}
+		}
+		if rewritten > 0 {
+			classes = append(classes, fmt.Sprintf("check sent back %d", rewritten))
+		}
 		fmt.Fprintf(&out, "%-46s %-8s %d of %d (floor %d)  %s %s\n", c.Name, c.Expect, clean, evalRolls,
 			floorFor(c), strings.Join(classes, ", "), strings.Join(checks, ", "))
 		if clean < floorFor(c) {
@@ -726,14 +763,13 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 			defer wait.Done()
 			gate <- struct{}{}
 			defer func() { <-gate }()
-			raw, err := callWriter(settings, prompt(t, c))
+			parsed, raw, err := writeChecked(writerOf(settings), recordCheckFor(), prompt(t, c), c.Code)
 			if err != nil {
 				verdicts[i] = Verdict{Name: c.Name, Got: "error"}
 				raws[i] = err.Error()
 				return
 			}
 			raws[i] = strings.TrimSpace(raw)
-			parsed := ParseReturn(raw)
 			parts[i] = parsed
 			verdicts[i] = JudgeCase(c, parsed)
 		}(i, c)
@@ -931,5 +967,67 @@ func TestACaseSaysWhichDeclarationTheBlockBelongsOn(t *testing.T) {
 	}
 	if !strings.Contains(prompt(t, c), "5\texport function postRow") {
 		t.Errorf("the prompt shows the writer no line numbers to answer with")
+	}
+}
+
+// A bar is a pattern. k35's false claim reads with any words between the throw and the failure, and a
+// fixed phrase barred one wording of it.
+func TestABarIsAPattern(t *testing.T) {
+	c := Case{Name: "k", Expect: ExpectWritten, Bars: []string{"throw[^,.]*makes[^,.]*fail"}}
+	barred := Return{Summary: PartNone, Note: PartWritten,
+		Block: "// A throw from the preprocessing function makes the service fail the load."}
+	if v := JudgeCase(c, barred); v.Passed() {
+		t.Fatal("a throw said to fail the load passed the bar")
+	}
+	kept := Return{Summary: PartNone, Note: PartWritten,
+		Block: "// The service catches a throw, and only a rejected promise fails the load."}
+	if v := JudgeCase(c, kept); !v.Passed() {
+		t.Fatalf("the corrected claim failed: %v", v.Failures)
+	}
+}
+
+// rescoreEnv names a dump to score again against the case files as they are now. A table reads each
+// label at scoring. A label ruled mid-table scores the rolls already taken, with no roll taken again.
+// It reads rolls taken with the check off: a roll the loop ended at none keeps a note in its answer.
+const rescoreEnv = "WRITER_EVAL_RESCORE"
+
+func TestRescoreADump(t *testing.T) {
+	path := os.Getenv(rescoreEnv)
+	if path == "" {
+		t.Skipf("%s is unset", rescoreEnv)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rows []dumped
+	if err := json.Unmarshal(body, &rows); err != nil {
+		t.Fatal(err)
+	}
+	cases, err := LoadCases(casesDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byName := map[string]Case{}
+	for _, c := range cases {
+		byName[c.Name] = c
+	}
+	clean, rolls := map[string]int{}, map[string]int{}
+	var names []string
+	for _, row := range rows {
+		c, known := byName[row.Case]
+		if !known || !strings.HasPrefix(row.Case, os.Getenv(caseEnv)) {
+			continue
+		}
+		if rolls[row.Case] == 0 {
+			names = append(names, row.Case)
+		}
+		rolls[row.Case]++
+		if JudgeCase(c, ParseReturn(row.Raw)).Passed() {
+			clean[row.Case]++
+		}
+	}
+	for _, name := range names {
+		t.Logf("%-46s %d of %d (floor %d)", name, clean[name], rolls[name], floorFor(byName[name]))
 	}
 }

@@ -1,0 +1,22 @@
+expect: written
+note: written
+lands: schemeIds
+keeps: schememap
+keeps: src/core/settlement/schemes.ts
+keeps: must match
+withholds: does not fit
+why: the table has to match the service's own scheme table, and the maintainer who changes one needs the other's name and path to find it; run 10's audit read `KeySystemMap`, the other repository's name, as a word the tree does not spell and sent the fact to the human; a backticked path, or a name the same sentence places in one, passes the audit as `path`
+labelled: 2026-09-24
+--- code
+export type SchemeName = 'directCash' | 'escrowCredit' | 'clearing';
+
+export const schemeIds: Record<SchemeName, string[]> = {
+  directCash: ['com.vendor.cash', 'com.vendor.cash.legacy'],
+  escrowCredit: ['com.vendor.escrow'],
+  clearing: ['org.clearing.basic'],
+};
+--- facts
+The keys and id lists of `schemeIds` must match the service's own scheme table.
+
+# claimed at this site by an earlier run:
+schemeIds must match the service's own scheme table, `SchemeMap` in `src/core/settlement/Schemes.ts`.

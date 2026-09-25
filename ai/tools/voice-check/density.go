@@ -44,7 +44,7 @@ const stubName = "voice-check.sh"
 //
 // The stub's header states this line word for word, and a case holds the two together, so a flag added
 // here is added there in the same edit.
-const usage = "usage: " + stubName + " [--density | --per-file | --profile=comment|prose|instruction] [--source] [--record] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]"
+const usage = "usage: " + stubName + " [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. A finding goes to stdout bare. A note goes to
 // stderr under the tool's name, and the rest of the package writes there through this type alone. The
@@ -81,10 +81,10 @@ type Config struct {
 
 const configName = "voice-check.conf"
 
-// ConfigFromEnv resolves the byte cap: the tracked default this tool ships in configs, then this
+// LoadConfig resolves the byte cap: the tracked default this tool ships in configs, then this
 // run's environment on top. A value that does not parse refuses the run. A caller who set one asked
 // for a bound, and falling back to the default would report a scan against a bound they did not pick.
-func ConfigFromEnv(lookup func(string) (string, bool)) (Config, error) {
+func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{MaxFileBytes: defaultMaxFileBytes}
 	home, _ := lookup("HOME")
 	path := flavorconfig.Path(home, configName)
@@ -157,6 +157,9 @@ func Run(self string, args []string, cwd string, git repo.Git, cfg Config, stdou
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--density" {
 		return bar(out, args[1:], cwd, git, cfg)
+	}
+	if len(args) > 0 && strings.HasPrefix(args[0], "--carriers=") {
+		return carriers(out, strings.TrimPrefix(args[0], "--carriers="), args[1:], cwd, git, cfg)
 	}
 	return voice(out, args, cwd, git, cfg)
 }

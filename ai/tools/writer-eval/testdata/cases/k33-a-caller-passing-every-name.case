@@ -1,0 +1,30 @@
+expect: written
+note: written
+keeps: listschemeids
+keeps: empty | []
+withholds: does not fit | belongs at
+why: `assertSettlement` passes every property name of a settlement configuration to `listSchemeIds`, `immediateSettlement` included, and that caller's act is why the `hasOwnProperty` guard returns an empty list for a name that is no scheme; the caller's act is the fact and this function's guard is the act, the shape of the eleventh exemplar; run 10 deleted the standing block and routed the fact to the human
+labelled: 2026-09-24
+--- code
+export function listSchemeIds(name: string): string[] {
+  return Object.prototype.hasOwnProperty.call(schemeIds, name)
+    ? schemeIds[name as SchemeName]
+    : [];
+}
+--- callers
+// tests/helpers/SettlementHelper.ts
+export function assertSettlement(config: SettlementConfig): void {
+  for (const name of Object.keys(config)) {
+    if (listSchemeIds(name).some(isSchemeAccepted)) {
+      return;
+    }
+  }
+
+  throw new SkipException('No settlement scheme is accepted here');
+}
+--- facts
+One caller passes every property name of a source's settlement configuration, settings included.
+`listSchemeIds` returns an empty list for a `name` absent from schemeIds, the scheme id table.
+
+# claimed at this site by an earlier run:
+assertSettlement, the suite's settlement skip check, passes every key of a source's settlement configuration to listSchemeIds. Those keys include settings such as immediateSettlement, which is not a scheme.

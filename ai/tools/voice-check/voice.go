@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -117,6 +118,7 @@ const (
 	checkAloneForOnly   = "alone-for-only"
 	checkHeaderOnImport = "header-on-import"
 	checkLongLine       = "long-line"
+	checkToolingDoubt   = "tooling-doubt"
 )
 
 // AllChecks is every check name, which the suite reads to prove each one fires on its corpus.
@@ -125,7 +127,7 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
 	checkTestsNarration, checkHeaderOnImport,
-	checkLongLine}
+	checkLongLine, checkToolingDoubt}
 
 // reImportLine opens an import, in the languages whose files open on one.
 var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
@@ -608,8 +610,64 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 			found = append(found, Finding{File: file, Line: b.start, Check: checkLongBlock, Text: text})
 		}
 		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf))...)
+		found = append(found, doubtIn(file, b.start, b.end, lines, proseOf)...)
+	}
+	if !isTestFile(file) {
+		found = append(found, doubtInStrings(file, lines, held)...)
 	}
 	return found
+}
+
+// reToolingDoubt is the tooling's own doubt about a claim it moved. Run 10 wrote into six string
+// values of a product's catalogue that each claim came from an earlier comment and stood unchecked.
+// A claim someone archived is its author's. A lane that cannot check it routes it to review, and the
+// artifact never carries the lane's doubt.
+var reToolingDoubt = regexp.MustCompile(`(?i)\b(unverified|carried over|not checked)\b`)
+
+// doubtIn reports the tooling's doubt on the lines from..to, each read through prose.
+func doubtIn(file string, from, to int, lines []string, prose func(string) string) []Finding {
+	var found []Finding
+	for at := from; at <= to && at <= len(lines); at++ {
+		if m := reToolingDoubt.FindString(prose(lines[at-1])); m != "" {
+			found = append(found, Finding{File: file, Line: at, Check: checkToolingDoubt, Text: m})
+		}
+	}
+	return found
+}
+
+// reStringLiteral is a quoted string on one line, in the three quotes the source languages use.
+var reStringLiteral = regexp.MustCompile("'(?:[^'\\\\]|\\\\.)*'|\"(?:[^\"\\\\]|\\\\.)*\"|`[^`]*`")
+
+// reProseWords is three words in a row, and a literal holding them reads as a sentence. A path or a key
+// holds no such run. A pattern holds `|` or a backslash, and the check passes over it too.
+var reProseWords = regexp.MustCompile(`[A-Za-z]+[,.:]?\s+[A-Za-z]+[,.:]?\s+[A-Za-z]+`)
+
+// doubtInStrings reads the string literals on the code lines this scan holds. Comment prose moved
+// into a string value leaves every comment check behind, and run 10 moved it there.
+func doubtInStrings(file string, lines []string, held present) []Finding {
+	var found []Finding
+	for i, raw := range lines {
+		at := i + 1
+		if !held(at) || isComment(strings.TrimLeft(raw, shell.SpaceBytes)) {
+			continue
+		}
+		for _, literal := range reStringLiteral.FindAllString(raw, -1) {
+			if !reProseWords.MatchString(literal) || strings.ContainsAny(literal, "|\\") {
+				continue
+			}
+			if m := reToolingDoubt.FindString(literal); m != "" {
+				found = append(found, Finding{File: file, Line: at, Check: checkToolingDoubt, Text: m})
+			}
+		}
+	}
+	return found
+}
+
+// isTestFile is a unit test's own file, whose strings are fixtures and quote whatever the case needs.
+func isTestFile(file string) bool {
+	base := path.Base(file)
+	return strings.HasSuffix(base, "_test.go") || strings.Contains(base, ".test.") ||
+		strings.Contains(base, ".spec.")
 }
 
 // scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
@@ -1086,6 +1144,8 @@ flags:
 	var found []Finding
 	if profile == ProfileComment && !source {
 		found, err = s.scanChange(args, cwd, git, cfg, &over)
+	} else if source && !record && namesRevisions(git, cwd, args) {
+		found, err = s.scanTouchedFiles(args, cwd, git, cfg, &over)
 	} else {
 		found, err = s.scanPaths(args, cwd, cfg, &over, source)
 	}
@@ -1093,6 +1153,56 @@ flags:
 		return out.refuse(err)
 	}
 	return reportVoice(out, profile, found, over)
+}
+
+// namesRevisions says the first argument is a revision. Writer I of run 10 asked `--source` for a
+// revision range, and the scan read the range as a path and exited 2.
+func namesRevisions(git repo.Git, cwd string, args []string) bool {
+	if len(args) == 0 || args[0] == "-" || args[0] == "--" {
+		return false
+	}
+	if _, err := os.Stat(shell.Join(cwd, args[0])); err == nil {
+		return false
+	}
+	return diffscan.RefuseNonRevisions(git, args, cwd) == nil && resolves(git, cwd, args[0])
+}
+
+// resolves says git reads the argument as a commit, or as a range of two.
+func resolves(git repo.Git, cwd, arg string) bool {
+	for _, end := range strings.Split(arg, "..") {
+		end = strings.Trim(end, ".")
+		if end == "" {
+			continue
+		}
+		if id, err := git.Resolve(cwd, end+"^{}"); err != nil || id == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// scanTouchedFiles reads every block of each source file the revisions touch, as the file stands in
+// the working tree. `--source` reads a whole file, and a range names which files.
+func (s scanner) scanTouchedFiles(args []string, cwd string, git repo.Git, cfg Config, over *scanned) ([]Finding, error) {
+	root := cwd
+	if top, err := git.TopLevel(cwd); err == nil && top != "" {
+		root = top
+	}
+	named, pathspec := diffscan.RevisionsNamed(args)
+	files, err := git.Changed(root, named, pathspec)
+	if err != nil {
+		return nil, fmt.Errorf("git rejected these revisions — exit 2, the scan did NOT run. git said: %v", err)
+	}
+	var paths []string
+	for _, file := range files {
+		if !notThisRepositorysSource(file) {
+			paths = append(paths, file)
+		}
+	}
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	return s.scanPaths(paths, root, cfg, over, true)
 }
 
 // scanChange reads the diff — git's, or one on stdin for a branch this checkout does not hold, which
@@ -1235,6 +1345,9 @@ func (s scanner) readUntracked(a *addedLines, cwd string, git repo.Git, cfg Conf
 	})
 	if err != nil {
 		return errors.New("could not list untracked files — exit 2, the scan did NOT run over them.")
+	}
+	for _, name := range result.Declined {
+		a.declined[name] = true
 	}
 	return nil
 }
@@ -1521,7 +1634,7 @@ func identifierWordsOf(lines []string) map[string]bool {
 
 // A hump-cased name, and the comma that would place it.
 var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
-var reAppositiveTail = regexp.MustCompile(`^\s*,`)
+var reAppositiveTail = regexp.MustCompile("^`?\\s*,")
 
 // placeableNames are the terms of art a reader already places, spelled the way an identifier is.
 // This check reported three of them in its own comment, which is what that run is for.

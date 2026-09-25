@@ -1,0 +1,14 @@
+expect: stays
+bars: carried by
+why: the `@param` line gives an example of the short name a caller passes, and no parameter name carries an example value; run 10's lane deleted a line of this shape, and the reader of the signature lost the only place saying what a short name looks like
+labelled: 2026-09-24
+--- context
+The change set touches tests/helpers/ModuleHelper.ts, adding a retry to `loadModule`. The block below was in the file before the change.
+--- code
+/**
+ * Loads a vendor module script into the page.
+ * @param name the module's short name, such as `ledger-export` for `vendor-ledger-export.js`
+ */
+export async function loadModule(name: string): Promise<void> {
+  await injectScript(`${MODULE_BASE_URL}/vendor-${name}.js`);
+}

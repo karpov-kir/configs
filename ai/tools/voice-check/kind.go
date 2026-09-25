@@ -67,7 +67,7 @@ func templateKey(line string) string {
 var (
 	reHTMLComment = regexp.MustCompile(`(?s)<!--.*?-->`)
 	reHeading     = regexp.MustCompile(`^\s{0,3}#{1,6}\s`)
-	reStackMap    = regexp.MustCompile(`(?i)^\s*stack, base first:`)
+	reStackMap    = regexp.MustCompile(`(?i)^\s*([-*+]\s+)?stack, base first:`)
 	reAttribution = regexp.MustCompile(`(?i)generated with \[`)
 	reFence       = regexp.MustCompile("^\\s*(```|~~~)")
 )

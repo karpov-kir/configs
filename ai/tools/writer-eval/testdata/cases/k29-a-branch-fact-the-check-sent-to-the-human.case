@@ -1,0 +1,25 @@
+expect: written
+note: written
+site: 3
+lands: keepsBook
+keeps: keepsbook
+keeps: false | removes | whole | drops
+withholds: does not fit
+why: the fact is why `keepsBook` takes a book out whole: how a ledger treats a book left holding no posting is unknown, so `keepsBook` returns false for a posting book where no posting declares the currency; run 10's writer wrote this note, the record check refused it twice as never saying `keepsBook` although the block said it, because the check read the line piped above the block as the block, and the fact went to the human as `does not fit`; the case runs the check the pipeline runs, so it measures that loop
+labelled: 2026-09-24
+--- code
+export function newBookNarrowing(currency: string): BookNarrowing {
+  return {
+    keepsBook: book =>
+      !isPostingBook(book) || hasPostingDeclaring(book, currency),
+
+    keepsPosting: (posting, book) =>
+      !isPostingBook(book) || declaresCurrency({ book, posting }, currency),
+  };
+}
+--- facts
+How a ledger treats an empty book is unknown.
+`keepsBook` returns false for a posting book where no posting declares the currency.
+
+# claimed at this site by an earlier run:
+A ledger's handling of an empty book is unknown, so the narrowing drops the whole book.

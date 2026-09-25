@@ -113,6 +113,45 @@ A run also measures the rule files as they stood when it started, which `readRul
 code. So a rule edit during a run leaves a table naming text the run measured nowhere, and the header
 hash is the only thing that says so. Finish the run, or kill it and start again.
 
+## The record check runs inside a roll
+
+The pipeline's writer runs the record check on each block before it writes it. It rewrites for each
+finding, and after two rewrites it answers `none` and sends the facts to the human. The eval's writer
+used to read the check instead of running it, so no check ever sent a block back here. Run 10's check
+refused one block twice over a defect in the check itself, and the fact reached the human. The case
+for that site read 14 of 15, because no roll met the check.
+
+So a roll now runs that loop. The writer returns its record beside the block, the harness pipes both
+to the checkout's `voice-check.sh --profile=comment --source --record -`, and a finding goes back to
+the writer as its next turn. A block still refused after two rewrites is scored as the pipeline ends
+it: `none`, with `does not fit` routed. The table counts the rolls the check sent back.
+
+A roll can now cost three calls instead of one, and every column measured before 2026-09-24 was read
+without the loop. A move between such a column and a later one mixes the rule's change with the loop's.
+
+`WRITER_EVAL_CHECK=off` runs each roll as one call again. Two near-identical rule sets read under the
+loop on 2026-09-24 moved unrelated cases by up to seven rolls, so a rule change is measured against an
+older column with the check off until the loop's own band is recorded.
+
+## The harness now reads the pipeline, and batch3 is retired
+
+Until 2026-09-24 the eval's writer never produced a record, its identifier list lacked the hyphenated
+names the strip writes, and its prompt restated the brief in its own words. The pipeline's writer
+fills the record, reads that list and reads the brief alone. The harness now gives the eval's writer
+the same, and it keeps only what the brief cannot say: that no tool runs, and the shape it parses.
+
+So batch3, main's column of 2026-09-23, is retired. It was read on the old harness, and the same
+rules read differently on this one. Main's rules on the one-call harness, before its prompt lost the
+restatements, read k23 at 1, k03 at 3 and k01 at 4, where batch3 read 10, 13 and 15. Those three
+fail on main's rules under the faithful harness, and item 19 takes them first. After the prompt lost
+its restatements, the branch read k23 0, k03 4, k01 1, k08 9 and k13 12, and main's rules read k23 0.
+The rest of that pair was not run.
+
+Item 18's rules read within two of main's rules on the same one-call harness at every case but l08,
+11 against 14, with its floor at 9. The same case read 1 of 15 on the branch after the prompt lost its
+restatements, on over-the-sentence-ceiling and rename. Both causes are item 19's: the sentence ceiling
+that a second fact at the site's branch pushes past, and the audit reading a description as a term.
+
 ## What a case cannot measure
 
 The writer a case runs is told it has no tools. Every case hands it the code, the facts, and

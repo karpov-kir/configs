@@ -1,0 +1,29 @@
+expect: written
+note: written
+keeps: legacyledgerkeys
+keeps: directcash
+bars: alone
+withholds: does not fit
+why: `getSchemeClaim` asks `LegacyLedgerKeys` for `DirectCash` in its first branch and sends every other scheme to the standard API, and the fact that the prefixed interface answers for `DirectCash` only is why; run 10 wrote the header from the other fact and routed this one to the human as fitting nowhere, while one declaration in the file performs the act it explains; the tie names the branch's interface and the scheme it asks about
+labelled: 2026-09-24
+--- code
+export async function getSchemeClaim(requirement: SchemeRequirement, formatName: string): Promise<LedgerClaim> {
+  if (window.LegacyLedgerKeys && requirement.scheme === PostingScheme.DirectCash) {
+    return getClaimThroughPrefixedSchemeApi(requirement.scheme, window.LegacyLedgerKeys);
+  }
+
+  if (typeof ledgerApi.requestSchemeAccess === 'function') {
+    return getClaimThroughStandardApi(requirement, formatName);
+  }
+
+  return LedgerClaim.Unknown;
+}
+--- facts
+`LegacyLedgerKeys` is the vendor's prefixed scheme interface.
+The vendor's ledgers answer DirectCash as unsupported through the standard API, so this branch asks `LegacyLedgerKeys` first.
+
+# claimed at this site by an earlier run:
+`window.LegacyLedgerKeys` is the vendor's prefixed interface, and it knows DirectCash alone. Such a ledger reports DirectCash as unsupported through the standard scheme API.
+
+# claimed at this site by an earlier run:
+A ledger exposing the vendor's prefixed API answers about DirectCash only there, so a DirectCash question goes to it first. Only DirectCash goes there, because the prefixed API knows the vendor's scheme alone and would answer `Unsupported` about EscrowCredit.

@@ -174,3 +174,29 @@ func TestRefactorVerdicts(t *testing.T) {
 		t.Fail()
 	}
 }
+
+// kk-edit refuses a refactor line by a grep its skill states. Run 10's refusal matched `licen`, and the
+// domain's license refused two correct `stays:` lines. The pattern is read from the skill, so this case
+// reads what a run reads.
+func TestTheRefusalPatternMatchesTheGuardAndNotTheDomainWord(t *testing.T) {
+	body, err := os.ReadFile("../../kk-flavor/skills/kk-edit/SKILL.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile("grep -E '(\\^Comment \\.\\* [^']*)' <the return>").FindSubmatch(body)
+	if m == nil {
+		t.Fatal("kk-edit's skill states no refusal grep")
+	}
+	refuse := regexp.MustCompile(string(m[1]))
+	for line, want := range map[string]bool{
+		"Comment 3/9 src/Ledger.ts:12 | blocked: needs the human":                                     true,
+		"Comment 4/9 src/Ledger.ts:20 | stays: the emphasis licence keeps changes minimal":            true,
+		"Comment 5/9 src/Ledger.ts:31 | stays: a repository scope rule bars the edit":                 true,
+		"Comment 6/9 src/Ledger.ts:40 | stays: the license server answers a posting before its books": false,
+		"Comment 7/9 src/Ledger.ts:52 | carried by `POSTING_RETRIES`":                                 false,
+	} {
+		if got := refuse.MatchString(line); got != want {
+			t.Errorf("refused %v, want %v: %s", got, want, line)
+		}
+	}
+}

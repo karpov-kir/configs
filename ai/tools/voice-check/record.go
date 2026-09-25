@@ -86,16 +86,18 @@ func readSlots(lines []string) map[string]string {
 var commentLead = regexp.MustCompile(`^\s*(//+|/\*+|\*+/?|#)\s?`)
 
 // blockAndBody cuts the text under the marker into the block the writer wrote and the code it sits
-// on. The block is the run of comment lines the text opens with, and everything after it is the
-// declaration and its body.
+// on. The block is the first run of comment lines, and the code after it is the declaration and body.
+// Code piped ahead of the block is context. Run 10 piped a `return {` there, the check read an empty
+// block, and it refused twice a name the block spelled.
 func blockAndBody(lines []string) (block, body []string) {
 	at := 0
+	for at < len(lines) && !commentLead.MatchString(lines[at]) {
+		at++
+	}
+	if at == len(lines) {
+		return nil, lines
+	}
 	for at < len(lines) {
-		trimmed := strings.TrimSpace(lines[at])
-		if trimmed == "" && len(block) == 0 {
-			at++
-			continue
-		}
 		if !commentLead.MatchString(lines[at]) {
 			break
 		}

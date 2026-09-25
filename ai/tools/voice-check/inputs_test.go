@@ -253,3 +253,30 @@ func TestNoCaseCanReachTheConfigurationOfWhoeverRunsTheSuite(t *testing.T) {
 		}
 	}
 }
+
+// `--source` reads whole files, and a revision range names which. Writer I of run 10 passed a range,
+// the scan read it as a path, and the writer ran the check without `--source` instead.
+func TestSourceOverARevisionReadsEveryBlockOfTheFilesItTouches(t *testing.T) {
+	r := newRepo(t)
+	r.write("src/ledger.ts", "// Posts a book.\nexport function post(): void {}\n")
+	r.commit("a clean file")
+	// The block already standing carries the finding, and the change touches only the code.
+	r.write("src/ledger.ts", "// Posts a book; the ledger reads it.\nexport function post(): void {}\n")
+	r.commit("a block with a finding")
+	r.write("src/ledger.ts", "// Posts a book; the ledger reads it.\nexport function post(): number { return 0; }\n")
+	r.commit("a code change under it")
+	r.run("--source", "HEAD~1..HEAD")
+	r.expectCode(1)
+	r.expectStdoutHas("src/ledger.ts:1: semicolon")
+}
+
+// A file over the byte cap goes unread, and the summary counts and names it. A drive gate on
+// 2026-09-24 left a 277,824-byte untracked file out and printed `0 declined unread`, so a clean run
+// read as clean over a file it never opened.
+func TestAnUntrackedFileOverTheCapIsCountedAndNamed(t *testing.T) {
+	r := newRepo(t)
+	r.write("big.ts", "// Posts a book; the ledger reads it.\nexport function post(): void {}\n")
+	r.runWith(Config{MaxFileBytes: 5})
+	r.expectStderrHas("1 declined unread")
+	r.expectStderrHas("big.ts")
+}

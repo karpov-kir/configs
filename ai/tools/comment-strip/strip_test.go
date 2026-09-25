@@ -7,11 +7,9 @@ import (
 	"testing"
 
 	gitrepo "configs/ai/tools/repo"
-	"configs/ai/tools/repo/repotest"
 )
 
-// What a case hands a run that never passes --changed. Only that option asks the repository anything,
-// and a run that asked anyway panics on this nil value. The case arranged no answers for it to read.
+// What a case hands a run that reads no tree names. The strip asks a nil repository no question.
 var noRepository gitrepo.Git
 
 // One source file under a directory of its own, with the facts directory beside it. Every case here
@@ -276,26 +274,22 @@ func TestStripRefusesASecondArgument(t *testing.T) {
 	}
 }
 
-// --changed keeps the blocks the diff did not touch, so the diff is what this case states. What git
-// prints for a change is repo.Exec's subject, and repo/exec_test.go holds it against a real git. A
-// diff derived here would be this fixture's own, and the strip would be measured against that.
-func TestStripChangedRemovesOnlyTheBlocksTheDiffTouched(t *testing.T) {
+// Every block in a file the change touches is a site, including a block older than the change. Run 10
+// narrowed the strip to the blocks its diff touched, and a block code review found wrong stood in a
+// file no lane rewrote.
+func TestStripTakesEveryBlockAndRefusesToNarrow(t *testing.T) {
 	f := newFixture(t, "f.go", "// human one\nfunc a() {}\n// agent two\nfunc b() {}\n")
-	git := repotest.New(f.dir)
-	// The change added lines 3 and 4, and the block on line 1 was there before it.
-	git.Diff("diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n@@ -1,2 +1,4 @@\n" +
-		" // human one\n func a() {}\n+// agent two\n+func b() {}\n")
-
 	var out, errOut strings.Builder
-	code := Strip("comment-strip.sh", []string{"--facts=" + f.facts, "--changed", "f.go"}, f.dir, git, &out, &errOut)
-	if code != exitCut {
-		t.Fatalf("exit %d, want %d: %s", code, exitCut, errOut.String())
+	if code := Strip("comment-strip.sh", []string{"--facts=" + f.facts, "--changed", "f.go"}, f.dir,
+		noRepository, &out, &errOut); code != exitDidNotRun {
+		t.Fatalf("exit %d, want %d: a narrowed strip leaves a block no lane rewrites", code, exitDidNotRun)
 	}
-	if want := "// human one\nfunc a() {}\nfunc b() {}\n"; f.body() != want {
+	said := f.cut()
+	if want := "func a() {}\nfunc b() {}\n"; f.body() != want {
 		t.Fatalf("stripped file:\n%q\nwant\n%q", f.body(), want)
 	}
-	if want := "f.go:3 1.facts\n"; out.String() != want {
-		t.Fatalf("sites:\n%s\nwant\n%s", out.String(), want)
+	if !strings.Contains(said.stdout, "1.facts") || !strings.Contains(said.stdout, "2.facts") {
+		t.Fatalf("sites:\n%s\nwant both blocks", said.stdout)
 	}
 }
 

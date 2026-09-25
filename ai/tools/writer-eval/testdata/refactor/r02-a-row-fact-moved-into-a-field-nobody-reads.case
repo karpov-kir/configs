@@ -1,0 +1,12 @@
+expect: stays
+bars: carried by
+why: the block is a fact about the catalogue rows under it, and no code reads any field of an entry beyond the three it has; run 10's lane added a reason field, moved six such blocks into string constants named as sentences, and wrote into each value that nobody had checked the claim; a field no code reads carries nothing, a string holding the block's prose is no carrier, and the lane never writes its own doubt into the artifact, so the block stays
+labelled: 2026-09-24
+--- context
+The change set touches tests/settlement/Catalogue.ts, which declares the rows below. No code reads a field of `CatalogueEntry` beyond `scheme`, `format` and `exportUrl`. The block was carried over from an earlier comment, and nobody has checked its claim against a ledger.
+--- code
+export const SETTLEMENT_CATALOGUE: CatalogueEntry[] = [
+  // The accrual export carries no base ledger to fall back on, so a ledger without the closing profile rejects it outright.
+  { scheme: PostingScheme.DirectCash, format: 'acc5', exportUrl: 'https://example.invalid/acc5.json' },
+  { scheme: PostingScheme.EscrowCredit, format: 'acc5', exportUrl: 'https://example.invalid/acc5-escrow.json' },
+];

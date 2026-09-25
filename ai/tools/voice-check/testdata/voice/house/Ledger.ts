@@ -56,6 +56,7 @@ export function verifyBook(book: Element): boolean {
  * Otherwise the reader may climb to an entry declaring something else, and the balance reports a
  * verdict about whichever it picked. Nothing at compile time ties an entry to its archived currency,
  * so a drifted pairing reads as a result about a currency nobody asked about.
+ * Unverified: carried over from an earlier comment.
  */
 export function totalBook(book: Element): number {
   return 0;

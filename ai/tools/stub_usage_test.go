@@ -216,7 +216,7 @@ var refusals = []refusal{
 	// An unknown option, refused in argument parsing before either scanner asks git anything. Not a
 	// revision git cannot resolve, which is git's complaint about the tree and carries no grammar.
 	{stub: "ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh", args: []string{"--nope"}, call: func(i invocation) int {
-		cfg, err := voicecheck.ConfigFromEnv(os.LookupEnv)
+		cfg, err := voicecheck.LoadConfig(os.LookupEnv)
 		if err != nil {
 			fmt.Fprintf(i.out, "%s: %s\n", i.self(), err)
 			return 2

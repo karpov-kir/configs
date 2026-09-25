@@ -38,12 +38,11 @@ export const LEDGER_SOURCES: LedgerSource[] = [
 Facts: `No source is registered for the closing profile, because the vendor's own export predates it
 and the branch estate cannot fetch the newer one.`
 
-Expected: `carried by <a provenance field on the entry>`. The claim describes the row, and the code
-that reads the rows says none of it, so it belongs on the row. The structure has no field for it, and
-adding one is the edit. A `for the PR body` line loses the fact to the next reader of that catalogue.
-Run 4 of the reviewed stack lost three device rationales that way.
+Expected: `stays: <the fact>`. No code reads a field on the entry, so a field holding the claim has no
+reader. Run 10 moved six such blocks into string constants on a new field, and the facts lost both
+their reader and their comment.
 
-### 6. A provenance value the lane cannot verify
+### 6. A provenance claim the lane cannot verify
 
 ```ts
 export const LEDGER_SOURCES: LedgerSource[] = [
@@ -54,13 +53,12 @@ export const LEDGER_SOURCES: LedgerSource[] = [
 Facts: `No posting is registered for the accrual-eu source. The vendor's export exists and needs
 re-stating before the ledger can read it.`
 
-Expected: `carried by <a noSourceReason field on the entry>`, with the field carrying the claim as the
-facts state it and its source marked. The lane cannot fetch the export, so it writes what the facts
-say and marks it unverified.
+Expected: `stays: <the fact>`, with the claim as its author wrote it. The lane cannot fetch the export,
+and the artifact never carries the lane's doubt about it. Run 10 wrote into six values that each claim
+came from an earlier comment and stood unchecked.
 
-A run on 2026-09-21 wrote a field saying no source exists, having left the second sentence out as
-unverified. The asset answered 200. A claim the lane can verify false is a correctness finding, and a
-claim it cannot verify keeps its source in the value.
+A run on 2026-09-21 wrote a field saying no source exists, having left the second sentence out. The
+asset answered 200. A claim the lane can verify false is a correctness finding.
 
 ### 7. Two claims on one constant
 
@@ -77,14 +75,9 @@ only spends time.`
 
 Facts on the `accrual-eu` row: `The vendor's export for this source predates the closing profile.`
 
-Expected: `carried by <the constant's name>` for the first, and `carried by <a provenance field on the
-entry>` for the second. Both blocks stand on a declaration holding values alone, and the verdict
-differs because the claims do. The first gives the reason for the value, which a name carries. The
-second is about the thing the row names, which a field carries.
-
-Ten blocks of the reviewed set stand on data this way, and most of them are the first shape. A route
-firing on the declaration alone would put a design reason into a provenance field. The lane reads the
-claim itself.
+Expected: `carried by <the constant's name>` for the first, and `stays: <the fact>` for the second. The
+first gives the reason for the value, which a name carries. The second is about the thing the row
+names, and no code reads a field that could hold it.
 
 ### 8. A carrier outside the scope
 
@@ -100,7 +93,6 @@ the clearing house settles a day late at quarter end.`
 Scope: this file alone. The only test naming the cutoff lives in `tests/settlement/Cutoff.test.ts`,
 outside the scope.
 
-Expected: `for the PR body: pending carrier <a test naming the two-day window>: <the fact>`. A test
-would carry the claim about this code's own window, and the lane may not write one outside its scope.
-`carried by <test>` there would leave a fact the tree holds nowhere.
-
+Expected: `stays: <the fact>`. A test would carry the claim about this code's own window, and the lane
+may not write one outside its scope. `carried by <test>` there would leave a fact the tree holds
+nowhere, and a PR body is no place for a fact about code with a declaration.
