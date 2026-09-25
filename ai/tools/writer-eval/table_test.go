@@ -148,7 +148,8 @@ const retryPause = 5 * time.Second
 // cases finish first. Each case prints its row the moment its last roll lands. A case whose misses
 // already leave its floor out of reach stops the table: a table that will miss is not worth
 // finishing. A case that can still pass runs every roll, because the bar compares counts.
-func runTable(cases []Case, workers int, need func(Case) int, full bool, roll func(context.Context, Case) rollResult) ([][]rollResult, string) {
+func runTable(cases []Case, workers int, need func(Case) int, short func(Case) bool, full bool,
+	roll func(context.Context, Case) rollResult) ([][]rollResult, string) {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	type job struct{ at, roll int }
@@ -156,6 +157,7 @@ func runTable(cases []Case, workers int, need func(Case) int, full bool, roll fu
 	results := make([][]rollResult, len(cases))
 	landed := make([]int, len(cases))
 	clean := make([]int, len(cases))
+	missed := make([]bool, len(cases))
 	for i := range cases {
 		results[i] = make([]rollResult, evalRolls)
 	}
@@ -170,7 +172,9 @@ func runTable(cases []Case, workers int, need func(Case) int, full bool, roll fu
 				c := cases[j.at]
 				res := rollResult{stopped: true, verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "stopped"}}
 				mu.Lock()
-				decided := !full && clean[j.at] >= need(c)
+				// A proven bystander that has passed every one of its first shortRolls is read short. One
+				// miss sends it to the full read.
+				decided := !full && (clean[j.at] >= need(c) || (short(c) && !missed[j.at] && clean[j.at] >= shortRolls))
 				mu.Unlock()
 				if decided {
 					res = rollResult{stopped: true, verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "reached"}}
@@ -182,6 +186,8 @@ func runTable(cases []Case, workers int, need func(Case) int, full bool, roll fu
 				landed[j.at]++
 				if res.verdict.Passed() {
 					clean[j.at]++
+				} else if !res.stopped {
+					missed[j.at] = true
 				}
 				if res.limit && stopped == "" {
 					stopped = c.Name
@@ -243,7 +249,11 @@ func caseRow(c Case, rolls []rollResult) (string, int) {
 		checks = append(checks, check)
 	}
 	sort.Strings(checks)
-	row := fmt.Sprintf("%-46s %-8s %d of %d (floor %d)  %s %s\n", c.Name, c.Expect, clean, evalRolls,
+	read := fmt.Sprintf("%d of %d", clean, evalRolls)
+	if got["reached"] > 0 && clean == shortRolls && clean+got["reached"] == len(rolls) {
+		read = fmt.Sprintf("%d/%d (short)", clean, shortRolls)
+	}
+	row := fmt.Sprintf("%-46s %-8s %-7s (floor %d)  %s %s\n", c.Name, c.Expect, read,
 		floorFor(c), strings.Join(classes, ", "), strings.Join(checks, ", "))
 	if clean < floorFor(c) && len(rolls) > 0 {
 		row += fmt.Sprintf("    wanted because: %s\n    answered: %s\n", c.Why, oneLine(rolls[0].raw))
@@ -253,19 +263,26 @@ func caseRow(c Case, rolls []rollResult) (string, int) {
 
 // changedFirst puts the cases this branch added or changed ahead of the rest. A table stops at its
 // first case that cannot pass, and the cases a change is about are the likeliest to.
-func changedFirst(cases []Case) []Case {
+func changedFirst(cases []Case) ([]Case, map[string]bool) {
+	changed := map[string]bool{}
+	for _, name := range strings.Split(os.Getenv(targetsEnv), ",") {
+		for _, c := range cases {
+			if name = strings.TrimSpace(name); name != "" && strings.HasPrefix(c.Name, name) {
+				changed[c.Name] = true
+			}
+		}
+	}
 	base, err := exec.Command("git", "merge-base", "origin/main", "HEAD").Output()
 	if err != nil {
-		return cases
+		return cases, changed
 	}
-	changed := map[string]bool{}
 	for _, args := range [][]string{
 		{"diff", "--name-only", strings.TrimSpace(string(base)), "--", casesDir},
 		{"ls-files", "--others", "--exclude-standard", "--", casesDir},
 	} {
 		out, err := exec.Command("git", args...).Output()
 		if err != nil {
-			return cases
+			return cases, changed
 		}
 		for _, path := range strings.Fields(string(out)) {
 			name := path[strings.LastIndex(path, "/")+1:]
@@ -274,8 +291,12 @@ func changedFirst(cases []Case) []Case {
 	}
 	ordered := append([]Case(nil), cases...)
 	sort.SliceStable(ordered, func(i, j int) bool { return changed[ordered[i].Name] && !changed[ordered[j].Name] })
-	return ordered
+	return ordered, changed
 }
+
+// targetsEnv names, by prefix and comma-separated, the cases a change touches beyond the case files it
+// edits: a case whose rule paragraph the change rewrites. Those get the full read.
+const targetsEnv = "WRITER_EVAL_TARGETS"
 
 // A case whose misses leave its floor out of reach stops the table, and the rolls queued after it
 // never run. A case that can still pass runs every roll.
@@ -284,7 +305,7 @@ func TestATableStopsAtTheFirstCaseThatCannotPass(t *testing.T) {
 		{Name: "c-after", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := map[string]int{}
-	results, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, false, func(_ context.Context, c Case) rollResult {
+	results, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran[c.Name]++
 		mu.Unlock()
@@ -310,7 +331,7 @@ func TestACaseStopsRollingOnceItHasTheCountTheBarNeeds(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := 0
-	results, _ := runTable(cases, 1, func(Case) int { return 3 }, false, func(_ context.Context, c Case) rollResult {
+	results, _ := runTable(cases, 1, func(Case) int { return 3 }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran++
 		mu.Unlock()
@@ -382,7 +403,7 @@ func TestAUsageLimitStopsTheTable(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := 0
-	_, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, true, func(_ context.Context, c Case) rollResult {
+	_, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) bool { return false }, true, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran++
 		mu.Unlock()
@@ -390,5 +411,65 @@ func TestAUsageLimitStopsTheTable(t *testing.T) {
 	})
 	if stopped != "a" || ran != 1 {
 		t.Fatalf("stopped at %q after %d roll(s), want a after 1", stopped, ran)
+	}
+}
+
+// shortRolls is the read a proven bystander gets: a case the change neither targets nor counts among
+// Kirill's eight, holding 14 or 15 of 15 on the kept column. Such a case passes all five about seven
+// times in ten, and the rest go on to the full read, about 9.5 calls a case against 15. A target and
+// one of the eight always get the full read: at a true 12 of 15, five of five comes up one time in
+// three, which is the regression the bar is there to catch.
+const shortRolls = 5
+
+// kirillsEight are the cases every change is read on in full.
+var kirillsEight = []string{"k15", "k19", "k20", "k21", "k22", "k23", "k25", "k26"}
+
+// shortFor says which cases a table reads short: proven on the reference column, and neither targeted
+// by the change nor one of the eight. A full table reads none short, and neither does a table with no
+// column to prove a case on.
+func shortFor(reference map[string]int, targeted map[string]bool) func(Case) bool {
+	return func(c Case) bool {
+		for _, name := range kirillsEight {
+			if strings.HasPrefix(c.Name, name+"-") {
+				return false
+			}
+		}
+		at, known := reference[c.Name]
+		return known && at >= evalRolls-1 && !targeted[c.Name]
+	}
+}
+
+// A proven bystander stops after five clean rolls and reads as short. One miss sends it to the full read.
+func TestAProvenBystanderIsReadShort(t *testing.T) {
+	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
+	var mu sync.Mutex
+	ran := map[string]int{}
+	results, _ := runTable(cases, 1, func(Case) int { return evalRolls - 1 }, func(Case) bool { return true }, false,
+		func(_ context.Context, c Case) rollResult {
+			mu.Lock()
+			ran[c.Name]++
+			n := ran[c.Name]
+			mu.Unlock()
+			got := ExpectNone
+			if c.Name == "b" && n == 2 {
+				got = ExpectWritten
+			}
+			return rollResult{verdict: Verdict{Name: c.Name, Want: ExpectNone, Got: got}}
+		})
+	if ran["a"] != shortRolls || ran["b"] != evalRolls {
+		t.Fatalf("ran %v, want a read short and b read in full after its miss", ran)
+	}
+	if row, _ := caseRow(cases[0], results[0]); !strings.Contains(row, "5/5 (short)") {
+		t.Fatalf("row %q, want the short read marked", row)
+	}
+}
+
+// The eight, and a case the change touches, are never read short.
+func TestTheEightAndATargetAreReadInFull(t *testing.T) {
+	short := shortFor(map[string]int{"k19-x": 15, "k04-y": 15, "k09-z": 15, "k11-w": 12}, map[string]bool{"k09-z": true})
+	for name, want := range map[string]bool{"k19-x": false, "k04-y": true, "k09-z": false, "k11-w": false} {
+		if got := short(Case{Name: name}); got != want {
+			t.Errorf("%s read short %v, want %v", name, got, want)
+		}
 	}
 }

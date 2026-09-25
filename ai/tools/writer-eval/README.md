@@ -111,6 +111,16 @@ with the bar-aware stop, read against the kept column for main's rules. A full t
 change edits text every case reads, such as the record contract, the fates or the exemplars, or where
 no column is kept for main's rules.
 
+A proven bystander, a case holding 14 or 15 of 15 on the kept column that the change neither targets
+nor counts among the eight, is read short: five rolls, and five of five passes it. One miss sends it
+to the full read. A case truly at 14 of 15 passes five of five about seven times in ten, so a proven
+case costs about 9.5 calls against 15. The table marks it `5/5 (short)`, and a short read is never kept
+in a column. `WRITER_EVAL_TARGETS` names, by prefix, the cases whose rule paragraph a change rewrites,
+so they get the full read with the cases the branch edits.
+
+Replayed on the rolls of main's full table, the same 46 cases cost 690 calls read in full, 519 with the
+bar-aware stop, and 382 with short reads too. Of 19 proven bystanders, one went on to the full read.
+
 The column for main's rules at 4cc6a9eb8cae was read on 2026-09-25 at 16 workers: 690 calls, every one
 answered by claude-opus-5-5, none retried, 15m44s wall, $35.83. 33 of 46 cases cleared their floor.
 
