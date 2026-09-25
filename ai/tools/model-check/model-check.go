@@ -34,10 +34,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"time"
 
 	modelpolicy "configs/ai/tools/model-policy"
+	modelserved "configs/ai/tools/model-served"
 	readerjudge "configs/ai/tools/reader-judge"
 	"configs/ai/tools/shell"
 )
@@ -79,6 +81,10 @@ type Command struct {
 	// Accounts names the login a call inheriting this process's variables runs on, and the login a roll
 	// runs on. Nil means the real `claude auth status`.
 	Accounts func() (inherited, own string)
+	// ServedCache is where the probed set is kept for the resolver. Empty means the user's cache.
+	ServedCache string
+	// Now dates the probed set. Nil means the clock.
+	Now func() time.Time
 }
 
 func Run(command Command) int {
@@ -129,15 +135,46 @@ func Run(command Command) int {
 			"%s holds %d distinct model selections, past the %d this may probe — each one costs a call to a provider, so a file this size is a mistake to refuse rather than a bill to pay",
 			configPath, len(named), maxSelections))
 	}
-	status := report(command.Stdout, command.Stderr, configPath, resolveAll(named, probe))
+	verdicts := resolveAll(named, probe)
+	status := report(command.Stdout, command.Stderr, configPath, verdicts)
 	if *agent == "claude" {
 		accounts := command.Accounts
 		if accounts == nil {
 			accounts = readerjudge.ClaudeAccounts
 		}
-		reportAccounts(command.Stdout, accounts)
+		_, own := reportAccounts(command.Stdout, accounts)
+		keepServed(command, verdicts, own)
 	}
 	return status
+}
+
+// keepServed stores what the probe found, under the login the probes ran on: the CLI's own. A
+// resolver reading it under another account, such as the app's sign-in after a switch, finds no set
+// and dispatches rows as written.
+func keepServed(command Command, verdicts []verdict, own string) {
+	account := own
+	served := map[string]string{}
+	for _, v := range verdicts {
+		if (v.outcome == willRun || v.outcome == substituted) && v.served.Answered != "" {
+			served[v.named.Model] = v.served.Answered
+		}
+	}
+	if account == "" || len(served) == 0 {
+		return
+	}
+	path := command.ServedCache
+	if path == "" {
+		path = modelserved.Path(os.LookupEnv)
+	}
+	now := time.Now
+	if command.Now != nil {
+		now = command.Now
+	}
+	if err := modelserved.Replace(path, "claude", account, served, now()); err != nil {
+		fmt.Fprintf(command.Stderr, "model-check: the served set could not be kept at %s: %v\n", path, err)
+		return
+	}
+	fmt.Fprintf(command.Stdout, "model-check: kept the served set for %s; a dispatch asks for the nearest model it serves\n", account)
 }
 
 const usage = "usage: model-check.sh --agent=claude|codex [--config <policy.json>]"
@@ -145,7 +182,7 @@ const usage = "usage: model-check.sh --agent=claude|codex [--config <policy.json
 // reportAccounts names the login the calls ran on. Inside the desktop app a call inheriting its
 // variables uses the app's sign-in, and a roll uses the CLI's own login. A person with several
 // accounts can switch the app and leave the CLI on another. A usage limit then reads as the app's.
-func reportAccounts(stdout io.Writer, accounts func() (string, string)) {
+func reportAccounts(stdout io.Writer, accounts func() (string, string)) (string, string) {
 	inherited, own := accounts()
 	switch {
 	case own == "":
@@ -156,6 +193,7 @@ func reportAccounts(stdout io.Writer, accounts func() (string, string)) {
 		fmt.Fprintf(stdout, "model-check: account — WARNING: the app runs on %s and the CLI on %s; "+
 			"`claude auth login` switches the CLI\n", inherited, own)
 	}
+	return inherited, own
 }
 
 // Three and not two: a name nothing could ask about is neither good nor bad, and calling it either is

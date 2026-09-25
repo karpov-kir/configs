@@ -109,6 +109,7 @@ func refactorPrompt(t *testing.T, c refactorCase) string {
 }
 
 func TestRefactorVerdicts(t *testing.T) {
+	servedModels.reset()
 	if os.Getenv(evalEnv) == "" {
 		t.Skipf("%s is unset; this spends a model call per roll", evalEnv)
 	}
