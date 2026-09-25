@@ -51,7 +51,7 @@ func parallelCalls(t *testing.T) int {
 	t.Helper()
 	set := os.Getenv(parallelEnv)
 	if set == "" {
-		return 4
+		return defaultWorkers
 	}
 	at, err := strconv.Atoi(set)
 	if err != nil || at < 1 {

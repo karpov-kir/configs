@@ -90,6 +90,11 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 		p.spend(s)
 	})
 	call := func(text string) (string, error) {
+		release, err := takeSlot()
+		if err != nil {
+			return "", err
+		}
+		defer release()
 		began := time.Now()
 		defer func() { p.add(true, time.Since(began)) }()
 		return caller(text, "")
