@@ -201,8 +201,8 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 					hopeless[j.at] = true
 				}
 				// The table stops only on a regression: a case that cannot reach main's own count less
-				// two. A case already below its floor on main misses the floor here too, and says
-				// nothing about the change.
+				// two. A case already below its floor on main misses the floor here too, and that miss
+				// is main's, not the change's.
 				if !full && !res.stopped && stopped == "" && reachable < regression(c) {
 					stopped = c.Name
 					fmt.Fprintf(os.Stderr, "stopping the table: %s cannot reach %d, main's count less two\n", c.Name, regression(c))
@@ -370,8 +370,8 @@ func needFrom(reference map[string]int) func(Case) int {
 	}
 }
 
-// regressionFrom is the count below which a case has regressed: the kept column's count less two, or
-// its floor where no column is kept.
+// regressionFrom is a case's regression line: the kept column's count less two, or its floor where no
+// column is kept. A case under that line has regressed.
 func regressionFrom(reference map[string]int) func(Case) int {
 	return func(c Case) int {
 		if at, known := reference[c.Name]; known {
@@ -492,7 +492,7 @@ func TestTheEightAndATargetAreReadInFull(t *testing.T) {
 }
 
 // A case already below its floor on main stops its own rolls on a miss and leaves the table running,
-// since it says nothing about the change.
+// since that miss is main's, not the change's.
 func TestACaseBelowItsFloorOnMainLeavesTheTableRunning(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
 	var mu sync.Mutex

@@ -40,8 +40,8 @@ const evalEnv = "WRITER_EVAL"
 // tables against that column, and it is measured once per rule set.
 const fullEnv = "WRITER_EVAL_FULL"
 
-// caseEnv narrows a run to the cases whose name starts with one of its comma-separated prefixes, so a
-// change is read on the cases it touches and no others.
+// caseEnv narrows a run to the cases whose name starts with one of its comma-separated prefixes. A
+// change is read on the cases it touches.
 const caseEnv = "WRITER_EVAL_CASE"
 
 // parallelEnv bounds how many model calls are in flight at once. Both halves of the eval read it, so
