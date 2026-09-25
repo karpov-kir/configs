@@ -1505,3 +1505,29 @@ func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
 		}
 	}
 }
+
+// A name the body under the block spells sits in front of the reader, so it needs no placing. The
+// brief asks a note on a function to name what the body does, and k19 and k21 had every first draft
+// sent back for such names. A name past the body's first blank line is still placed.
+func TestANameTheBodyUnderTheBlockSpellsIsPlaced(t *testing.T) {
+	lines := []string{
+		"// The book took a format before the probe, so getFormatClaim keeps bookClaim where probeClaim is unknown.",
+		"export function getFormatClaim(formatName: string): LedgerClaim {",
+		"  const bookClaim = getBookFormatClaim(formatName);",
+		"  const probeClaim = getProbeFormatClaim(formatName);",
+		"",
+		"  return probeClaim === LedgerClaim.Unknown ? bookClaim : probeClaim;",
+		"}",
+		"// waitsFor returns before laterHelper does its work.",
+		"export function waitsFor(): void {}",
+	}
+	var bare []string
+	for _, f := range voiceScanner().scanSource("f.ts", lines, nil, nil) {
+		if f.Check == checkBareIdent {
+			bare = append(bare, f.Text)
+		}
+	}
+	if len(bare) != 1 || bare[0] != "laterHelper" {
+		t.Fatalf("bare identifiers %v, want laterHelper alone", bare)
+	}
+}

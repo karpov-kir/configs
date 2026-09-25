@@ -1700,11 +1700,24 @@ func declaredAt(lines []string, b block) map[string]bool {
 	if at > len(lines) || at > b.end+declarationSearch {
 		return out
 	}
-	for _, word := range reIdentifierWord.FindAllString(lines[at-1], -1) {
-		out[strings.ToLower(word)] = true
+	// The declaration's first run of lines counts with it, up to a blank line or another comment. A note
+	// on a function names what the body under it does, and a name that body spells sits in front of the
+	// reader. k19 and k21 had every first draft sent back for `bookClaim` and `probeClaim`, both declared
+	// three lines under the block.
+	for end := at; end <= len(lines) && end < at+bodySearch; end++ {
+		line := strings.TrimLeft(lines[end-1], shell.SpaceBytes)
+		if end > at && (line == "" || isComment(line)) {
+			break
+		}
+		for _, word := range reIdentifierWord.FindAllString(lines[end-1], -1) {
+			out[strings.ToLower(word)] = true
+		}
 	}
 	return out
 }
+
+// bodySearch bounds how much of the body under a block counts as in front of its reader.
+const bodySearch = 30
 
 // How far under a block the declaration may sit before the line found is no longer the block's own.
 // The gap holds a comment's remaining lines and the blanks around them. A bound well over the
