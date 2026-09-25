@@ -103,7 +103,7 @@ func (t *RollTimedOut) Error() string {
 // differ — that one sends someone to models.json, this one sends them to the clock.
 type ProviderExhausted struct {
 	Client string
-	// Account is the login the CLI ran on, where it could be named. It is the one a person switches.
+	// Account is the login the CLI ran on, where it could be named, and a person switches that login.
 	Account string
 }
 

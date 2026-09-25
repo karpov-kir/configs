@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Ask one client for every model selection models.json holds for it, and say which model answered each
-# and which account the calls ran on. A model the account serves in place of the requested one is a
-# warning and never a failure. Judges no text. Each probe spends a call, so it runs by hand and at the
-# end of bootstrap, never in the gate.
+# Ask one client for each model selection models.json holds for it. Say which model answered each, and
+# the account. A substituted model is a warning. Each probe spends a call, so the check runs by hand and
+# at the end of bootstrap, and the gate leaves it out.
 # usage: model-check.sh --agent=claude|codex [--config <policy.json>]
 # tested by: the Go suite in ai/tools/model-check/, the stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail

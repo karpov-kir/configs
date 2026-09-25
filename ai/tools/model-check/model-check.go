@@ -1,6 +1,6 @@
 // Package modelcheck resolves every model a policy holds for one client against the CLI that would
-// run it, and says which model answered each. An account can serve another model than the one asked
-// for, and it says so only in the call's own report: on 2026-09-25 an organisation's team account answered
+// run it, and says which model answered each. An account can serve another model than the row asks
+// for, and only the call's own report says so. On 2026-09-25 an organisation's team account answered
 // `sonnet` and `haiku` as claude-opus-5-5[1m], and every row naming either had run on Opus unnoticed.
 // A substitution is reported and never fails the run. The rows keep the model they intend.
 //
@@ -76,7 +76,7 @@ type Command struct {
 	Stderr     io.Writer
 	// Nil means the real CLIs.
 	Probe Probe
-	// Accounts names the login a call inheriting this process's variables runs on, and the one a roll
+	// Accounts names the login a call inheriting this process's variables runs on, and the login a roll
 	// runs on. Nil means the real `claude auth status`.
 	Accounts func() (inherited, own string)
 }
@@ -142,10 +142,9 @@ func Run(command Command) int {
 
 const usage = "usage: model-check.sh --agent=claude|codex [--config <policy.json>]"
 
-// reportAccounts names the login the calls ran on. Inside the desktop app there are two: the app's
-// sign-in, which a call inheriting its variables uses, and the CLI's own login, which a roll uses. A
-// person with several accounts can switch the app and leave the CLI on another, and then a usage limit
-// or a served model reads as the app's account while it is the other one's.
+// reportAccounts names the login the calls ran on. Inside the desktop app a call inheriting its
+// variables uses the app's sign-in, and a roll uses the CLI's own login. A person with several
+// accounts can switch the app and leave the CLI on another. A usage limit then reads as the app's.
 func reportAccounts(stdout io.Writer, accounts func() (string, string)) {
 	inherited, own := accounts()
 	switch {

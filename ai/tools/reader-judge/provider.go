@@ -177,8 +177,8 @@ func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller 
 }
 
 // Served is what one Claude call reports about itself: the model it asked for, the model that wrote
-// the answer, and what it spent. An account can serve another model than the one asked for, and says
-// so only here. On 2026-09-25 an organisation's team account answered `sonnet` and `haiku` as
+// the answer, and what it spent. An account can serve another model than the row asks for, and only
+// this report says so. On 2026-09-25 an organisation's team account answered `sonnet` and `haiku` as
 // claude-opus-5-5[1m], and every row naming either had run on Opus unnoticed.
 type Served struct {
 	Requested, Answered                    string
@@ -192,8 +192,8 @@ func (s Served) Substituted() bool {
 }
 
 // ClaudeCallerObserved is ClaudeCaller handing each call's Served to observe. A substituted model is
-// reported and never refused: the call answers on what the account serves, and model-check is where a
-// person reads which rows run on another model.
+// reported and never refused. The call answers on what the account serves, and model-check is where a
+// person reads it.
 func ClaudeCallerObserved(deadline time.Duration, settings modelpolicy.Settings, observe func(Served)) Caller {
 	return func(prompt, view string) (string, error) {
 		out, err := runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt, settings), stdin: view, model: settings.Model})
@@ -284,7 +284,8 @@ func accountIn(env []string) string {
 	return shell.CutBytesMarked(shell.Oneline(fmt.Sprintf("%s (%s, %s)", status.Email, status.Org, status.Subscription)), 120)
 }
 
-// accountDeadline bounds the one call that names the login. It runs only after a usage limit.
+// accountDeadline bounds the call that names the login. It runs only after a usage limit or in
+// model-check.
 const accountDeadline = 20 * time.Second
 
 // claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from

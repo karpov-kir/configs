@@ -746,7 +746,7 @@ func TestARollTimeoutThatWouldOverflowIsRefused(t *testing.T) {
 }
 
 // The CLI's JSON names the model that wrote the answer, beside a small call of its own on another
-// model. An account serving another model than the one asked for is reported and still answers.
+// model. A call an account answered on another model is reported and still answers.
 func TestAClaudeReplyNamesTheModelThatAnswered(t *testing.T) {
 	fakeClaude(t, `echo '{"result":"none","is_error":false,"total_cost_usd":0.01,`+
 		`"usage":{"input_tokens":2,"cache_creation_input_tokens":10,"cache_read_input_tokens":20,"output_tokens":4},`+

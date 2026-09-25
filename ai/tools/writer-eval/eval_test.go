@@ -378,9 +378,9 @@ func writerOf(settings modelpolicy.Settings) writerCall {
 	return func(text string) (string, error) { return callWriter(settings, text) }
 }
 
-// callWriter puts the text to the row's model through reader-judge's caller, the one every
-// programmatic call here uses. It tallies which model answered, since an account can serve another
-// model than the row asks for and says so only in the call's own report.
+// callWriter puts the text to the row's model through reader-judge's caller, which every programmatic
+// call here uses. It tallies which model answered. An account can serve another model than the row
+// asks for, and only the call's own report says so.
 func callWriter(settings modelpolicy.Settings, text string) (string, error) {
 	return readerjudge.ClaudeCallerObserved(callDeadline, settings, servedModels.add)(text, "")
 }
@@ -403,8 +403,8 @@ func (t *tally) add(s readerjudge.Served) {
 	t.counts["requested "+s.Requested+", served "+answered]++
 }
 
-// line is the tally as a table header prints it. A table names the model it measured, and that is
-// the one that answered.
+// line is the tally as a table header prints it. A table names the model it measured: the model that
+// answered.
 func (t *tally) line() string {
 	t.mu.Lock()
 	defer t.mu.Unlock()

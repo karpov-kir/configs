@@ -58,8 +58,7 @@ func served(selection modelpolicy.Selection) (readerjudge.Served, error) {
 	return readerjudge.Served{Requested: selection.Model, Answered: "claude-" + selection.Model}, nil
 }
 
-// Every selection the file holds for the named client is asked about once, rows and tier order alike,
-// and nothing else is.
+// Each selection the file holds for the named client is asked about once, rows and tier order alike.
 // A name invented here would send the check asking a provider about a string this file never chose.
 //
 // It is also the clean run every refusal case below is read against. A clean file exits 0 and prints
@@ -253,8 +252,8 @@ func TestALongSelectionIsCutAndMarkedRatherThanPrintedWhole(t *testing.T) {
 	}
 }
 
-// An account serving another model than the row asks for is reported on its line and in one summary,
-// and the run still passes: the row keeps the model it intends.
+// A substituted model is reported on its line and in one summary. The run still passes, and the row
+// keeps the model it intends.
 func TestASubstitutedModelIsReportedAndPasses(t *testing.T) {
 	status, out, errOut := run(t, "claude", func(selection modelpolicy.Selection) (readerjudge.Served, error) {
 		return readerjudge.Served{Requested: selection.Model, Answered: "claude-opus-5-5[1m]"}, nil

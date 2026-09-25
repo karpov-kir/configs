@@ -222,7 +222,7 @@ func TestTheModelsStepRunsModelCheckForTheAgent(t *testing.T) {
 	}
 }
 
-// A check that reached no model means nothing here can call one yet, and the fix is a sign-in.
+// A check that reached no model sends the reader to sign the CLI in.
 func TestTheModelsStepSendsAnUnreachedCheckToTheSignIn(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/kk-flavor/scripts/model-check.sh", func(machine.Command) int { return 2 })
