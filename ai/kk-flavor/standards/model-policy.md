@@ -169,10 +169,23 @@ on both paths, so the CLI probe answers for subagents too. `fable` is served the
 reader-judge's, reads the model that answered from each call's own report and prints nothing about it.
 `model-check` is the one place a person reads it: a verdict per model, the account, a warning when the
 app and the CLI are signed into different accounts, and one line when optimal use is not possible.
-A substitution never fails a call or the check. A usage limit does, and names the account.
+A substitution never fails a call or the check. A usage limit does, and names the account. The summary
+line may go into a report that leaves the machine. The account line and a limit error carry an email,
+and they stay on it.
 
-**The judge loads no client settings at all**: its rolls pass an empty `--setting-sources` list, so
-neither `CLAUDE.md` reaches them. An operator's own reaching a roll makes it answer in prose where a
+**A skill dispatches work as a subagent, and a Go tool with no session behind it uses reader-judge's
+caller.** Those are the two ways a model is called here. A subagent shows in the app, and it can run
+any model the account serves.
+
+**So a dispatch asks for a model the account serves.** `model-check` keeps the set it probed, per
+provider and per login, in `${XDG_CACHE_HOME:-~/.cache}/kk-flavor/models-served.json`. The resolver
+reads it and adds `dispatched`: the row's model where the account serves it, or else the next tier in
+the tier order that the account serves. It says so on stderr. A set probed under another login, or more than
+a day ago, is not used, and the resolver says why. A call whose answering model contradicts the set
+rewrites that record. Without a set, every row dispatches as written.
+
+**The judge's rolls load no client settings**: they pass an empty `--setting-sources` list, which keeps
+every `CLAUDE.md` out. An operator's own reaching a roll makes it answer in prose where a
 verdict belongs, which the judge refuses as the whole vote failing. That buys reproducibility and not
 better verdicts: with the `user` source loaded the judge scored exactly as it scores without it.
 **The roll's environment is an allow-list too** — the machine's own shape and its login, so a key
@@ -197,8 +210,9 @@ measures and why its two counts are not symmetric.
 
 ## Resolving
 
-Supply the client and the task. The resolver returns the requested settings and the policy digest; it
-never launches an agent and never reports what ran. Keep requested and observed settings apart in any
+Supply the client and the task: `model-policy.sh --client <claude|codex> --task <task>`. The resolver
+returns the requested settings, the `dispatched` settings a dispatch passes, and the policy digest. It
+launches no agent, and it reports what was asked for rather than what ran. Keep requested and observed settings apart in any
 record. Reuse a resolution while client, task and policy are unchanged — not once per file or command.
 
 Which fields a transport carries differs, and a field it cannot carry is dropped in silence:

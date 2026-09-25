@@ -393,6 +393,13 @@ type tally struct {
 
 var servedModels = &tally{counts: map[string]int{}}
 
+// reset empties the tally, so a table's header counts only that table's calls.
+func (t *tally) reset() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.counts = map[string]int{}
+}
+
 func (t *tally) add(s readerjudge.Served) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -422,6 +429,7 @@ func (t *tally) line() string {
 // TestWriterEval runs the labelled set through the real writer row and prints the table. It reads
 // the bar labelledBar names, which was written down before the first run.
 func TestWriterEval(t *testing.T) {
+	servedModels.reset()
 	if rollsProblem != "" {
 		t.Fatal(rollsProblem)
 	}
@@ -766,6 +774,7 @@ func declarationUnder(lines []string, b census.Block) string {
 // what it writes has to pass the same checks the labelled set uses. The bound is on the written ones
 // alone: a decline is a judgement this half does not score.
 func TestWriterEvalOverThePlainSet(t *testing.T) {
+	servedModels.reset()
 	if os.Getenv(evalEnv) == "" {
 		t.Skipf("%s is unset; this spends a model call per block", evalEnv)
 	}

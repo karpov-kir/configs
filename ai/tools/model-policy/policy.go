@@ -89,8 +89,12 @@ type Decision struct {
 	Kind string `json:"kind"`
 	// Worker is the prompt this row dispatches, named only where that is another row's — so a caller
 	// resolving such a site learns which contract to hand the spawn, not only what it may spend.
-	Worker       string   `json:"worker,omitempty"`
-	Requested    Settings `json:"requested"`
+	Worker    string   `json:"worker,omitempty"`
+	Requested Settings `json:"requested"`
+	// Dispatched is what a dispatch passes: the requested settings, or the next tier in the order that
+	// the account serves, where model-check has kept a served set for this login. A subagent asked for
+	// a model its account withholds runs on its parent's model, and no report says so.
+	Dispatched   Settings `json:"dispatched"`
 	Rolls        int      `json:"rolls,omitempty"`
 	PolicyDigest string   `json:"policy_digest"`
 }
@@ -354,6 +358,11 @@ func (p *Policy) Digest() string {
 // TierOf ranks one client's model, cheapest at 0. The bool is not a courtesy: a caller comparing two
 // rows has to tell "cheaper" from "not ranked at all". validateTiers leaves one way to reach that
 // second answer — asking about a model no row names.
+// Tiers is the client's tier order, cheapest first.
+func (p *Policy) Tiers(client string) []string {
+	return append([]string(nil), p.content.Tiers[client]...)
+}
+
 func (p *Policy) TierOf(client, model string) (int, bool) {
 	for rank, name := range p.content.Tiers[client] {
 		if name == model {

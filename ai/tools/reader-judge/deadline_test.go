@@ -282,6 +282,8 @@ func deadlineIsABudget(spelled string) bool {
 // a real process, a real signal and a real pipe rather than a stand-in for them.
 func fakeClaude(t *testing.T, script string) {
 	t.Helper()
+	// A call rewrites the served-model cache it contradicts, and a case must never reach the real one.
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "claude"), []byte("#!/bin/sh\n"+script+"\n"), 0o755); err != nil {
 		t.Fatal(err)
@@ -290,10 +292,28 @@ func fakeClaude(t *testing.T, script string) {
 }
 
 func TestClaudeCallerAnswersWhatTheModelPrinted(t *testing.T) {
-	fakeClaude(t, "echo none")
+	fakeClaude(t, `echo '{"result":"none","is_error":false,"modelUsage":{"claude-fixture":{"outputTokens":1}}}'`)
 	reply, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
 	if err != nil || strings.TrimSpace(reply) != "none" {
 		t.Fatalf("got %q %v, want none", reply, err)
+	}
+}
+
+// The call asks for JSON, so plain text is a fault in the CLI and never a verdict. A warning printed
+// ahead of the object would otherwise be judged as the model's answer.
+func TestAReplyThatIsNotJSONFails(t *testing.T) {
+	fakeClaude(t, "echo none")
+	if _, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view"); err == nil ||
+		!strings.Contains(err.Error(), "no JSON") {
+		t.Fatalf("got %v, want the reply refused as no JSON", err)
+	}
+}
+
+// Two models tied on output tokens pick the model sorting first, so a report reads the same twice.
+func TestATieOnOutputTokensPicksTheSameModelEveryTime(t *testing.T) {
+	_, served, err := readClaudeReply(`{"result":"x","modelUsage":{"b-model":{"outputTokens":3},"a-model":{"outputTokens":3}}}`, "a")
+	if err != nil || served.Answered != "a-model" {
+		t.Fatalf("answered %q, %v", served.Answered, err)
 	}
 }
 

@@ -7,6 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
+
+	modelserved "configs/ai/tools/model-served"
 )
 
 func Load(path string) (*Policy, error) {
@@ -46,6 +49,12 @@ type Command struct {
 	Invocation string
 	Stdout     io.Writer
 	Stderr     io.Writer
+	// Account names the Claude login a dispatch from this process runs on. Nil means `claude auth status`.
+	Account func() string
+	// ServedCache is model-check's served set. Empty means the user's cache.
+	ServedCache string
+	// Now reads the clock the set's age is judged by. Nil means time.Now.
+	Now func() time.Time
 }
 
 func Run(command Command) int {
@@ -89,10 +98,46 @@ func Run(command Command) int {
 	if err != nil {
 		return refuse(command.Stderr, err)
 	}
+	decision.Dispatched = decision.Requested
+	if decision.Client == "claude" && decision.Kind == "worker" {
+		dispatchServed(command, policy, &decision)
+	}
 	if err := json.NewEncoder(command.Stdout).Encode(decision); err != nil {
 		return refuse(command.Stderr, "write decision:", err)
 	}
 	return 0
+}
+
+// dispatchServed moves a worker's dispatch to the nearest tier its account serves, where model-check
+// kept a served set for this login within the day. Without one the row dispatches as written. A set
+// that exists and cannot be used says why, so a person knows to run model-check.
+func dispatchServed(command Command, policy *Policy, decision *Decision) {
+	path := command.ServedCache
+	if path == "" {
+		path = modelserved.Path(os.LookupEnv)
+	}
+	if _, err := os.Stat(path); err != nil {
+		return
+	}
+	account := command.Account
+	if account == nil {
+		account = func() string { return modelserved.Account(os.Environ()) }
+	}
+	now := time.Now
+	if command.Now != nil {
+		now = command.Now
+	}
+	entry, why := modelserved.Lookup(path, "claude", account(), now())
+	if why != "" {
+		fmt.Fprintln(command.Stderr, "model-policy:", why)
+		return
+	}
+	requested := decision.Requested.Model
+	decision.Dispatched.Model = modelserved.Nearest(entry, policy.Tiers("claude"), requested)
+	if decision.Dispatched.Model != requested {
+		fmt.Fprintf(command.Stderr, "model-policy: requested %s, dispatched %s (nearest served)\n", requested,
+			decision.Dispatched.Model)
+	}
 }
 
 // Every decline leaves the same two marks: the tool's name ahead of the reason on stderr, and status

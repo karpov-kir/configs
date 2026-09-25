@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	modelpolicy "configs/ai/tools/model-policy"
+	modelserved "configs/ai/tools/model-served"
 	readerjudge "configs/ai/tools/reader-judge"
 )
 
@@ -49,7 +51,7 @@ func run(t *testing.T, agent string, probe Probe, path string) (int, string, str
 	t.Helper()
 	var out, errOut bytes.Buffer
 	status := Run(Command{Args: []string{"--agent=" + agent, "--config", path}, Stdout: &out, Stderr: &errOut,
-		Probe: probe, Accounts: oneAccount})
+		Probe: probe, Accounts: oneAccount, ServedCache: filepath.Join(t.TempDir(), "served.json")})
 	return status, out.String(), errOut.String()
 }
 
@@ -137,7 +139,7 @@ func TestNoProviderReachableIsNotACleanRun(t *testing.T) {
 
 func TestAPolicyItCannotReadIsExitTwo(t *testing.T) {
 	var out, errOut bytes.Buffer
-	status := Run(Command{Args: []string{"--agent=claude", "--config", filepath.Join(t.TempDir(), "absent.json")},
+	status := Run(Command{Args: []string{"--agent=claude", "--config", filepath.Join(t.TempDir(), "absent.json")}, ServedCache: filepath.Join(t.TempDir(), "served.json"),
 		Stdout: &out, Stderr: &errOut, Probe: func(modelpolicy.Selection) (readerjudge.Served, error) { return readerjudge.Served{}, nil }})
 	if status != 2 {
 		t.Fatalf("status = %d, want 2\n%s%s", status, out.String(), errOut.String())
@@ -183,6 +185,10 @@ func TestLiveProbeRunsTheClientsOwnBinary(t *testing.T) {
 	ran := filepath.Join(dir, "ran")
 	for _, name := range []string{"claude", "codex"} {
 		script := "#!/bin/sh\nprintf '%s\\n' " + name + " >> " + ran + "\n"
+		if name == "claude" {
+			// ClaudeCaller asks for JSON, and anything else is a fault in the CLI.
+			script += `echo '{"result":".","modelUsage":{"claude-fixture-model":{"outputTokens":1}}}'` + "\n"
+		}
 		if name == "codex" {
 			// CodexCaller reads the file named by --output-last-message, so the stub has to write one.
 			script += `while [ "$#" -gt 0 ]; do
@@ -196,6 +202,7 @@ done
 		}
 	}
 	t.Setenv("PATH", dir)
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	for _, client := range []string{"claude", "codex"} {
 		if _, err := liveProbe(modelpolicy.Selection{Client: client, Model: "fixture-model", Effort: "low"}); err != nil {
 			t.Fatalf("%s probe: %v", client, err)
@@ -271,7 +278,8 @@ func TestASubstitutedModelIsReportedAndPasses(t *testing.T) {
 func TestTwoAccountsAreNamedWhenTheyDiffer(t *testing.T) {
 	var out, errOut bytes.Buffer
 	Run(Command{Args: []string{"--agent=claude", "--config", policyFile(t)}, Stdout: &out, Stderr: &errOut,
-		Probe: served, Accounts: func() (string, string) { return "app@example.invalid (A, team)", "cli@example.invalid (B, max)" }})
+		Probe: served, Accounts: func() (string, string) { return "app@example.invalid (A, team)", "cli@example.invalid (B, max)" },
+		ServedCache: filepath.Join(t.TempDir(), "served.json")})
 	if !strings.Contains(out.String(), "the app runs on app@example.invalid (A, team) and the CLI on cli@example.invalid (B, max)") {
 		t.Fatalf("the differing accounts are not named:\n%s", out.String())
 	}
@@ -280,7 +288,22 @@ func TestTwoAccountsAreNamedWhenTheyDiffer(t *testing.T) {
 // The client is named, since each probe spends a call on that client's account.
 func TestTheClientIsNamed(t *testing.T) {
 	var out, errOut bytes.Buffer
-	if status := Run(Command{Args: []string{"--config", policyFile(t)}, Stdout: &out, Stderr: &errOut, Probe: served}); status != 2 {
+	if status := Run(Command{Args: []string{"--config", policyFile(t)}, Stdout: &out, Stderr: &errOut, Probe: served,
+		ServedCache: filepath.Join(t.TempDir(), "served.json")}); status != 2 {
 		t.Fatalf("status = %d, want 2 with no --agent\n%s", status, errOut.String())
+	}
+}
+
+// The probed set is kept for the resolver, under the account a dispatch runs on.
+func TestTheProbedSetIsKeptForTheResolver(t *testing.T) {
+	cache := filepath.Join(t.TempDir(), "served.json")
+	var out, errOut bytes.Buffer
+	Run(Command{Args: []string{"--agent=claude", "--config", policyFile(t)}, Stdout: &out, Stderr: &errOut,
+		Probe: func(selection modelpolicy.Selection) (readerjudge.Served, error) {
+			return readerjudge.Served{Requested: selection.Model, Answered: "claude-opus-5-5[1m]"}, nil
+		}, Accounts: oneAccount, ServedCache: cache})
+	entry, why := modelserved.Lookup(cache, "claude", "a@example.invalid (Org, team)", time.Now())
+	if why != "" || entry.Served["cheap-claude"] != "claude-opus-5-5[1m]" {
+		t.Fatalf("kept %+v (%s)\n%s", entry, why, out.String())
 	}
 }

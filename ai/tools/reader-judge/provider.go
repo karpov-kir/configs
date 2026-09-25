@@ -1,7 +1,6 @@
 package readerjudge
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	modelpolicy "configs/ai/tools/model-policy"
+	modelserved "configs/ai/tools/model-served"
 	"configs/ai/tools/shell"
 )
 
@@ -208,6 +208,10 @@ func ClaudeCallerObserved(deadline time.Duration, settings modelpolicy.Settings,
 		if err != nil {
 			return "", err
 		}
+		if said, _ := modelserved.Observe(modelserved.Path(os.LookupEnv), "claude", settings.Model,
+			served.Answered, claudeAccount); said != "" {
+			fmt.Fprintln(os.Stderr, said)
+		}
 		if observe != nil {
 			observe(served)
 		}
@@ -217,8 +221,8 @@ func ClaudeCallerObserved(deadline time.Duration, settings modelpolicy.Settings,
 
 // readClaudeReply reads `--output-format json`: the answer, and what the call reports about itself.
 // The answering model is the entry with the most output tokens, because the CLI makes a small call of
-// its own on another model beside it. A reply that is not JSON is taken as the answer it prints, so a
-// CLI that changed its output still answers.
+// its own on another model beside it. The call asks for JSON. A reply that is not JSON is a fault in
+// the CLI, such as a warning printed ahead of the object, and it fails with what came back.
 func readClaudeReply(out, requested string) (string, Served, error) {
 	served := Served{Requested: requested}
 	var reply struct {
@@ -236,7 +240,8 @@ func readClaudeReply(out, requested string) (string, Served, error) {
 		} `json:"modelUsage"`
 	}
 	if json.Unmarshal([]byte(out), &reply) != nil {
-		return out, served, nil
+		return "", served, fmt.Errorf("the CLI answered no JSON, which it was asked for: %s",
+			shell.CutBytesMarked(shell.Oneline(out), 200))
 	}
 	if reply.IsError {
 		return "", served, fmt.Errorf("the model answered an error: %s", shell.CutBytesMarked(shell.Oneline(reply.Result), 200))
@@ -263,30 +268,7 @@ func ClaudeAccounts() (inherited, own string) {
 	return accountIn(os.Environ()), accountIn(rollEnv(os.Environ()))
 }
 
-func accountIn(env []string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), accountDeadline)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "claude", "auth", "status", "--json")
-	cmd.Env = env
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	var status struct {
-		LoggedIn     bool   `json:"loggedIn"`
-		Email        string `json:"email"`
-		Org          string `json:"orgName"`
-		Subscription string `json:"subscriptionType"`
-	}
-	if json.Unmarshal(out, &status) != nil || !status.LoggedIn {
-		return ""
-	}
-	return shell.CutBytesMarked(shell.Oneline(fmt.Sprintf("%s (%s, %s)", status.Email, status.Org, status.Subscription)), 120)
-}
-
-// accountDeadline bounds the call that names the login. It runs only after a usage limit or in
-// model-check.
-const accountDeadline = 20 * time.Second
+func accountIn(env []string) string { return modelserved.Account(env) }
 
 // claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from
 // anywhere. An untrusted branch's `.claude/settings.json` would otherwise bring its hooks and allow

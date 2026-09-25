@@ -89,8 +89,9 @@ func (run *invocation) checkModels() {
 	switch status {
 	case 0:
 	case 2:
-		run.mounting.Refuse("no model could be reached through " + run.agent + " — sign it in (`" + run.agent +
-			" auth login` for claude, `codex login` for codex) and run " + check + " --agent=" + run.agent + " again")
+		run.mounting.Refuse(check + " reached no model through " + run.agent + ", and printed why above: a CLI " +
+			"missing from PATH, or one signed in nowhere (`claude auth login`, `codex login`). Fix that and run " +
+			check + " --agent=" + run.agent + " again")
 	default:
 		run.mounting.Refuse(check + " found a model name the provider refuses — fix it in models.json")
 	}

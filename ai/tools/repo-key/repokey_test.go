@@ -219,8 +219,8 @@ func TestFlatteningTheNameNeverCollidesTwoClones(t *testing.T) {
 // rename every existing directory that a consumer has already created on disk.
 func TestAnOrdinaryNameIsUnchanged(t *testing.T) {
 	t.Parallel()
-	git := newBareRepo(t, "player-testing")
-	if got := bareKey(t, git); !strings.HasPrefix(got, "player-testing-") {
+	git := newBareRepo(t, "ledger-testing")
+	if got := bareKey(t, git); !strings.HasPrefix(got, "ledger-testing-") {
 		t.Fatalf("keyed %s — an ordinary directory name must survive verbatim, or existing directories are renamed under their users", got)
 	}
 }
@@ -300,10 +300,10 @@ func TestTheAbbreviationIsTheKeysReadableHalfAbbreviated(t *testing.T) {
 func TestTheAbbreviationTable(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ name, want string }{
-		{"player-testing-codec-compatibility", "PTCC"},
+		{"ledger-testing-format-compatibility", "LTFC"},
 		{"issue-tracker", "IT"},
 		{"github-action-deploy-k8s", "GADK8s"},
-		{"bitmovin-k8s", "BK8s"},
+		{"acme-k8s", "AK8s"},
 		{"configs", "C"},
 		{"dashboard", "D"},
 		{"my_repo", "MR"},

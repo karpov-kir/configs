@@ -90,6 +90,7 @@ func descriptionSections(t *testing.T) string {
 var cutLine = regexp.MustCompile(`(?im)^\s*cut:\s*(.+?)\s*$`)
 
 func TestDescriptionCuts(t *testing.T) {
+	servedModels.reset()
 	if os.Getenv(evalEnv) == "" {
 		t.Skipf("%s is unset; this spends a model call per roll", evalEnv)
 	}

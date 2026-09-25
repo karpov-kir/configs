@@ -222,10 +222,11 @@ func TestTheModelsStepRunsModelCheckForTheAgent(t *testing.T) {
 	}
 }
 
-// A check that reached no model sends the reader to sign the CLI in.
+// A check that reached no model sends the reader to its printed reason, and names both usual causes.
 func TestTheModelsStepSendsAnUnreachedCheckToTheSignIn(t *testing.T) {
 	f := newFixture(t)
 	f.machine.Answering(f.repo+"/kk-flavor/scripts/model-check.sh", func(machine.Command) int { return 2 })
 	f.ExpectCode(f.runStep("--skip-models", "--agent=claude"), 1)
+	f.ExpectSaid("printed why above")
 	f.ExpectSaid("claude auth login")
 }
