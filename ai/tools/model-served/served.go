@@ -4,7 +4,7 @@
 //
 // model-check writes one entry per provider and account, dated. An entry past MaxAge reads as
 // missing, and so does one probed under another account. A call contradicting its entry rewrites that
-// record with no probe spent. Git tracks no cache file, and a row with no entry dispatches as written.
+// record with no probe spent. The cache file stays out of git. A row without an entry dispatches as written.
 package modelserved
 
 import (

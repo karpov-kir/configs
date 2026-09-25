@@ -93,7 +93,7 @@ type Decision struct {
 	Requested Settings `json:"requested"`
 	// Dispatched is what a dispatch passes: the requested settings, or the next tier in the order that
 	// the account serves, where model-check has kept a served set for this login. A subagent asked for
-	// a model its account withholds runs on its parent's model, and nothing reports it.
+	// a model its account withholds runs on its parent's model, and no report says so.
 	Dispatched   Settings `json:"dispatched"`
 	Rolls        int      `json:"rolls,omitempty"`
 	PolicyDigest string   `json:"policy_digest"`

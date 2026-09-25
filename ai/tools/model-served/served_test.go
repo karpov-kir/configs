@@ -38,7 +38,7 @@ func TestARowTheAccountDoesNotServeDispatchesTheNearestServedTier(t *testing.T) 
 	}
 }
 
-// A set probed under another login stands for that login alone, since a person can switch accounts.
+// A set probed under another login stands only for that login, since a person can switch accounts.
 func TestASetFromAnotherAccountIsNotUsed(t *testing.T) {
 	path, now := probedToday(t)
 	if _, why := Lookup(path, "claude", "b@example.invalid (Other, max)", now); !strings.Contains(why, "a@example.invalid") {
