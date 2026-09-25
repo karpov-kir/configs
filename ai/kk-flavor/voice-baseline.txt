@@ -12,7 +12,7 @@
 131 ai/kk-flavor/standards/model-policy.md
 120 ai/kk-flavor/standards/ecosystem.md
 96 ai/kk-flavor/standards/skill-protocol.md
-94 ai/kk-flavor/skills/idsd-reactor/SKILL.md
+93 ai/kk-flavor/skills/idsd-reactor/SKILL.md
 69 ai/kk-flavor/standards/testing.md
 53 ai/kk-flavor/skills/kk-foreman/SKILL.md
 49 ai/kk-flavor/standards/quality-pipeline.md
