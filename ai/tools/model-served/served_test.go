@@ -23,8 +23,8 @@ func probedToday(t *testing.T) (string, time.Time) {
 	return path, now
 }
 
-// A row asking for a model the account does not serve dispatches the nearest tier above it that the
-// account serves, where a subagent would otherwise fall back to its parent's model.
+// A row asking for a withheld model dispatches the next tier the account serves. A subagent would
+// otherwise fall back to its parent's model.
 func TestARowTheAccountDoesNotServeDispatchesTheNearestServedTier(t *testing.T) {
 	path, now := probedToday(t)
 	entry, why := Lookup(path, "claude", "a@example.invalid (Org, team)", now)
@@ -38,7 +38,7 @@ func TestARowTheAccountDoesNotServeDispatchesTheNearestServedTier(t *testing.T) 
 	}
 }
 
-// A set probed under another login says nothing about this one: a person can switch accounts.
+// A set probed under another login stands for that login alone, since a person can switch accounts.
 func TestASetFromAnotherAccountIsNotUsed(t *testing.T) {
 	path, now := probedToday(t)
 	if _, why := Lookup(path, "claude", "b@example.invalid (Other, max)", now); !strings.Contains(why, "a@example.invalid") {
@@ -66,7 +66,7 @@ func TestACallTheSetContradictsRewritesIt(t *testing.T) {
 	if got := Nearest(entry, tiers, "sonnet"); got != "sonnet" {
 		t.Fatalf("sonnet dispatched as %s after the account began serving it", got)
 	}
-	// A call agreeing with the set changes nothing and names no account.
+	// A call agreeing with the set leaves it as it was, and asks for no account.
 	if said, _ := Observe(path, "claude", "opus", "claude-opus-5-5", func() string { t.Fatal("asked for the account"); return "" }); said != "" {
 		t.Fatalf("an agreeing call said %q", said)
 	}

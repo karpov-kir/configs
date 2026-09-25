@@ -60,8 +60,8 @@ func resolveServed(t *testing.T, account string, age time.Duration) (Decision, s
 	return decision, errOut.String()
 }
 
-// A worker row asking for a model its account does not serve dispatches the nearest tier above it
-// that the account serves, and says so. A subagent would otherwise run on its parent's model.
+// A worker row asking for a model its account withholds dispatches the next tier the account serves,
+// and says so. A subagent would otherwise run on its parent's model.
 func TestAWorkerDispatchesTheNearestServedTier(t *testing.T) {
 	decision, said := resolveServed(t, "a@example.invalid (Org, team)", time.Hour)
 	if decision.Requested.Model != "sonnet" || decision.Dispatched.Model != "opus" {

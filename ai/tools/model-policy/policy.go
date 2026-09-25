@@ -91,9 +91,9 @@ type Decision struct {
 	// resolving such a site learns which contract to hand the spawn, not only what it may spend.
 	Worker    string   `json:"worker,omitempty"`
 	Requested Settings `json:"requested"`
-	// Dispatched is what a dispatch passes: the requested settings, or the nearest tier above them the
-	// account serves where model-check has kept a served set for this login. A subagent asked for a
-	// model its account does not serve runs on its parent's model instead, and says so nowhere.
+	// Dispatched is what a dispatch passes: the requested settings, or the next tier in the order that
+	// the account serves, where model-check has kept a served set for this login. A subagent asked for
+	// a model its account withholds runs on its parent's model, and nothing reports it.
 	Dispatched   Settings `json:"dispatched"`
 	Rolls        int      `json:"rolls,omitempty"`
 	PolicyDigest string   `json:"policy_digest"`

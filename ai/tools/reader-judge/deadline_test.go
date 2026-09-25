@@ -299,8 +299,8 @@ func TestClaudeCallerAnswersWhatTheModelPrinted(t *testing.T) {
 	}
 }
 
-// The call asks for JSON, so plain text is a fault in the CLI and never a verdict. Read as one, a
-// warning printed ahead of the object would be judged as the model's answer.
+// The call asks for JSON, so plain text is a fault in the CLI and never a verdict. A warning printed
+// ahead of the object would otherwise be judged as the model's answer.
 func TestAReplyThatIsNotJSONFails(t *testing.T) {
 	fakeClaude(t, "echo none")
 	if _, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view"); err == nil ||
@@ -309,7 +309,7 @@ func TestAReplyThatIsNotJSONFails(t *testing.T) {
 	}
 }
 
-// Two models tied on output tokens pick the one sorting first, so a report reads the same twice.
+// Two models tied on output tokens pick the model sorting first, so a report reads the same twice.
 func TestATieOnOutputTokensPicksTheSameModelEveryTime(t *testing.T) {
 	_, served, err := readClaudeReply(`{"result":"x","modelUsage":{"b-model":{"outputTokens":3},"a-model":{"outputTokens":3}}}`, "a")
 	if err != nil || served.Answered != "a-model" {

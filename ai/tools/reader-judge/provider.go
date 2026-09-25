@@ -221,7 +221,7 @@ func ClaudeCallerObserved(deadline time.Duration, settings modelpolicy.Settings,
 
 // readClaudeReply reads `--output-format json`: the answer, and what the call reports about itself.
 // The answering model is the entry with the most output tokens, because the CLI makes a small call of
-// its own on another model beside it. The call asks for JSON, so a reply that is not JSON is a fault in
+// its own on another model beside it. The call asks for JSON. A reply that is not JSON is a fault in
 // the CLI, such as a warning printed ahead of the object, and it fails with what came back.
 func readClaudeReply(out, requested string) (string, Served, error) {
 	served := Served{Requested: requested}

@@ -1,14 +1,10 @@
-// Package modelserved remembers which model an account serves for each model a row asks for, so a
-// dispatch can ask for a model the account serves. An account can answer a model it does not allow
-// with another: an organisation's team account answered `sonnet` and `haiku` with Opus, and a subagent
-// asked for either ran on its parent session's model. A row keeps the model it intends, and the
-// resolver dispatches the nearest tier at or above it that the account serves.
+// Package modelserved remembers which model an account serves for each model a row asks for. An
+// organisation's team account answered `sonnet` and `haiku` with Opus, and a subagent asked for either
+// ran on its parent session's model. The resolver dispatches the next tier the account serves.
 //
-// model-check writes the set it probed, one entry per provider and account, with the probe date. An
-// entry older than MaxAge reads as missing, and so does one probed under another account: a person
-// with several accounts can switch, and an organisation can change what it allows. A call whose
-// answering model contradicts its entry rewrites that record, so the set follows a change without a
-// probe. The file is a cache: nothing tracks it, and without it every row dispatches as written.
+// model-check writes one entry per provider and account, dated. An entry past MaxAge reads as
+// missing, and so does one probed under another account. A call contradicting its entry rewrites that
+// record with no probe spent. Git tracks no cache file, and a row with no entry dispatches as written.
 package modelserved
 
 import (
@@ -34,7 +30,7 @@ type Entry struct {
 	Served map[string]string `json:"served"`
 }
 
-// Serves says the answering model is the one asked for. A row names an alias, such as `opus`, and the
+// Serves says the answering model is the model asked for. A row names an alias, such as `opus`, and the
 // answer names the full model, such as `claude-opus-5-5`.
 func Serves(requested, answered string) bool {
 	return answered != "" && strings.Contains(strings.ToLower(answered), strings.ToLower(requested))
@@ -108,7 +104,7 @@ func Lookup(path, provider, account string, now time.Time) (Entry, string) {
 }
 
 // Nearest is the model to dispatch for a requested one: the requested model where the account serves
-// it, or the nearest tier above it that the account serves. A model the entry never probed, or one
+// it, or the next tier in the order that the account serves. A model the entry never probed, or one
 // outside the tier order, dispatches as requested.
 func Nearest(entry Entry, tiers []string, requested string) string {
 	answered, probed := entry.Served[requested]

@@ -393,7 +393,7 @@ type tally struct {
 
 var servedModels = &tally{counts: map[string]int{}}
 
-// reset empties the tally, so a table's header counts that table's calls alone.
+// reset empties the tally, so a table's header counts only that table's calls.
 func (t *tally) reset() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
