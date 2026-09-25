@@ -1,6 +1,7 @@
 package writereval
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -33,6 +34,10 @@ const writerRow = "comment-writer"
 // evalEnv asks for the run. Every case spends a model call, so a suite that ran it by default would
 // bill a full sweep on every push.
 const evalEnv = "WRITER_EVAL"
+
+// fullEnv runs every roll of every case and keeps the table as its rules' column. A bar reads later
+// tables against that column, and it is measured once per rule set.
+const fullEnv = "WRITER_EVAL_FULL"
 
 // caseEnv narrows a run to the cases whose name starts with it.
 const caseEnv = "WRITER_EVAL_CASE"
@@ -454,99 +459,55 @@ func TestWriterEval(t *testing.T) {
 		cases = kept
 	}
 	settings := writerSettings(t)
-	at := parallelCalls(t)
-
-	rolls := make([][]Verdict, len(cases))
-	answers := make([][]string, len(cases))
-	checkRounds := make([][]int, len(cases))
-	for i := range cases {
-		rolls[i] = make([]Verdict, evalRolls)
-		answers[i] = make([]string, evalRolls)
-		checkRounds[i] = make([]int, evalRolls)
-	}
-	gate := make(chan struct{}, at)
-	var wait sync.WaitGroup
-	for i, c := range cases {
-		for roll := 0; roll < evalRolls; roll++ {
-			wait.Add(1)
-			go func(i, roll int, c Case) {
-				defer wait.Done()
-				gate <- struct{}{}
-				defer func() { <-gate }()
-				r, raw, err := writeChecked(writerOf(settings), recordCheckFor(), prompt(t, c), c.Code)
-				if err != nil {
-					rolls[i][roll] = Verdict{Name: c.Name, Want: c.Expect, Got: "error"}
-					answers[i][roll] = err.Error()
-					return
-				}
-				answers[i][roll] = strings.TrimSpace(raw)
-				rolls[i][roll] = JudgeCase(c, r)
-				checkRounds[i][roll] = r.Rounds
-			}(i, roll, c)
-		}
-	}
-	wait.Wait()
+	cases = changedFirst(cases)
+	prof := profile{workers: parallelCalls(t), started: time.Now()}
+	full := os.Getenv(fullEnv) != ""
+	reference := mainColumn()
+	need := needFrom(reference)
+	results, stopped := runTable(cases, parallelCalls(t), need, full, func(ctx context.Context, c Case) rollResult {
+		return rollOnce(ctx, settings, c, prompt(t, c), &prof)
+	})
 
 	var rows []dumped
 	for i, c := range cases {
-		for roll, answer := range answers[i] {
-			rows = append(rows, dumped{Case: c.Name, Roll: roll, Raw: answer})
+		for roll, res := range results[i] {
+			rows = append(rows, dumped{Case: c.Name, Roll: roll, Raw: res.raw, Findings: res.findings})
 		}
 	}
 	dumpReturns(rows)
+	prof.wall = time.Since(prof.started)
 
 	var out strings.Builder
 	fmt.Fprintf(&out, "\nwriter row: %s %s, %d case(s), %d roll(s) each\n\n",
 		settings.Model, settings.Effort, len(cases), evalRolls)
 	fmt.Fprintf(&out, "rules read once at %s\n", ruleSum)
 	fmt.Fprintf(&out, "%s\n", servedModels.line())
+	fmt.Fprintf(&out, "%s\n", prof.String())
+	if stopped != "" {
+		fmt.Fprintf(&out, "stopped early: %s cannot reach the count the bar needs, so the rolls after it did not run\n", stopped)
+	}
 	fmt.Fprintf(&out, "%-46s %-8s %-7s %s\n", "case", "want", "passed", "what came back")
 	passed := 0
 	cleanByCase := map[string]int{}
 	for i, c := range cases {
-		clean := 0
-		got := map[string]int{}
-		failed := map[string]bool{}
-		for _, v := range rolls[i] {
-			if v.Passed() {
-				clean++
-			}
-			got[string(v.Got)]++
-			for _, f := range v.Failures {
-				failed[f.Check] = true
-			}
-		}
+		row, clean := caseRow(c, results[i])
 		cleanByCase[c.Name] = clean
-		if clean >= floorFor(c) {
+		if clean >= need(c) {
 			passed++
 		}
-		var classes []string
-		for _, class := range []string{"none", "written", "rename", "error"} {
-			if got[class] > 0 {
-				classes = append(classes, fmt.Sprintf("%s x%d", class, got[class]))
-			}
-		}
-		var checks []string
-		for check := range failed {
-			checks = append(checks, check)
-		}
-		sort.Strings(checks)
-		rewritten := 0
-		for _, rounds := range checkRounds[i] {
-			if rounds > 0 {
-				rewritten++
-			}
-		}
-		if rewritten > 0 {
-			classes = append(classes, fmt.Sprintf("check sent back %d", rewritten))
-		}
-		fmt.Fprintf(&out, "%-46s %-8s %d of %d (floor %d)  %s %s\n", c.Name, c.Expect, clean, evalRolls,
-			floorFor(c), strings.Join(classes, ", "), strings.Join(checks, ", "))
-		if clean < floorFor(c) {
-			fmt.Fprintf(&out, "    wanted because: %s\n    answered: %s\n", c.Why, oneLine(answers[i][0]))
-		}
+		out.WriteString(row)
 	}
 	fmt.Fprintf(&out, "\n%d of %d cleared their floor. The bar is %s.\n", passed, len(cases), labelledBar)
+	if reference == nil {
+		fmt.Fprintf(&out, "no column is kept for main's rules, so each case needed its floor alone\n")
+	}
+	// A column holds every case, so a table narrowed to some of them keeps none.
+	if full && stopped == "" && os.Getenv(caseEnv) == "" {
+		if err := writeColumn(ruleSum, cleanByCase); err != nil {
+			t.Fatal(err)
+		}
+		fmt.Fprintf(&out, "kept this table as the column for rules %s\n", ruleSum)
+	}
 	if path := os.Getenv(ledgerEnv); path != "" {
 		p, err := poolInto(path, cleanByCase)
 		if err != nil {
@@ -598,6 +559,9 @@ type dumped struct {
 	Case string `json:"case"`
 	Roll int    `json:"roll"`
 	Raw  string `json:"raw"`
+	// Findings is what the record check printed at each turn it sent the block back, so a roll that
+	// recovered still shows what the check refused.
+	Findings [][]string `json:"findings,omitempty"`
 }
 
 // dumpReturns appends this run's returns. It is best effort: a run that cannot write the dump still
