@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -235,13 +236,60 @@ func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
 
 // The fixture is the private review translated into the ledger domain. The rule it enforces is
 // ai/kk-flavor/standards/ecosystem.md -> No outside names.
+// ownNames are the names of the owner and the organisation this machine works for, read off what the
+// machine already holds: the owner in the remote's URL, and the organisation the CLI is signed into.
+// The guard spells none of them, since a public repository names no outside organisation, and a list
+// written here would be that name.
+func ownNames(remote, status string) []string {
+	var found []string
+	add := func(name string) {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if name == "" {
+			return
+		}
+		found = append(found, name)
+		if joined := strings.Join(strings.Fields(name), "-"); joined != name {
+			found = append(found, joined)
+		}
+	}
+	if m := regexp.MustCompile(`[:/]([^/:]+)/[^/]+?(\.git)?\s*$`).FindStringSubmatch(remote); m != nil {
+		add(m[1])
+	}
+	var signed struct {
+		Org string `json:"orgName"`
+	}
+	if json.Unmarshal([]byte(status), &signed) == nil {
+		add(signed.Org)
+	}
+	return found
+}
+
+// The names come from a fake remote and a fake status, so the guard is read without the machine's own.
+func TestOwnNamesComeFromTheRemoteAndTheSignedInOrganisation(t *testing.T) {
+	got := ownNames("git@example.invalid:Acme-Owner/ledger.git\n", `{"orgName":"Acme Corp"}`)
+	want := []string{"acme-owner", "acme corp", "acme-corp"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("names %q, want %q", got, want)
+	}
+	if got := ownNames("", "not json"); len(got) != 0 {
+		t.Fatalf("names %q from nothing", got)
+	}
+}
+
 func TestNoCaseCarriesTheReviewedCodebasesWords(t *testing.T) {
 	cases, err := LoadCases(casesDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	barred := []string{"codec", "fairplay", "widevine", "playready", "drm", "dash", "bitmovin",
+	barred := []string{"codec", "fairplay", "widevine", "playready", "drm", "dash",
 		"player", "manifest", "adaptationset", "representation", "mimetype", "cenc", "cbcs"}
+	remote, _ := exec.Command("git", "remote", "get-url", "origin").Output()
+	status, _ := exec.Command("claude", "auth", "status", "--json").Output()
+	names := ownNames(string(remote), string(status))
+	if len(names) == 0 {
+		fmt.Fprintln(os.Stderr, "writer-eval: no remote owner and no signed-in organisation here, so no own name is barred")
+	}
+	barred = append(barred, names...)
 	for _, c := range cases {
 		body := strings.ToLower(strings.Join([]string{c.Code, c.Facts, c.Why, c.Tests, c.Callers}, " "))
 		for _, word := range barred {
