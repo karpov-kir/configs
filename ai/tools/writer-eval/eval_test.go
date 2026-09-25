@@ -506,12 +506,12 @@ func TestWriterEval(t *testing.T) {
 		cases = kept
 	}
 	settings := writerSettings(t)
-	cases = changedFirst(cases)
+	cases, targeted := changedFirst(cases)
 	prof := profile{workers: parallelCalls(t), started: time.Now()}
 	full := os.Getenv(fullEnv) != ""
 	reference := mainColumn()
 	need := needFrom(reference)
-	results, stopped := runTable(cases, parallelCalls(t), need, full, func(ctx context.Context, c Case) rollResult {
+	results, stopped := runTable(cases, parallelCalls(t), need, shortFor(reference, targeted), full, func(ctx context.Context, c Case) rollResult {
 		return rollOnce(ctx, settings, c, prompt(t, c), &prof)
 	})
 

@@ -72,7 +72,7 @@ stopped, not diagnosed.
 
 Where the full set will not fit, an isolation run is k03, the case under test and the plain half.
 k03 is the guard. It is a negated case over four conditions, and the refactor lane is owed
-it. A rule that talks the writer into writing empties k03 first. The full set runs once at landing.
+it. A rule that talks the writer into writing empties k03 first.
 
 ## The rule text a run measured
 
@@ -103,12 +103,37 @@ a reviewer left alone. It asks what share of them the writer writes for, and wha
 a check. The set is named by the environment and by no committed path. A case there
 is named by its position in the sorted set, and only counts leave the run.
 
+## What a change is measured on
+
+A full table costs tens of dollars, so it runs seldom. A change lands on the cases it targets, Kirill's
+eight (k15, k19 to k23, k25, k26), and every case whose rule paragraph it touches, all at fifteen rolls
+with the bar-aware stop, read against the kept column for main's rules. A full table runs only where a
+change edits text every case reads, such as the record contract, the fates or the exemplars, or where
+no column is kept for main's rules.
+
+A proven bystander, a case holding 14 or 15 of 15 on the kept column that the change neither targets
+nor counts among the eight, is read short: five rolls, and five of five passes it. One miss sends it
+to the full read. A case truly at 14 of 15 passes five of five about seven times in ten, so a proven
+case costs about 9.5 calls against 15. A target and one of the eight always get the full read: a case truly at
+12 of 15 passes five of five one time in three, and that is the regression the bar is there to catch. The table marks it `5/5 (short)`, and a short read is never kept
+in a column. `WRITER_EVAL_TARGETS` names, by prefix, the cases whose rule paragraph a change rewrites,
+so they get the full read with the cases the branch edits.
+
+Replayed on the rolls of main's full table, the same 46 cases cost 690 calls read in full, 519 with the
+bar-aware stop, and 382 with short reads too. Of 19 proven bystanders, one went on to the full read.
+
+The column for main's rules at 4cc6a9eb8cae was read on 2026-09-25 at 16 workers: 690 calls, every one
+answered by claude-opus-5-5, none retried, 15m44s wall, $35.83. 33 of 46 cases cleared their floor.
+
 ## Runs share the account through slots
 
 Two runs used to fail together: on 2026-09-22 a full set and a single case ran at once, and most calls
 came back `exit status 1`. What they shared was the account's capacity, so every call of every run on
-the machine now takes one of 32 lock files under the user's cache (`WRITER_EVAL_SLOTS`), and each run
-starts 16 workers (`WRITER_EVAL_PARALLEL`). A killed run's locks go with its process.
+the machine now takes one of 16 lock files under the user's cache (`WRITER_EVAL_SLOTS`), and each run
+starts 16 workers (`WRITER_EVAL_PARALLEL`). A killed run's locks go with its process. A full table at
+32 slots on 2026-09-25 failed 404 of 690 calls after a clean 72-call test there, so the default stays
+at 16 until a full table runs clean at 32. A call failing for any reason but a usage limit is retried
+once, and the header counts the retries. A usage limit stops the table and names the account.
 
 Measured on 2026-09-25 on Opus, 72 calls, the check off, every roll run:
 
@@ -119,7 +144,7 @@ Measured on 2026-09-25 on Opus, 72 calls, the check off, every roll run:
 | 16 | 117s | 0 | 23s |
 | 32 | 81s | 0 | 29s |
 
-The account starts queueing past 16, and 32 still gains. A roll costs about 3.5k tokens before the
+The account starts queueing past 16, and 32 gains on a short burst but not over a full table. A roll costs about 3.5k tokens before the
 brief and $0.08 in all on Opus, so a full table of 46 cases at 15 rolls runs about $55. Every table
 prints its own figure: wall time, calls, tokens, cost, and the model that answered.
 

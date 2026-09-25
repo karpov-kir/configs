@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,6 +27,9 @@ type rollResult struct {
 	rounds   int
 	findings [][]string
 	stopped  bool
+	// limit is a roll the account's usage limit refused. It stops the table, since every roll after it
+	// meets the same limit.
+	limit bool
 }
 
 // profile adds up where a table's time goes. Every roll waits on the writer row and on the record
@@ -37,6 +41,7 @@ type profile struct {
 	workers       int
 	model, check  time.Duration
 	calls, checks int
+	retries       int
 	used          readerjudge.Served
 }
 
@@ -76,10 +81,10 @@ func (p *profile) String() string {
 	}
 	return fmt.Sprintf("profile: %s wall over %d worker(s); %d writer call(s), %s in all, %s each; "+
 		"%d check run(s), %s in all, %s each; %s idle across the workers\n"+
-		"tokens: %d input, %d written to cache, %d read from cache, %d output; $%.2f",
+		"tokens: %d input, %d written to cache, %d read from cache, %d output; $%.2f; retried ×%d",
 		p.wall.Round(time.Second), p.workers, p.calls, p.model.Round(time.Second), mean(p.model, p.calls),
 		p.checks, p.check.Round(time.Second), mean(p.check, p.checks), idle.Round(time.Second),
-		p.used.Input, p.used.CacheCreated, p.used.CacheRead, p.used.Output, p.used.CostUSD)
+		p.used.Input, p.used.CacheCreated, p.used.CacheRead, p.used.Output, p.used.CostUSD, p.retries)
 }
 
 // rollOnce runs one roll the way the pipeline runs a site, timing each writer call and each check.
@@ -89,7 +94,7 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 		servedModels.add(s)
 		p.spend(s)
 	})
-	call := func(text string) (string, error) {
+	once := func(text string) (string, error) {
 		release, err := takeSlot()
 		if err != nil {
 			return "", err
@@ -98,6 +103,20 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 		began := time.Now()
 		defer func() { p.add(true, time.Since(began)) }()
 		return caller(text, "")
+	}
+	// A call failing for any reason but a limit is tried once more after a pause. 404 calls of one table
+	// on 2026-09-25 failed for a passing refusal and left a column with no reading in it.
+	call := func(text string) (string, error) {
+		answer, err := once(text)
+		var exhausted *readerjudge.ProviderExhausted
+		if err == nil || errors.As(err, &exhausted) || ctx.Err() != nil {
+			return answer, err
+		}
+		p.mu.Lock()
+		p.retries++
+		p.mu.Unlock()
+		time.Sleep(retryPause)
+		return once(text)
 	}
 	check := func(input string, record bool) ([]string, error) {
 		began := time.Now()
@@ -109,6 +128,10 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 		return got, err
 	}
 	r, raw, err := writeChecked(call, check, asked, c.Code)
+	var exhausted *readerjudge.ProviderExhausted
+	if errors.As(err, &exhausted) {
+		return rollResult{limit: true, raw: err.Error(), verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "error"}}
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return rollResult{stopped: true, verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "stopped"}}
@@ -118,11 +141,15 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 	return rollResult{verdict: JudgeCase(c, r), raw: strings.TrimSpace(raw), rounds: r.Rounds, findings: findings}
 }
 
+// retryPause is how long a failed call waits before its one retry.
+const retryPause = 5 * time.Second
+
 // runTable puts every roll of every case to a fixed set of workers, in case order, so the first
 // cases finish first. Each case prints its row the moment its last roll lands. A case whose misses
 // already leave its floor out of reach stops the table: a table that will miss is not worth
 // finishing. A case that can still pass runs every roll, because the bar compares counts.
-func runTable(cases []Case, workers int, need func(Case) int, full bool, roll func(context.Context, Case) rollResult) ([][]rollResult, string) {
+func runTable(cases []Case, workers int, need func(Case) int, short func(Case) bool, full bool,
+	roll func(context.Context, Case) rollResult) ([][]rollResult, string) {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
 	type job struct{ at, roll int }
@@ -130,6 +157,7 @@ func runTable(cases []Case, workers int, need func(Case) int, full bool, roll fu
 	results := make([][]rollResult, len(cases))
 	landed := make([]int, len(cases))
 	clean := make([]int, len(cases))
+	missed := make([]bool, len(cases))
 	for i := range cases {
 		results[i] = make([]rollResult, evalRolls)
 	}
@@ -144,7 +172,9 @@ func runTable(cases []Case, workers int, need func(Case) int, full bool, roll fu
 				c := cases[j.at]
 				res := rollResult{stopped: true, verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "stopped"}}
 				mu.Lock()
-				decided := !full && clean[j.at] >= need(c)
+				// A proven bystander that has passed every one of its first shortRolls is read short. One
+				// miss sends it to the full read.
+				decided := !full && (clean[j.at] >= need(c) || (short(c) && !missed[j.at] && clean[j.at] >= shortRolls))
 				mu.Unlock()
 				if decided {
 					res = rollResult{stopped: true, verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "reached"}}
@@ -156,6 +186,13 @@ func runTable(cases []Case, workers int, need func(Case) int, full bool, roll fu
 				landed[j.at]++
 				if res.verdict.Passed() {
 					clean[j.at]++
+				} else if !res.stopped {
+					missed[j.at] = true
+				}
+				if res.limit && stopped == "" {
+					stopped = c.Name
+					fmt.Fprintf(os.Stderr, "stopping the table: %s\n", res.raw)
+					stop()
 				}
 				if !full && !res.stopped && stopped == "" && clean[j.at]+evalRolls-landed[j.at] < need(c) {
 					stopped = c.Name
@@ -212,7 +249,11 @@ func caseRow(c Case, rolls []rollResult) (string, int) {
 		checks = append(checks, check)
 	}
 	sort.Strings(checks)
-	row := fmt.Sprintf("%-46s %-8s %d of %d (floor %d)  %s %s\n", c.Name, c.Expect, clean, evalRolls,
+	read := fmt.Sprintf("%d of %d", clean, evalRolls)
+	if got["reached"] > 0 && clean == shortRolls && clean+got["reached"] == len(rolls) {
+		read = fmt.Sprintf("%d/%d (short)", clean, shortRolls)
+	}
+	row := fmt.Sprintf("%-46s %-8s %-7s (floor %d)  %s %s\n", c.Name, c.Expect, read,
 		floorFor(c), strings.Join(classes, ", "), strings.Join(checks, ", "))
 	if clean < floorFor(c) && len(rolls) > 0 {
 		row += fmt.Sprintf("    wanted because: %s\n    answered: %s\n", c.Why, oneLine(rolls[0].raw))
@@ -222,19 +263,26 @@ func caseRow(c Case, rolls []rollResult) (string, int) {
 
 // changedFirst puts the cases this branch added or changed ahead of the rest. A table stops at its
 // first case that cannot pass, and the cases a change is about are the likeliest to.
-func changedFirst(cases []Case) []Case {
+func changedFirst(cases []Case) ([]Case, map[string]bool) {
+	changed := map[string]bool{}
+	for _, name := range strings.Split(os.Getenv(targetsEnv), ",") {
+		for _, c := range cases {
+			if name = strings.TrimSpace(name); name != "" && strings.HasPrefix(c.Name, name) {
+				changed[c.Name] = true
+			}
+		}
+	}
 	base, err := exec.Command("git", "merge-base", "origin/main", "HEAD").Output()
 	if err != nil {
-		return cases
+		return cases, changed
 	}
-	changed := map[string]bool{}
 	for _, args := range [][]string{
 		{"diff", "--name-only", strings.TrimSpace(string(base)), "--", casesDir},
 		{"ls-files", "--others", "--exclude-standard", "--", casesDir},
 	} {
 		out, err := exec.Command("git", args...).Output()
 		if err != nil {
-			return cases
+			return cases, changed
 		}
 		for _, path := range strings.Fields(string(out)) {
 			name := path[strings.LastIndex(path, "/")+1:]
@@ -243,8 +291,12 @@ func changedFirst(cases []Case) []Case {
 	}
 	ordered := append([]Case(nil), cases...)
 	sort.SliceStable(ordered, func(i, j int) bool { return changed[ordered[i].Name] && !changed[ordered[j].Name] })
-	return ordered
+	return ordered, changed
 }
+
+// targetsEnv names, by prefix and comma-separated, the cases a change touches beyond the case files it
+// edits: a case whose rule paragraph the change rewrites. Those get the full read.
+const targetsEnv = "WRITER_EVAL_TARGETS"
 
 // A case whose misses leave its floor out of reach stops the table, and the rolls queued after it
 // never run. A case that can still pass runs every roll.
@@ -253,7 +305,7 @@ func TestATableStopsAtTheFirstCaseThatCannotPass(t *testing.T) {
 		{Name: "c-after", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := map[string]int{}
-	results, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, false, func(_ context.Context, c Case) rollResult {
+	results, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran[c.Name]++
 		mu.Unlock()
@@ -279,7 +331,7 @@ func TestACaseStopsRollingOnceItHasTheCountTheBarNeeds(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := 0
-	results, _ := runTable(cases, 1, func(Case) int { return 3 }, false, func(_ context.Context, c Case) rollResult {
+	results, _ := runTable(cases, 1, func(Case) int { return 3 }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran++
 		mu.Unlock()
@@ -344,4 +396,77 @@ func writeColumn(rules string, counts map[string]int) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(columnsDir, rules+".json"), append(body, '\n'), 0o644)
+}
+
+// A usage limit stops the table at once, since every roll after it meets the same limit.
+func TestAUsageLimitStopsTheTable(t *testing.T) {
+	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
+	var mu sync.Mutex
+	ran := 0
+	_, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) bool { return false }, true, func(_ context.Context, c Case) rollResult {
+		mu.Lock()
+		ran++
+		mu.Unlock()
+		return rollResult{limit: true, raw: "claude has no capacity left", verdict: Verdict{Name: c.Name, Got: "error"}}
+	})
+	if stopped != "a" || ran != 1 {
+		t.Fatalf("stopped at %q after %d roll(s), want a after 1", stopped, ran)
+	}
+}
+
+// shortRolls is the read a proven bystander gets: a case outside the change and outside Kirill's eight,
+// at 14 or 15 of 15 on the kept column. The README says why the eight and a target get the full read,
+// and what a short read costs.
+const shortRolls = 5
+
+// kirillsEight are the cases every change is read on in full.
+var kirillsEight = []string{"k15", "k19", "k20", "k21", "k22", "k23", "k25", "k26"}
+
+// shortFor says which cases a table reads short: a case proven on the reference column, outside the
+// change's targets and outside the eight. Without a column every case gets the full read.
+func shortFor(reference map[string]int, targeted map[string]bool) func(Case) bool {
+	return func(c Case) bool {
+		for _, name := range kirillsEight {
+			if strings.HasPrefix(c.Name, name+"-") {
+				return false
+			}
+		}
+		at, known := reference[c.Name]
+		return known && at >= evalRolls-1 && !targeted[c.Name]
+	}
+}
+
+// A proven bystander stops after five clean rolls and reads as short. One miss sends it to the full read.
+func TestAProvenBystanderIsReadShort(t *testing.T) {
+	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
+	var mu sync.Mutex
+	ran := map[string]int{}
+	results, _ := runTable(cases, 1, func(Case) int { return evalRolls - 1 }, func(Case) bool { return true }, false,
+		func(_ context.Context, c Case) rollResult {
+			mu.Lock()
+			ran[c.Name]++
+			n := ran[c.Name]
+			mu.Unlock()
+			got := ExpectNone
+			if c.Name == "b" && n == 2 {
+				got = ExpectWritten
+			}
+			return rollResult{verdict: Verdict{Name: c.Name, Want: ExpectNone, Got: got}}
+		})
+	if ran["a"] != shortRolls || ran["b"] != evalRolls {
+		t.Fatalf("ran %v, want a read short and b read in full after its miss", ran)
+	}
+	if row, _ := caseRow(cases[0], results[0]); !strings.Contains(row, "5/5 (short)") {
+		t.Fatalf("row %q, want the short read marked", row)
+	}
+}
+
+// The eight, and a case the change touches, are never read short.
+func TestTheEightAndATargetAreReadInFull(t *testing.T) {
+	short := shortFor(map[string]int{"k19-x": 15, "k04-y": 15, "k09-z": 15, "k11-w": 12}, map[string]bool{"k09-z": true})
+	for name, want := range map[string]bool{"k19-x": false, "k04-y": true, "k09-z": false, "k11-w": false} {
+		if got := short(Case{Name: name}); got != want {
+			t.Errorf("%s read short %v, want %v", name, got, want)
+		}
+	}
 }

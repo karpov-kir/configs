@@ -2,6 +2,8 @@ package readerjudge
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -229,7 +231,18 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 		if refusedTheModel(command.name, command.stdin, out, err) {
 			return "", &ModelRefused{Client: command.name, Model: command.model}
 		}
-		return "", fmt.Errorf("the model did not answer (%v)", err)
+		// A limit arrives at a failing exit too: `claude -p --output-format json` exits 1 with the
+		// apology in its result. A check on success only left a table of 404 failed calls on
+		// 2026-09-25 reporting "exit status 1" with no reason.
+		var failed *exec.ExitError
+		said := out
+		if errors.As(err, &failed) {
+			said = append(append([]byte(nil), out...), failed.Stderr...)
+		}
+		if exhausted(command.name, command.stdin, said) {
+			return "", &ProviderExhausted{Client: command.name}
+		}
+		return "", fmt.Errorf("the model did not answer (%v): %s", err, whatItSaid(said))
 	}
 	// Asked of a call that SUCCEEDED, which is the whole reason it is here: a provider out of
 	// capacity answers at exit 0 with its apology where the verdict goes. The judge survives that
@@ -240,4 +253,20 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 		return "", &ProviderExhausted{Client: command.name}
 	}
 	return string(out), nil
+}
+
+// whatItSaid is the CLI's own account of a failed call, cut to a message's length. It is the JSON
+// result where the CLI printed one, or else the output as it came.
+func whatItSaid(out []byte) string {
+	var reply struct {
+		Result string `json:"result"`
+	}
+	text := string(out)
+	if json.Unmarshal(out, &reply) == nil && reply.Result != "" {
+		text = reply.Result
+	}
+	if strings.TrimSpace(text) == "" {
+		return "it printed nothing"
+	}
+	return shell.CutBytesMarked(shell.Oneline(text), 300)
 }

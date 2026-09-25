@@ -802,3 +802,23 @@ func TestAUsageLimitNamesTheAccount(t *testing.T) {
 		t.Fatalf("got %v, want the account and the switch", err)
 	}
 }
+
+// A limit arrives at a failing exit as well, and it is still a limit, naming the account.
+func TestALimitAtAFailingExitIsALimit(t *testing.T) {
+	fakeClaude(t, `if [ "$1" = auth ]; then echo '{"loggedIn":true,"email":"a@example.invalid","orgName":"Org","subscriptionType":"team"}'; exit 0; fi
+echo '{"result":"You have hit your session limit","is_error":true}'; exit 1`)
+	_, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
+	var exhausted *ProviderExhausted
+	if !errors.As(err, &exhausted) || exhausted.Account != "a@example.invalid (Org, team)" {
+		t.Fatalf("got %v, want a limit naming the account", err)
+	}
+}
+
+// Any other failure carries what the CLI said, so a table of failed calls can say why.
+func TestAFailedCallCarriesWhatTheCliSaid(t *testing.T) {
+	fakeClaude(t, `echo '{"result":"Overloaded, try again","is_error":true}'; exit 1`)
+	_, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
+	if err == nil || !strings.Contains(err.Error(), "Overloaded, try again") {
+		t.Fatalf("got %v, want the CLI's own words", err)
+	}
+}
