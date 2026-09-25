@@ -13,8 +13,9 @@ JUDGE_EVAL_PLAIN=<a directory of reviewed source> WRITER_EVAL=1 go test ./writer
 
 Every roll spends a model call, so the suite skips both halves until `WRITER_EVAL` asks for them.
 `WRITER_EVAL_CASE` narrows a run to the cases whose name starts with it. `WRITER_EVAL_ROLLS` sets
-the roll count, `WRITER_EVAL_PARALLEL` the calls in flight, and `WRITER_EVAL_DUMP` a file to write
-every raw return to.
+the roll count, `WRITER_EVAL_PARALLEL` a run's workers, `WRITER_EVAL_SLOTS` the calls in flight across
+every run, `WRITER_EVAL_FULL` a run of every roll kept as its rules' column, and `WRITER_EVAL_DUMP` a
+file to write every raw return to.
 
 ## A floor is set from a no-change pair
 
@@ -102,16 +103,34 @@ a reviewer left alone. It asks what share of them the writer writes for, and wha
 a check. The set is named by the environment and by no committed path. A case there
 is named by its position in the sorted set, and only counts leave the run.
 
-## One run at a time
+## Runs share the account through slots
 
-Two runs in flight together fail. On 2026-09-22 a full set and a single case ran at once, and the
-writer row came back `exit status 1` on most calls. The table printed `0 of 15  error x15` for
-twenty-odd cases, which reads exactly like a rule that broke everything. Read the `what came back`
-column before believing a zero: `error` there is a run that did not happen.
+Two runs used to fail together: on 2026-09-22 a full set and a single case ran at once, and most calls
+came back `exit status 1`. What they shared was the account's capacity, so every call of every run on
+the machine now takes one of 32 lock files under the user's cache (`WRITER_EVAL_SLOTS`), and each run
+starts 16 workers (`WRITER_EVAL_PARALLEL`). A killed run's locks go with its process.
 
-A run also measures the rule files as they stood when it started, which `readRules` says in the
-code. So a rule edit during a run leaves a table naming text the run measured nowhere, and the header
-hash is the only thing that says so. Finish the run, or kill it and start again.
+Measured on 2026-09-25 on Opus, 72 calls, the check off, every roll run:
+
+| workers | wall | errors | mean call |
+|---|---|---|---|
+| 4 | 366s | 0 | 20s |
+| 8 | 195s | 0 | 21s |
+| 16 | 117s | 0 | 23s |
+| 32 | 81s | 0 | 29s |
+
+The account starts queueing past 16, and 32 still gains. A roll costs about 3.5k tokens before the
+brief and $0.08 in all on Opus, so a full table of 46 cases at 15 rolls runs about $55. Every table
+prints its own figure: wall time, calls, tokens, cost, and the model that answered.
+
+A run measures the rule files as they stood when it started, which `readRules` says in the code. So a
+rule edit during a run leaves a table naming text the run measured nowhere, and the header hash is the
+only thing that says so. Finish the run, or kill it and start again.
+
+A table stops a case once it has the count the bar needs: its floor, or the kept column's count less
+two. It stops the whole table at the first case that can no longer reach that count.
+`WRITER_EVAL_FULL=1` runs every roll and keeps the table under `testdata/columns/` as the column for its
+rules, so main's column is measured once per rule set.
 
 ## The record check runs inside a roll
 
