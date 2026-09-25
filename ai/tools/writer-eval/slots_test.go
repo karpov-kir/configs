@@ -10,12 +10,9 @@ import (
 	"time"
 )
 
-// A table's calls share one account, and so do two tables run at once. Two runs on 2026-09-22 came back
-// `error x15` on most calls, which read like a rule that broke everything. Measured on 2026-09-25, 72
-// calls took 366s at 4 workers, 195s at 8, 117s at 16 and 81s at 32, with no error at any count, and a
-// call's mean time rose from 20s to 29s as the account queued them. So each run starts 16 workers, and
-// every call of every run on the machine takes one of 32 slots. Two runs then share the account's
-// capacity and never pass it.
+// Every run on a machine shares one account, and two runs on 2026-09-22 failed together for it. A run
+// starts 16 workers, and every call of every run takes one of 32 slots. The README holds the
+// measurements these numbers come from.
 const (
 	defaultWorkers = 16
 	slotsEnv       = "WRITER_EVAL_SLOTS"

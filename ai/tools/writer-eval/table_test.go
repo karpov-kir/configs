@@ -274,7 +274,7 @@ func TestATableStopsAtTheFirstCaseThatCannotPass(t *testing.T) {
 	}
 }
 
-// A case that has reached the count the bar needs rolls no further: the bar reads nothing past it.
+// A case that has reached the count the bar needs stops rolling, since the bar reads only that count.
 func TestACaseStopsRollingOnceItHasTheCountTheBarNeeds(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}}
 	var mu sync.Mutex

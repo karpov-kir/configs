@@ -236,10 +236,9 @@ func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
 
 // The fixture is the private review translated into the ledger domain. The rule it enforces is
 // ai/kk-flavor/standards/ecosystem.md -> No outside names.
-// ownNames are the names of the owner and the organisation this machine works for, read off what the
-// machine already holds: the owner in the remote's URL, and the organisation the CLI is signed into.
-// The guard spells none of them, since a public repository names no outside organisation, and a list
-// written here would be that name.
+// ownNames reads the owner and the organisation off what this machine already holds: the owner in the
+// remote's URL, and the organisation the CLI is signed into. The guard spells neither, because a list
+// written here would put that name in a public repository.
 func ownNames(remote, status string) []string {
 	var found []string
 	add := func(name string) {
