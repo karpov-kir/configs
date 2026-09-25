@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,6 +27,9 @@ type rollResult struct {
 	rounds   int
 	findings [][]string
 	stopped  bool
+	// limit is a roll the account's usage limit refused. It stops the table, since every roll after it
+	// meets the same limit.
+	limit bool
 }
 
 // profile adds up where a table's time goes. Every roll waits on the writer row and on the record
@@ -37,6 +41,7 @@ type profile struct {
 	workers       int
 	model, check  time.Duration
 	calls, checks int
+	retries       int
 	used          readerjudge.Served
 }
 
@@ -76,10 +81,10 @@ func (p *profile) String() string {
 	}
 	return fmt.Sprintf("profile: %s wall over %d worker(s); %d writer call(s), %s in all, %s each; "+
 		"%d check run(s), %s in all, %s each; %s idle across the workers\n"+
-		"tokens: %d input, %d written to cache, %d read from cache, %d output; $%.2f",
+		"tokens: %d input, %d written to cache, %d read from cache, %d output; $%.2f; retried ×%d",
 		p.wall.Round(time.Second), p.workers, p.calls, p.model.Round(time.Second), mean(p.model, p.calls),
 		p.checks, p.check.Round(time.Second), mean(p.check, p.checks), idle.Round(time.Second),
-		p.used.Input, p.used.CacheCreated, p.used.CacheRead, p.used.Output, p.used.CostUSD)
+		p.used.Input, p.used.CacheCreated, p.used.CacheRead, p.used.Output, p.used.CostUSD, p.retries)
 }
 
 // rollOnce runs one roll the way the pipeline runs a site, timing each writer call and each check.
@@ -89,7 +94,7 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 		servedModels.add(s)
 		p.spend(s)
 	})
-	call := func(text string) (string, error) {
+	once := func(text string) (string, error) {
 		release, err := takeSlot()
 		if err != nil {
 			return "", err
@@ -98,6 +103,20 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 		began := time.Now()
 		defer func() { p.add(true, time.Since(began)) }()
 		return caller(text, "")
+	}
+	// A call failing for any reason but a limit is tried once more after a pause. 404 calls of one table
+	// on 2026-09-25 failed for a passing refusal and left a column with no reading in it.
+	call := func(text string) (string, error) {
+		answer, err := once(text)
+		var exhausted *readerjudge.ProviderExhausted
+		if err == nil || errors.As(err, &exhausted) || ctx.Err() != nil {
+			return answer, err
+		}
+		p.mu.Lock()
+		p.retries++
+		p.mu.Unlock()
+		time.Sleep(retryPause)
+		return once(text)
 	}
 	check := func(input string, record bool) ([]string, error) {
 		began := time.Now()
@@ -109,6 +128,10 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 		return got, err
 	}
 	r, raw, err := writeChecked(call, check, asked, c.Code)
+	var exhausted *readerjudge.ProviderExhausted
+	if errors.As(err, &exhausted) {
+		return rollResult{limit: true, raw: err.Error(), verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "error"}}
+	}
 	if err != nil {
 		if ctx.Err() != nil {
 			return rollResult{stopped: true, verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "stopped"}}
@@ -117,6 +140,9 @@ func rollOnce(ctx context.Context, settings modelpolicy.Settings, c Case, asked 
 	}
 	return rollResult{verdict: JudgeCase(c, r), raw: strings.TrimSpace(raw), rounds: r.Rounds, findings: findings}
 }
+
+// retryPause is how long a failed call waits before its one retry.
+const retryPause = 5 * time.Second
 
 // runTable puts every roll of every case to a fixed set of workers, in case order, so the first
 // cases finish first. Each case prints its row the moment its last roll lands. A case whose misses
@@ -156,6 +182,11 @@ func runTable(cases []Case, workers int, need func(Case) int, full bool, roll fu
 				landed[j.at]++
 				if res.verdict.Passed() {
 					clean[j.at]++
+				}
+				if res.limit && stopped == "" {
+					stopped = c.Name
+					fmt.Fprintf(os.Stderr, "stopping the table: %s\n", res.raw)
+					stop()
 				}
 				if !full && !res.stopped && stopped == "" && clean[j.at]+evalRolls-landed[j.at] < need(c) {
 					stopped = c.Name
@@ -344,4 +375,20 @@ func writeColumn(rules string, counts map[string]int) error {
 		return err
 	}
 	return os.WriteFile(filepath.Join(columnsDir, rules+".json"), append(body, '\n'), 0o644)
+}
+
+// A usage limit stops the table at once, since every roll after it meets the same limit.
+func TestAUsageLimitStopsTheTable(t *testing.T) {
+	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
+	var mu sync.Mutex
+	ran := 0
+	_, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, true, func(_ context.Context, c Case) rollResult {
+		mu.Lock()
+		ran++
+		mu.Unlock()
+		return rollResult{limit: true, raw: "claude has no capacity left", verdict: Verdict{Name: c.Name, Got: "error"}}
+	})
+	if stopped != "a" || ran != 1 {
+		t.Fatalf("stopped at %q after %d roll(s), want a after 1", stopped, ran)
+	}
 }

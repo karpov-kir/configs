@@ -11,12 +11,13 @@ import (
 )
 
 // Every run on a machine shares one account, and two runs on 2026-09-22 failed together for it. A run
-// starts 16 workers, and every call of every run takes one of 32 slots. The README holds the
-// measurements these numbers come from.
+// starts 16 workers, and every call of every run takes one of 16 slots. A full table at 32 failed
+// 404 of 690 calls after a clean 72-call test there, so 16 stands until a full table runs clean at 32.
+// The README holds the measurements.
 const (
 	defaultWorkers = 16
 	slotsEnv       = "WRITER_EVAL_SLOTS"
-	defaultSlots   = 32
+	defaultSlots   = 16
 )
 
 // machineSlots is how many calls every run on this machine may have in flight together.

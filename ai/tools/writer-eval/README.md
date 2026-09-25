@@ -107,8 +107,11 @@ is named by its position in the sorted set, and only counts leave the run.
 
 Two runs used to fail together: on 2026-09-22 a full set and a single case ran at once, and most calls
 came back `exit status 1`. What they shared was the account's capacity, so every call of every run on
-the machine now takes one of 32 lock files under the user's cache (`WRITER_EVAL_SLOTS`), and each run
-starts 16 workers (`WRITER_EVAL_PARALLEL`). A killed run's locks go with its process.
+the machine now takes one of 16 lock files under the user's cache (`WRITER_EVAL_SLOTS`), and each run
+starts 16 workers (`WRITER_EVAL_PARALLEL`). A killed run's locks go with its process. A full table at
+32 slots on 2026-09-25 failed 404 of 690 calls after a clean 72-call test there, so the default stays
+at 16 until a full table runs clean at 32. A call failing for any reason but a usage limit is retried
+once, and the header counts the retries. A usage limit stops the table and names the account.
 
 Measured on 2026-09-25 on Opus, 72 calls, the check off, every roll run:
 
@@ -119,7 +122,7 @@ Measured on 2026-09-25 on Opus, 72 calls, the check off, every roll run:
 | 16 | 117s | 0 | 23s |
 | 32 | 81s | 0 | 29s |
 
-The account starts queueing past 16, and 32 still gains. A roll costs about 3.5k tokens before the
+The account starts queueing past 16, and 32 gains on a short burst but not over a full table. A roll costs about 3.5k tokens before the
 brief and $0.08 in all on Opus, so a full table of 46 cases at 15 rolls runs about $55. Every table
 prints its own figure: wall time, calls, tokens, cost, and the model that answered.
 
