@@ -1702,8 +1702,8 @@ func declaredAt(lines []string, b block) map[string]bool {
 	}
 	// The declaration's first run of lines counts with it, up to a blank line or another comment. A note
 	// on a function names what the body under it does, and a name that body spells sits in front of the
-	// reader. k19 and k21 had every first draft sent back for `bookClaim` and `probeClaim`, both declared
-	// three lines under the block.
+	// reader. k19 and k21 had every first draft sent back for local names declared three lines under the
+	// block.
 	for end := at; end <= len(lines) && end < at+bodySearch; end++ {
 		line := strings.TrimLeft(lines[end-1], shell.SpaceBytes)
 		if end > at && (line == "" || isComment(line)) {
