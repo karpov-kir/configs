@@ -161,7 +161,8 @@ Use `rtk proxy <command>` when exact output is needed, including every diff read
 - `--dry-run`: report changes without writing them.
 - `--relocate`: authorize moving mounts from another checkout; otherwise the installer refuses before writing.
 - `--skip-tools`, `--skip-brew`, `--skip-mcp`, `--skip-rtk`: skip the corresponding machine step.
-- `--skip-verify`: skip `ai/gate.sh`, which bootstrap runs last by default.
+- `--skip-verify`: skip `ai/gate.sh`, which bootstrap runs after installing.
+- `--skip-models`: skip `model-check.sh`, which bootstrap runs last. It asks the agent's CLI for each model `models.json` holds, and names the model that answered each and the account. A model the account serves in place of the row's is a warning; no model reachable at all stops the install with the sign-in command.
 
 Re-runs preserve correct links and unchanged owned regions. A target owned by somebody else or a
 modified fenced region is refused. Bootstrap also removes its stale skill links after a skill disappears.

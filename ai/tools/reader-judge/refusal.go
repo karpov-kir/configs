@@ -103,9 +103,15 @@ func (t *RollTimedOut) Error() string {
 // differ — that one sends someone to models.json, this one sends them to the clock.
 type ProviderExhausted struct {
 	Client string
+	// Account is the login the CLI ran on, where it could be named, and a person switches that login.
+	Account string
 }
 
 func (e *ProviderExhausted) Error() string {
+	if e.Account != "" {
+		return fmt.Sprintf("%s has no capacity left on %s, so nothing was judged; if the app runs on "+
+			"another account, the CLI is still on this one: `%s auth login` switches it", e.Client, e.Account, e.Client)
+	}
 	return fmt.Sprintf("%s has no capacity left on this login, so nothing was judged", e.Client)
 }
 

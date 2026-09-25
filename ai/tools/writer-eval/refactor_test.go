@@ -169,7 +169,7 @@ func TestRefactorVerdicts(t *testing.T) {
 			fmt.Fprintf(&report, "    %s: %s\n", verdict, oneLine(raws[r]))
 		}
 	}
-	t.Logf("\nrefactor row: %s, %d roll(s) each\n%s", decision.Requested.Model, evalRolls, report.String())
+	t.Logf("\nrefactor row: %s, %d roll(s) each\n%s\n%s", decision.Requested.Model, evalRolls, servedModels.line(), report.String())
 	if failed > 0 {
 		t.Fail()
 	}

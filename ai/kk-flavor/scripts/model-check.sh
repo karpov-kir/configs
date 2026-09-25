@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Ask each provider whether it will run the model names models.json holds. Judges no text.
-# usage: model-check.sh [--config <policy.json>]
+# Ask one client for each model selection models.json holds for it. Say which model answered each, and
+# the account. A substituted model is a warning. Each probe spends a call, so the check runs by hand and
+# at the end of bootstrap, and the gate leaves it out.
+# usage: model-check.sh --agent=claude|codex [--config <policy.json>]
 # tested by: the Go suite in ai/tools/model-check/, the stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
 

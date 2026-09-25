@@ -204,3 +204,28 @@ func TestACheckoutWithoutTheGateIsARefusalInBothModes(t *testing.T) {
 	f.ExpectCode(f.runStep("--skip-verify", "--agent=claude", "--dry-run"), 1)
 	f.ExpectNotSaid("ai bootstrap: ok")
 }
+
+// --- the models step ----------------------------------------------------------------------------
+
+// The last step asks the agent's CLI for every model models.json holds for it. A substituted model is
+// a warning in model-check's own output, so its 0 passes the install.
+func TestTheModelsStepRunsModelCheckForTheAgent(t *testing.T) {
+	f := newFixture(t)
+	var args []string
+	f.machine.Answering(f.repo+"/kk-flavor/scripts/model-check.sh", func(command machine.Command) int {
+		args = command.Args
+		return 0
+	})
+	f.ExpectCode(f.runStep("--skip-models", "--agent=codex"), 0)
+	if len(args) != 1 || args[0] != "--agent=codex" {
+		t.Errorf("model-check was handed %v, want the agent this run installs", args)
+	}
+}
+
+// A check that reached no model sends the reader to sign the CLI in.
+func TestTheModelsStepSendsAnUnreachedCheckToTheSignIn(t *testing.T) {
+	f := newFixture(t)
+	f.machine.Answering(f.repo+"/kk-flavor/scripts/model-check.sh", func(machine.Command) int { return 2 })
+	f.ExpectCode(f.runStep("--skip-models", "--agent=claude"), 1)
+	f.ExpectSaid("claude auth login")
+}

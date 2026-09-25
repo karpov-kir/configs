@@ -744,3 +744,41 @@ func TestARollTimeoutThatWouldOverflowIsRefused(t *testing.T) {
 		t.Fatalf("got %s %v, want the bound accepted", deadline, err)
 	}
 }
+
+// The CLI's JSON names the model that wrote the answer, beside a small call of its own on another
+// model. A call an account answered on another model is reported and still answers.
+func TestAClaudeReplyNamesTheModelThatAnswered(t *testing.T) {
+	fakeClaude(t, `echo '{"result":"none","is_error":false,"total_cost_usd":0.01,`+
+		`"usage":{"input_tokens":2,"cache_creation_input_tokens":10,"cache_read_input_tokens":20,"output_tokens":4},`+
+		`"modelUsage":{"claude-haiku-4-5":{"outputTokens":1},"claude-opus-5-5[1m]":{"outputTokens":4}}}'`)
+	var got Served
+	settings := testSettings()
+	settings.Model = "sonnet"
+	reply, err := ClaudeCallerObserved(notTheSubject, settings, func(s Served) { got = s })("prompt", "view")
+	if err != nil || reply != "none" {
+		t.Fatalf("got %q %v, want none", reply, err)
+	}
+	if got.Answered != "claude-opus-5-5[1m]" || !got.Substituted() || got.CacheRead != 20 {
+		t.Fatalf("served %+v, want opus answering a sonnet request", got)
+	}
+}
+
+// An error the model reports is an error, and never an answer.
+func TestAClaudeReplyMarkedAsAnErrorFails(t *testing.T) {
+	fakeClaude(t, `echo '{"result":"overloaded","is_error":true}'`)
+	if _, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view"); err == nil ||
+		!strings.Contains(err.Error(), "overloaded") {
+		t.Fatalf("got %v, want the reported error", err)
+	}
+}
+
+// A usage limit names the account the CLI ran on, since someone with several accounts may have
+// switched the app and left the CLI on another.
+func TestAUsageLimitNamesTheAccount(t *testing.T) {
+	fakeClaude(t, `if [ "$1" = auth ]; then echo '{"loggedIn":true,"email":"a@example.invalid","orgName":"Org","subscriptionType":"team"}'; else echo "You've hit your session limit"; fi`)
+	_, err := ClaudeCaller(notTheSubject, testSettings())("prompt", "view")
+	if err == nil || !strings.Contains(err.Error(), "a@example.invalid (Org, team)") ||
+		!strings.Contains(err.Error(), "claude auth login") {
+		t.Fatalf("got %v, want the account and the switch", err)
+	}
+}

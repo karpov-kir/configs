@@ -95,7 +95,7 @@ func (f *fixture) run(args ...string) int {
 
 // The flags every case that is not about one of those four steps passes. Named once, so a step that
 // grows a flag cannot pick it up at some of the cases here and reach a real command at the rest.
-var skipSteps = []string{"--skip-brew", "--skip-tools", "--skip-mcp", "--skip-rtk", "--skip-verify"}
+var skipSteps = []string{"--skip-brew", "--skip-tools", "--skip-mcp", "--skip-rtk", "--skip-verify", "--skip-models"}
 
 // A run of the ordinary shape: one agent, and every step that reaches outside this process skipped.
 func (f *fixture) install(args ...string) int {

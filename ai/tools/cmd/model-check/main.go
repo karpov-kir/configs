@@ -1,6 +1,6 @@
 // The model-name check as a command.
 //
-//	usage: model-check.sh [--config <policy.json>]
+//	usage: model-check.sh --agent=claude|codex [--config <policy.json>]
 package main
 
 import (

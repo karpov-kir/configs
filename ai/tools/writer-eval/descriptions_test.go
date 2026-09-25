@@ -148,7 +148,7 @@ func TestDescriptionCuts(t *testing.T) {
 			fmt.Fprintf(&report, "    missed: %s\n", miss)
 		}
 	}
-	t.Logf("\n%s", report.String())
+	t.Logf("\n%s\n%s", servedModels.line(), report.String())
 	if failed > 0 {
 		t.Fail()
 	}

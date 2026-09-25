@@ -85,5 +85,5 @@ func TestTheUsageLineNamesEveryFlagTheParserAcceptsAndNoOther(t *testing.T) {
 // against the switch, and the driven half is what checks the line.
 var acceptedFlags = []string{
 	"--agent=claude", "--agent=codex", "--dry-run", "--relocate", "--maintainer", "--owner",
-	"--skip-brew", "--skip-tools", "--skip-mcp", "--skip-rtk", "--skip-verify", "--uninstall",
+	"--skip-brew", "--skip-tools", "--skip-mcp", "--skip-rtk", "--skip-verify", "--skip-models", "--uninstall",
 }

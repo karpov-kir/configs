@@ -5,7 +5,7 @@
 `~/.kk-flavor/configs/models.json` assigns a model to every skill and every dispatch site, and is
 the only place to change one. Skills name a task; they never embed a model.
 
-Every model name this file holds *can* be asked of its provider, by `ai/gate.sh`'s `models` unit, and a name no account can run then fails at this file rather than at the next judge run. **Only a human running `ai/gate.sh` asks** — CI never runs the plain gate, and the `--mutants` run it does leaves every check unit `not asked`. **Nor does one run cover the file.** A client whose CLI that machine lacks leaves its names unresolved, and a passing unit's output is held back, so a run that reached one provider prints the same `ran ok  models` as one that reached both. **Read a green as no provider reachable from one developer's machine having refused a name, never as every name running** — and a `model` pin in that developer's client can even carry a probe for a name nothing would select (**What the policy can and cannot reach** below). With neither CLI the unit exits 2, which the gate does read as a check that did not run.
+**A row states the model it intends, and the account decides what serves it.** `model-check.sh --agent=claude|codex` asks that client for every model this file holds for it and says which model answered each; **Which model runs** below says how to read it.
 
 **Two of its maps assign models, because there are two kinds of assignment.** `workers` is the model a dispatch
 actually sets. `sessions` is the tier a human should start that session at, since nothing can change
@@ -144,12 +144,12 @@ Two kinds of control, and the difference decides where effort is worth spending:
 - **Required input** — a Go tool under `ai/tools/` loads the policy and cannot run without it. Two do,
   and they read it for different things. `reader-judge` takes its model, its effort and its roll count
   from the `reader-judge` task, and refuses to vote when the roll count is missing. `model-check` owns
-  no row: it reads every selection the file holds and asks each provider whether it will run one,
-  which is the `models` unit above. **That the policy is required does not make the model it names the
-  one that runs** — see the paragraph below.
+  no row: it reads every selection the file holds for one client and asks that client for each.
+  **That the policy is required does not make the model it names the one that runs** — see **Which
+  model runs**.
 - **Declared** — an agent reads the assignment and dispatches accordingly: the leaf skills the quality
-  pass dispatches, and every declared dispatch site. Nothing verifies the model that actually ran, so
-  these rows are a convention the agent keeps rather than a gate — but a model *is* selected.
+  pass dispatches, and every declared dispatch site. A subagent's model is chosen from the row, and
+  `model-check` is what says whether the account serves it.
 - **A session** — everything under `sessions`. The skill runs in whatever session invoked it, so
   nothing sets its model and the value is advice about how that session should have been started.
   Which rows belong there is derived rather than judged: **each skill declares `**Runs:** dispatched`,
@@ -157,16 +157,22 @@ Two kinds of control, and the difference decides where effort is worth spending:
   its row under `workers`, the other two under `sessions` — and the Go suite checks the two maps
   against those declarations both ways.
 
-**A client's own model setting beats the policy, and no flag reaches past it.** A `model` pin in the
-Claude client's settings overrides `--model` on the CLI, a `--settings` file passed beside it, and safe
-mode. So a row selects a model only where the human has pinned none — and because nothing anywhere
-compares the model requested against the model served, an overridden row looks exactly like a working
-one. **This is why requested and observed stay separate in every record**: the observed half is the
-only thing that could have caught it.
+## Which model runs
 
-**The judge is the one exception, because it loads no client settings at all**: its rolls pass an
-empty `--setting-sources` list, so a pin in the user, project or local settings cannot reach them, and
-neither can either `CLAUDE.md`. An operator's own reaching a roll makes it answer in prose where a
+**The account decides which models it serves, and serves another in place of one it does not.** On
+2026-09-25 an organisation's team account served `opus` and `fable` as asked, and answered `sonnet` and
+`haiku` with Opus: the CLI with `claude-opus-5-5[1m]`, a subagent with its parent session's model.
+Nothing errors, and every row naming either had run on Opus unnoticed. The account's list is the same
+on both paths, so the CLI probe answers for subagents too. `fable` is served there and holds no tier.
+
+**So a row keeps the model it intends, and a report says what served it.** The programmatic caller,
+reader-judge's, reads the model that answered from each call's own report and prints nothing about it.
+`model-check` is the one place a person reads it: a verdict per model, the account, a warning when the
+app and the CLI are signed into different accounts, and one line when optimal use is not possible.
+A substitution never fails a call or the check. A usage limit does, and names the account.
+
+**The judge loads no client settings at all**: its rolls pass an empty `--setting-sources` list, so
+neither `CLAUDE.md` reaches them. An operator's own reaching a roll makes it answer in prose where a
 verdict belongs, which the judge refuses as the whole vote failing. That buys reproducibility and not
 better verdicts: with the `user` source loaded the judge scored exactly as it scores without it.
 **The roll's environment is an allow-list too** — the machine's own shape and its login, so a key
