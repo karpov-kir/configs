@@ -68,6 +68,36 @@ func (run *invocation) syncMcp() {
 // the repository's own gate over what was just linked. The gate needs a machine that can run Go, and
 // installTools, a step of this run, earns that. A machine that cannot download or build the tool
 // binaries is refused there, so by the time verify runs there is a binary or a refusal.
+// checkModels asks the agent's CLI for every model models.json holds for it, last, once the tools it
+// runs are installed. It says which model answered each and which account the calls ran on. A model
+// the account serves in place of the row's is a warning in model-check's own output, and the install
+// passes. A run that reached no model at all is the one worth stopping for: nothing on this machine can
+// call a model until the CLI is signed in.
+func (run *invocation) checkModels() {
+	check := run.Repo + "/kk-flavor/scripts/model-check.sh"
+	switch {
+	case run.IsInsideVerify:
+		run.mounting.Say("models (skipped: already inside a verify run)")
+		return
+	case run.areModelsSkipped:
+		run.mounting.Say("models (skipped)")
+		return
+	case run.isDryRun:
+		run.mounting.Say("models: would run " + check + " --agent=" + run.agent)
+		return
+	}
+	run.mounting.Say("models")
+	status := run.Machine.Run(machine.Command{Name: check, Args: []string{"--agent=" + run.agent}, Loud: true})
+	switch status {
+	case 0:
+	case 2:
+		run.mounting.Refuse("no model could be reached through " + run.agent + " — sign it in (`" + run.agent +
+			" auth login` for claude, `codex login` for codex) and run " + check + " --agent=" + run.agent + " again")
+	default:
+		run.mounting.Refuse(check + " found a model name the provider refuses — fix it in models.json")
+	}
+}
+
 func (run *invocation) verify() {
 	gate := run.Repo + "/gate.sh"
 	switch {

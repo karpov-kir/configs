@@ -5,7 +5,7 @@
 // JUDGE_PROVIDER is required. Missing, unknown or unavailable providers fail with exit 2.
 // Model assignments come from kk-flavor/configs/models.json. JUDGE_MODEL is retired and refused.
 // A provider refusing that name fails as a refusal naming the policy file that chose it, not as a roll
-// that did not answer. model-check asks the same question of every name in that file, as a gate unit.
+// that did not answer. model-check asks the same question of every name in that file for one client.
 // Calls use the selected CLI's existing login and the deadline kk-flavor/configs/reader-judge.conf sets.
 // Codex ignores config, rules and workspace instructions, disables external tools, and uses
 // a read-only sandbox. Built-in utility tools and apply_patch may remain exposed.

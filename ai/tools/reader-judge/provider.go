@@ -1,6 +1,8 @@
 package readerjudge
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -170,10 +173,119 @@ func resolveProvider() (string, error) {
 // ClaudeCaller is the real one: `claude -p` on the CLI's own login, so no key is needed locally. Each
 // roll is bounded — deadline.go carries the figure and why an unbounded one was the wrong shape.
 func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller {
+	return ClaudeCallerObserved(deadline, settings, nil)
+}
+
+// Served is what one Claude call reports about itself: the model it asked for, the model that wrote
+// the answer, and what it spent. An account can serve another model than the one asked for, and says
+// so only here. On 2026-09-25 an organisation's team account answered `sonnet` and `haiku` as
+// claude-opus-5-5[1m], and every row naming either had run on Opus unnoticed.
+type Served struct {
+	Requested, Answered                    string
+	Input, CacheCreated, CacheRead, Output int
+	CostUSD                                float64
+}
+
+// Substituted says another model than the requested one wrote the answer.
+func (s Served) Substituted() bool {
+	return s.Answered != "" && !strings.Contains(strings.ToLower(s.Answered), strings.ToLower(s.Requested))
+}
+
+// ClaudeCallerObserved is ClaudeCaller handing each call's Served to observe. A substituted model is
+// reported and never refused: the call answers on what the account serves, and model-check is where a
+// person reads which rows run on another model.
+func ClaudeCallerObserved(deadline time.Duration, settings modelpolicy.Settings, observe func(Served)) Caller {
 	return func(prompt, view string) (string, error) {
-		return runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt, settings), stdin: view, model: settings.Model})
+		out, err := runBounded(deadline, modelCommand{name: "claude", args: claudeArgs(prompt, settings), stdin: view, model: settings.Model})
+		var exhausted *ProviderExhausted
+		if errors.As(err, &exhausted) {
+			exhausted.Account = claudeAccount()
+		}
+		if err != nil {
+			return "", err
+		}
+		answer, served, err := readClaudeReply(out, settings.Model)
+		if err != nil {
+			return "", err
+		}
+		if observe != nil {
+			observe(served)
+		}
+		return answer, nil
 	}
 }
+
+// readClaudeReply reads `--output-format json`: the answer, and what the call reports about itself.
+// The answering model is the entry with the most output tokens, because the CLI makes a small call of
+// its own on another model beside it. A reply that is not JSON is taken as the answer it prints, so a
+// CLI that changed its output still answers.
+func readClaudeReply(out, requested string) (string, Served, error) {
+	served := Served{Requested: requested}
+	var reply struct {
+		Result  string  `json:"result"`
+		IsError bool    `json:"is_error"`
+		Cost    float64 `json:"total_cost_usd"`
+		Usage   struct {
+			Input        int `json:"input_tokens"`
+			CacheCreated int `json:"cache_creation_input_tokens"`
+			CacheRead    int `json:"cache_read_input_tokens"`
+			Output       int `json:"output_tokens"`
+		} `json:"usage"`
+		ModelUsage map[string]struct {
+			Output int `json:"outputTokens"`
+		} `json:"modelUsage"`
+	}
+	if json.Unmarshal([]byte(out), &reply) != nil {
+		return out, served, nil
+	}
+	if reply.IsError {
+		return "", served, fmt.Errorf("the model answered an error: %s", shell.CutBytesMarked(shell.Oneline(reply.Result), 200))
+	}
+	served.Input, served.CacheCreated = reply.Usage.Input, reply.Usage.CacheCreated
+	served.CacheRead, served.Output, served.CostUSD = reply.Usage.CacheRead, reply.Usage.Output, reply.Cost
+	most := -1
+	for model, spent := range reply.ModelUsage {
+		if spent.Output > most || (spent.Output == most && model < served.Answered) {
+			served.Answered, most = model, spent.Output
+		}
+	}
+	return reply.Result, served, nil
+}
+
+// claudeAccount names the login a roll runs on, for a message a person reads. Someone with several
+// accounts can switch the app and leave the CLI on another, and a usage limit then reads as the app's.
+func claudeAccount() string { return accountIn(rollEnv(os.Environ())) }
+
+// ClaudeAccounts names both logins a call here can reach. Inside the desktop app a call inheriting its
+// variables runs on the app's sign-in, and a roll, which keeps only the allow-list, runs on the CLI's
+// own login. The app can switch one and leave the other. Outside the app the two are one login.
+func ClaudeAccounts() (inherited, own string) {
+	return accountIn(os.Environ()), accountIn(rollEnv(os.Environ()))
+}
+
+func accountIn(env []string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), accountDeadline)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "claude", "auth", "status", "--json")
+	cmd.Env = env
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	var status struct {
+		LoggedIn     bool   `json:"loggedIn"`
+		Email        string `json:"email"`
+		Org          string `json:"orgName"`
+		Subscription string `json:"subscriptionType"`
+	}
+	if json.Unmarshal(out, &status) != nil || !status.LoggedIn {
+		return ""
+	}
+	return shell.CutBytesMarked(shell.Oneline(fmt.Sprintf("%s (%s, %s)", status.Email, status.Org, status.Subscription)), 120)
+}
+
+// accountDeadline bounds the one call that names the login. It runs only after a usage limit.
+const accountDeadline = 20 * time.Second
 
 // claudeArgs gives the model nothing but the reply: no tools, no MCP servers, and no settings from
 // anywhere. An untrusted branch's `.claude/settings.json` would otherwise bring its hooks and allow
@@ -181,7 +293,7 @@ func ClaudeCaller(deadline time.Duration, settings modelpolicy.Settings) Caller 
 // a verdict belongs. Every empty-valued flag is followed by another, and the prompt comes last.
 func claudeArgs(prompt string, settings modelpolicy.Settings) []string {
 	args := []string{
-		"-p", "--model", settings.Model, "--output-format", "text",
+		"-p", "--model", settings.Model, "--output-format", "json",
 		"--tools", "", "--setting-sources", "", "--strict-mcp-config",
 	}
 	if settings.Effort != "" {

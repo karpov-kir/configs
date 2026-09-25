@@ -118,7 +118,8 @@ type arguments struct {
 	areToolsSkipped,
 	isMcpSkipped,
 	isRtkSkipped,
-	isVerifySkipped bool
+	isVerifySkipped,
+	areModelsSkipped bool
 	isMaintainer bool
 	isOwner      bool
 	isUninstall  bool
@@ -147,6 +148,8 @@ func parseArguments(self string, args []string, stderr io.Writer) (arguments, in
 			parsed.isRtkSkipped = true
 		case "--skip-verify":
 			parsed.isVerifySkipped = true
+		case "--skip-models":
+			parsed.areModelsSkipped = true
 		// Opt IN. A tree's own maintenance skills are useless to a machine that only uses the tree, and
 		// every skill's description costs context in every session whether or not it is invoked. So the
 		// default installs the smaller set, and the bigger set is asked for by name.
@@ -183,7 +186,7 @@ func parseArguments(self string, args []string, stderr io.Writer) (arguments, in
 func usage() string {
 	return "usage: " + stubPath + " --agent=" + claudeAgent + "|" + codexAgent +
 		" [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew] [--skip-tools] [--skip-mcp]" +
-		" [--skip-rtk] [--skip-verify] [--uninstall]"
+		" [--skip-rtk] [--skip-verify] [--skip-models] [--uninstall]"
 }
 
 // The whole of one run, in the order the steps have to happen in.
@@ -225,5 +228,6 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	run.installTools()
 	run.syncMcp()
 	run.verify()
+	run.checkModels()
 	return run.mounting.Report()
 }

@@ -397,9 +397,14 @@ func (v variant) caller() Caller {
 		if v.thinking != "" {
 			environment = append(environment, "MAX_THINKING_TOKENS="+v.thinking)
 		}
-		return runBounded(notTheSubject, modelCommand{
+		out, err := runBounded(notTheSubject, modelCommand{
 			name: "claude", args: args, stdin: view, model: v.settings.Model, env: environment,
 		})
+		if err != nil {
+			return "", err
+		}
+		answer, _, err := readClaudeReply(out, v.settings.Model)
+		return answer, err
 	}
 }
 

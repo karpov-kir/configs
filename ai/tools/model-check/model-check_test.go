@@ -40,29 +40,40 @@ func policyFile(t *testing.T) string {
 	return path
 }
 
-func run(t *testing.T, probe Probe, path string) (int, string, string) {
+// oneAccount is a machine where the app and the CLI run on the same login.
+func oneAccount() (string, string) {
+	return "a@example.invalid (Org, team)", "a@example.invalid (Org, team)"
+}
+
+func run(t *testing.T, agent string, probe Probe, path string) (int, string, string) {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	status := Run(Command{Args: []string{"--config", path}, Stdout: &out, Stderr: &errOut, Probe: probe})
+	status := Run(Command{Args: []string{"--agent=" + agent, "--config", path}, Stdout: &out, Stderr: &errOut,
+		Probe: probe, Accounts: oneAccount})
 	return status, out.String(), errOut.String()
 }
 
-// Every selection the file holds is asked about once, rows and tier order alike, and nothing else is.
+// served answers every selection as requested.
+func served(selection modelpolicy.Selection) (readerjudge.Served, error) {
+	return readerjudge.Served{Requested: selection.Model, Answered: "claude-" + selection.Model}, nil
+}
+
+// Every selection the file holds for the named client is asked about once, rows and tier order alike,
+// and nothing else is.
 // A name invented here would send the check asking a provider about a string this file never chose.
 //
 // It is also the clean run every refusal case below is read against. A clean file exits 0 and prints
 // no REFUSED line, and a report that fires on every input passes those refusal cases too.
 func TestEverySelectionTheFileHoldsIsAskedAboutOnce(t *testing.T) {
 	var asked []string
-	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {
+	status, out, errOut := run(t, "codex", func(selection modelpolicy.Selection) (readerjudge.Served, error) {
 		asked = append(asked, selection.Client+"/"+selection.Model+"/"+selection.Effort)
-		return nil
+		return served(selection)
 	}, policyFile(t))
 	if status != 0 || strings.Contains(out, "REFUSED") {
 		t.Fatalf("status = %d, want 0\n%s%s", status, out, errOut)
 	}
-	want := "codex/cheap-codex/low claude/cheap-claude/ codex/dear-codex/high claude/dear-claude/ " +
-		"codex/unrun-codex/ claude/unrun-claude/"
+	want := "codex/cheap-codex/low codex/dear-codex/high codex/unrun-codex/"
 	if got := strings.Join(asked, " "); got != want {
 		t.Errorf("asked about %q; want %q", got, want)
 	}
@@ -72,11 +83,11 @@ func TestEverySelectionTheFileHoldsIsAskedAboutOnce(t *testing.T) {
 // message names the file rather than leaving a human to read the next judge failure.
 func TestARefusedNameFailsAndNamesTheConfig(t *testing.T) {
 	path := policyFile(t)
-	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {
+	status, out, errOut := run(t, "codex", func(selection modelpolicy.Selection) (readerjudge.Served, error) {
 		if selection.Model == "cheap-codex" {
-			return &readerjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
+			return readerjudge.Served{}, &readerjudge.ModelRefused{Client: selection.Client, Model: selection.Model}
 		}
-		return nil
+		return served(selection)
 	}, path)
 	if status != 1 {
 		t.Fatalf("status = %d, want 1\n%s%s", status, out, errOut)
@@ -93,19 +104,19 @@ func TestARefusedNameFailsAndNamesTheConfig(t *testing.T) {
 // nobody asked. That is neither a pass for the name nor a failure of the file, so it goes to stderr
 // and leaves the status to the names that were asked about.
 func TestANameNothingCouldAskAboutIsNeitherPassedNorFailed(t *testing.T) {
-	status, out, errOut := run(t, func(selection modelpolicy.Selection) error {
-		if selection.Client == "codex" {
-			return errors.New("codex is not on PATH here")
+	status, out, errOut := run(t, "claude", func(selection modelpolicy.Selection) (readerjudge.Served, error) {
+		if selection.Model == "unrun-claude" {
+			return readerjudge.Served{}, errors.New("unrun-claude is not served here")
 		}
-		return nil
+		return served(selection)
 	}, policyFile(t))
 	if status != 0 {
-		t.Fatalf("status = %d, want 0 — the claude names resolved\n%s%s", status, out, errOut)
+		t.Fatalf("status = %d, want 0 — the other claude names resolved\n%s%s", status, out, errOut)
 	}
-	if strings.Contains(out, "codex cheap-codex at low — the provider will run it") {
+	if strings.Contains(out, "claude unrun-claude — served") {
 		t.Errorf("a name nothing asked about was reported as good:\n%s", out)
 	}
-	if !strings.Contains(errOut, "judge codex cheap-codex at low — not resolved") {
+	if !strings.Contains(errOut, "claude unrun-claude — not resolved") {
 		t.Errorf("the unresolved names are not reported:\n%s", errOut)
 	}
 }
@@ -114,8 +125,8 @@ func TestANameNothingCouldAskAboutIsNeitherPassedNorFailed(t *testing.T) {
 // the file made by a run that measured none of them.
 func TestNoProviderReachableIsNotACleanRun(t *testing.T) {
 	path := policyFile(t)
-	status, out, errOut := run(t, func(modelpolicy.Selection) error {
-		return errors.New("not on PATH here")
+	status, out, errOut := run(t, "codex", func(modelpolicy.Selection) (readerjudge.Served, error) {
+		return readerjudge.Served{}, errors.New("not on PATH here")
 	}, path)
 	if status != 2 {
 		t.Fatalf("status = %d, want 2\n%s%s", status, out, errOut)
@@ -127,8 +138,8 @@ func TestNoProviderReachableIsNotACleanRun(t *testing.T) {
 
 func TestAPolicyItCannotReadIsExitTwo(t *testing.T) {
 	var out, errOut bytes.Buffer
-	status := Run(Command{Args: []string{"--config", filepath.Join(t.TempDir(), "absent.json")},
-		Stdout: &out, Stderr: &errOut, Probe: func(modelpolicy.Selection) error { return nil }})
+	status := Run(Command{Args: []string{"--agent=claude", "--config", filepath.Join(t.TempDir(), "absent.json")},
+		Stdout: &out, Stderr: &errOut, Probe: func(modelpolicy.Selection) (readerjudge.Served, error) { return readerjudge.Served{}, nil }})
 	if status != 2 {
 		t.Fatalf("status = %d, want 2\n%s%s", status, out.String(), errOut.String())
 	}
@@ -154,7 +165,7 @@ func TestAFilePastTheProbeCeilingIsRefusedRatherThanPaidFor(t *testing.T) {
 		t.Fatal(err)
 	}
 	asked := 0
-	status, out, errOut := run(t, func(modelpolicy.Selection) error { asked++; return nil }, path)
+	status, out, errOut := run(t, "codex", func(modelpolicy.Selection) (readerjudge.Served, error) { asked++; return readerjudge.Served{}, nil }, path)
 	if status != 2 {
 		t.Fatalf("status = %d, want 2\n%s%s", status, out, errOut)
 	}
@@ -187,7 +198,7 @@ done
 	}
 	t.Setenv("PATH", dir)
 	for _, client := range []string{"claude", "codex"} {
-		if err := liveProbe(modelpolicy.Selection{Client: client, Model: "fixture-model", Effort: "low"}); err != nil {
+		if _, err := liveProbe(modelpolicy.Selection{Client: client, Model: "fixture-model", Effort: "low"}); err != nil {
 			t.Fatalf("%s probe: %v", client, err)
 		}
 	}
@@ -203,7 +214,7 @@ done
 // isRefusal is what separates the two, so the mapping a missing CLI lands on is asserted here.
 func TestLiveProbeCallsAMissingCliUnresolvedRatherThanARefusal(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	err := liveProbe(modelpolicy.Selection{Client: "codex", Model: "fixture-model", Effort: "low"})
+	_, err := liveProbe(modelpolicy.Selection{Client: "codex", Model: "fixture-model", Effort: "low"})
 	if err == nil {
 		t.Fatal("a missing CLI answered as though it had run the model")
 	}
@@ -231,13 +242,46 @@ func TestALongSelectionIsCutAndMarkedRatherThanPrintedWhole(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, out, errOut := run(t, func(modelpolicy.Selection) error { return nil }, path)
+	_, out, errOut := run(t, "codex", func(modelpolicy.Selection) (readerjudge.Served, error) { return readerjudge.Served{}, nil }, path)
 	for _, line := range strings.Split(out, "\n") {
-		if len(line) > len("model-check: ")+maxReportedSelectionBytes+len(" — the provider will run it") {
+		if len(line) > len("model-check: ")+maxReportedSelectionBytes+len(" — the provider will run it; it reports no served model") {
 			t.Fatalf("a reported line ran past the bound (%d bytes):\n%s%s", len(line), out, errOut)
 		}
 	}
 	if strings.Contains(out, task+" codex "+model) {
 		t.Errorf("the whole untrimmed selection reached the report:\n%s", out)
+	}
+}
+
+// An account serving another model than the row asks for is reported on its line and in one summary,
+// and the run still passes: the row keeps the model it intends.
+func TestASubstitutedModelIsReportedAndPasses(t *testing.T) {
+	status, out, errOut := run(t, "claude", func(selection modelpolicy.Selection) (readerjudge.Served, error) {
+		return readerjudge.Served{Requested: selection.Model, Answered: "claude-opus-5-5[1m]"}, nil
+	}, policyFile(t))
+	if status != 0 {
+		t.Fatalf("status = %d, want 0\n%s%s", status, out, errOut)
+	}
+	if !strings.Contains(out, "judge claude cheap-claude — SUBSTITUTED: claude-opus-5-5[1m] answered") ||
+		!strings.Contains(out, "WARNING: optimal model use is not possible on this account: 3 selection(s)") {
+		t.Fatalf("the substitution is not reported:\n%s", out)
+	}
+}
+
+// The app and the CLI can be signed into different accounts, and the report says so.
+func TestTwoAccountsAreNamedWhenTheyDiffer(t *testing.T) {
+	var out, errOut bytes.Buffer
+	Run(Command{Args: []string{"--agent=claude", "--config", policyFile(t)}, Stdout: &out, Stderr: &errOut,
+		Probe: served, Accounts: func() (string, string) { return "app@example.invalid (A, team)", "cli@example.invalid (B, max)" }})
+	if !strings.Contains(out.String(), "the app runs on app@example.invalid (A, team) and the CLI on cli@example.invalid (B, max)") {
+		t.Fatalf("the differing accounts are not named:\n%s", out.String())
+	}
+}
+
+// The client is named, since each probe spends a call on that client's account.
+func TestTheClientIsNamed(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if status := Run(Command{Args: []string{"--config", policyFile(t)}, Stdout: &out, Stderr: &errOut, Probe: served}); status != 2 {
+		t.Fatalf("status = %d, want 2 with no --agent\n%s", status, errOut.String())
 	}
 }

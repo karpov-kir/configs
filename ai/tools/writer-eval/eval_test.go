@@ -1,13 +1,11 @@
 package writereval
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -19,6 +17,7 @@ import (
 
 	census "configs/ai/tools/comment-census"
 	modelpolicy "configs/ai/tools/model-policy"
+	readerjudge "configs/ai/tools/reader-judge"
 )
 
 const casesDir = "testdata/cases"
@@ -379,25 +378,45 @@ func writerOf(settings modelpolicy.Settings) writerCall {
 	return func(text string) (string, error) { return callWriter(settings, text) }
 }
 
+// callWriter puts the text to the row's model through reader-judge's caller, the one every
+// programmatic call here uses. It tallies which model answered, since an account can serve another
+// model than the row asks for and says so only in the call's own report.
 func callWriter(settings modelpolicy.Settings, text string) (string, error) {
-	args := []string{"-p", "--model", settings.Model, "--output-format", "text",
-		"--tools", "", "--setting-sources", "", "--strict-mcp-config"}
-	if settings.Effort != "" {
-		args = append(args, "--effort", settings.Effort)
+	return readerjudge.ClaudeCallerObserved(callDeadline, settings, servedModels.add)(text, "")
+}
+
+// tally counts the models that answered a run's calls, against the model each asked for.
+type tally struct {
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+var servedModels = &tally{counts: map[string]int{}}
+
+func (t *tally) add(s readerjudge.Served) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	answered := s.Answered
+	if answered == "" {
+		answered = "a model the reply did not name"
 	}
-	ctx, stop := context.WithTimeout(context.Background(), callDeadline)
-	defer stop()
-	command := exec.CommandContext(ctx, "claude", append(args, text)...)
-	// The deadline killed the process and the read went on waiting. A full set at fifteen rolls wedged
-	// twice on 2026-09-22, with every slot held by a call past sixteen minutes against a deadline of
-	// four. WaitDelay closes the pipes a moment after the kill, so a caller that outlives its own
-	// process stops holding a slot.
-	command.WaitDelay = 5 * time.Second
-	out, err := command.Output()
-	if err != nil {
-		return "", fmt.Errorf("the writer row did not answer: %w", err)
+	t.counts["requested "+s.Requested+", served "+answered]++
+}
+
+// line is the tally as a table header prints it. A table names the model it measured, and that is
+// the one that answered.
+func (t *tally) line() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var parts []string
+	for pair, n := range t.counts {
+		parts = append(parts, fmt.Sprintf("%s ×%d", pair, n))
 	}
-	return string(out), nil
+	sort.Strings(parts)
+	if len(parts) == 0 {
+		return "no call answered"
+	}
+	return strings.Join(parts, "; ")
 }
 
 // TestWriterEval runs the labelled set through the real writer row and prints the table. It reads
@@ -472,6 +491,7 @@ func TestWriterEval(t *testing.T) {
 	fmt.Fprintf(&out, "\nwriter row: %s %s, %d case(s), %d roll(s) each\n\n",
 		settings.Model, settings.Effort, len(cases), evalRolls)
 	fmt.Fprintf(&out, "rules read once at %s\n", ruleSum)
+	fmt.Fprintf(&out, "%s\n", servedModels.line())
 	fmt.Fprintf(&out, "%-46s %-8s %-7s %s\n", "case", "want", "passed", "what came back")
 	passed := 0
 	cleanByCase := map[string]int{}

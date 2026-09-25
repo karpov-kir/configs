@@ -3,7 +3,7 @@
 # Install this repository's agent ecosystem on this machine: the shared ~/.kk-flavor bucket, the skills
 # the chosen tier takes, the client's instruction file, and the packages and registries those need.
 #
-#   usage: bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--uninstall]
+#   usage: bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--skip-models] [--uninstall]
 #
 # The recipe is Go, in `ai/tools/ai-bootstrap/`. What is left here is the part of a machine install
 # that cannot be Go: reaching a Go binary on a machine that has none.
