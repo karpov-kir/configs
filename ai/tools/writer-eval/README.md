@@ -12,7 +12,8 @@ JUDGE_EVAL_PLAIN=<a directory of reviewed source> WRITER_EVAL=1 go test ./writer
 ```
 
 Every roll spends a model call, so the suite skips both halves until `WRITER_EVAL` asks for them.
-`WRITER_EVAL_CASE` narrows a run to the cases whose name starts with it. `WRITER_EVAL_ROLLS` sets
+`WRITER_EVAL_CASE` narrows a run to the cases whose name starts with one of its comma-separated
+prefixes. `WRITER_EVAL_ROLLS` sets
 the roll count, `WRITER_EVAL_PARALLEL` a run's workers, `WRITER_EVAL_SLOTS` the calls in flight across
 every run, `WRITER_EVAL_FULL` a run of every roll kept as its rules' column, and `WRITER_EVAL_DUMP` a
 file to write every raw return to.

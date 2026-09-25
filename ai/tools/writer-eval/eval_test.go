@@ -40,7 +40,8 @@ const evalEnv = "WRITER_EVAL"
 // tables against that column, and it is measured once per rule set.
 const fullEnv = "WRITER_EVAL_FULL"
 
-// caseEnv narrows a run to the cases whose name starts with it.
+// caseEnv narrows a run to the cases whose name starts with one of its comma-separated prefixes, so a
+// change is read on the cases it touches and no others.
 const caseEnv = "WRITER_EVAL_CASE"
 
 // parallelEnv bounds how many model calls are in flight at once. Both halves of the eval read it, so
@@ -496,8 +497,11 @@ func TestWriterEval(t *testing.T) {
 	if only := os.Getenv(caseEnv); only != "" {
 		var kept []Case
 		for _, c := range cases {
-			if strings.HasPrefix(c.Name, only) {
-				kept = append(kept, c)
+			for _, prefix := range strings.Split(only, ",") {
+				if prefix = strings.TrimSpace(prefix); prefix != "" && strings.HasPrefix(c.Name, prefix) {
+					kept = append(kept, c)
+					break
+				}
 			}
 		}
 		if len(kept) == 0 {
