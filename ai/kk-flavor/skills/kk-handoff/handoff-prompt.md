@@ -45,6 +45,9 @@
      launch carries the working directory; a prompt someone pastes carries nothing, so a draft that
      names only the commit leaves them guessing which checkout it is in. Then every file another live
      session is holding, and the instruction to rebase onto their work rather than collide with it.
+     Name each resource one session holds at a time the same way — a browser or a single-slot
+     install: who holds it now and whom to ask for it. Never write one as a ban: a receiver told not
+     to use what its work needs hands the work back instead of asking.
      `None` is refused: name the commit even when no one else is live. -->
 
 ## Licence

@@ -104,7 +104,7 @@ Where you have to poll, **poll in the foreground**, and re-issue the call until 
 
 ## Orchestrators — interactive first
 
-Prefer asking the human live over deferring to a digest. Ask a blocking decision (defined below) now. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. A subagent's `blocked` return relays the same way; answer it, then resume **that** subagent by its ID, never a fresh spawn — which re-reads what it already read.
+Prefer asking the human live over deferring to a digest. Ask a blocking decision (defined below) now. **A resource the work needs and you lack is an ask**: a browser, a sign-in, a CAPTCHA, network access. Ask for it, and hand the work over only once the human says they cannot help. A question carries your recommended answer, the legwork behind it, and a number where the stakes are a size or a duration. A subagent's `blocked` return relays the same way; answer it, then resume **that** subagent by its ID, never a fresh spawn — which re-reads what it already read.
 
 **Before concurrent writes, establish who holds each path.** Tell affected peers when ownership changes. Dispatch ready leaf workers within the runtime's actual capacity; a full pool queues work rather than spawning proxy orchestrators. Reuse a worker for a scoped continuation when its context is still valid.
 
