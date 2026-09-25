@@ -148,7 +148,7 @@ const retryPause = 5 * time.Second
 // cases finish first. Each case prints its row the moment its last roll lands. A case whose misses
 // already leave its floor out of reach stops the table: a table that will miss is not worth
 // finishing. A case that can still pass runs every roll, because the bar compares counts.
-func runTable(cases []Case, workers int, need func(Case) int, short func(Case) bool, full bool,
+func runTable(cases []Case, workers int, need, regression func(Case) int, short func(Case) bool, full bool,
 	roll func(context.Context, Case) rollResult) ([][]rollResult, string) {
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
@@ -158,6 +158,7 @@ func runTable(cases []Case, workers int, need func(Case) int, short func(Case) b
 	landed := make([]int, len(cases))
 	clean := make([]int, len(cases))
 	missed := make([]bool, len(cases))
+	hopeless := make([]bool, len(cases))
 	for i := range cases {
 		results[i] = make([]rollResult, evalRolls)
 	}
@@ -174,7 +175,8 @@ func runTable(cases []Case, workers int, need func(Case) int, short func(Case) b
 				mu.Lock()
 				// A proven bystander that has passed every one of its first shortRolls is read short. One
 				// miss sends it to the full read.
-				decided := !full && (clean[j.at] >= need(c) || (short(c) && !missed[j.at] && clean[j.at] >= shortRolls))
+				decided := !full && (clean[j.at] >= need(c) || hopeless[j.at] ||
+					(short(c) && !missed[j.at] && clean[j.at] >= shortRolls))
 				mu.Unlock()
 				if decided {
 					res = rollResult{stopped: true, verdict: Verdict{Name: c.Name, Want: c.Expect, Got: "reached"}}
@@ -194,9 +196,16 @@ func runTable(cases []Case, workers int, need func(Case) int, short func(Case) b
 					fmt.Fprintf(os.Stderr, "stopping the table: %s\n", res.raw)
 					stop()
 				}
-				if !full && !res.stopped && stopped == "" && clean[j.at]+evalRolls-landed[j.at] < need(c) {
+				reachable := clean[j.at] + evalRolls - landed[j.at]
+				if !full && !res.stopped && reachable < need(c) {
+					hopeless[j.at] = true
+				}
+				// The table stops only on a regression: a case that cannot reach main's own count less
+				// two. A case already below its floor on main misses the floor here too, and that miss
+				// belongs to main.
+				if !full && !res.stopped && stopped == "" && reachable < regression(c) {
 					stopped = c.Name
-					fmt.Fprintf(os.Stderr, "stopping the table: %s cannot reach the %d the bar needs\n", c.Name, need(c))
+					fmt.Fprintf(os.Stderr, "stopping the table: %s cannot reach %d, main's count less two\n", c.Name, regression(c))
 					stop()
 				}
 				if landed[j.at] == evalRolls && ctx.Err() == nil {
@@ -305,7 +314,7 @@ func TestATableStopsAtTheFirstCaseThatCannotPass(t *testing.T) {
 		{Name: "c-after", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := map[string]int{}
-	results, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
+	results, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) int { return evalRolls }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran[c.Name]++
 		mu.Unlock()
@@ -331,7 +340,7 @@ func TestACaseStopsRollingOnceItHasTheCountTheBarNeeds(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := 0
-	results, _ := runTable(cases, 1, func(Case) int { return 3 }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
+	results, _ := runTable(cases, 1, func(Case) int { return 3 }, func(Case) int { return 3 }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran++
 		mu.Unlock()
@@ -358,6 +367,17 @@ func needFrom(reference map[string]int) func(Case) int {
 			need = at - 2
 		}
 		return need
+	}
+}
+
+// regressionFrom is a case's regression line: the kept column's count less two, or its floor where no
+// column is kept. A case under that line has regressed.
+func regressionFrom(reference map[string]int) func(Case) int {
+	return func(c Case) int {
+		if at, known := reference[c.Name]; known {
+			return max(at-2, 0)
+		}
+		return floorFor(c)
 	}
 }
 
@@ -403,7 +423,7 @@ func TestAUsageLimitStopsTheTable(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := 0
-	_, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) bool { return false }, true, func(_ context.Context, c Case) rollResult {
+	_, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) int { return evalRolls }, func(Case) bool { return false }, true, func(_ context.Context, c Case) rollResult {
 		mu.Lock()
 		ran++
 		mu.Unlock()
@@ -441,7 +461,7 @@ func TestAProvenBystanderIsReadShort(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
 	var mu sync.Mutex
 	ran := map[string]int{}
-	results, _ := runTable(cases, 1, func(Case) int { return evalRolls - 1 }, func(Case) bool { return true }, false,
+	results, _ := runTable(cases, 1, func(Case) int { return evalRolls - 1 }, func(Case) int { return evalRolls - 1 }, func(Case) bool { return true }, false,
 		func(_ context.Context, c Case) rollResult {
 			mu.Lock()
 			ran[c.Name]++
@@ -468,5 +488,23 @@ func TestTheEightAndATargetAreReadInFull(t *testing.T) {
 		if got := short(Case{Name: name}); got != want {
 			t.Errorf("%s read short %v, want %v", name, got, want)
 		}
+	}
+}
+
+// A case already below its floor on main stops its own rolls on a miss and leaves the table running,
+// since that miss belongs to main.
+func TestACaseBelowItsFloorOnMainLeavesTheTableRunning(t *testing.T) {
+	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
+	var mu sync.Mutex
+	ran := map[string]int{}
+	_, stopped := runTable(cases, 1, func(Case) int { return evalRolls }, func(Case) int { return 0 },
+		func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
+			mu.Lock()
+			ran[c.Name]++
+			mu.Unlock()
+			return rollResult{verdict: Verdict{Name: c.Name, Want: ExpectNone, Got: ExpectWritten}}
+		})
+	if stopped != "" || ran["a"] != 1 || ran["b"] != 1 {
+		t.Fatalf("stopped %q, ran %v; want each case stopped after its miss and the table run through", stopped, ran)
 	}
 }

@@ -40,7 +40,8 @@ const evalEnv = "WRITER_EVAL"
 // tables against that column, and it is measured once per rule set.
 const fullEnv = "WRITER_EVAL_FULL"
 
-// caseEnv narrows a run to the cases whose name starts with it.
+// caseEnv narrows a run to the cases whose name starts with one of its comma-separated prefixes. A
+// change is read on the cases it touches.
 const caseEnv = "WRITER_EVAL_CASE"
 
 // parallelEnv bounds how many model calls are in flight at once. Both halves of the eval read it, so
@@ -496,8 +497,11 @@ func TestWriterEval(t *testing.T) {
 	if only := os.Getenv(caseEnv); only != "" {
 		var kept []Case
 		for _, c := range cases {
-			if strings.HasPrefix(c.Name, only) {
-				kept = append(kept, c)
+			for _, prefix := range strings.Split(only, ",") {
+				if prefix = strings.TrimSpace(prefix); prefix != "" && strings.HasPrefix(c.Name, prefix) {
+					kept = append(kept, c)
+					break
+				}
 			}
 		}
 		if len(kept) == 0 {
@@ -511,7 +515,7 @@ func TestWriterEval(t *testing.T) {
 	full := os.Getenv(fullEnv) != ""
 	reference := mainColumn()
 	need := needFrom(reference)
-	results, stopped := runTable(cases, parallelCalls(t), need, shortFor(reference, targeted), full, func(ctx context.Context, c Case) rollResult {
+	results, stopped := runTable(cases, parallelCalls(t), need, regressionFrom(reference), shortFor(reference, targeted), full, func(ctx context.Context, c Case) rollResult {
 		return rollOnce(ctx, settings, c, prompt(t, c), &prof)
 	})
 
