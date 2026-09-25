@@ -515,7 +515,7 @@ func TestWriterEval(t *testing.T) {
 	full := os.Getenv(fullEnv) != ""
 	reference := mainColumn()
 	need := needFrom(reference)
-	results, stopped := runTable(cases, parallelCalls(t), need, shortFor(reference, targeted), full, func(ctx context.Context, c Case) rollResult {
+	results, stopped := runTable(cases, parallelCalls(t), need, regressionFrom(reference), shortFor(reference, targeted), full, func(ctx context.Context, c Case) rollResult {
 		return rollOnce(ctx, settings, c, prompt(t, c), &prof)
 	})
 
