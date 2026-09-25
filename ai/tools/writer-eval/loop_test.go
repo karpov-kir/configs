@@ -100,7 +100,7 @@ func writeChecked(call writerCall, check recordCheck, asked, code string) (Retur
 // measured against such a column runs with the check off.
 const checkEnv = "WRITER_EVAL_CHECK"
 
-// recordCheckFor is the check a roll runs, or one that passes everything where checkEnv is off.
+// recordCheckFor is the check a roll runs, or one that passes everything where the switch is off.
 func recordCheckFor() recordCheck {
 	if os.Getenv(checkEnv) == "off" {
 		return func(string, bool) ([]string, error) { return nil, nil }

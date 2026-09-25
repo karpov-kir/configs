@@ -986,8 +986,8 @@ func TestABarIsAPattern(t *testing.T) {
 	}
 }
 
-// rescoreEnv names a dump to score again against the case files as they are now. A label ruled while
-// a table runs is read at scoring, so the rolls already taken are scored again and never re-rolled.
+// rescoreEnv names a dump to score again against the case files as they are now. A table reads each
+// label at scoring. A label ruled mid-table scores the rolls already taken, and nothing rolls again.
 // It reads rolls taken with the check off: a roll the loop ended at none keeps a note in its answer.
 const rescoreEnv = "WRITER_EVAL_RESCORE"
 
