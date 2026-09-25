@@ -72,7 +72,7 @@ stopped, not diagnosed.
 
 Where the full set will not fit, an isolation run is k03, the case under test and the plain half.
 k03 is the guard. It is a negated case over four conditions, and the refactor lane is owed
-it. A rule that talks the writer into writing empties k03 first. The full set runs once at landing.
+it. A rule that talks the writer into writing empties k03 first.
 
 ## The rule text a run measured
 
@@ -102,6 +102,17 @@ why. The plain half reads a directory of reviewed source named by `JUDGE_EVAL_PL
 a reviewer left alone. It asks what share of them the writer writes for, and what share of those fail
 a check. The set is named by the environment and by no committed path. A case there
 is named by its position in the sorted set, and only counts leave the run.
+
+## What a change is measured on
+
+A full table costs tens of dollars, so it runs seldom. A change lands on the cases it targets, Kirill's
+eight (k15, k19 to k23, k25, k26), and every case whose rule paragraph it touches, all at fifteen rolls
+with the bar-aware stop, read against the kept column for main's rules. A full table runs only where a
+change edits text every case reads, such as the record contract, the fates or the exemplars, or where
+no column is kept for main's rules.
+
+The column for main's rules at 4cc6a9eb8cae was read on 2026-09-25 at 16 workers: 690 calls, every one
+answered by claude-opus-5-5, none retried, 15m44s wall, $35.83. 33 of 46 cases cleared their floor.
 
 ## Runs share the account through slots
 
