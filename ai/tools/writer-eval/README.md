@@ -197,6 +197,26 @@ Item 18's rules read within two of main's rules on the same one-call harness at 
 restatements, on over-the-sentence-ceiling and rename. Both causes are item 19's: the sentence ceiling
 that a second fact at the site's branch pushes past, and the audit reading a description as a term.
 
+## The loop's band
+
+With the check loop on, main's rules at 7d412e50 were read twice on nine cases, every roll, on
+2026-09-25. Eight of nine moved by one roll or less:
+
+| case | first | second |
+|---|---|---|
+| k06 | 7 | 6 |
+| k08 | 8 | 9 |
+| k14 | 7 | 6 |
+| k19 | 15 | 15 |
+| k21 | 15 | 15 |
+| k23 | 15 | 15 |
+| k35 | 15 | 15 |
+| l05 | 7 | 11 |
+| l11 | 14 | 15 |
+
+l05 moved by four, and the loop sent back only one or two of its rolls. Its writers split on the brief's
+drop of a claim a reader takes for granted. The pair cost $34 with no retry.
+
 ## What a case cannot measure
 
 The writer a case runs is told it has no tools. Every case hands it the code, the facts, and
