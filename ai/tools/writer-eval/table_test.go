@@ -202,7 +202,7 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 				}
 				// The table stops only on a regression: a case that cannot reach main's own count less
 				// two. A case already below its floor on main misses the floor here too, and that miss
-				// is main's, not the change's.
+				// belongs to main.
 				if !full && !res.stopped && stopped == "" && reachable < regression(c) {
 					stopped = c.Name
 					fmt.Fprintf(os.Stderr, "stopping the table: %s cannot reach %d, main's count less two\n", c.Name, regression(c))
@@ -492,7 +492,7 @@ func TestTheEightAndATargetAreReadInFull(t *testing.T) {
 }
 
 // A case already below its floor on main stops its own rolls on a miss and leaves the table running,
-// since that miss is main's, not the change's.
+// since that miss belongs to main.
 func TestACaseBelowItsFloorOnMainLeavesTheTableRunning(t *testing.T) {
 	cases := []Case{{Name: "a", Expect: ExpectNone}, {Name: "b", Expect: ExpectNone}}
 	var mu sync.Mutex
