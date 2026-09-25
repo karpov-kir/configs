@@ -232,8 +232,8 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 			return "", &ModelRefused{Client: command.name, Model: command.model}
 		}
 		// A limit arrives at a failing exit too: `claude -p --output-format json` exits 1 with the
-		// apology in its result. Read on success alone, a table of 404 calls on 2026-09-25 reported
-		// only "exit status 1" and could not say why.
+		// apology in its result. A check on success only left a table of 404 failed calls on
+		// 2026-09-25 reporting "exit status 1" with no reason.
 		var failed *exec.ExitError
 		said := out
 		if errors.As(err, &failed) {
@@ -255,8 +255,8 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	return string(out), nil
 }
 
-// whatItSaid is the CLI's own account of a failed call, bounded for a message: the JSON result where it
-// printed one, or else its output as it came.
+// whatItSaid is the CLI's own account of a failed call, cut to a message's length. It is the JSON
+// result where the CLI printed one, or else the output as it came.
 func whatItSaid(out []byte) string {
 	var reply struct {
 		Result string `json:"result"`
