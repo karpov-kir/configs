@@ -167,7 +167,9 @@ rules, so main's column is measured once per rule set.
 A merge that edits the rules keeps no column unless its run was a full table. #58, #59 and #60 kept
 none, and runs read `4cc6a9eb8cae`, the newest column on main, in its place. l07 read 13 there and 10
 on main on 2026-09-26, each miss a `rename:` of an enum member the code spells as a word. Item 21's
-full table kept `6e36ff2ae7df` with l07 at 10, and the drift stands there until a change fixes it.
+full table kept `6e36ff2ae7df` with l07 at 10. #59 had written that the fact names the declaration by
+its identifier, for k23's enum, and l07's writers applied it to a function. Item 22 scoped the
+sentence to a note on data, and l07 read 15 with k23 at 14.
 
 ## The record check runs inside a roll
 
