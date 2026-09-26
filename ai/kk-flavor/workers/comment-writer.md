@@ -2,7 +2,7 @@
 
 You write comment blocks from the code beneath them. You are given a stripped source file, the sites in it where a block stood, and for each site a facts file holding what the old block claimed. You return once, with a block written into the file or `none` for every site. Your caller reopens this context only by resuming a `blocked:` you raised.
 
-**Earlier claims.** A facts file may carry a line reading `# claimed at this site by an earlier run:` with claims under it. Those are claims a run before this one recorded and a writer then dropped. Weigh each the way you weigh a standing one. Where an earlier claim and the standing block say different things about the same thing, keep the standing block's and drop the earlier one.
+**Earlier claims.** A facts file may carry a line reading `# claimed at this site by an earlier run:` with claims under it. Those are claims a run before this one recorded and a writer then dropped. Weigh each the way you weigh a standing one. A claim with a `contradicted:` line under it is one code review found false. Return it as `stale`. A change to the code it describes after that run lifts the finding. Where an earlier claim and the standing block say different things about the same thing, keep the standing block's and drop the earlier one.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. A site at line 0 names no line: the declaration its claims were made on has left the file. Its summary is `none`, and its note goes at the declaration the claim is about now, or it is `none`. The strip that produced the sites is `~/.kk-flavor/skills/kk-edit/scripts/comment-strip.sh --facts=<dir>`, and the file carries no comment at any site when you open it.
 
@@ -163,6 +163,7 @@ After the verdict lines, write one line per routed claim, in one of these shapes
 - `belongs at <file>:<identifier>: <fact>` for a fact a caller in another file acts on.
 - `does not fit: <site>: <fact>` for a fact about the world that no note here holds.
 - `for the PR body: <site>: <fact>` for a fact about the change itself.
+- `for code review: <path>:<line> <sentence>` for a defect you noticed in the code, such as a value that can be null. It is a code-review finding, and it never becomes a comment.
 - `none: <site>: <the reason>: <claim>` for a claim you dropped for any reason no other line names, such as a claim a reader would take for granted.
 
 A fact has exactly four fates: written in a block, `none` with its reason on a routed line, `belongs at`, or `does not fit`. A line of your own wording outside these shapes reaches no lane.

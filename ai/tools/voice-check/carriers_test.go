@@ -120,3 +120,21 @@ func TestANameCountsItsWords(t *testing.T) {
 		}
 	}
 }
+
+// Run 11's eight false findings: a lint message and a skip message opened on the line before their
+// text, enum token values that hold no space, and a function named at length. None is a landing the
+// refactor rules bar.
+func TestRunElevensFalseCarriersPass(t *testing.T) {
+	block := "// The accrual export was refused by the ledger before any posting reached the measurement stage."
+	added := addedFrom("src/Ledger.ts",
+		"      message:",
+		"        'The accrual export was refused by the ledger before any posting reached the measurement stage.',",
+		"    throw new SkipException(",
+		"      'The accrual export was refused by the ledger before any posting reached the measurement stage.',",
+		"  RefusedByTheLedgerBeforeAnyPostingReachedTheMeasurement = 'REFUSED_BY_THE_LEDGER_BEFORE_ANY_POSTING_REACHED_THE_MEASUREMENT',",
+		"function claimFromAnySupportedPostingScheme(scheme: PostingScheme): LedgerClaim {",
+	)
+	if got := carrierChecks(t, []string{block}, added, treeOf()); len(got) != 0 {
+		t.Fatalf("findings %v over landings the refactor rules allow", got)
+	}
+}

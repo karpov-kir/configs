@@ -32,7 +32,8 @@ const archiveOption = "--archive="
 // The grammar. It carries the stub's name where argv[0] would carry the binary's. A caller then
 // reads a usage line they can retype. A refusal states it: an argument this tool refuses comes from
 // a caller who needs the form, and the refusal alone gives them half of it.
-const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] <path>"
+const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>\n" +
+	"       comment-strip.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence>"
 
 const (
 	exitClean     = 0
@@ -121,6 +122,10 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		fmt.Fprintf(stderr, "%s\n", usage)
 		return exitDidNotRun
 	}
+	if len(args) > 1 && strings.HasPrefix(args[0], archiveOption) && strings.HasPrefix(args[1], contradictOption) {
+		return contradict(strings.TrimPrefix(args[0], archiveOption), strings.TrimPrefix(args[1], contradictOption),
+			args[2:], cwd, refuse)
+	}
 	if !FactsRequested(args) {
 		return refuse("%s", "--facts=<dir> must come first")
 	}
@@ -134,6 +139,20 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		archive = strings.TrimPrefix(args[0], archiveOption)
 		if archive == "" {
 			return refuse("%s", "--archive needs a directory")
+		}
+		args = args[1:]
+	}
+	// A code-review finding goes back to the writer at its own site, and the file's other blocks stay.
+	// Run 11 re-stripped 36 sites for six findings, since the strip took a whole file or nothing.
+	var only map[int]bool
+	if len(args) > 0 && strings.HasPrefix(args[0], linesOption) {
+		only = map[int]bool{}
+		for _, field := range strings.Split(strings.TrimPrefix(args[0], linesOption), ",") {
+			at, err := strconv.Atoi(strings.TrimSpace(field))
+			if err != nil || at < 1 {
+				return refuse("--lines holds %q, which is not a line", shell.Echoable(field))
+			}
+			only[at] = true
 		}
 		args = args[1:]
 	}
@@ -176,6 +195,9 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	lines := shell.SplitLines(content)
 	var units []readerjudge.Unit
 	for _, u := range readerjudge.CommentBlocks(lines) {
+		if only != nil && !blockAt(lines, u, only) {
+			continue
+		}
 		if holdsDirective(lines, u) {
 			fmt.Fprintf(stderr, "%s:%d: a comment the toolchain reads, kept\n", path, u.Line)
 			continue
@@ -259,7 +281,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// deleted the block decided under the rules of its day. This offers the site again, with the
 	// claims and an empty block, so the writer decides it under the rules standing now.
 	held := recordSites(records, sites, shared)
-	if archive != "" {
+	if archive != "" && only == nil {
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
 		offered := map[int]bool{}
@@ -293,7 +315,13 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		if archive != "" {
 			record += earlierFacts(records, s.record, s.line, held)
 		}
-		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(record), 0o644); err != nil {
+		// A claim code review contradicted comes back with that finding under it, and it is never kept
+		// in the archive record, so the claim carries it every time it is offered.
+		offer := record
+		if archive != "" {
+			offer += contradictedIn(archive, path, record)
+		}
+		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(offer), 0o644); err != nil {
 			return refuse("cannot write %s", shell.Echoable(filepath.Join(dir, s.facts)))
 		}
 		if archive != "" {
@@ -568,4 +596,83 @@ func treeNames(cwd string, git repo.Git) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+const linesOption = "--lines="
+const contradictOption = "--contradict="
+
+// blockAt says the block covers one of the lines, or sits on one of them as its declaration. A review
+// names either the comment's own lines or the declaration under it.
+func blockAt(lines []string, u readerjudge.Unit, only map[int]bool) bool {
+	for at := u.Line; at < u.Line+u.Span; at++ {
+		if only[at] {
+			return true
+		}
+	}
+	next := u.Line + u.Span
+	for next <= len(lines) && strings.TrimSpace(lines[next-1]) == "" {
+		next++
+	}
+	return only[next]
+}
+
+// contradictedName is the file under the archive holding what code review contradicted in one source
+// file, one claim a line.
+func contradictedName(archive, path string) string {
+	return filepath.Join(archive, strings.TrimSuffix(archiveName(path, 0), "@0.facts")+".contradicted")
+}
+
+// contradict records a claim code review found false, with the run and the review's sentence. Run 11
+// wrote again a claim runs 9 and 10 had found false, because the strip offered it from the archive with
+// nothing to say a review had read it.
+func contradict(archive, run string, args []string, cwd string, refuse func(string, ...any) int) int {
+	if archive == "" || run == "" || len(args) != 3 {
+		return refuse("%s", "--contradict=<run> takes the path, the claim and the review's sentence")
+	}
+	if !filepath.IsAbs(archive) {
+		archive = filepath.Join(cwd, archive)
+	}
+	if err := os.MkdirAll(archive, 0o755); err != nil {
+		return refuse("cannot create the archive at %s", shell.Echoable(archive))
+	}
+	clean := func(text string) string { return strings.Join(strings.Fields(text), " ") }
+	name := contradictedName(archive, args[0])
+	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return refuse("cannot write %s", shell.Echoable(name))
+	}
+	defer file.Close()
+	if _, err := fmt.Fprintf(file, "%s\t%s\t%s\n", clean(args[1]), clean(run), clean(args[2])); err != nil {
+		return refuse("cannot write %s", shell.Echoable(name))
+	}
+	return exitClean
+}
+
+// normalClaim is a claim as the match reads it: lower-case words, with markers and backticks gone.
+func normalClaim(text string) string {
+	var words []string
+	for _, line := range strings.Split(text, "\n") {
+		words = append(words, strings.Fields(strings.ToLower(commentText(line)))...)
+	}
+	return strings.ReplaceAll(strings.Join(words, " "), "`", "")
+}
+
+// contradictedIn is a `contradicted:` line for every recorded claim the offered facts hold.
+func contradictedIn(archive, path, offered string) string {
+	body, err := os.ReadFile(contradictedName(archive, path))
+	if err != nil {
+		return ""
+	}
+	held := normalClaim(offered)
+	var out strings.Builder
+	for _, line := range strings.Split(string(body), "\n") {
+		fields := strings.SplitN(line, "\t", 3)
+		if len(fields) != 3 || fields[0] == "" {
+			continue
+		}
+		if strings.Contains(held, normalClaim(fields[0])) {
+			fmt.Fprintf(&out, "\ncontradicted: %s %s (the claim: %s)\n", fields[1], fields[2], fields[0])
+		}
+	}
+	return out.String()
 }

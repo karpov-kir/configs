@@ -539,3 +539,38 @@ func TestTwoRecordsReadingToOneLineAreOneSite(t *testing.T) {
 		t.Errorf("the one site does not carry both claims:\n%s", got)
 	}
 }
+
+// A review finding goes back to the writer at its own site, and the file's other blocks stay put. Run 11
+// re-stripped 36 sites for six findings.
+func TestLinesStripOnlyTheNamedBlocks(t *testing.T) {
+	f := newFixture(t, "f.go", "// one\nfunc a() {}\n// two\nfunc b() {}\n")
+	f.cut("--lines=4")
+	if want := "// one\nfunc a() {}\nfunc b() {}\n"; f.body() != want {
+		t.Fatalf("stripped file:\n%q\nwant\n%q", f.body(), want)
+	}
+}
+
+// A claim code review found false comes back with that finding under it, every time the strip offers
+// it. Run 11 wrote again a claim two earlier reviews had called false.
+func TestAContradictedClaimComesBackWithTheFinding(t *testing.T) {
+	f := newFixture(t, "f.ts", "// canPost throws when its this binding is not the object that owns it.\nconst claim = keys.canPost?.(scheme);\n")
+	archive := filepath.Join(f.dir, "archive")
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=run10", f.path,
+		"canPost throws when its `this` binding is not the object that owns it",
+		"canPost is static on both prefixed interfaces, so no this binding applies"}, f.dir, noRepository, &out, &errOut); code != exitClean {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	f.cut("--archive=" + archive)
+	facts := string(mustRead(t, filepath.Join(f.facts, "1.facts")))
+	if !strings.Contains(facts, "contradicted: run10 canPost is static on both prefixed interfaces") {
+		t.Fatalf("facts:\n%s", facts)
+	}
+	kept, _ := os.ReadDir(archive)
+	for _, entry := range kept {
+		if strings.HasSuffix(entry.Name(), ".facts") &&
+			strings.Contains(string(mustRead(t, filepath.Join(archive, entry.Name()))), "contradicted:") {
+			t.Fatalf("the archive record %s keeps the finding, which would repeat it every run", entry.Name())
+		}
+	}
+}

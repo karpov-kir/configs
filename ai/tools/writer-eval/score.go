@@ -74,7 +74,7 @@ var placedLine = regexp.MustCompile(`(?i)^\s*at:\s*(\d+)\s*$`)
 // The lines a writer returns beside its block: what it dropped and where that went. They are the
 // return's own bookkeeping, and reading one as prose scored a correct `carried by` as a written
 // block. Three of l07's five rolls answered correctly and one was counted.
-var verdictLine = regexp.MustCompile(`(?i)^\s*(shown by the body|carried by [^:]*|stale|for the pr body|does not fit|belongs at [^:]*|invariant diverged|about this code|unverified|none):`)
+var verdictLine = regexp.MustCompile(`(?i)^\s*(shown by the body|carried by [^:]*|stale|for the pr body|does not fit|belongs at [^:]*|invariant diverged|about this code|unverified|none|for code review):`)
 
 // recordLine is one slot of the note's record.
 var recordLine = regexp.MustCompile(`(?i)^\s*(fact|bears_on|does):\s*\S`)
