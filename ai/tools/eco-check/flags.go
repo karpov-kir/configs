@@ -257,9 +257,9 @@ func (c *checker) documentedFlagsOf(path string) documentedFlags {
 	return usageFlags(lines)
 }
 
-// The flags a script's own usage block names. The block is the first `usage:` line of the leading
-// comment header, each `usage:` line under it at its indent for another form of the call, plus the
-// lines under them indented past them — a grammar wrapped over several lines is one
+// The flags a script's own usage block names. The block opens on the first `usage:` line of the
+// leading comment header. A `usage:` line under it at its indent is another form of the call. The
+// lines under either indented past it belong to it — a grammar wrapped over several lines is one
 // usage line, and the prose line beside it at the header's own indent is not part of it. That boundary
 // is what keeps `# Run --help for …` from documenting a flag the grammar never names.
 //

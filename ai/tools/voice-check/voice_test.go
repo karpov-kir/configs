@@ -366,6 +366,27 @@ func TestADocTagLineIsNotProse(t *testing.T) {
 	}
 }
 
+// A usage line is a grammar, and a script with two forms of its call writes one per line. Read as prose,
+// comment-strip.sh's two joined into one long sentence and made its header a long block.
+func TestAUsageLineIsNotProse(t *testing.T) {
+	header := []string{
+		"#!/usr/bin/env bash",
+		"# Removes a file's comment blocks.",
+		"#",
+		"#   usage: toy.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path> and more words here",
+		"#   usage: toy.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence> and more",
+		"#",
+		"# One.",
+		"# Two.",
+		"# Three.",
+		"set -e",
+	}
+	found := voiceScanner().scanSource("toy.sh", header, nil, nil)
+	if hasCheck(found, checkLongBlock) || hasCheck(found, checkLongSentence) {
+		t.Errorf("two usage lines were read as prose:\n%s", render(found))
+	}
+}
+
 // A tag line's words do not join the segment either. Joined, `@param book the book to total` would put
 // the signature in the middle of whatever sentence ran before it.
 func TestADocTagLineDoesNotJoinTheSentenceAroundIt(t *testing.T) {
