@@ -43,7 +43,15 @@ func wordRuns(text string) []string {
 }
 
 // reMessageSite is a string a human reads when a rule fires: a lint rule's message or an error's.
-var reMessageSite = regexp.MustCompile(`\bmessage\s*:|\bnew\s+\w*Error\s*\(`)
+var reMessageSite = regexp.MustCompile(`\bmessage\s*:|\bnew\s+\w*(Error|Exception)\s*\(`)
+
+// reMessageOpens is a message site whose text starts on the next line: a key or a call left open. Run
+// 11 flagged a lint rule's message and a skip message written that way.
+var reMessageOpens = regexp.MustCompile(`(\bmessage\s*:|\bnew\s+\w*(Error|Exception)\s*\()\s*$`)
+
+// reProse is a string a person reads: it holds a space. A token value, such as an enum's published
+// name, holds none, and an archived block paraphrasing that token is no carrier moved into it.
+var reProse = regexp.MustCompile(`\s`)
 
 // reValueName is a constant or a variable declared on the line.
 var reValueName = regexp.MustCompile(`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)`)
@@ -51,9 +59,6 @@ var reValueName = regexp.MustCompile(`\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)`)
 // reTypeMember is a member of an interface or a type: a name, a type, and a semicolon to end it. An
 // object literal's entry ends on a comma, and it passes a value to whatever reads it.
 var reTypeMember = regexp.MustCompile(`^\s*(?:readonly\s+)?([A-Za-z_$][\w$]*)\??\s*:[^,]*;\s*$`)
-
-// reNamedDeclaration is any other name the line declares.
-var reNamedDeclaration = regexp.MustCompile(`\b(?:function|class|enum|interface|type)\s+([A-Za-z_$][\w$]*)`)
 
 // nameWords counts the words a name spells, split at humps and underscores. A digit is no word.
 func nameWords(name string) int {
@@ -87,13 +92,19 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 		if isTestFile(file) {
 			continue
 		}
+		inMessage := false
 		for _, line := range added.byFile[file] {
 			code := strings.TrimLeft(line.text, " \t")
 			if isComment(code) {
 				continue
 			}
-			if !reMessageSite.MatchString(line.text) {
+			message := inMessage || reMessageSite.MatchString(line.text)
+			inMessage = reMessageOpens.MatchString(line.text) || (inMessage && strings.HasSuffix(strings.TrimSpace(line.text), "+"))
+			if !message {
 				for _, literal := range reStringLiteral.FindAllString(line.text, -1) {
+					if !reProse.MatchString(literal) {
+						continue
+					}
 					for _, run := range wordRuns(literal) {
 						if archived[run] {
 							found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierQuotes, Text: run})
@@ -102,11 +113,11 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 					}
 				}
 			}
+			// A sentence-named carrier holds a value. A function or a type named at length carries no
+			// fact moved out of a block, and run 11 flagged a six-word function name.
 			var names []string
-			for _, re := range []*regexp.Regexp{reValueName, reTypeMember, reNamedDeclaration} {
-				for _, m := range re.FindAllStringSubmatch(line.text, -1) {
-					names = append(names, m[1])
-				}
+			for _, m := range reValueName.FindAllStringSubmatch(line.text, -1) {
+				names = append(names, m[1])
 			}
 			for _, name := range names {
 				if nameWords(name) > carrierNameWords {
@@ -251,7 +262,7 @@ func carriers(out console, dir string, args []string, cwd string, git repo.Git, 
 	out.note("carriers: %d finding(s) over %d file(s) against %d archived block(s).",
 		len(found), len(added.order), len(blocks))
 	if len(found) > 0 {
-		out.note("each finding is a `carried by` that carries nothing: the block goes back to the writer.")
+		out.note("each finding is a landing that carries nothing: refuse the `carried by` lines of its file, so the refactor lane lands a real carrier or returns `stays:`.")
 		return exitFound
 	}
 	return exitClean

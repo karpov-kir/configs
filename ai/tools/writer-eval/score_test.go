@@ -266,3 +266,11 @@ func TestACaseScoresTheFateItRoutes(t *testing.T) {
 		t.Fatalf("a return routing the fact to the PR body fails %v", got)
 	}
 }
+
+// A code observation is routed to code review and never read as block prose.
+func TestACodeObservationIsRouted(t *testing.T) {
+	r := ParseReturn("summary: none\nnote: none\nnone\nfor code review: src/Ledger.ts:12 the search value can be null and prints ?null")
+	if !r.None || len(r.Routed) != 1 || r.Routed[0] != "for code review" {
+		t.Fatalf("return %+v", r)
+	}
+}

@@ -402,7 +402,9 @@ func prompt(t *testing.T, c Case) string {
 		"with every comment block already removed and every line numbered:\n\n```ts\n%s\n```\n\n"+
 		"The facts file for the site holds:\n\n%s\n\n", c.Name, c.Site, numbered(c.Code), c.Facts)
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
-	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
+	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all. The
+	// callers' and tests' names stay out: with them in, k26 fell from 15 of 15 to 9, each miss a rename
+	// of a name the list did not hold.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\n%s\n\n",
 		strings.Join(append(census.IdentifierWords(strings.Split(c.Code, "\n")), hyphenatedNames(c.Code)...), " "))
 	if c.Callers != "" {
@@ -415,9 +417,10 @@ func prompt(t *testing.T, c Case) string {
 	}
 	// The brief says where a block goes, when a site is none, how attempts are shown and what the check
 	// is. The prompt restated each in its own words until 2026-09-24, and a restatement is text the
-	// pipeline's writer never reads. What stays is what the brief cannot say: that no tool runs here, and
-	// the shape the harness parses.
-	out.WriteString("You have no tools here. Answer with a line `summary: needed` or `summary: none`, a line " +
+	// pipeline's writer never reads. What stays is what the brief cannot say: that the harness runs the
+	// check, and the shape it parses. Told only that it had no tools, the writer routed the unrun check
+	// as a code-review finding in four rolls of item 20's table.
+	out.WriteString("You have no tools here, and the harness runs the record check over your answer. Answer with a line `summary: needed` or `summary: none`, a line " +
 		"`note: written` or `note: none`, a line `at: <line number>` naming the declaration the block sits " +
 		"on, then the block, or the single word none, or a line `rename: <what to rename>`. Where you write " +
 		"a note, give its record first, one slot per line: `fact:`, `bears_on:` and `does:`. Add the " +
@@ -515,14 +518,33 @@ func TestWriterEval(t *testing.T) {
 	full := os.Getenv(fullEnv) != ""
 	reference := mainColumn()
 	need := needFrom(reference)
+	asked := map[string]string{}
+	for _, c := range cases {
+		asked[c.Name] = askedSum(prompt(t, c))
+	}
+	resume := &resumed{}
+	if os.Getenv(resumeEnv) != "" {
+		resume = resumeFrom(os.Getenv(dumpEnv), ruleSum, func(name string) string { return asked[name] })
+	}
 	results, stopped := runTable(cases, parallelCalls(t), need, regressionFrom(reference), shortFor(reference, targeted), full, func(ctx context.Context, c Case) rollResult {
+		if kept, ok := resume.take(c.Name); ok {
+			return kept
+		}
 		return rollOnce(ctx, settings, c, prompt(t, c), &prof)
 	})
 
 	var rows []dumped
 	for i, c := range cases {
 		for roll, res := range results[i] {
-			rows = append(rows, dumped{Case: c.Name, Roll: roll, Raw: res.raw, Findings: res.findings})
+			if res.reused {
+				continue
+			}
+			row := dumped{Case: c.Name, Roll: roll, Raw: res.raw, Findings: res.findings}
+			if !res.stopped && !res.limit && res.verdict.Got != "error" {
+				verdict := res.verdict
+				row.Rules, row.Asked, row.Verdict, row.Rounds = ruleSum, asked[c.Name], &verdict, res.rounds
+			}
+			rows = append(rows, row)
 		}
 	}
 	dumpReturns(rows)
@@ -534,6 +556,9 @@ func TestWriterEval(t *testing.T) {
 	fmt.Fprintf(&out, "rules read once at %s\n", ruleSum)
 	fmt.Fprintf(&out, "%s\n", servedModels.line())
 	fmt.Fprintf(&out, "%s\n", prof.String())
+	if resume.taken > 0 {
+		fmt.Fprintf(&out, "resumed %d roll(s) from %s\n", resume.taken, os.Getenv(dumpEnv))
+	}
 	if stopped != "" {
 		fmt.Fprintf(&out, "stopped early: %s cannot reach the count the bar needs, so the rolls after it did not run\n", stopped)
 	}
@@ -613,6 +638,12 @@ type dumped struct {
 	// Findings is what the record check printed at each turn it sent the block back, so a roll that
 	// recovered still shows what the check refused.
 	Findings [][]string `json:"findings,omitempty"`
+	// Rules, Asked, Verdict and Rounds let a later run resume from this roll. A roll that landed no
+	// verdict carries none of them.
+	Rules   string   `json:"rules,omitempty"`
+	Asked   string   `json:"asked,omitempty"`
+	Verdict *Verdict `json:"verdict,omitempty"`
+	Rounds  int      `json:"rounds,omitempty"`
 }
 
 // dumpReturns appends this run's returns. It is best effort: a run that cannot write the dump still

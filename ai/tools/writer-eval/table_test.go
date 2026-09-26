@@ -30,6 +30,8 @@ type rollResult struct {
 	// limit is a roll the account's usage limit refused. It stops the table, since every roll after it
 	// meets the same limit.
 	limit bool
+	// reused is a roll read back from the dump, which the dump already holds.
+	reused bool
 }
 
 // profile adds up where a table's time goes. Every roll waits on the writer row and on the record
@@ -175,7 +177,9 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 				mu.Lock()
 				// A proven bystander that has passed every one of its first shortRolls is read short. One
 				// miss sends it to the full read.
-				decided := !full && (clean[j.at] >= need(c) || hopeless[j.at] ||
+				// A case that cannot reach its floor still rolls until it clears its regression line. The
+				// table stops on that line, and a skipped roll counts toward it as a miss.
+				decided := !full && (clean[j.at] >= need(c) || (hopeless[j.at] && clean[j.at] >= regression(c)) ||
 					(short(c) && !missed[j.at] && clean[j.at] >= shortRolls))
 				mu.Unlock()
 				if decided {
@@ -196,14 +200,18 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 					fmt.Fprintf(os.Stderr, "stopping the table: %s\n", res.raw)
 					stop()
 				}
+				// A settled case skips its remaining rolls, and a skipped roll lands as a miss would. A
+				// resumed run lands its kept rolls at once. k11 settled with 7 clean, then read as unable
+				// to reach 13, and it stopped the table. A settled case is never hopeless.
+				settled := clean[j.at] >= need(c) || (short(c) && !missed[j.at] && clean[j.at] >= shortRolls)
 				reachable := clean[j.at] + evalRolls - landed[j.at]
-				if !full && !res.stopped && reachable < need(c) {
+				if !full && !res.stopped && !settled && reachable < need(c) {
 					hopeless[j.at] = true
 				}
 				// The table stops only on a regression: a case that cannot reach main's own count less
 				// two. A case already below its floor on main misses the floor here too, and that miss
 				// belongs to main.
-				if !full && !res.stopped && stopped == "" && reachable < regression(c) {
+				if !full && !res.stopped && !settled && stopped == "" && reachable < regression(c) {
 					stopped = c.Name
 					fmt.Fprintf(os.Stderr, "stopping the table: %s cannot reach %d, main's count less two\n", c.Name, regression(c))
 					stop()
@@ -381,7 +389,10 @@ func regressionFrom(reference map[string]int) func(Case) int {
 	}
 }
 
-// mainColumn reads the column measured on main's rules, where one is kept.
+// mainColumn reads the column measured on main's rules. A merge that edits the rules keeps no column
+// of its own, and main then has none under its hash. Every case's regression line fell to its floor,
+// and the first case already failing on main stopped the table. The newest column kept on main stands
+// in, and the run says which.
 func mainColumn() map[string]int {
 	var sum = sha256.New()
 	for _, path := range rulePaths {
@@ -391,7 +402,18 @@ func mainColumn() map[string]int {
 		}
 		sum.Write(body)
 	}
-	return readColumn(hex.EncodeToString(sum.Sum(nil))[:12])
+	rules := hex.EncodeToString(sum.Sum(nil))[:12]
+	if column := readColumn(rules); column != nil {
+		return column
+	}
+	newest, err := exec.Command("git", "log", "-1", "--diff-filter=A", "--format=", "--name-only",
+		"origin/main", "--", columnsDir).Output()
+	if err != nil || strings.TrimSpace(string(newest)) == "" {
+		return nil
+	}
+	kept := strings.TrimSuffix(filepath.Base(strings.TrimSpace(string(newest))), ".json")
+	fmt.Fprintf(os.Stderr, "main's rules %s keep no column; reading %s, the newest kept on main\n", rules, kept)
+	return readColumn(kept)
 }
 
 func readColumn(rules string) map[string]int {
@@ -506,5 +528,74 @@ func TestACaseBelowItsFloorOnMainLeavesTheTableRunning(t *testing.T) {
 		})
 	if stopped != "" || ran["a"] != 1 || ran["b"] != 1 {
 		t.Fatalf("stopped %q, ran %v; want each case stopped after its miss and the table run through", stopped, ran)
+	}
+}
+
+// A roll landing after its case settled is no regression. The skipped rolls land first, and the case
+// read as unable to reach its line and stopped the table.
+func TestARollLandingAfterItsCaseSettledStopsNothing(t *testing.T) {
+	held := evalRolls
+	evalRolls = 15
+	defer func() { evalRolls = held }()
+	cases := []Case{{Name: "a", Expect: ExpectNone}}
+	// Six rolls start together. Five land at once and settle the case by its short read, the skipped
+	// rolls land next, and the sixth lands last.
+	started := make(chan struct{})
+	var mu sync.Mutex
+	calls := 0
+	_, stopped := runTable(cases, shortRolls+1, func(Case) int { return 13 }, func(Case) int { return 13 }, func(Case) bool { return true }, false, func(_ context.Context, c Case) rollResult {
+		mu.Lock()
+		calls++
+		at := calls
+		if at == shortRolls+1 {
+			close(started)
+		}
+		mu.Unlock()
+		<-started
+		if at == shortRolls+1 {
+			time.Sleep(200 * time.Millisecond)
+		}
+		return rollResult{verdict: Verdict{Name: c.Name, Want: ExpectNone, Got: ExpectNone}}
+	})
+	if stopped != "" {
+		t.Fatalf("the table stopped at %s after the case settled", stopped)
+	}
+}
+
+// A case that cannot reach its floor keeps rolling below its regression line. Its skipped rolls
+// counted as misses, and k08, at 5 clean of 15 against a line of 4, read as 3 and stopped the table.
+func TestACaseBelowItsFloorRollsUntilItClearsItsRegressionLine(t *testing.T) {
+	held := evalRolls
+	evalRolls = 15
+	defer func() { evalRolls = held }()
+	cases := []Case{{Name: "a", Expect: ExpectNone}}
+	// Eight rolls start together. Seven misses land at once and leave the floor of 9 out of reach, and
+	// the eighth, a pass, lands after the rolls that come next.
+	const together = 8
+	started := make(chan struct{})
+	var mu sync.Mutex
+	calls := 0
+	_, stopped := runTable(cases, together, func(Case) int { return 9 }, func(Case) int { return 4 }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
+		mu.Lock()
+		calls++
+		at := calls
+		if at == together {
+			close(started)
+		}
+		mu.Unlock()
+		if at <= together {
+			<-started
+		}
+		if at == together {
+			time.Sleep(200 * time.Millisecond)
+		}
+		got := ExpectNone
+		if at < together {
+			got = ExpectWritten
+		}
+		return rollResult{verdict: Verdict{Name: c.Name, Want: ExpectNone, Got: got}}
+	})
+	if stopped != "" {
+		t.Fatalf("the table stopped at %s, a case its later rolls lift over its line", stopped)
 	}
 }

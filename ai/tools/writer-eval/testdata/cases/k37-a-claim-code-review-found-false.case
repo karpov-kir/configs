@@ -1,0 +1,20 @@
+expect: none
+note: none
+returns: stale
+bars: this binding
+why: two runs' code reviews found the claim false, since `canPost` is static on both prefixed interfaces and no `this` binding applies, and the run before this one deleted it; run 11's strip offered it again from the archive with nothing to say a review had read it, the writer wrote it again, and that run's review did not flag it; the strip now offers a contradicted claim with the review's finding under it, and the writer returns it as `stale` while the code is the code the review read
+labelled: 2026-09-26
+--- code
+function getClaimThroughPrefixedSchemeApi(scheme: PostingScheme, ledgerKeys: PrefixedLedgerKeys): LedgerClaim {
+  if (!ledgerKeys.canPost) {
+    return LedgerClaim.Unknown;
+  }
+
+  return claimFromAnySupportedScheme(scheme, schemeId => Boolean(ledgerKeys.canPost?.(schemeId)));
+}
+--- facts
+
+# claimed at this site by an earlier run:
+A ledger host method such as `canPost` throws when its `this` binding is not the object that owns it.
+
+contradicted: run10 `canPost` is static on both prefixed interfaces, so no `this` binding applies (the claim: A ledger host method such as `canPost` throws when its `this` binding is not the object that owns it)

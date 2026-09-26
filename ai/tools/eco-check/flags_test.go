@@ -156,6 +156,16 @@ func TestWhereAFlagCallSiteIsRead(t *testing.T) {
 		f.reports(flagFinding("--agent"))
 	})
 
+	// comment-strip.sh has two forms of its call, and a form wrapped under the first one read as prose to
+	// the register scan. Each form takes its own `usage:` line.
+	t.Run("and reads a second usage line as another form of the call", func(t *testing.T) {
+		f := newFlagScript(t, "#   usage: toy.sh [--gate]\n#   usage: toy.sh --agent=<name> <path>")
+		f.newCallSites("toy.sh --agent=claude", "toy.sh --loose")
+		output := f.run()
+		f.absent(output, flagFinding("--agent"))
+		f.found(output, flagFinding("--loose"))
+	})
+
 	// Prose is not a command. A sentence naming the script and, later, a flag of something else would
 	// otherwise be read as one call site — so the presence half of this case runs on the same tree.
 	t.Run("and never in prose outside a span, which names no command", func(t *testing.T) {

@@ -513,10 +513,10 @@ func TestAnExhaustedLoginIsNotAnAnswer(t *testing.T) {
 // report the account out of capacity.
 func TestJudgedTextAboutRateLimitsIsNotAnExhaustedLogin(t *testing.T) {
 	said := []byte("You've hit your session limit · resets 3:50pm\n")
-	if !exhausted("claude", "some other text", said) {
+	if exhausted("claude", "some other text", said) != "You've hit your session limit · resets 3:50pm" {
 		t.Fatal("the measured apology was not recognised")
 	}
-	if exhausted("claude", "You've hit your session limit · resets 3:50pm", said) {
+	if exhausted("claude", "You've hit your session limit · resets 3:50pm", said) != "" {
 		t.Fatal("the judged text was read back as the provider's own answer")
 	}
 }
