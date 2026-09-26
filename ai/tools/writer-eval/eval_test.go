@@ -404,7 +404,8 @@ func prompt(t *testing.T, c Case) string {
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
 	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\n%s\n\n",
-		strings.Join(append(census.IdentifierWords(strings.Split(c.Code, "\n")), hyphenatedNames(c.Code)...), " "))
+		strings.Join(append(census.IdentifierWords(strings.Split(c.Code+"\n"+c.Callers+"\n"+c.Tests, "\n")),
+			hyphenatedNames(c.Code)...), " "))
 	if c.Callers != "" {
 		fmt.Fprintf(&out, "=== the callers ===\nA grep over the repository finds these call sites and no "+
 			"other:\n\n```ts\n%s\n```\n\n", c.Callers)

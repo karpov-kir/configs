@@ -163,7 +163,7 @@ After the verdict lines, write one line per routed claim, in one of these shapes
 - `belongs at <file>:<identifier>: <fact>` for a fact a caller in another file acts on.
 - `does not fit: <site>: <fact>` for a fact about the world that no note here holds.
 - `for the PR body: <site>: <fact>` for a fact about the change itself.
-- `for code review: <path>:<line> <sentence>` for a defect you noticed in the code, such as a value that can be null. It is a code-review finding, and it never becomes a comment.
+- `for code review: <path>:<line> <sentence>` for a defect you noticed in the code, such as a value that can be null. It is a code-review finding, and it never becomes a comment. It reports the code, and a check you could not run is a fact about your run, which stays out of it.
 - `none: <site>: <the reason>: <claim>` for a claim you dropped for any reason no other line names, such as a claim a reader would take for granted.
 
 A fact has exactly four fates: written in a block, `none` with its reason on a routed line, `belongs at`, or `does not fit`. A line of your own wording outside these shapes reaches no lane.
