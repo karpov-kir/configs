@@ -117,3 +117,29 @@ func TestAKeptBlockLeavesItsOlderRecordUnoffered(t *testing.T) {
 		t.Fatalf("exit %d, sites %q: %s", said.code, said.stdout, said.stderr)
 	}
 }
+
+// A file header and the block under it sit on the same declaration. Archived with a key without the
+// block, one replaced the other, and the next run wrote the replaced one again.
+func TestAHeaderAndTheBlockUnderItBothStand(t *testing.T) {
+	rulesHome(t, "rules one ")
+	source := "// `claimFor` answers for one scheme of the ledger at a time.\n\n" + strings.TrimPrefix(keptSource, "import { keys } from './keys';\n\n")
+	source = "import { keys } from './keys';\n" + source
+	f := newFixture(t, "f.ts", source)
+	archive := filepath.Join(f.dir, "archive")
+	record := filepath.Join(f.dir, "record.txt")
+	if err := os.WriteFile(record, []byte(keptRecord), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The header is named by its own first line, and the block under it by its declaration.
+	for _, line := range []string{"2", "5"} {
+		var out, errOut strings.Builder
+		if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--written=run13", f.path, line, record},
+			f.dir, noRepository, &out, &errOut); code != exitClean {
+			t.Fatalf("line %s: exit %d: %s", line, code, errOut.String())
+		}
+	}
+	said := f.run("--archive=" + archive)
+	if said.code != exitClean || strings.Count(said.stderr, "kept as run13") != 2 {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+}

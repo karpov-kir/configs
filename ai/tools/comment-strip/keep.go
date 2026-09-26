@@ -92,10 +92,17 @@ func spanSum(span []string) string {
 	return hex.EncodeToString(sum[:])[:12]
 }
 
-// declarationUnder is the first code line after the block, the line the block sits on.
+// declarationUnder is the first code line after the block, the line the block sits on. A file header
+// sits over the block under it, and both sit on the first code line below.
 func declarationUnder(lines []string, u readerjudge.Unit) int {
+	comment := map[int]bool{}
+	for _, other := range readerjudge.CommentBlocks(lines) {
+		for at := other.Line; at < other.Line+other.Span; at++ {
+			comment[at] = true
+		}
+	}
 	next := u.Line + u.Span
-	for next <= len(lines) && strings.TrimSpace(lines[next-1]) == "" {
+	for next <= len(lines) && (strings.TrimSpace(lines[next-1]) == "" || comment[next]) {
 		next++
 	}
 	return next
@@ -206,16 +213,31 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 		return refuse("%s", "cannot read the rules under ~/.kk-flavor, and a block keeps the rules it was written under")
 	}
 	lines := shell.SplitLines(string(raw))
+	// The line is the declaration the block sits on, which names the block nearest above it, or a
+	// block's own first line, which a file header needs since the block under it shares its declaration.
+	var chosen []readerjudge.Unit
 	for _, u := range readerjudge.CommentBlocks(lines) {
-		if declarationUnder(lines, u) != at {
-			continue
+		switch {
+		case u.Line == at:
+			chosen = []readerjudge.Unit{u}
+		case declarationUnder(lines, u) == at && (len(chosen) == 0 || chosen[0].Line != at):
+			chosen = []readerjudge.Unit{u}
+		}
+	}
+	for _, u := range chosen {
+		at := declarationUnder(lines, u)
+		if at > len(lines) {
+			return refuse("the block on line %d of %s sits on no code", u.Line, shell.Echoable(path))
 		}
 		entry := written{Run: run, Rules: rules, Decl: strings.TrimSpace(lines[at-1]),
 			Span: spanSum(declarationSpan(lines, at)), Block: blockText(lines, u), Record: strings.TrimSpace(string(record))}
 		held := readWritten(archive, path)
 		kept := held[:0]
+		// An entry goes only where the same block stands on the same declaration and body again. A file
+		// header and the block under it share the declaration below both, so a key without the block
+		// let one entry replace the other. An entry for wording since replaced matches nothing standing.
 		for _, w := range held {
-			if w.Decl != entry.Decl {
+			if w.Decl != entry.Decl || w.Span != entry.Span || w.Block != entry.Block {
 				kept = append(kept, w)
 			}
 		}
