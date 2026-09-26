@@ -402,10 +402,11 @@ func prompt(t *testing.T, c Case) string {
 		"with every comment block already removed and every line numbered:\n\n```ts\n%s\n```\n\n"+
 		"The facts file for the site holds:\n\n%s\n\n", c.Name, c.Site, numbered(c.Code), c.Facts)
 	// The same list the strip writes beside the facts, so the fixture and the lane audit against one
-	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all.
+	// thing. A run that withheld it would measure a writer whose audit can classify no noun at all. The
+	// callers' and tests' names stay out: with them in, k26 fell from 15 of 15 to 9, each miss a rename
+	// of a name the list did not hold.
 	fmt.Fprintf(&out, "=== identifiers.txt ===\n%s\n\n",
-		strings.Join(append(census.IdentifierWords(strings.Split(c.Code+"\n"+c.Callers+"\n"+c.Tests, "\n")),
-			hyphenatedNames(c.Code)...), " "))
+		strings.Join(append(census.IdentifierWords(strings.Split(c.Code, "\n")), hyphenatedNames(c.Code)...), " "))
 	if c.Callers != "" {
 		fmt.Fprintf(&out, "=== the callers ===\nA grep over the repository finds these call sites and no "+
 			"other:\n\n```ts\n%s\n```\n\n", c.Callers)
