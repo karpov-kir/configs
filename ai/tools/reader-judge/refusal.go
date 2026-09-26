@@ -105,14 +105,21 @@ type ProviderExhausted struct {
 	Client string
 	// Account is the login the CLI ran on, where it could be named, and a person switches that login.
 	Account string
+	// Said is the CLI's own limit line, which names when the limit resets. A person chooses between
+	// waiting and switching on it.
+	Said string
 }
 
 func (e *ProviderExhausted) Error() string {
-	if e.Account != "" {
-		return fmt.Sprintf("%s has no capacity left on %s, so nothing was judged; if the app runs on "+
-			"another account, the CLI is still on this one: `%s auth login` switches it", e.Client, e.Account, e.Client)
+	said := ""
+	if e.Said != "" {
+		said = fmt.Sprintf(" (%q)", e.Said)
 	}
-	return fmt.Sprintf("%s has no capacity left on this login, so nothing was judged", e.Client)
+	if e.Account != "" {
+		return fmt.Sprintf("%s has no capacity left on %s%s, so nothing was judged; if the app runs on "+
+			"another account, the CLI is still on this one: `%s auth login` switches it", e.Client, e.Account, said, e.Client)
+	}
+	return fmt.Sprintf("%s has no capacity left on this login%s, so nothing was judged", e.Client, said)
 }
 
 // What a CLI was measured saying when the login is out of capacity. Measured 2026-09-16 on this
@@ -127,13 +134,13 @@ var exhaustionMarkers = map[string][]string{
 	"codex":  {"usage limit reached", "rate limit", "quota"},
 }
 
-// exhausted reads a SUCCESSFUL call's output for one of those. The judged text is subtracted first,
+// exhausted reads a SUCCESSFUL call's output for one of those, and returns the line that carried it. The judged text is subtracted first,
 // for the reason refusedTheModel subtracts it: a document discussing rate limits would otherwise
 // report the account exhausted and send someone to wait out a limit they never hit.
-func exhausted(client, echoed string, stdout []byte) bool {
+func exhausted(client, echoed string, stdout []byte) string {
 	markers, known := exhaustionMarkers[client]
 	if !known {
-		return false
+		return ""
 	}
 	fromTheInput := map[string]bool{}
 	for _, line := range shell.SplitLines(echoed) {
@@ -148,9 +155,9 @@ func exhausted(client, echoed string, stdout []byte) bool {
 		}
 		for _, marker := range markers {
 			if strings.Contains(strings.ToLower(trimmed), marker) {
-				return true
+				return shell.CutBytesMarked(trimmed, 160)
 			}
 		}
 	}
-	return false
+	return ""
 }

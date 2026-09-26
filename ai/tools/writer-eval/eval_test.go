@@ -517,14 +517,33 @@ func TestWriterEval(t *testing.T) {
 	full := os.Getenv(fullEnv) != ""
 	reference := mainColumn()
 	need := needFrom(reference)
+	asked := map[string]string{}
+	for _, c := range cases {
+		asked[c.Name] = askedSum(prompt(t, c))
+	}
+	resume := &resumed{}
+	if os.Getenv(resumeEnv) != "" {
+		resume = resumeFrom(os.Getenv(dumpEnv), ruleSum, func(name string) string { return asked[name] })
+	}
 	results, stopped := runTable(cases, parallelCalls(t), need, regressionFrom(reference), shortFor(reference, targeted), full, func(ctx context.Context, c Case) rollResult {
+		if kept, ok := resume.take(c.Name); ok {
+			return kept
+		}
 		return rollOnce(ctx, settings, c, prompt(t, c), &prof)
 	})
 
 	var rows []dumped
 	for i, c := range cases {
 		for roll, res := range results[i] {
-			rows = append(rows, dumped{Case: c.Name, Roll: roll, Raw: res.raw, Findings: res.findings})
+			if res.reused {
+				continue
+			}
+			row := dumped{Case: c.Name, Roll: roll, Raw: res.raw, Findings: res.findings}
+			if !res.stopped && !res.limit && res.verdict.Got != "error" {
+				verdict := res.verdict
+				row.Rules, row.Asked, row.Verdict, row.Rounds = ruleSum, asked[c.Name], &verdict, res.rounds
+			}
+			rows = append(rows, row)
 		}
 	}
 	dumpReturns(rows)
@@ -536,6 +555,9 @@ func TestWriterEval(t *testing.T) {
 	fmt.Fprintf(&out, "rules read once at %s\n", ruleSum)
 	fmt.Fprintf(&out, "%s\n", servedModels.line())
 	fmt.Fprintf(&out, "%s\n", prof.String())
+	if resume.taken > 0 {
+		fmt.Fprintf(&out, "resumed %d roll(s) from %s\n", resume.taken, os.Getenv(dumpEnv))
+	}
 	if stopped != "" {
 		fmt.Fprintf(&out, "stopped early: %s cannot reach the count the bar needs, so the rolls after it did not run\n", stopped)
 	}
@@ -615,6 +637,12 @@ type dumped struct {
 	// Findings is what the record check printed at each turn it sent the block back, so a roll that
 	// recovered still shows what the check refused.
 	Findings [][]string `json:"findings,omitempty"`
+	// Rules, Asked, Verdict and Rounds let a later run resume from this roll. A roll that landed no
+	// verdict carries none of them.
+	Rules   string   `json:"rules,omitempty"`
+	Asked   string   `json:"asked,omitempty"`
+	Verdict *Verdict `json:"verdict,omitempty"`
+	Rounds  int      `json:"rounds,omitempty"`
 }
 
 // dumpReturns appends this run's returns. It is best effort: a run that cannot write the dump still

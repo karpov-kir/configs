@@ -30,6 +30,8 @@ type rollResult struct {
 	// limit is a roll the account's usage limit refused. It stops the table, since every roll after it
 	// meets the same limit.
 	limit bool
+	// reused is a roll read back from the dump, which the dump already holds.
+	reused bool
 }
 
 // profile adds up where a table's time goes. Every roll waits on the writer row and on the record

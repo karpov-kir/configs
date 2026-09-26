@@ -239,8 +239,8 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 		if errors.As(err, &failed) {
 			said = append(append([]byte(nil), out...), failed.Stderr...)
 		}
-		if exhausted(command.name, command.stdin, said) {
-			return "", &ProviderExhausted{Client: command.name}
+		if line := exhausted(command.name, command.stdin, said); line != "" {
+			return "", &ProviderExhausted{Client: command.name, Said: line}
 		}
 		return "", fmt.Errorf("the model did not answer (%v): %s", err, whatItSaid(said))
 	}
@@ -249,8 +249,8 @@ func runBounded(deadline time.Duration, command modelCommand) (string, error) {
 	// anyway, since an apology is not a list of unit numbers — but model-check's probe asks for a
 	// single character and takes any answer, so a rate-limited machine measured every name in
 	// models.json as running. Read as an answer, this is a green over a question nobody reached.
-	if exhausted(command.name, command.stdin, out) {
-		return "", &ProviderExhausted{Client: command.name}
+	if line := exhausted(command.name, command.stdin, out); line != "" {
+		return "", &ProviderExhausted{Client: command.name, Said: line}
 	}
 	return string(out), nil
 }

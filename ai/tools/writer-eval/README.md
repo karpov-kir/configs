@@ -16,7 +16,9 @@ Every roll spends a model call, so the suite skips both halves until `WRITER_EVA
 prefixes. `WRITER_EVAL_ROLLS` sets
 the roll count, `WRITER_EVAL_PARALLEL` a run's workers, `WRITER_EVAL_SLOTS` the calls in flight across
 every run, `WRITER_EVAL_FULL` a run of every roll kept as its rules' column, and `WRITER_EVAL_DUMP` a
-file to write every raw return to.
+file to write every raw return to. `WRITER_EVAL_RESUME` reads back the rolls that dump already holds
+under the same rules and prompt, and asks only the rest: a usage limit stopped item 20's table at case
+21 of 47, and the resumed run kept the 305 rolls it had read.
 
 ## A floor is set from a no-change pair
 
