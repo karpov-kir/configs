@@ -166,7 +166,7 @@ After the verdict lines, write one line per routed claim, in one of these shapes
 - `for code review: <path>:<line> <sentence>` for a defect you noticed in the code, such as a value that can be null. It is a code-review finding, and it never becomes a comment. It reports the code, and a comment is never its subject: a claim you doubt is answered at question 3. A check you could not run is a fact about your run, which stays out of it.
 - `none: <site>: <the reason>: <claim>` for a claim you dropped for any reason no other line names, such as a claim a reader would take for granted.
 
-`belongs at` takes a fact a declaration in another file of the change set acts on, and `does not fit` takes a fact no declaration in the change set acts on. A fact has exactly four fates: written in a block, `none` with its reason on a routed line, `belongs at`, or `does not fit`. A line of your own wording outside these shapes reaches no lane.
+`belongs at` takes a fact a declaration in another file of the change set acts on. `does not fit` takes a fact no declaration in the change set acts on. A fact has exactly four fates: written in a block, `none` with its reason on a routed line, `belongs at`, or `does not fit`. A line of your own wording outside these shapes reaches no lane.
 
 ## Do not
 

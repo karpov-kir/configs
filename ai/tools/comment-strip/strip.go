@@ -166,8 +166,8 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			only[at] = true
 		}
 		args = args[1:]
-		// The block a finding sends back is a writer's wording that no other run keeps, so the archive
-		// is where it goes. Run 12's loop stripped without one, and the wording before the loop was lost.
+		// A finding sends back a writer's wording, which no other run keeps. The archive keeps it. Run
+		// 12's loop stripped without one, and the wording before the loop was lost.
 		if archive == "" {
 			return refuse("%s", "--lines needs --archive, which keeps the wording it strips")
 		}
@@ -334,7 +334,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		}
 	}
 
-	// Every block kept and no record left to offer: the file stands as the run found it.
+	// Where every block stands and the archive offers no site, the file stays as the run found it.
 	if len(sites) == 0 {
 		return exitClean
 	}
@@ -509,7 +509,7 @@ func readArchive(archive, path string) ([]archived, error) {
 // A read by the line alone handed every site in a file the whole file's history.
 //
 // A `--lines` strip numbers its sites in a file still holding the other blocks, so a line there names
-// another site's record. `narrow` reads a record keeping a declaration by that declaration alone.
+// another site's record. `narrow` reads a record keeping a declaration only by that declaration.
 func recordSites(records []archived, sites []site, shared map[string]bool, narrow bool) map[string]int {
 	at := map[string]int{}
 	for _, record := range records {
@@ -679,8 +679,8 @@ func contradictedName(archive, path string) string {
 	return filepath.Join(archive, strings.TrimSuffix(archiveName(path, 0), "@0.facts")+".contradicted")
 }
 
-// recordID names one claim block by its words. The facts file carries it on a `# record` line above
-// the block, and code review records a contradiction against it. A contradiction matched by the claim's
+// recordID names one claim block by its words. The facts file names it on the block's `# record` line,
+// and code review records a contradiction against it. A contradiction matched by the claim's
 // text had to be hunted across wordings in run 12.
 func recordID(block string) string {
 	sum := sha256.Sum256([]byte(normalClaim(block)))
@@ -692,7 +692,7 @@ var recordIDShape = regexp.MustCompile(`^r[0-9a-f]{10}$`)
 // recordMarker opens the line naming the claim block under it.
 const recordMarker = "# record "
 
-// recordLine is the `# record` line for a block, or nothing for an empty one.
+// recordLine is the `# record` line for a block, and an empty string for an empty block.
 func recordLine(block string) string {
 	if strings.TrimSpace(block) == "" {
 		return ""

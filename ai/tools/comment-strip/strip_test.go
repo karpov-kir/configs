@@ -591,8 +591,8 @@ func TestALinesStripKeepsTheRecordItsLineWouldOverwrite(t *testing.T) {
 	f := newFixture(t, "f.go", "// old a\nfunc a() {}\n// old b\nfunc b() {}\n// old c\nfunc c() {}\n")
 	archive := filepath.Join(f.dir, "archive")
 	f.cut("--archive=" + archive)
-	// The full strip keyed a at 1, b at 2 and c at 3. The writer's blocks stand, and a finding sends b
-	// back alone. Its site in a file still holding the block on a is line 3, c's key.
+	// The full strip keyed a at 1, b at 2 and c at 3. The writer's blocks stand, and a finding sends
+	// only b back. Its site in a file still holding the block on a is line 3, c's key.
 	f.write("// new a\nfunc a() {}\n// new b\nfunc b() {}\nfunc c() {}\n")
 	if err := os.RemoveAll(f.facts); err != nil {
 		t.Fatal(err)
@@ -667,8 +667,8 @@ func mustList(t *testing.T, dir string) []string {
 	return names
 }
 
-// A rename reaches the comment blocks as a text substitution, whole word, and leaves code, a longer
-// name holding the old one, and a block the toolchain reads as they stand.
+// A rename reaches the comment blocks as a text substitution, whole word. Code stays as it stands, and
+// so do a longer name holding the old one and a block the toolchain reads.
 func TestARenameRewritesTheIdentifierInCommentBlocksAlone(t *testing.T) {
 	f := newFixture(t, "f.ts", "// readRate reads both fields, and readRateFields calls readRate twice: readRate readRate.\n"+
 		"function readRate() { return readRateFields(); }\n"+

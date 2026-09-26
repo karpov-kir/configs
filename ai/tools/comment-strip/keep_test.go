@@ -100,8 +100,8 @@ func TestAKeptBlockReopensOnARuleABodyAContradictionOrAReview(t *testing.T) {
 	}
 }
 
-// A kept block's older claims stay unread. Offered at the declaration the kept block stands on, they
-// would hand a writer a site to write a second block at.
+// A kept block's older claims stay unread. The strip would offer them at the declaration the kept
+// block stands on, and a writer would write a second block there.
 func TestAKeptBlockLeavesItsOlderRecordUnoffered(t *testing.T) {
 	rulesHome(t, "rules one ")
 	f := newFixture(t, "f.ts", strings.Replace(keptSource, "// A ledger build", "// An older block. A ledger build", 1))

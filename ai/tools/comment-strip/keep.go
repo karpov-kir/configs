@@ -15,15 +15,13 @@ import (
 )
 
 // A block the lane wrote stands byte for byte in the next run while its record holds. Every run
-// stripped every site and wrote from nothing, and run 12 reworded about fifty blocks run 11 had
-// written correctly, with no change of fact or tie. A reviewer then read a diff of comments that
-// changed only in wording.
+// stripped every site and wrote each block again. Run 12 reworded about fifty blocks run 11 had
+// written correctly, with no change of fact or tie, and a reviewer read those rewordings as a diff.
 //
-// The lane archives each block it wrote with its record, `--written=<run>`. The next full strip leaves
-// the block standing where five things hold: the block's bytes, the rules it was written under, the
-// declaration and the body under it, no contradiction against its record id, and a clean record check.
-// A changed rule, a contradiction or a changed declaration reopens it. The strip decides this itself,
-// so a kept block costs no call.
+// The lane archives each block it wrote with its record, `--written=<run>`. The next full strip keeps
+// the block where its bytes, its rules and the declaration and body under it are unchanged. Its record
+// id must carry no contradiction, and its record check must pass. The strip decides this itself, so a
+// kept block costs no call.
 
 const writtenOption = "--written="
 
