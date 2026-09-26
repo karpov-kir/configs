@@ -666,3 +666,27 @@ func mustList(t *testing.T, dir string) []string {
 	}
 	return names
 }
+
+// A rename reaches the comment blocks as a text substitution, whole word, and leaves code, a longer
+// name holding the old one, and a block the toolchain reads as they stand.
+func TestARenameRewritesTheIdentifierInCommentBlocksAlone(t *testing.T) {
+	f := newFixture(t, "f.ts", "// readRate reads both fields, and readRateFields calls readRate twice: readRate readRate.\n"+
+		"function readRate() { return readRateFields(); }\n"+
+		"// eslint-disable-next-line readRate\n"+
+		"readRate();\n")
+	var out, errOut strings.Builder
+	code := Strip("comment-strip.sh", []string{"--rename=readRate=readPostingRate", f.path}, f.dir, noRepository, &out, &errOut)
+	if code != exitCut {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	want := "// readPostingRate reads both fields, and readRateFields calls readPostingRate twice: readPostingRate readPostingRate.\n" +
+		"function readRate() { return readRateFields(); }\n" +
+		"// eslint-disable-next-line readRate\n" +
+		"readRate();\n"
+	if f.body() != want {
+		t.Fatalf("file:\n%q\nwant\n%q", f.body(), want)
+	}
+	if code := Strip("comment-strip.sh", []string{"--rename=read-rate=x", f.path}, f.dir, noRepository, &out, &errOut); code != exitDidNotRun {
+		t.Fatalf("a name that is no identifier ran: exit %d", code)
+	}
+}

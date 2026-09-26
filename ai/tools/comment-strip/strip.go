@@ -2,7 +2,7 @@
 // code's alone. It runs without a model: the judge's Apply with every offered unit gone, plus a
 // record of what went.
 //
-//	usage: comment-strip.sh --facts=<dir> [--archive=<dir>] <path>
+//	usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>
 //
 // The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site
 // it sat on, which the writer opens when it asks whether a note is owed. That site is the first code
@@ -35,7 +35,9 @@ const archiveOption = "--archive="
 // reads a usage line they can retype. A refusal states it: an argument this tool refuses comes from
 // a caller who needs the form, and the refusal alone gives them half of it.
 const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>\n" +
-	"       comment-strip.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence>"
+	"       comment-strip.sh --archive=<dir> --contradict=<run> <path> <record id or claim> <review sentence>\n" +
+	"       comment-strip.sh --rename=<old>=<new> <path>\n" +
+	"       comment-strip.sh --archive=<dir> --written=<run> <path> <declaration line> <record file>"
 
 const (
 	exitClean     = 0
@@ -124,6 +126,13 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		fmt.Fprintf(stderr, "%s\n", usage)
 		return exitDidNotRun
 	}
+	if len(args) > 0 && strings.HasPrefix(args[0], renameOption) {
+		return rename(strings.TrimPrefix(args[0], renameOption), args[1:], cwd, stdout, refuse)
+	}
+	if len(args) > 1 && strings.HasPrefix(args[0], archiveOption) && strings.HasPrefix(args[1], writtenOption) {
+		return write(strings.TrimPrefix(args[0], archiveOption), strings.TrimPrefix(args[1], writtenOption),
+			args[2:], cwd, refuse)
+	}
 	if len(args) > 1 && strings.HasPrefix(args[0], archiveOption) && strings.HasPrefix(args[1], contradictOption) {
 		return contradict(strings.TrimPrefix(args[0], archiveOption), strings.TrimPrefix(args[1], contradictOption),
 			args[2:], cwd, refuse)
@@ -201,12 +210,24 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	content := string(raw)
 	lines := shell.SplitLines(content)
 	var units []readerjudge.Unit
+	// A block the lane wrote whose record still holds stands. A `--lines` strip is a review sending
+	// that very block back, so it keeps none.
+	var keep keeper
+	if archive != "" && only == nil {
+		keep = newKeeper(archive, path)
+	}
+	keptDecls := map[string]bool{}
 	for _, u := range readerjudge.CommentBlocks(lines) {
 		if only != nil && !blockAt(lines, u, only) {
 			continue
 		}
 		if holdsDirective(lines, u) {
 			fmt.Fprintf(stderr, "%s:%d: a comment the toolchain reads, kept\n", path, u.Line)
+			continue
+		}
+		if run := keep.keeps(path, lines, u); run != "" {
+			fmt.Fprintf(stderr, "%s:%d: kept as %s wrote it, since its record holds\n", path, u.Line, run)
+			keptDecls[strings.TrimSpace(lines[declarationUnder(lines, u)-1])] = true
 			continue
 		}
 		units = append(units, u)
@@ -296,7 +317,8 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			offered[s.line] = true
 		}
 		for _, record := range records {
-			if _, found := held[record.name]; found {
+			// A kept block's own record stays unread: the block standing there is what it became.
+			if _, found := held[record.name]; found || (record.decl != "" && keptDecls[record.decl]) {
 				continue
 			}
 			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))
@@ -310,6 +332,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			offered[at] = true
 			sites = append(sites, site{line: at, facts: fmt.Sprintf("%d.facts", len(sites)+1), decl: record.decl})
 		}
+	}
+
+	// Every block kept and no record left to offer: the file stands as the run found it.
+	if len(sites) == 0 {
+		return exitClean
 	}
 
 	// A facts file carries its site, so it is written once the site is final. A refusal here leaves the
@@ -733,4 +760,65 @@ func contradictedIn(archive, path string, blocks []string) string {
 		}
 	}
 	return out.String()
+}
+
+const renameOption = "--rename="
+
+var identifierShape = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)
+
+// rename rewrites an identifier inside the file's comment blocks, whole word, after the refactor lane
+// renamed it in the code. A rename is a text substitution, and run 12 spent one voice-loop writer on
+// each block naming a renamed symbol. A block the toolchain reads is left as it stands.
+func rename(pair string, args []string, cwd string, stdout io.Writer, refuse func(string, ...any) int) int {
+	old, replacement, found := strings.Cut(pair, "=")
+	if !found || !identifierShape.MatchString(old) || !identifierShape.MatchString(replacement) {
+		return refuse("--rename holds %q, and it takes <old>=<new>, two identifiers", shell.Echoable(pair))
+	}
+	if len(args) != 1 {
+		return refuse("%s", "--rename takes one path")
+	}
+	path := args[0]
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(cwd, path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return refuse("cannot read %s", shell.Echoable(args[0]))
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return refuse("cannot read %s", shell.Echoable(args[0]))
+	}
+	whole := regexp.MustCompile(`(^|[^\w$])` + regexp.QuoteMeta(old) + `($|[^\w$])`)
+	lines := shell.SplitLines(string(raw))
+	rewritten := 0
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		if holdsDirective(lines, u) {
+			continue
+		}
+		for at := u.Line; at < u.Line+u.Span && at <= len(lines); at++ {
+			line := lines[at-1]
+			// The match takes the character on each side, so a name repeated with one character between
+			// needs a second pass.
+			for next := whole.ReplaceAllString(line, "${1}"+replacement+"${2}"); next != line; next = whole.ReplaceAllString(line, "${1}"+replacement+"${2}") {
+				line = next
+			}
+			if line != lines[at-1] {
+				lines[at-1] = line
+				rewritten++
+			}
+		}
+	}
+	if rewritten == 0 {
+		return exitClean
+	}
+	body := strings.Join(lines, "\n")
+	if strings.HasSuffix(string(raw), "\n") && !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	if err := os.WriteFile(path, []byte(body), info.Mode().Perm()); err != nil {
+		return refuse("cannot write %s", shell.Echoable(args[0]))
+	}
+	fmt.Fprintf(stdout, "%s: %d comment line(s) now name %s\n", args[0], rewritten, replacement)
+	return exitCut
 }
