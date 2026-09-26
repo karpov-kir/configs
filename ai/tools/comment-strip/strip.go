@@ -155,6 +155,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			only[at] = true
 		}
 		args = args[1:]
+		// The block a finding sends back is a writer's wording that no other run keeps, so the archive
+		// is where it goes. Run 12's loop stripped without one, and the wording before the loop was lost.
+		if archive == "" {
+			return refuse("%s", "--lines needs --archive, which keeps the wording it strips")
+		}
 	}
 	// Every block in a file the change touches is a site. `--changed` offered only the blocks the diff
 	// touched. Run 10 left an older block standing in a file whose other blocks went. Code review then
@@ -280,7 +285,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// comment blocks, so an empty site is invisible to it and its claims sit unread. The run that
 	// deleted the block decided under the rules of its day. This offers the site again, with the
 	// claims and an empty block, so the writer decides it under the rules standing now.
-	held := recordSites(records, sites, shared)
+	held := recordSites(records, sites, shared, only != nil)
 	if archive != "" && only == nil {
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
@@ -328,7 +333,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			// What is kept is the claims alone, with the site line left off: a later run writes its
 			// own site, and the line a block sits on moves between runs.
 			_, claims, _ := strings.Cut(record, "\n")
-			if err := keepForLater(archive, path, s.line, s.decl, claims); err != nil {
+			if err := keepForLater(archive, path, s.line, s.decl, claims, only != nil); err != nil {
 				return refuse("%s", err.Error())
 			}
 		}
@@ -468,7 +473,10 @@ func readArchive(archive, path string) ([]archived, error) {
 // decides first, and an edit over a site moves the site and leaves the declaration alone. Where no
 // declaration matches, the record is read by its line, and the site there is the same one renamed.
 // A read by the line alone handed every site in a file the whole file's history.
-func recordSites(records []archived, sites []site, shared map[string]bool) map[string]int {
+//
+// A `--lines` strip numbers its sites in a file still holding the other blocks, so a line there names
+// another site's record. `narrow` reads a record keeping a declaration by that declaration alone.
+func recordSites(records []archived, sites []site, shared map[string]bool, narrow bool) map[string]int {
 	at := map[string]int{}
 	for _, record := range records {
 		if record.decl == "" {
@@ -481,7 +489,7 @@ func recordSites(records []archived, sites []site, shared map[string]bool) map[s
 		}
 	}
 	for _, record := range records {
-		if _, found := at[record.name]; found {
+		if _, found := at[record.name]; found || (narrow && record.decl != "") {
 			continue
 		}
 		for _, s := range sites {
@@ -558,12 +566,27 @@ const earlierMarker = "# claimed at this site by an earlier run:"
 
 // keepForLater records this run's facts for the runs after it, under the declaration its site sits
 // on. A later run finds the site by that declaration once an edit has moved its line.
-func keepForLater(archive, path string, line int, decl, record string) error {
+//
+// A `--lines` strip numbers its site in a file that still holds the other blocks, so its line can be
+// the key of another site's record. `narrow` moves such a record to the next free key, and the
+// declaration still finds it.
+func keepForLater(archive, path string, line int, decl, record string, narrow bool) error {
 	if err := os.MkdirAll(archive, 0o755); err != nil {
 		return fmt.Errorf("cannot create the archive at %s", shell.Echoable(archive))
 	}
 	if decl != "" {
 		record = declMarker + " " + decl + "\n" + record
+	}
+	for narrow {
+		held, err := os.ReadFile(filepath.Join(archive, archiveName(path, line)))
+		if err != nil {
+			break
+		}
+		head, _, _ := strings.Cut(string(held), "\n")
+		if strings.TrimSpace(strings.TrimPrefix(head, declMarker)) == decl {
+			break
+		}
+		line++
 	}
 	name := filepath.Join(archive, archiveName(path, line))
 	if err := os.WriteFile(name, []byte(record), 0o644); err != nil {

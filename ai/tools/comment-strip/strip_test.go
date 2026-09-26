@@ -544,7 +544,7 @@ func TestTwoRecordsReadingToOneLineAreOneSite(t *testing.T) {
 // re-stripped 36 sites for six findings.
 func TestLinesStripOnlyTheNamedBlocks(t *testing.T) {
 	f := newFixture(t, "f.go", "// one\nfunc a() {}\n// two\nfunc b() {}\n")
-	f.cut("--lines=4")
+	f.cut("--archive="+filepath.Join(f.dir, "archive"), "--lines=4")
 	if want := "// one\nfunc a() {}\nfunc b() {}\n"; f.body() != want {
 		t.Fatalf("stripped file:\n%q\nwant\n%q", f.body(), want)
 	}
@@ -572,5 +572,48 @@ func TestAContradictedClaimComesBackWithTheFinding(t *testing.T) {
 			strings.Contains(string(mustRead(t, filepath.Join(archive, entry.Name()))), "contradicted:") {
 			t.Fatalf("the archive record %s keeps the finding, which would repeat it every run", entry.Name())
 		}
+	}
+}
+
+// The block a finding sends back is a writer's wording no other run keeps. A `--lines` strip with no
+// archive loses it, and run 12's loop lost the wording before the loop that way.
+func TestALinesStripNeedsTheArchive(t *testing.T) {
+	f := newFixture(t, "f.go", "// one\nfunc a() {}\n")
+	if said := f.run("--lines=2"); said.code != exitDidNotRun || !strings.Contains(said.stderr, "--lines needs --archive") {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+}
+
+// A `--lines` strip numbers its site in a file still holding the other blocks. Its key can be another
+// site's record, and that record stays whole.
+func TestALinesStripKeepsTheRecordItsLineWouldOverwrite(t *testing.T) {
+	f := newFixture(t, "f.go", "// old a\nfunc a() {}\n// old b\nfunc b() {}\n// old c\nfunc c() {}\n")
+	archive := filepath.Join(f.dir, "archive")
+	f.cut("--archive=" + archive)
+	// The full strip keyed a at 1, b at 2 and c at 3. The writer's blocks stand, and a finding sends b
+	// back alone. Its site in a file still holding the block on a is line 3, c's key.
+	f.write("// new a\nfunc a() {}\n// new b\nfunc b() {}\nfunc c() {}\n")
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	f.cut("--archive="+archive, "--lines=4")
+	held := ""
+	cKept := false
+	entries, _ := os.ReadDir(archive)
+	for _, entry := range entries {
+		body := string(mustRead(t, filepath.Join(archive, entry.Name())))
+		held += body
+		cKept = cKept || strings.HasPrefix(body, declMarker+" func c() {}\n// old c")
+	}
+	for _, want := range []string{"old a", "old b", "new b"} {
+		if !strings.Contains(held, want) {
+			t.Errorf("the archive lost %q:\n%s", want, held)
+		}
+	}
+	if !cKept {
+		t.Errorf("c's record no longer stands under c's declaration:\n%s", held)
+	}
+	if facts := f.fact("1.facts"); strings.Contains(facts, "old c") {
+		t.Errorf("b's site was offered c's claim:\n%s", facts)
 	}
 }
