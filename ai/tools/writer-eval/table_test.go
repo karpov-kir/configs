@@ -198,14 +198,18 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 					fmt.Fprintf(os.Stderr, "stopping the table: %s\n", res.raw)
 					stop()
 				}
+				// A settled case skips its remaining rolls, and a skipped roll lands as a miss would. A
+				// resumed run lands its kept rolls at once, and k11, settled at 7 clean, then read as
+				// unable to reach 13 and stopped the table. A settled case is never hopeless.
+				settled := clean[j.at] >= need(c) || (short(c) && !missed[j.at] && clean[j.at] >= shortRolls)
 				reachable := clean[j.at] + evalRolls - landed[j.at]
-				if !full && !res.stopped && reachable < need(c) {
+				if !full && !res.stopped && !settled && reachable < need(c) {
 					hopeless[j.at] = true
 				}
 				// The table stops only on a regression: a case that cannot reach main's own count less
 				// two. A case already below its floor on main misses the floor here too, and that miss
 				// belongs to main.
-				if !full && !res.stopped && stopped == "" && reachable < regression(c) {
+				if !full && !res.stopped && !settled && stopped == "" && reachable < regression(c) {
 					stopped = c.Name
 					fmt.Fprintf(os.Stderr, "stopping the table: %s cannot reach %d, main's count less two\n", c.Name, regression(c))
 					stop()
@@ -522,5 +526,36 @@ func TestACaseBelowItsFloorOnMainLeavesTheTableRunning(t *testing.T) {
 		})
 	if stopped != "" || ran["a"] != 1 || ran["b"] != 1 {
 		t.Fatalf("stopped %q, ran %v; want each case stopped after its miss and the table run through", stopped, ran)
+	}
+}
+
+// A roll landing after its case settled is no regression. The skipped rolls land first, and the case
+// read as unable to reach its line and stopped the table.
+func TestARollLandingAfterItsCaseSettledStopsNothing(t *testing.T) {
+	held := evalRolls
+	evalRolls = 15
+	defer func() { evalRolls = held }()
+	cases := []Case{{Name: "a", Expect: ExpectNone}}
+	// Six rolls start together. Five land at once and settle the case by its short read, the skipped
+	// rolls land next, and the sixth lands last.
+	started := make(chan struct{})
+	var mu sync.Mutex
+	calls := 0
+	_, stopped := runTable(cases, shortRolls+1, func(Case) int { return 13 }, func(Case) int { return 13 }, func(Case) bool { return true }, false, func(_ context.Context, c Case) rollResult {
+		mu.Lock()
+		calls++
+		at := calls
+		if at == shortRolls+1 {
+			close(started)
+		}
+		mu.Unlock()
+		<-started
+		if at == shortRolls+1 {
+			time.Sleep(200 * time.Millisecond)
+		}
+		return rollResult{verdict: Verdict{Name: c.Name, Want: ExpectNone, Got: ExpectNone}}
+	})
+	if stopped != "" {
+		t.Fatalf("the table stopped at %s after the case settled", stopped)
 	}
 }
