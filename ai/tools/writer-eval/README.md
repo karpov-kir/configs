@@ -20,6 +20,10 @@ file to write every raw return to. `WRITER_EVAL_RESUME` reads back the rolls tha
 under the same rules and prompt, and asks only the rest: a usage limit stopped item 20's table at case
 21 of 47, and the resumed run kept the 305 rolls it had read.
 
+`for code review:` is a fate for a defect the code shows. Item 20's table returned it in 14 of 705
+rolls. Thirteen named such a defect. One l08 roll routed the eval's one-block answer shape, which the
+pipeline's writer never meets, and it stands as a harness artefact.
+
 ## A floor is set from a no-change pair
 
 **A floor is read from two runs of the unchanged tree. The run a rule just got does not set one.**
