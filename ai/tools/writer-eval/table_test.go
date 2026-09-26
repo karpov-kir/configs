@@ -381,7 +381,10 @@ func regressionFrom(reference map[string]int) func(Case) int {
 	}
 }
 
-// mainColumn reads the column measured on main's rules, where one is kept.
+// mainColumn reads the column measured on main's rules. A merge that edits the rules keeps no column
+// of its own, and main then has none under its hash. Every case's regression line fell to its floor,
+// and the first case already failing on main stopped the table. The newest column kept on main stands
+// in, and the run says which.
 func mainColumn() map[string]int {
 	var sum = sha256.New()
 	for _, path := range rulePaths {
@@ -391,7 +394,18 @@ func mainColumn() map[string]int {
 		}
 		sum.Write(body)
 	}
-	return readColumn(hex.EncodeToString(sum.Sum(nil))[:12])
+	rules := hex.EncodeToString(sum.Sum(nil))[:12]
+	if column := readColumn(rules); column != nil {
+		return column
+	}
+	newest, err := exec.Command("git", "log", "-1", "--diff-filter=A", "--format=", "--name-only",
+		"origin/main", "--", columnsDir).Output()
+	if err != nil || strings.TrimSpace(string(newest)) == "" {
+		return nil
+	}
+	kept := strings.TrimSuffix(filepath.Base(strings.TrimSpace(string(newest))), ".json")
+	fmt.Fprintf(os.Stderr, "main's rules %s keep no column; reading %s, the newest kept on main\n", rules, kept)
+	return readColumn(kept)
 }
 
 func readColumn(rules string) map[string]int {
