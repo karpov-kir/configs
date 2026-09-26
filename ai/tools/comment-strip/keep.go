@@ -93,7 +93,7 @@ func spanSum(span []string) string {
 }
 
 // declarationUnder is the first code line after the block, the line the block sits on. A file header
-// sits over the block under it, and both sit on the first code line below.
+// and the block under it both sit on that line.
 func declarationUnder(lines []string, u readerjudge.Unit) int {
 	comment := map[int]bool{}
 	for _, other := range readerjudge.CommentBlocks(lines) {
@@ -213,8 +213,8 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 		return refuse("%s", "cannot read the rules under ~/.kk-flavor, and a block keeps the rules it was written under")
 	}
 	lines := shell.SplitLines(string(raw))
-	// The line is the declaration the block sits on, which names the block nearest above it, or a
-	// block's own first line, which a file header needs since the block under it shares its declaration.
+	// A declaration's line names the last block over it. A file header shares that declaration with the
+	// block under it, so the header is named by its own first line.
 	var chosen []readerjudge.Unit
 	for _, u := range readerjudge.CommentBlocks(lines) {
 		switch {
@@ -234,8 +234,8 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 		held := readWritten(archive, path)
 		kept := held[:0]
 		// An entry goes only where the same block stands on the same declaration and body again. A file
-		// header and the block under it share the declaration below both, so a key without the block
-		// let one entry replace the other. An entry for wording since replaced matches nothing standing.
+		// header and the block under it share one declaration, and a key without the block let one entry
+		// replace the other. An entry for wording since replaced matches no block standing.
 		for _, w := range held {
 			if w.Decl != entry.Decl || w.Span != entry.Span || w.Block != entry.Block {
 				kept = append(kept, w)

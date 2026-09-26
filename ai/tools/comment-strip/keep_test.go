@@ -118,8 +118,8 @@ func TestAKeptBlockLeavesItsOlderRecordUnoffered(t *testing.T) {
 	}
 }
 
-// A file header and the block under it sit on the same declaration. Archived with a key without the
-// block, one replaced the other, and the next run wrote the replaced one again.
+// A file header and the block under it sit on the same declaration. A key without the block let one
+// entry replace the other, and the next run wrote the replaced block again.
 func TestAHeaderAndTheBlockUnderItBothStand(t *testing.T) {
 	rulesHome(t, "rules one ")
 	source := "// `claimFor` answers for one scheme of the ledger at a time.\n\n" + strings.TrimPrefix(keptSource, "import { keys } from './keys';\n\n")
