@@ -3,11 +3,14 @@
 # with the old block gone. It runs without a model.
 #
 #   usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>
-#   usage: comment-strip.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence>
+#   usage: comment-strip.sh --archive=<dir> --contradict=<run> <path> <record id or claim> <review sentence>
+#   usage: comment-strip.sh --rename=<old>=<new> <path>
+#   usage: comment-strip.sh --archive=<dir> --written=<run> <path> <declaration line> <record file>
 #
-# `--lines` strips only the blocks on those lines, for a code-review finding sent back to its site.
-# `--contradict` records a claim code review found false, and the strip offers that claim with a
-# `contradicted:` line under it.
+# `--lines` strips the blocks on those lines for a review finding, and it needs the archive.
+# `--contradict` records a claim code review found false by its record id. `--rename` rewrites an
+# identifier inside comment blocks. `--written` archives a block the lane wrote with its record, and a
+# full strip keeps that block while its record holds.
 #
 # Every comment block in the file is removed. A file the change touches is the unit, so a block from
 # before the change goes with the rest. The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site it

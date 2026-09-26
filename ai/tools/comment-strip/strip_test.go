@@ -92,7 +92,8 @@ func TestStripRemovesEveryBlockAndRecordsItsSiteInTheStrippedFile(t *testing.T) 
 	if want := f.path + ":1 1.facts\n" + f.path + ":4 2.facts\n"; said.stdout != want {
 		t.Fatalf("sites:\n%s\nwant\n%s", said.stdout, want)
 	}
-	if want := f.path + ":4\n// A note about b.\n// Its second line.\n"; f.fact("2.facts") != want {
+	block := "// A note about b.\n// Its second line.\n"
+	if want := f.path + ":4\n" + recordLine(block) + block; f.fact("2.facts") != want {
 		t.Fatalf("2.facts:\n%q\nwant\n%q", f.fact("2.facts"), want)
 	}
 }
@@ -310,7 +311,7 @@ func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
 	if want := f.path + ":1 1.facts\n" + f.path + ":3 2.facts\n"; said.stdout != want {
 		t.Errorf("sites:\n%swant\n%s", said.stdout, want)
 	}
-	if want := f.path + ":3\n// A note about b.\n"; f.fact("2.facts") != want {
+	if want := f.path + ":3\n" + recordLine("// A note about b.\n") + "// A note about b.\n"; f.fact("2.facts") != want {
 		t.Errorf("2.facts:\n%q\nwant\n%q", f.fact("2.facts"), want)
 	}
 }
@@ -544,7 +545,7 @@ func TestTwoRecordsReadingToOneLineAreOneSite(t *testing.T) {
 // re-stripped 36 sites for six findings.
 func TestLinesStripOnlyTheNamedBlocks(t *testing.T) {
 	f := newFixture(t, "f.go", "// one\nfunc a() {}\n// two\nfunc b() {}\n")
-	f.cut("--lines=4")
+	f.cut("--archive="+filepath.Join(f.dir, "archive"), "--lines=4")
 	if want := "// one\nfunc a() {}\nfunc b() {}\n"; f.body() != want {
 		t.Fatalf("stripped file:\n%q\nwant\n%q", f.body(), want)
 	}
@@ -572,5 +573,120 @@ func TestAContradictedClaimComesBackWithTheFinding(t *testing.T) {
 			strings.Contains(string(mustRead(t, filepath.Join(archive, entry.Name()))), "contradicted:") {
 			t.Fatalf("the archive record %s keeps the finding, which would repeat it every run", entry.Name())
 		}
+	}
+}
+
+// The block a finding sends back is a writer's wording no other run keeps. A `--lines` strip with no
+// archive loses it, and run 12's loop lost the wording before the loop that way.
+func TestALinesStripNeedsTheArchive(t *testing.T) {
+	f := newFixture(t, "f.go", "// one\nfunc a() {}\n")
+	if said := f.run("--lines=2"); said.code != exitDidNotRun || !strings.Contains(said.stderr, "--lines needs --archive") {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+}
+
+// A `--lines` strip numbers its site in a file still holding the other blocks. Its key can be another
+// site's record, and that record stays whole.
+func TestALinesStripKeepsTheRecordItsLineWouldOverwrite(t *testing.T) {
+	f := newFixture(t, "f.go", "// old a\nfunc a() {}\n// old b\nfunc b() {}\n// old c\nfunc c() {}\n")
+	archive := filepath.Join(f.dir, "archive")
+	f.cut("--archive=" + archive)
+	// The full strip keyed a at 1, b at 2 and c at 3. The writer's blocks stand, and a finding sends
+	// only b back. Its site in a file still holding the block on a is line 3, c's key.
+	f.write("// new a\nfunc a() {}\n// new b\nfunc b() {}\nfunc c() {}\n")
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	f.cut("--archive="+archive, "--lines=4")
+	held := ""
+	cKept := false
+	entries, _ := os.ReadDir(archive)
+	for _, entry := range entries {
+		body := string(mustRead(t, filepath.Join(archive, entry.Name())))
+		held += body
+		cKept = cKept || strings.HasPrefix(body, declMarker+" func c() {}\n// old c")
+	}
+	for _, want := range []string{"old a", "old b", "new b"} {
+		if !strings.Contains(held, want) {
+			t.Errorf("the archive lost %q:\n%s", want, held)
+		}
+	}
+	if !cKept {
+		t.Errorf("c's record no longer stands under c's declaration:\n%s", held)
+	}
+	if facts := f.fact("1.facts"); strings.Contains(facts, "old c") {
+		t.Errorf("b's site was offered c's claim:\n%s", facts)
+	}
+}
+
+// Code review records a contradiction against the claim block's record id, which the facts file
+// carries. The block comes back with the finding under it in any later run, and a block reworded since
+// is a different record.
+func TestAContradictionRecordedByItsIDFollowsThatBlock(t *testing.T) {
+	claim := "// canPost throws when its this binding is not the object that owns it.\n"
+	f := newFixture(t, "f.ts", claim+"const claim = keys.canPost?.(scheme);\n")
+	archive := filepath.Join(f.dir, "archive")
+	f.cut("--archive=" + archive)
+	facts := f.fact("1.facts")
+	id := recordID(claim)
+	if !strings.Contains(facts, recordMarker+id+"\n"+claim) {
+		t.Fatalf("the facts file names no record above the block:\n%s", facts)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=run12", f.path, id,
+		"canPost is static on both prefixed interfaces"}, f.dir, noRepository, &out, &errOut); code != exitClean {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	// The next run finds the block again among the earlier claims, and a reworded block beside it.
+	f.write("// canPost reads its binding from the owner.\nconst claim = keys.canPost?.(scheme);\n")
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	f.cut("--archive=" + archive)
+	facts = f.fact("1.facts")
+	if strings.Count(facts, "contradicted: run12") != 1 || !strings.Contains(facts, recordMarker+id) {
+		t.Fatalf("want one finding, under the recorded block:\n%s", facts)
+	}
+	for _, entry := range mustList(t, archive) {
+		if strings.Contains(string(mustRead(t, filepath.Join(archive, entry))), recordMarker) {
+			t.Fatalf("the archive record %s keeps a record line", entry)
+		}
+	}
+}
+
+func mustList(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return names
+}
+
+// A rename reaches the comment blocks as a text substitution, whole word. Code stays as it stands, and
+// so do a longer name holding the old one and a block the toolchain reads.
+func TestARenameRewritesTheIdentifierInCommentBlocksAlone(t *testing.T) {
+	f := newFixture(t, "f.ts", "// readRate reads both fields, and readRateFields calls readRate twice: readRate readRate.\n"+
+		"function readRate() { return readRateFields(); }\n"+
+		"// eslint-disable-next-line readRate\n"+
+		"readRate();\n")
+	var out, errOut strings.Builder
+	code := Strip("comment-strip.sh", []string{"--rename=readRate=readPostingRate", f.path}, f.dir, noRepository, &out, &errOut)
+	if code != exitCut {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	want := "// readPostingRate reads both fields, and readRateFields calls readPostingRate twice: readPostingRate readPostingRate.\n" +
+		"function readRate() { return readRateFields(); }\n" +
+		"// eslint-disable-next-line readRate\n" +
+		"readRate();\n"
+	if f.body() != want {
+		t.Fatalf("file:\n%q\nwant\n%q", f.body(), want)
+	}
+	if code := Strip("comment-strip.sh", []string{"--rename=read-rate=x", f.path}, f.dir, noRepository, &out, &errOut); code != exitDidNotRun {
+		t.Fatalf("a name that is no identifier ran: exit %d", code)
 	}
 }

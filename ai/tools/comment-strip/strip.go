@@ -2,7 +2,7 @@
 // code's alone. It runs without a model: the judge's Apply with every offered unit gone, plus a
 // record of what went.
 //
-//	usage: comment-strip.sh --facts=<dir> [--archive=<dir>] <path>
+//	usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>
 //
 // The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site
 // it sat on, which the writer opens when it asks whether a note is owed. That site is the first code
@@ -11,6 +11,8 @@
 package commentstrip
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -33,7 +35,9 @@ const archiveOption = "--archive="
 // reads a usage line they can retype. A refusal states it: an argument this tool refuses comes from
 // a caller who needs the form, and the refusal alone gives them half of it.
 const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>\n" +
-	"       comment-strip.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence>"
+	"       comment-strip.sh --archive=<dir> --contradict=<run> <path> <record id or claim> <review sentence>\n" +
+	"       comment-strip.sh --rename=<old>=<new> <path>\n" +
+	"       comment-strip.sh --archive=<dir> --written=<run> <path> <declaration line> <record file>"
 
 const (
 	exitClean     = 0
@@ -122,6 +126,13 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		fmt.Fprintf(stderr, "%s\n", usage)
 		return exitDidNotRun
 	}
+	if len(args) > 0 && strings.HasPrefix(args[0], renameOption) {
+		return rename(strings.TrimPrefix(args[0], renameOption), args[1:], cwd, stdout, refuse)
+	}
+	if len(args) > 1 && strings.HasPrefix(args[0], archiveOption) && strings.HasPrefix(args[1], writtenOption) {
+		return write(strings.TrimPrefix(args[0], archiveOption), strings.TrimPrefix(args[1], writtenOption),
+			args[2:], cwd, refuse)
+	}
 	if len(args) > 1 && strings.HasPrefix(args[0], archiveOption) && strings.HasPrefix(args[1], contradictOption) {
 		return contradict(strings.TrimPrefix(args[0], archiveOption), strings.TrimPrefix(args[1], contradictOption),
 			args[2:], cwd, refuse)
@@ -155,6 +166,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			only[at] = true
 		}
 		args = args[1:]
+		// A finding sends back a writer's wording, which no other run keeps. The archive keeps it. Run
+		// 12's loop stripped without one, and the wording before the loop was lost.
+		if archive == "" {
+			return refuse("%s", "--lines needs --archive, which keeps the wording it strips")
+		}
 	}
 	// Every block in a file the change touches is a site. `--changed` offered only the blocks the diff
 	// touched. Run 10 left an older block standing in a file whose other blocks went. Code review then
@@ -194,12 +210,24 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	content := string(raw)
 	lines := shell.SplitLines(content)
 	var units []readerjudge.Unit
+	// A block the lane wrote whose record still holds stands. A `--lines` strip is a review sending
+	// that very block back, so it keeps none.
+	var keep keeper
+	if archive != "" && only == nil {
+		keep = newKeeper(archive, path)
+	}
+	keptDecls := map[string]bool{}
 	for _, u := range readerjudge.CommentBlocks(lines) {
 		if only != nil && !blockAt(lines, u, only) {
 			continue
 		}
 		if holdsDirective(lines, u) {
 			fmt.Fprintf(stderr, "%s:%d: a comment the toolchain reads, kept\n", path, u.Line)
+			continue
+		}
+		if run := keep.keeps(path, lines, u); run != "" {
+			fmt.Fprintf(stderr, "%s:%d: kept as %s wrote it, since its record holds\n", path, u.Line, run)
+			keptDecls[strings.TrimSpace(lines[declarationUnder(lines, u)-1])] = true
 			continue
 		}
 		units = append(units, u)
@@ -280,7 +308,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// comment blocks, so an empty site is invisible to it and its claims sit unread. The run that
 	// deleted the block decided under the rules of its day. This offers the site again, with the
 	// claims and an empty block, so the writer decides it under the rules standing now.
-	held := recordSites(records, sites, shared)
+	held := recordSites(records, sites, shared, only != nil)
 	if archive != "" && only == nil {
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
@@ -289,7 +317,8 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			offered[s.line] = true
 		}
 		for _, record := range records {
-			if _, found := held[record.name]; found {
+			// A kept block's own record stays unread: the block standing there is what it became.
+			if _, found := held[record.name]; found || (record.decl != "" && keptDecls[record.decl]) {
 				continue
 			}
 			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))
@@ -305,21 +334,31 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		}
 	}
 
+	// Where every block stands and the archive offers no site, the file stays as the run found it.
+	if len(sites) == 0 {
+		return exitClean
+	}
+
 	// A facts file carries its site, so it is written once the site is final. A refusal here leaves the
 	// source file as the run read it.
 	for _, s := range sites {
 		record := fmt.Sprintf("%s:%d\n%s", path, s.line, s.record)
+		offer := fmt.Sprintf("%s:%d\n%s%s", path, s.line, recordLine(s.record), s.record)
 		// Every claim ever made at this site, beside the block standing now. A writer drops a fact by
 		// its own rules on one run. The strip reads the block as it stands, so the dropped text lives
 		// in that run's facts directory alone and a later run never weighs it.
+		var earlier []string
 		if archive != "" {
-			record += earlierFacts(records, s.record, s.line, held)
+			earlier = earlierFacts(records, s.record, s.line, held)
+		}
+		for _, block := range earlier {
+			record += fmt.Sprintf("\n%s\n%s\n", earlierMarker, block)
+			offer += fmt.Sprintf("\n%s\n%s%s\n", earlierMarker, recordLine(block), block)
 		}
 		// A claim code review contradicted comes back with that finding under it. The archive record
-		// never holds the finding, and the claim carries it every time it is offered.
-		offer := record
+		// never holds the finding or the record lines, and the claim carries it every time it is offered.
 		if archive != "" {
-			offer += contradictedIn(archive, path, record)
+			offer += contradictedIn(archive, path, append([]string{s.record}, earlier...))
 		}
 		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(offer), 0o644); err != nil {
 			return refuse("cannot write %s", shell.Echoable(filepath.Join(dir, s.facts)))
@@ -328,7 +367,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			// What is kept is the claims alone, with the site line left off: a later run writes its
 			// own site, and the line a block sits on moves between runs.
 			_, claims, _ := strings.Cut(record, "\n")
-			if err := keepForLater(archive, path, s.line, s.decl, claims); err != nil {
+			if err := keepForLater(archive, path, s.line, s.decl, claims, only != nil); err != nil {
 				return refuse("%s", err.Error())
 			}
 		}
@@ -468,7 +507,10 @@ func readArchive(archive, path string) ([]archived, error) {
 // decides first, and an edit over a site moves the site and leaves the declaration alone. Where no
 // declaration matches, the record is read by its line, and the site there is the same one renamed.
 // A read by the line alone handed every site in a file the whole file's history.
-func recordSites(records []archived, sites []site, shared map[string]bool) map[string]int {
+//
+// A `--lines` strip numbers its sites in a file still holding the other blocks, so a line there names
+// another site's record. `narrow` reads a record keeping a declaration only by that declaration.
+func recordSites(records []archived, sites []site, shared map[string]bool, narrow bool) map[string]int {
 	at := map[string]int{}
 	for _, record := range records {
 		if record.decl == "" {
@@ -481,7 +523,7 @@ func recordSites(records []archived, sites []site, shared map[string]bool) map[s
 		}
 	}
 	for _, record := range records {
-		if _, found := at[record.name]; found {
+		if _, found := at[record.name]; found || (narrow && record.decl != "") {
 			continue
 		}
 		for _, s := range sites {
@@ -527,12 +569,12 @@ func abs(n int) int {
 	return n
 }
 
-// earlierFacts is every claim an earlier run recorded at this site, with the block standing now left
-// out. A block byte-identical to one already held is dropped. A site stripped twice with one block
-// between hands the writer that block once.
-func earlierFacts(records []archived, standing string, line int, at map[string]int) string {
+// earlierFacts is every claim block an earlier run recorded at this site, with the block standing now
+// left out. A block byte-identical to one already held is dropped. A site stripped twice with one
+// block between hands the writer that block once.
+func earlierFacts(records []archived, standing string, line int, at map[string]int) []string {
 	seen := map[string]bool{strings.TrimSpace(standing): true}
-	var out strings.Builder
+	var out []string
 	for _, record := range records {
 		if at[record.name] != line {
 			continue
@@ -545,10 +587,10 @@ func earlierFacts(records []archived, standing string, line int, at map[string]i
 				continue
 			}
 			seen[block] = true
-			fmt.Fprintf(&out, "\n%s\n%s\n", earlierMarker, block)
+			out = append(out, block)
 		}
 	}
-	return out.String()
+	return out
 }
 
 // earlierMarker tells the writer which claims came from a run before this one. Question 3 weighs
@@ -558,12 +600,27 @@ const earlierMarker = "# claimed at this site by an earlier run:"
 
 // keepForLater records this run's facts for the runs after it, under the declaration its site sits
 // on. A later run finds the site by that declaration once an edit has moved its line.
-func keepForLater(archive, path string, line int, decl, record string) error {
+//
+// A `--lines` strip numbers its site in a file that still holds the other blocks, so its line can be
+// the key of another site's record. `narrow` moves such a record to the next free key, and the
+// declaration still finds it.
+func keepForLater(archive, path string, line int, decl, record string, narrow bool) error {
 	if err := os.MkdirAll(archive, 0o755); err != nil {
 		return fmt.Errorf("cannot create the archive at %s", shell.Echoable(archive))
 	}
 	if decl != "" {
 		record = declMarker + " " + decl + "\n" + record
+	}
+	for narrow {
+		held, err := os.ReadFile(filepath.Join(archive, archiveName(path, line)))
+		if err != nil {
+			break
+		}
+		head, _, _ := strings.Cut(string(held), "\n")
+		if strings.TrimSpace(strings.TrimPrefix(head, declMarker)) == decl {
+			break
+		}
+		line++
 	}
 	name := filepath.Join(archive, archiveName(path, line))
 	if err := os.WriteFile(name, []byte(record), 0o644); err != nil {
@@ -622,9 +679,30 @@ func contradictedName(archive, path string) string {
 	return filepath.Join(archive, strings.TrimSuffix(archiveName(path, 0), "@0.facts")+".contradicted")
 }
 
+// recordID names one claim block by its words. The facts file names it on the block's `# record` line,
+// and code review records a contradiction against it. A contradiction matched by the claim's
+// text had to be hunted across wordings in run 12.
+func recordID(block string) string {
+	sum := sha256.Sum256([]byte(normalClaim(block)))
+	return "r" + hex.EncodeToString(sum[:])[:10]
+}
+
+var recordIDShape = regexp.MustCompile(`^r[0-9a-f]{10}$`)
+
+// recordMarker opens the line naming the claim block under it.
+const recordMarker = "# record "
+
+// recordLine is the `# record` line for a block, and an empty string for an empty block.
+func recordLine(block string) string {
+	if strings.TrimSpace(block) == "" {
+		return ""
+	}
+	return recordMarker + recordID(block) + "\n"
+}
+
 // contradict records a claim code review found false, with the run and the review's sentence. Run 11
 // wrote again a claim runs 9 and 10 had found false, because the strip offered it from the archive with
-// no line saying a review had read it.
+// no line saying a review had read it. The claim is its record id, or its text where a caller has no id.
 func contradict(archive, run string, args []string, cwd string, refuse func(string, ...any) int) int {
 	if archive == "" || run == "" || len(args) != 3 {
 		return refuse("%s", "--contradict=<run> takes the path, the claim and the review's sentence")
@@ -657,22 +735,90 @@ func normalClaim(text string) string {
 	return strings.ReplaceAll(strings.Join(words, " "), "`", "")
 }
 
-// contradictedIn is a `contradicted:` line for every recorded claim the offered facts hold.
-func contradictedIn(archive, path, offered string) string {
+// contradictedIn is a `contradicted:` line for every recorded claim among the offered blocks. A claim
+// recorded by its id matches that block. One recorded by its text matches any block holding the text.
+func contradictedIn(archive, path string, blocks []string) string {
 	body, err := os.ReadFile(contradictedName(archive, path))
 	if err != nil {
 		return ""
 	}
-	held := normalClaim(offered)
+	held := normalClaim(strings.Join(blocks, "\n"))
+	ids := map[string]bool{}
+	for _, block := range blocks {
+		if strings.TrimSpace(block) != "" {
+			ids[recordID(block)] = true
+		}
+	}
 	var out strings.Builder
 	for _, line := range strings.Split(string(body), "\n") {
 		fields := strings.SplitN(line, "\t", 3)
 		if len(fields) != 3 || fields[0] == "" {
 			continue
 		}
-		if strings.Contains(held, normalClaim(fields[0])) {
+		if ids[fields[0]] || (!recordIDShape.MatchString(fields[0]) && strings.Contains(held, normalClaim(fields[0]))) {
 			fmt.Fprintf(&out, "\ncontradicted: %s %s (the claim: %s)\n", fields[1], fields[2], fields[0])
 		}
 	}
 	return out.String()
+}
+
+const renameOption = "--rename="
+
+var identifierShape = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)
+
+// rename rewrites an identifier inside the file's comment blocks, whole word, after the refactor lane
+// renamed it in the code. A rename is a text substitution, and run 12 spent one voice-loop writer on
+// each block naming a renamed symbol. A block the toolchain reads is left as it stands.
+func rename(pair string, args []string, cwd string, stdout io.Writer, refuse func(string, ...any) int) int {
+	old, replacement, found := strings.Cut(pair, "=")
+	if !found || !identifierShape.MatchString(old) || !identifierShape.MatchString(replacement) {
+		return refuse("--rename holds %q, and it takes <old>=<new>, two identifiers", shell.Echoable(pair))
+	}
+	if len(args) != 1 {
+		return refuse("%s", "--rename takes one path")
+	}
+	path := args[0]
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(cwd, path)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return refuse("cannot read %s", shell.Echoable(args[0]))
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return refuse("cannot read %s", shell.Echoable(args[0]))
+	}
+	whole := regexp.MustCompile(`(^|[^\w$])` + regexp.QuoteMeta(old) + `($|[^\w$])`)
+	lines := shell.SplitLines(string(raw))
+	rewritten := 0
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		if holdsDirective(lines, u) {
+			continue
+		}
+		for at := u.Line; at < u.Line+u.Span && at <= len(lines); at++ {
+			line := lines[at-1]
+			// The match takes the character on each side, so a name repeated with one character between
+			// needs a second pass.
+			for next := whole.ReplaceAllString(line, "${1}"+replacement+"${2}"); next != line; next = whole.ReplaceAllString(line, "${1}"+replacement+"${2}") {
+				line = next
+			}
+			if line != lines[at-1] {
+				lines[at-1] = line
+				rewritten++
+			}
+		}
+	}
+	if rewritten == 0 {
+		return exitClean
+	}
+	body := strings.Join(lines, "\n")
+	if strings.HasSuffix(string(raw), "\n") && !strings.HasSuffix(body, "\n") {
+		body += "\n"
+	}
+	if err := os.WriteFile(path, []byte(body), info.Mode().Perm()); err != nil {
+		return refuse("cannot write %s", shell.Echoable(args[0]))
+	}
+	fmt.Fprintf(stdout, "%s: %d comment line(s) now name %s\n", args[0], rewritten, replacement)
+	return exitCut
 }
