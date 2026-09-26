@@ -121,9 +121,9 @@ func TestANameCountsItsWords(t *testing.T) {
 	}
 }
 
-// Run 11's eight false findings: a lint message and a skip message opened on the line before their
-// text, enum token values that hold no space, and a function named at length. None is a landing the
-// refactor rules bar.
+// Run 11's eight false findings pass. A lint message and a skip message opened on the line before
+// their text. Enum token values hold no space, and one function is named at length. None is a landing
+// the refactor rules bar.
 func TestRunElevensFalseCarriersPass(t *testing.T) {
 	block := "// The accrual export was refused by the ledger before any posting reached the measurement stage."
 	added := addedFrom("src/Ledger.ts",

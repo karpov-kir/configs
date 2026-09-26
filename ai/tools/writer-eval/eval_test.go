@@ -418,8 +418,8 @@ func prompt(t *testing.T, c Case) string {
 	// The brief says where a block goes, when a site is none, how attempts are shown and what the check
 	// is. The prompt restated each in its own words until 2026-09-24, and a restatement is text the
 	// pipeline's writer never reads. What stays is what the brief cannot say: that the harness runs the
-	// check, and the shape it parses. Told only that it had no tools, the writer reported the check it
-	// could not run as a code-review finding, in four rolls of item 20's table.
+	// check, and the shape it parses. Told only that it had no tools, the writer routed the unrun check
+	// as a code-review finding in four rolls of item 20's table.
 	out.WriteString("You have no tools here, and the harness runs the record check over your answer. Answer with a line `summary: needed` or `summary: none`, a line " +
 		"`note: written` or `note: none`, a line `at: <line number>` naming the declaration the block sits " +
 		"on, then the block, or the single word none, or a line `rename: <what to rename>`. Where you write " +

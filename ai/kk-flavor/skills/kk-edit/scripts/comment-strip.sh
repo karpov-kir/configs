@@ -2,8 +2,8 @@
 # Removes a source file's comment blocks and records what each one said, so a writer reads the code
 # with the old block gone. It runs without a model.
 #
-#   usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>
-#          comment-strip.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence>
+#   comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>
+#   comment-strip.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence>
 #
 # `--lines` strips only the blocks covering those lines or sitting on them, for a code-review finding
 # sent back to the writer at its site. `--contradict` records a claim code review found false, and the

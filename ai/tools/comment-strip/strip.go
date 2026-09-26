@@ -143,7 +143,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		args = args[1:]
 	}
 	// A code-review finding goes back to the writer at its own site, and the file's other blocks stay.
-	// Run 11 re-stripped 36 sites for six findings, since the strip took a whole file or nothing.
+	// Run 11 re-stripped 36 sites for six findings, since the strip took every block of a file.
 	var only map[int]bool
 	if len(args) > 0 && strings.HasPrefix(args[0], linesOption) {
 		only = map[int]bool{}
@@ -315,8 +315,8 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		if archive != "" {
 			record += earlierFacts(records, s.record, s.line, held)
 		}
-		// A claim code review contradicted comes back with that finding under it, and it is never kept
-		// in the archive record, so the claim carries it every time it is offered.
+		// A claim code review contradicted comes back with that finding under it. The archive record
+		// never holds the finding, and the claim carries it every time it is offered.
 		offer := record
 		if archive != "" {
 			offer += contradictedIn(archive, path, record)
@@ -624,7 +624,7 @@ func contradictedName(archive, path string) string {
 
 // contradict records a claim code review found false, with the run and the review's sentence. Run 11
 // wrote again a claim runs 9 and 10 had found false, because the strip offered it from the archive with
-// nothing to say a review had read it.
+// no line saying a review had read it.
 func contradict(archive, run string, args []string, cwd string, refuse func(string, ...any) int) int {
 	if archive == "" || run == "" || len(args) != 3 {
 		return refuse("%s", "--contradict=<run> takes the path, the claim and the review's sentence")

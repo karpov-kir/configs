@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// A usage limit mid-table is the normal end of a full table on a team account: run 20's table
+// A usage limit mid-table is the normal end of a full table on a team account. Item 20's table
 // stopped at case 21 of 47 on 2026-09-26, with 307 calls read. WRITER_EVAL_RESUME reads the rolls
 // already in the dump back, and the run spends calls only on the rolls still missing. A roll is
 // reused only where the rules and the prompt it was asked are the ones this run would ask.
@@ -64,8 +64,8 @@ func (r *resumed) take(name string) (rollResult, bool) {
 	return kept[0], true
 }
 
-// A resumed run reuses a roll that landed under the same rules and prompt, and asks again the rolls a
-// limit ended, the rolls read under other rules, and those asked another prompt.
+// A resumed run reuses a roll that landed under the same rules and prompt. It asks again a roll a limit
+// ended, one read under other rules and one asked another prompt.
 func TestAResumedRunReusesOnlyRollsItWouldAskAgain(t *testing.T) {
 	passed := &Verdict{Name: "k01", Want: ExpectWritten, Got: ExpectWritten}
 	asked := func(name string) string { return askedSum("prompt of " + name) }

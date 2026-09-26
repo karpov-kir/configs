@@ -177,8 +177,8 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 				mu.Lock()
 				// A proven bystander that has passed every one of its first shortRolls is read short. One
 				// miss sends it to the full read.
-				// A case that cannot reach its floor still rolls until it clears its regression line,
-				// since the table stops on that line and a skipped roll counts toward it as a miss.
+				// A case that cannot reach its floor still rolls until it clears its regression line. The
+				// table stops on that line, and a skipped roll counts toward it as a miss.
 				decided := !full && (clean[j.at] >= need(c) || (hopeless[j.at] && clean[j.at] >= regression(c)) ||
 					(short(c) && !missed[j.at] && clean[j.at] >= shortRolls))
 				mu.Unlock()
@@ -201,8 +201,8 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 					stop()
 				}
 				// A settled case skips its remaining rolls, and a skipped roll lands as a miss would. A
-				// resumed run lands its kept rolls at once, and k11, settled at 7 clean, then read as
-				// unable to reach 13 and stopped the table. A settled case is never hopeless.
+				// resumed run lands its kept rolls at once. k11 settled with 7 clean, then read as unable
+				// to reach 13, and it stopped the table. A settled case is never hopeless.
 				settled := clean[j.at] >= need(c) || (short(c) && !missed[j.at] && clean[j.at] >= shortRolls)
 				reachable := clean[j.at] + evalRolls - landed[j.at]
 				if !full && !res.stopped && !settled && reachable < need(c) {
