@@ -177,7 +177,9 @@ func runTable(cases []Case, workers int, need, regression func(Case) int, short 
 				mu.Lock()
 				// A proven bystander that has passed every one of its first shortRolls is read short. One
 				// miss sends it to the full read.
-				decided := !full && (clean[j.at] >= need(c) || hopeless[j.at] ||
+				// A case that cannot reach its floor still rolls until it clears its regression line,
+				// since the table stops on that line and a skipped roll counts toward it as a miss.
+				decided := !full && (clean[j.at] >= need(c) || (hopeless[j.at] && clean[j.at] >= regression(c)) ||
 					(short(c) && !missed[j.at] && clean[j.at] >= shortRolls))
 				mu.Unlock()
 				if decided {
@@ -557,5 +559,43 @@ func TestARollLandingAfterItsCaseSettledStopsNothing(t *testing.T) {
 	})
 	if stopped != "" {
 		t.Fatalf("the table stopped at %s after the case settled", stopped)
+	}
+}
+
+// A case that cannot reach its floor keeps rolling below its regression line. Its skipped rolls
+// counted as misses, and k08, at 5 clean of 15 against a line of 4, read as 3 and stopped the table.
+func TestACaseBelowItsFloorRollsUntilItClearsItsRegressionLine(t *testing.T) {
+	held := evalRolls
+	evalRolls = 15
+	defer func() { evalRolls = held }()
+	cases := []Case{{Name: "a", Expect: ExpectNone}}
+	// Eight rolls start together. Seven misses land at once and leave the floor of 9 out of reach, and
+	// the eighth, a pass, lands after the rolls that come next.
+	const together = 8
+	started := make(chan struct{})
+	var mu sync.Mutex
+	calls := 0
+	_, stopped := runTable(cases, together, func(Case) int { return 9 }, func(Case) int { return 4 }, func(Case) bool { return false }, false, func(_ context.Context, c Case) rollResult {
+		mu.Lock()
+		calls++
+		at := calls
+		if at == together {
+			close(started)
+		}
+		mu.Unlock()
+		if at <= together {
+			<-started
+		}
+		if at == together {
+			time.Sleep(200 * time.Millisecond)
+		}
+		got := ExpectNone
+		if at < together {
+			got = ExpectWritten
+		}
+		return rollResult{verdict: Verdict{Name: c.Name, Want: ExpectNone, Got: got}}
+	})
+	if stopped != "" {
+		t.Fatalf("the table stopped at %s, a case its later rolls lift over its line", stopped)
 	}
 }
