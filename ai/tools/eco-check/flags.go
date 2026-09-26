@@ -258,7 +258,8 @@ func (c *checker) documentedFlagsOf(path string) documentedFlags {
 }
 
 // The flags a script's own usage block names. The block is the first `usage:` line of the leading
-// comment header plus the lines under it indented past it — a grammar wrapped over several lines is one
+// comment header, each `usage:` line under it at its indent for another form of the call, plus the
+// lines under them indented past them — a grammar wrapped over several lines is one
 // usage line, and the prose line beside it at the header's own indent is not part of it. That boundary
 // is what keeps `# Run --help for …` from documenting a flag the grammar never names.
 //
@@ -284,7 +285,7 @@ func usageFlags(lines []string) documentedFlags {
 				continue
 			}
 			found.stated, indent = true, at
-		} else if at <= indent {
+		} else if at < indent || (at == indent && !strings.HasPrefix(trimmed, "usage: ")) {
 			break
 		}
 		if cut := strings.Index(trimmed, "   #"); cut >= 0 {
