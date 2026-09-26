@@ -92,7 +92,8 @@ func TestStripRemovesEveryBlockAndRecordsItsSiteInTheStrippedFile(t *testing.T) 
 	if want := f.path + ":1 1.facts\n" + f.path + ":4 2.facts\n"; said.stdout != want {
 		t.Fatalf("sites:\n%s\nwant\n%s", said.stdout, want)
 	}
-	if want := f.path + ":4\n// A note about b.\n// Its second line.\n"; f.fact("2.facts") != want {
+	block := "// A note about b.\n// Its second line.\n"
+	if want := f.path + ":4\n" + recordLine(block) + block; f.fact("2.facts") != want {
 		t.Fatalf("2.facts:\n%q\nwant\n%q", f.fact("2.facts"), want)
 	}
 }
@@ -310,7 +311,7 @@ func TestStripNumbersSitesUnderAHeaderItTrimmed(t *testing.T) {
 	if want := f.path + ":1 1.facts\n" + f.path + ":3 2.facts\n"; said.stdout != want {
 		t.Errorf("sites:\n%swant\n%s", said.stdout, want)
 	}
-	if want := f.path + ":3\n// A note about b.\n"; f.fact("2.facts") != want {
+	if want := f.path + ":3\n" + recordLine("// A note about b.\n") + "// A note about b.\n"; f.fact("2.facts") != want {
 		t.Errorf("2.facts:\n%q\nwant\n%q", f.fact("2.facts"), want)
 	}
 }
@@ -616,4 +617,52 @@ func TestALinesStripKeepsTheRecordItsLineWouldOverwrite(t *testing.T) {
 	if facts := f.fact("1.facts"); strings.Contains(facts, "old c") {
 		t.Errorf("b's site was offered c's claim:\n%s", facts)
 	}
+}
+
+// Code review records a contradiction against the claim block's record id, which the facts file
+// carries. The block comes back with the finding under it in any later run, and a block reworded since
+// is a different record.
+func TestAContradictionRecordedByItsIDFollowsThatBlock(t *testing.T) {
+	claim := "// canPost throws when its this binding is not the object that owns it.\n"
+	f := newFixture(t, "f.ts", claim+"const claim = keys.canPost?.(scheme);\n")
+	archive := filepath.Join(f.dir, "archive")
+	f.cut("--archive=" + archive)
+	facts := f.fact("1.facts")
+	id := recordID(claim)
+	if !strings.Contains(facts, recordMarker+id+"\n"+claim) {
+		t.Fatalf("the facts file names no record above the block:\n%s", facts)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=run12", f.path, id,
+		"canPost is static on both prefixed interfaces"}, f.dir, noRepository, &out, &errOut); code != exitClean {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	// The next run finds the block again among the earlier claims, and a reworded block beside it.
+	f.write("// canPost reads its binding from the owner.\nconst claim = keys.canPost?.(scheme);\n")
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	f.cut("--archive=" + archive)
+	facts = f.fact("1.facts")
+	if strings.Count(facts, "contradicted: run12") != 1 || !strings.Contains(facts, recordMarker+id) {
+		t.Fatalf("want one finding, under the recorded block:\n%s", facts)
+	}
+	for _, entry := range mustList(t, archive) {
+		if strings.Contains(string(mustRead(t, filepath.Join(archive, entry))), recordMarker) {
+			t.Fatalf("the archive record %s keeps a record line", entry)
+		}
+	}
+}
+
+func mustList(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return names
 }

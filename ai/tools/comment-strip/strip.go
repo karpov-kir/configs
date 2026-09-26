@@ -11,6 +11,8 @@
 package commentstrip
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -314,17 +316,22 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// source file as the run read it.
 	for _, s := range sites {
 		record := fmt.Sprintf("%s:%d\n%s", path, s.line, s.record)
+		offer := fmt.Sprintf("%s:%d\n%s%s", path, s.line, recordLine(s.record), s.record)
 		// Every claim ever made at this site, beside the block standing now. A writer drops a fact by
 		// its own rules on one run. The strip reads the block as it stands, so the dropped text lives
 		// in that run's facts directory alone and a later run never weighs it.
+		var earlier []string
 		if archive != "" {
-			record += earlierFacts(records, s.record, s.line, held)
+			earlier = earlierFacts(records, s.record, s.line, held)
+		}
+		for _, block := range earlier {
+			record += fmt.Sprintf("\n%s\n%s\n", earlierMarker, block)
+			offer += fmt.Sprintf("\n%s\n%s%s\n", earlierMarker, recordLine(block), block)
 		}
 		// A claim code review contradicted comes back with that finding under it. The archive record
-		// never holds the finding, and the claim carries it every time it is offered.
-		offer := record
+		// never holds the finding or the record lines, and the claim carries it every time it is offered.
 		if archive != "" {
-			offer += contradictedIn(archive, path, record)
+			offer += contradictedIn(archive, path, append([]string{s.record}, earlier...))
 		}
 		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(offer), 0o644); err != nil {
 			return refuse("cannot write %s", shell.Echoable(filepath.Join(dir, s.facts)))
@@ -535,12 +542,12 @@ func abs(n int) int {
 	return n
 }
 
-// earlierFacts is every claim an earlier run recorded at this site, with the block standing now left
-// out. A block byte-identical to one already held is dropped. A site stripped twice with one block
-// between hands the writer that block once.
-func earlierFacts(records []archived, standing string, line int, at map[string]int) string {
+// earlierFacts is every claim block an earlier run recorded at this site, with the block standing now
+// left out. A block byte-identical to one already held is dropped. A site stripped twice with one
+// block between hands the writer that block once.
+func earlierFacts(records []archived, standing string, line int, at map[string]int) []string {
 	seen := map[string]bool{strings.TrimSpace(standing): true}
-	var out strings.Builder
+	var out []string
 	for _, record := range records {
 		if at[record.name] != line {
 			continue
@@ -553,10 +560,10 @@ func earlierFacts(records []archived, standing string, line int, at map[string]i
 				continue
 			}
 			seen[block] = true
-			fmt.Fprintf(&out, "\n%s\n%s\n", earlierMarker, block)
+			out = append(out, block)
 		}
 	}
-	return out.String()
+	return out
 }
 
 // earlierMarker tells the writer which claims came from a run before this one. Question 3 weighs
@@ -645,9 +652,30 @@ func contradictedName(archive, path string) string {
 	return filepath.Join(archive, strings.TrimSuffix(archiveName(path, 0), "@0.facts")+".contradicted")
 }
 
+// recordID names one claim block by its words. The facts file carries it on a `# record` line above
+// the block, and code review records a contradiction against it. A contradiction matched by the claim's
+// text had to be hunted across wordings in run 12.
+func recordID(block string) string {
+	sum := sha256.Sum256([]byte(normalClaim(block)))
+	return "r" + hex.EncodeToString(sum[:])[:10]
+}
+
+var recordIDShape = regexp.MustCompile(`^r[0-9a-f]{10}$`)
+
+// recordMarker opens the line naming the claim block under it.
+const recordMarker = "# record "
+
+// recordLine is the `# record` line for a block, or nothing for an empty one.
+func recordLine(block string) string {
+	if strings.TrimSpace(block) == "" {
+		return ""
+	}
+	return recordMarker + recordID(block) + "\n"
+}
+
 // contradict records a claim code review found false, with the run and the review's sentence. Run 11
 // wrote again a claim runs 9 and 10 had found false, because the strip offered it from the archive with
-// no line saying a review had read it.
+// no line saying a review had read it. The claim is its record id, or its text where a caller has no id.
 func contradict(archive, run string, args []string, cwd string, refuse func(string, ...any) int) int {
 	if archive == "" || run == "" || len(args) != 3 {
 		return refuse("%s", "--contradict=<run> takes the path, the claim and the review's sentence")
@@ -680,20 +708,27 @@ func normalClaim(text string) string {
 	return strings.ReplaceAll(strings.Join(words, " "), "`", "")
 }
 
-// contradictedIn is a `contradicted:` line for every recorded claim the offered facts hold.
-func contradictedIn(archive, path, offered string) string {
+// contradictedIn is a `contradicted:` line for every recorded claim among the offered blocks. A claim
+// recorded by its id matches that block. One recorded by its text matches any block holding the text.
+func contradictedIn(archive, path string, blocks []string) string {
 	body, err := os.ReadFile(contradictedName(archive, path))
 	if err != nil {
 		return ""
 	}
-	held := normalClaim(offered)
+	held := normalClaim(strings.Join(blocks, "\n"))
+	ids := map[string]bool{}
+	for _, block := range blocks {
+		if strings.TrimSpace(block) != "" {
+			ids[recordID(block)] = true
+		}
+	}
 	var out strings.Builder
 	for _, line := range strings.Split(string(body), "\n") {
 		fields := strings.SplitN(line, "\t", 3)
 		if len(fields) != 3 || fields[0] == "" {
 			continue
 		}
-		if strings.Contains(held, normalClaim(fields[0])) {
+		if ids[fields[0]] || (!recordIDShape.MatchString(fields[0]) && strings.Contains(held, normalClaim(fields[0]))) {
 			fmt.Fprintf(&out, "\ncontradicted: %s %s (the claim: %s)\n", fields[1], fields[2], fields[0])
 		}
 	}
