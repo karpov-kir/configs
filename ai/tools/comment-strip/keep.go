@@ -17,7 +17,7 @@ import (
 // A block the lane wrote stands byte for byte in the next run while its record holds. Every run
 // stripped every site and wrote each block again. Run 12 reworded about fifty blocks run 11 had
 // written correctly, with no change of fact or tie, and a reviewer read those rewordings as a diff.
-//
+
 // The lane archives each block it wrote with its record, `--written=<run>`. The next full strip keeps
 // the block where its bytes, its rules and the declaration and body under it are unchanged. Its record
 // id must carry no contradiction, and its record check must pass. The strip decides this itself, so a
