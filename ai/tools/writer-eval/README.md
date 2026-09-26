@@ -164,6 +164,11 @@ two. It stops the whole table at the first case that can no longer reach that co
 `WRITER_EVAL_FULL=1` runs every roll and keeps the table under `testdata/columns/` as the column for its
 rules, so main's column is measured once per rule set.
 
+A merge that edits the rules keeps no column unless its run was a full table. #58, #59 and #60 kept
+none, and runs read `4cc6a9eb8cae`, the newest column on main, in its place. l07 read 13 there and 10
+on main on 2026-09-26, each miss a `rename:` of an enum member the code spells as a word. Item 21's
+full table kept `6e36ff2ae7df` with l07 at 10, and the drift stands there until a change fixes it.
+
 ## The record check runs inside a roll
 
 The pipeline's writer runs the record check on each block before it writes it. It rewrites for each
