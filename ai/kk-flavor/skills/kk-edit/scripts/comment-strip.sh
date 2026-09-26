@@ -4,10 +4,9 @@
 #
 #   usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>
 #
-# `--lines` strips only the blocks covering those lines or sitting on them, for a code-review finding
-# sent back to the writer at its site. `--archive=<dir> --contradict=<run> <path> <claim> <sentence>`
-# records a claim code review found false. The strip then offers that claim with a `contradicted:`
-# line under it.
+# `--lines` strips only the blocks on those lines, for a code-review finding sent back to its site.
+# `--archive=<dir> --contradict=<run> <path> <claim> <sentence>` records a claim code review found
+# false, and the strip offers that claim with a `contradicted:` line under it.
 #
 # Every comment block in the file is removed. A file the change touches is the unit, so a block from
 # before the change goes with the rest. The file is rewritten in place. Each removed block is written to `<dir>/<n>.facts` under the site it
