@@ -476,8 +476,8 @@ func (b block) textLines(lines []string) int {
 
 // isProseLine says a stripped comment line carries sentences. A line opening on a doc tag does not:
 // `@param`, `@returns`, `@throws`, `@example` and the rest are the signature written out, and every
-// language's doc tool spells them this way. A `usage:` line is a grammar, and two of them, one per
-// form of a call, read as one long sentence.
+// language's doc tool spells them this way. A `usage:` line is a grammar. The scan once joined two
+// of them, one per form of a call, into one long sentence.
 func isProseLine(stripped string) bool {
 	return stripped != "" && !strings.HasPrefix(stripped, "@") &&
 		!toolInputLine.MatchString(strings.TrimSpace(stripped))

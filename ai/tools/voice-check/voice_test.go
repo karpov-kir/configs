@@ -366,11 +366,12 @@ func TestADocTagLineIsNotProse(t *testing.T) {
 	}
 }
 
-// A usage line is a grammar, and a script with two forms of its call writes one per line. Read as prose,
-// comment-strip.sh's two joined into one long sentence and made its header a long block.
+// A usage line is a grammar, and a script with two forms of its call writes one per line. The scan read
+// comment-strip.sh's two as prose, joined them into one long sentence and called its header long.
 func TestAUsageLineIsNotProse(t *testing.T) {
+	// Below a line of code, so the block is no file header, as a branch scan reads a header it changed.
 	header := []string{
-		"#!/usr/bin/env bash",
+		"set -e",
 		"# Removes a file's comment blocks.",
 		"#",
 		"#   usage: toy.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path> and more words here",
