@@ -360,7 +360,7 @@ func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
 	if !strings.Contains(string(prompt), fingerprint) {
 		t.Errorf("the prompt names no fingerprint of the run's tree %s:\n%s", fingerprint, prompt)
 	}
-	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*.facts"))
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*.facts"))
 	if len(facts) != 1 {
 		t.Fatalf("want one facts file, got %v", facts)
 	}
@@ -389,7 +389,7 @@ func TestLoopAtASiteWithNoBlockOffersTheArchivedRecord(t *testing.T) {
 	if said.code != exitClean {
 		t.Fatalf("exit %d: %s", said.code, said.stderr)
 	}
-	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*.facts"))
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*.facts"))
 	if len(facts) != 1 {
 		t.Fatalf("want one facts file, got %v", facts)
 	}
@@ -398,6 +398,48 @@ func TestLoopAtASiteWithNoBlockOffersTheArchivedRecord(t *testing.T) {
 		"# code review:\nclaimFor asks each scheme once"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("the facts file lacks %q:\n%s", want, body)
+		}
+	}
+}
+
+// loop takes every site of one file in one call. The prompt names each site at its line in the tree the
+// writer opens: run 16's second call named a line its first strip had moved.
+func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	c.write("ledger.ts", "// A ledger lists other postings first.\nexport function other() {}\n\n"+
+		"// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run17",
+		"ledger.ts:2", "other lists nothing first",
+		"--contradict=canPost answers for its own scheme only", "ledger.ts:5", "canPost answers for its own scheme only")
+	if said.code != exitClean {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+	prompt, err := os.ReadFile(strings.TrimSpace(said.stdout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(prompt), "`ledger.ts:1`") || !strings.Contains(string(prompt), "`ledger.ts:3`") ||
+		strings.Contains(string(prompt), "ledger.ts:4") {
+		t.Fatalf("the prompt names the wrong lines:\n%s", prompt)
+	}
+	stripped, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts"))
+	if lines := strings.Split(string(stripped), "\n"); !strings.HasPrefix(lines[0], "export function other") ||
+		!strings.HasPrefix(lines[2], "export function claimFor") {
+		t.Fatalf("the file does not stand as the prompt numbers it:\n%s", stripped)
+	}
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*.facts"))
+	var all string
+	for _, f := range facts {
+		body, _ := os.ReadFile(f)
+		all += string(body)
+	}
+	for _, want := range []string{"# code review:\nother lists nothing first", "contradicted: run17 canPost answers"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("the facts lack %q:\n%s", want, all)
 		}
 	}
 }

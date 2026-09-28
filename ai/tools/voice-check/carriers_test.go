@@ -1,9 +1,14 @@
 package voicecheck
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"configs/ai/tools/repo"
 )
 
 // addedFrom builds the added lines of one file, and the first is line 1.
@@ -136,5 +141,48 @@ func TestRunElevensFalseCarriersPass(t *testing.T) {
 	)
 	if got := carrierChecks(t, []string{block}, added, treeOf()); len(got) != 0 {
 		t.Fatalf("findings %v over landings the refactor rules allow", got)
+	}
+}
+
+// A landing in a test helper is read as a landing in any other file. Run 16 reported the carrier check
+// passing a quoting string in a helper under tests/, and a real repository shows the check reads it.
+func TestTheCarrierCheckReadsATestHelper(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.invalid",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.invalid", "GIT_CONFIG_GLOBAL=/dev/null")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	helper := "tests/helpers/LedgerHelper.ts"
+	git("init", "-q", "-b", "main")
+	write(helper, "export function load() { return 1; }\n")
+	git("add", "-A")
+	git("commit", "-q", "-m", "base")
+	write(helper, "export const REASON = 'A posting data URI loads on every ledger except the hosted one';\nexport function load() { return 1; }\n")
+	facts := t.TempDir()
+	factsFile := filepath.Join(facts, "helper", "1.facts")
+	if err := os.MkdirAll(filepath.Dir(factsFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(factsFile, []byte(helper+":1\n// A posting data URI loads on every ledger except the hosted one, which refuses the scheme.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	code := Run("voice-check.sh", []string{"--carriers=" + facts, "HEAD"}, dir, repo.Exec{}, baseConfig(), &out, &errOut)
+	if code != exitFound || !strings.Contains(out.String(), helper+":1: "+checkCarrierQuotes) {
+		t.Fatalf("exit %d: the helper's landing was not read\n%s%s", code, out.String(), errOut.String())
 	}
 }

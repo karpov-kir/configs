@@ -7,7 +7,7 @@
 //	usage: comment-run.sh archive-written --run=<run> --archive=<dir> <writer return>...
 //	usage: comment-run.sh taint --ledger=<file> <transcript>... [--ledger=<file> <transcript>...]
 //	usage: comment-run.sh keep-test --archive=<dir> <path>...
-//	usage: comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>
+//	usage: comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>...
 //
 // Exit 0 is a clean run, 1 a run that reported findings, and 2 a stage that did not run.
 package commentrun
@@ -27,7 +27,7 @@ const usage = "usage: comment-run.sh seed --run-dir=<dir> --archive=<dir> --rang
 	"       comment-run.sh archive-written --run=<run> --archive=<dir> <writer return>...\n" +
 	"       comment-run.sh taint --ledger=<file> <transcript>... [--ledger=<file> <transcript>...]\n" +
 	"       comment-run.sh keep-test --archive=<dir> <path>...\n" +
-	"       comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>"
+	"       comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>..."
 
 const (
 	exitClean     = 0
