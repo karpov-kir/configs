@@ -374,3 +374,30 @@ func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
 		t.Errorf("the site still holds its block:\n%s", file)
 	}
 }
+
+// loop at a site whose block the writers deleted sends the archive's claims back with the review's
+// sentence. Run 14's runner built those facts files by hand from the seed's.
+func TestLoopAtASiteWithNoBlockOffersTheArchivedRecord(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head,
+		"--heads="+c.earlier); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	// The writers wrote no block at claimFor, whose declaration is line 3 of the stripped file.
+	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run15", "ledger.ts:3", "claimFor asks each scheme once")
+	if said.code != exitClean {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*.facts"))
+	if len(facts) != 1 {
+		t.Fatalf("want one facts file, got %v", facts)
+	}
+	body, _ := os.ReadFile(facts[0])
+	for _, want := range []string{"# claimed at this site by an earlier run:", "canPost throws when its this binding",
+		"# code review:\nclaimFor asks each scheme once"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("the facts file lacks %q:\n%s", want, body)
+		}
+	}
+}

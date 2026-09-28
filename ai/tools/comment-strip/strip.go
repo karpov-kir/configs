@@ -309,7 +309,9 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// deleted the block decided under the rules of its day. This offers the site again, with the
 	// claims and an empty block, so the writer decides it under the rules standing now.
 	held := recordSites(records, sites, shared, only != nil)
-	if archive != "" && only == nil {
+	// A `--lines` strip offers the archive's site on a requested line the same way. Run 14's loop sent
+	// three findings to sites whose block the writers had deleted, and the strip printed no site there.
+	if archive != "" {
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
 		offered := map[int]bool{}
@@ -322,6 +324,9 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 				continue
 			}
 			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))
+			if only != nil && !only[at] {
+				continue
+			}
 			held[record.name] = at
 			// Two records reading to one line are one site. earlierFacts, the writer of a site's earlier
 			// claims, gathers every record held at a line. A second site there doubled them. Run 8 offered 11
