@@ -1,6 +1,7 @@
 package readerjudge
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -155,9 +156,26 @@ func exhausted(client, echoed string, stdout []byte) string {
 		}
 		for _, marker := range markers {
 			if strings.Contains(strings.ToLower(trimmed), marker) {
-				return shell.CutBytesMarked(trimmed, 160)
+				return shell.CutBytesMarked(ownLine(trimmed, marker), 160)
 			}
 		}
 	}
 	return ""
+}
+
+// ownLine is the CLI's own sentence holding the marker. In JSON mode the sentence sits in the answer's
+// `result`, and a limit line quoting the JSON object dropped the "resets …" text a person decides on.
+func ownLine(line, marker string) string {
+	var answer struct {
+		Result string `json:"result"`
+	}
+	if !strings.HasPrefix(line, "{") || json.Unmarshal([]byte(line), &answer) != nil {
+		return line
+	}
+	for _, said := range shell.SplitLines(answer.Result) {
+		if strings.Contains(strings.ToLower(said), marker) {
+			return strings.TrimSpace(said)
+		}
+	}
+	return line
 }

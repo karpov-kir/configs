@@ -7,6 +7,7 @@ dist/
 # and gitignore_test.go is what notices when a tool is added and this list is not.
 /cmd/cadence/cadence
 /cmd/comment-strip/comment-strip
+/cmd/comment-run/comment-run
 /cmd/voice-check/voice-check
 /cmd/eco-check/eco-check
 /cmd/reader-judge/reader-judge

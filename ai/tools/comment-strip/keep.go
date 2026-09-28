@@ -176,32 +176,77 @@ func newKeeper(archive, path string) keeper {
 
 // keeps is the run that wrote the block, where the block stands as that run wrote it, or "".
 func (k keeper) keeps(file string, lines []string, u readerjudge.Unit) string {
+	run, _ := k.verdict(file, lines, u)
+	return run
+}
+
+// verdict is the run that wrote the block where it stands, or why it reopens.
+func (k keeper) verdict(file string, lines []string, u readerjudge.Unit) (run, reopened string) {
 	if k.rules == "" {
-		return ""
+		return "", "the rules under ~/.kk-flavor could not be read"
 	}
 	block := blockText(lines, u)
 	at := declarationUnder(lines, u)
 	if at > len(lines) {
-		return ""
+		return "", "the block sits on no code"
 	}
 	span := declarationSpan(lines, at)
 	// An entry written before run 14 hashed the span with its comment lines, and it still matches.
 	code, whole := codeSum(lines, at), spanSum(span)
+	reopened = "no archived entry holds these bytes"
 	for _, w := range k.held {
-		if w.Block != block || w.Rules != k.rules || w.Decl != strings.TrimSpace(lines[at-1]) ||
-			(w.Span != code && w.Span != whole) || k.contradiction[recordID(block)] {
+		why := ""
+		switch {
+		case w.Block != block:
 			continue
-		}
-		// A block holding only a summary carries an empty record, since a record belongs to a note.
-		if strings.TrimSpace(w.Record) != "" {
+		case w.Rules != k.rules:
+			why = "the rules changed since " + w.Run
+		case w.Decl != strings.TrimSpace(lines[at-1]):
+			why = "the declaration under it changed"
+		case w.Span != code && w.Span != whole:
+			why = "the code under it changed"
+		case k.contradiction[recordID(block)]:
+			why = "code review contradicted its record"
+		case strings.TrimSpace(w.Record) != "":
+			// A block holding only a summary carries an empty record, since a record belongs to a note.
 			input := append(append(shell.SplitLines(w.Record), "---"), shell.SplitLines(block)...)
-			if len(voicecheck.RecordFindings(file, append(input, span...))) > 0 {
-				continue
+			var checks []string
+			for _, f := range voicecheck.RecordFindings(file, append(input, span...)) {
+				checks = append(checks, f.Check)
+			}
+			if len(checks) > 0 {
+				why = "the record check reports " + strings.Join(checks, ", ")
 			}
 		}
-		return w.Run
+		if why == "" {
+			return w.Run, ""
+		}
+		reopened = why
 	}
-	return ""
+	return "", reopened
+}
+
+// KeepVerdict is what the next full strip does with one block: keep it as Run wrote it, or reopen it
+// for Reopened.
+type KeepVerdict struct {
+	Line     int
+	Run      string
+	Reopened string
+}
+
+// KeepVerdicts reads every block in one file against the archive, as a full strip would, and changes
+// nothing. A run's dry keep test prints them, so a block that will be written again names its reason.
+func KeepVerdicts(archive, path string, lines []string) []KeepVerdict {
+	k := newKeeper(archive, path)
+	var out []KeepVerdict
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		if holdsDirective(lines, u) {
+			continue
+		}
+		run, why := k.verdict(path, lines, u)
+		out = append(out, KeepVerdict{Line: u.Line, Run: run, Reopened: why})
+	}
+	return out
 }
 
 // write archives the block standing on the declaration at `line` with the record the writer returned
