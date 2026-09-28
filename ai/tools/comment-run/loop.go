@@ -13,10 +13,10 @@ import (
 	treefingerprint "configs/ai/tools/tree-fingerprint"
 )
 
-// loop sends one code-review finding back to a writer at its site. It records the contradiction
-// first, where review found the claim false, so the strip offers it. Then it strips that site alone,
-// adds the review's sentence to its facts file and fills the loop writer's prompt. The fingerprint is
-// the run's own tree: run 14's runner computed it in its session's worktree.
+// loop sends one code-review finding back to a writer at its site. Where review found the claim false,
+// it records the contradiction first, and the strip then offers it. It strips only that site, adds the
+// review's sentence to its facts file and fills the loop writer's prompt. The fingerprint is the run's
+// own tree: run 14's runner computed it in its session's worktree.
 func loop(r *runner, opts options, operands []string) int {
 	runDir, archive, run := opts.one("run-dir"), opts.one("archive"), opts.one("run")
 	if runDir == "" || archive == "" || run == "" || len(operands) != 2 {

@@ -328,7 +328,7 @@ func TestArchiveWrittenReadsTheVerdictShapesWritersReturn(t *testing.T) {
 	}
 }
 
-// loop records the contradiction, strips the one site, adds the review's sentence to its facts file and
+// loop records the contradiction, strips that site, adds the review's sentence to its facts file and
 // fills the loop writer's prompt with the run tree's fingerprint. Run 14's runner computed the
 // fingerprint in its session's own worktree, so the stage runs from elsewhere here.
 func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
