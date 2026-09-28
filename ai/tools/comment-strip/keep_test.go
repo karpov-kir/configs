@@ -28,7 +28,7 @@ func rulesHome(t *testing.T, style string) string {
 }
 
 const keptSource = "import { keys } from './keys';\n\n" +
-	"// A ledger build answers `canPost` for its own scheme alone, so `claimFor` asks it once per scheme.\n" +
+	"// A ledger build answers `canPost` for its own scheme alone, so this function asks it once per scheme.\n" +
 	"export function claimFor(scheme: string): boolean {\n" +
 	"  return keys.canPost(scheme);\n" +
 	"}\n"
@@ -77,7 +77,7 @@ func TestAKeptBlockReopensOnARuleABodyAContradictionOrAReview(t *testing.T) {
 		},
 		"a contradiction": func(t *testing.T, f *fixture, archive string) []string {
 			var out, errOut strings.Builder
-			block := "// A ledger build answers `canPost` for its own scheme alone, so `claimFor` asks it once per scheme.\n"
+			block := "// A ledger build answers `canPost` for its own scheme alone, so this function asks it once per scheme.\n"
 			if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=run12", f.path,
 				recordID(block), "canPost answers for every scheme"}, f.dir, noRepository, &out, &errOut); code != exitClean {
 				t.Fatalf("exit %d: %s", code, errOut.String())
@@ -125,7 +125,7 @@ func TestAKeptBlockLeavesItsOlderRecordUnoffered(t *testing.T) {
 // entry replace the other, and the next run wrote the replaced block again.
 func TestAHeaderAndTheBlockUnderItBothStand(t *testing.T) {
 	rulesHome(t, "rules one ")
-	source := "// `claimFor` answers for one scheme of the ledger at a time.\n\n" + strings.TrimPrefix(keptSource, "import { keys } from './keys';\n\n")
+	source := "// A ledger answers for one scheme at a time, so this function asks one scheme.\n\n" + strings.TrimPrefix(keptSource, "import { keys } from './keys';\n\n")
 	source = "import { keys } from './keys';\n" + source
 	f := newFixture(t, "f.ts", source)
 	archive := filepath.Join(f.dir, "archive")
@@ -174,7 +174,7 @@ func TestASummaryAloneIsKeptWithoutARecord(t *testing.T) {
 	}
 }
 
-const literalSource = "// A ledger export names each scheme in its own casing, so `schemeTags` keeps the casing.\n" +
+const literalSource = "// A ledger export names each scheme in its own casing, so this constant keeps the casing.\n" +
 	"export const schemeTags = {\n" +
 	"  // An accrual row predates the casing rule.\n" +
 	"  accrual: 'Accrual',\n" +

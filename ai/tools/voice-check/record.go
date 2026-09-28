@@ -111,8 +111,8 @@ func blockAndBody(lines []string) (block, body []string) {
 // reThisDeclaration is how a note names the declaration it sits on.
 var reThisDeclaration = regexp.MustCompile(`(?i)\bthis (function|method|constructor|class|interface|type|enum|member|row|constant|field|property|getter|setter|call|branch|test|hook|table|list|map|object|value|variable|module|guard|check|helper|loop|statement)\b`)
 
-// declarationKeywords open a declaration before its name, and statementKeywords open a line that
-// declares nothing.
+// declarationKeywords open a declaration before its name. statementKeywords open a line that declares
+// no name.
 var declarationKeywords = map[string]bool{"export": true, "default": true, "async": true, "function": true,
 	"const": true, "let": true, "var": true, "class": true, "interface": true, "type": true, "enum": true,
 	"readonly": true, "static": true, "private": true, "public": true, "protected": true, "declare": true,

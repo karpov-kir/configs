@@ -31,7 +31,7 @@ bears_on: getFormatClaim
 does: returns LedgerClaim.Accepted where either answers it
 ---
 // The book took a posting format long before the probe reported it,
-// so this function returns ` + "`Accepted`" + ` where either answers ` + "`Accepted`" + `.
+// so this function returns ` + "`Accepted`" + ` for either answer.
 export function getFormatClaim(formatName: string): LedgerClaim {
   return LedgerClaim.Accepted;
 }`,
@@ -91,7 +91,7 @@ export function getFormatClaim(formatName: string): LedgerClaim {
 bears_on: getProbeFormatClaim
 does: keeps the reader honest
 ---
-// The probe hedges where the ledger will not commit, so this function keeps the reader honest.
+// The probe hedges on an uncommitted ledger, so this function keeps the reader honest.
 export function getProbeFormatClaim(formatName: string): LedgerClaim {
   return LedgerClaim.Unknown;
 }`,
@@ -200,7 +200,7 @@ func TestABlockCallsItsDeclarationThisFunction(t *testing.T) {
 	if got := checksOf(RecordFindings("-", shell.SplitLines(named))); len(got) != 1 || got[0] != checkRecordSelfNamed {
 		t.Fatalf("a block naming its own declaration reports %v", got)
 	}
-	// A branch declares nothing, so its record names the identifier the branch reads, and the block does too.
+	// A branch declares no name, so its record names the identifier the branch reads, and the block does too.
 	branch := "fact: a ledger answers 0 for a request that never reached it\nbears_on: status\ndoes: keeps a status from 100 up\n---\n" +
 		"// A ledger answers 0 for a request that never reached it, and this branch keeps a `status` from 100 up.\n" +
 		"if (status >= 100) {\n  return status;\n}"
