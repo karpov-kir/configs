@@ -86,7 +86,7 @@ var (
 )
 
 // carrierNames is what a carrier verdict names: its code spans, its quoted test names, and the
-// identifiers it spells. A carrier naming none of these has no name to find in the tree.
+// identifiers it spells. The tree is searched for each of them.
 func carrierNames(carrier string) []string {
 	var names []string
 	for _, m := range reCarrierSpan.FindAllStringSubmatch(carrier, -1) {
