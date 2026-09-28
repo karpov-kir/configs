@@ -112,8 +112,8 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 // verdictShape is the verdict line this stage reads, with its example.
 const verdictShape = "`Block N/M <path>:<offered line> | OK`, as in `Block 2/16 src/ledger.ts:64 | OK`"
 
-// verdictSentence asks a writer for that shape in its prompt. It sits in the prompt and not the brief:
-// a sentence in the brief changes the rules sum, and every block a run wrote would reopen.
+// verdictSentence asks a writer for that shape in its prompt. A sentence in the brief changes the rules
+// sum, and every block a run wrote would reopen, so the prompt carries it.
 const verdictSentence = "Every verdict line holds the file and the site's line as offered, and only those, even where the block landed elsewhere: " + verdictShape + "."
 
 // recordOf is the record lines a verdict's segment carries, or an empty string for a summary.
