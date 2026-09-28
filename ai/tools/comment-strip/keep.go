@@ -279,3 +279,48 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 	}
 	return refuse("no comment block sits on line %d of %s", at, shell.Echoable(path))
 }
+
+// renameWritten renames the identifier in the blocks the archive keeps for one file, which is `lines`
+// after the rename. A span is hashed again only where undoing the rename in it gives the hash the
+// archive holds, so a rename never blesses any other change to the code under a block.
+func renameWritten(archive, path string, lines []string, forward, back func(string) string) (int, error) {
+	held := readWritten(archive, path)
+	renamed := 0
+	for i, w := range held {
+		next := w
+		next.Block, next.Record, next.Decl = forward(w.Block), forward(w.Record), forward(w.Decl)
+		for _, u := range readerjudge.CommentBlocks(lines) {
+			at := declarationUnder(lines, u)
+			if blockText(lines, u) != next.Block || at > len(lines) || strings.TrimSpace(lines[at-1]) != next.Decl {
+				continue
+			}
+			comment := commentLines(lines)
+			var code, whole []string
+			for n, line := range declarationSpan(lines, at) {
+				whole = append(whole, back(line))
+				if !comment[at+n] {
+					code = append(code, back(line))
+				}
+			}
+			if spanSum(code) == w.Span || spanSum(whole) == w.Span {
+				next.Span = codeSum(lines, at)
+			}
+			break
+		}
+		if next != w {
+			held[i] = next
+			renamed++
+		}
+	}
+	if renamed == 0 {
+		return 0, nil
+	}
+	body, err := json.MarshalIndent(held, "", " ")
+	if err != nil {
+		return 0, err
+	}
+	if err := os.WriteFile(writtenName(archive, path), append(body, '\n'), 0o644); err != nil {
+		return 0, fmt.Errorf("cannot write %s", shell.Echoable(writtenName(archive, path)))
+	}
+	return renamed, nil
+}

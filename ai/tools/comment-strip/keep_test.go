@@ -214,3 +214,58 @@ func TestAnEntryHashedWithItsCommentLinesStillStands(t *testing.T) {
 		t.Fatalf("an entry hashed the older way reopened: %s", said.stderr)
 	}
 }
+
+const hostSource = "// A ledger keeps one clearing host per book, so `clearingHost` holds one name.\n" +
+	"export interface BookHosts {\n" +
+	"  clearingHost: string;\n" +
+	"}\n"
+
+const hostRecord = "fact: a ledger keeps one clearing host per book\nbears_on: clearingHost\ndoes: none\n"
+
+func renameIn(t *testing.T, f *fixture, archive string) outcome {
+	t.Helper()
+	var out, errOut strings.Builder
+	code := Strip("comment-strip.sh", []string{"--rename=clearingHost=settlementHost", "--archive=" + archive, f.path},
+		f.dir, noRepository, &out, &errOut)
+	if code == exitDidNotRun {
+		t.Fatalf("the rename did not run: %s", errOut.String())
+	}
+	return outcome{code: code, stdout: out.String(), stderr: errOut.String()}
+}
+
+// A rename reaches the blocks the archive keeps. Run 13 renamed a field, the archived record still
+// named the old one, and two blocks would be written again on unchanged code.
+func TestARenameReachesTheArchivedBlock(t *testing.T) {
+	for name, commentRenamed := range map[string]bool{"with the comment": false, "after the comment": true} {
+		t.Run(name, func(t *testing.T) {
+			rulesHome(t, "rules one ")
+			f := newFixture(t, "f.ts", hostSource)
+			archive := filepath.Join(f.dir, "archive")
+			writeRecord(t, f, archive, "2", hostRecord)
+			// The refactor lane renames the field in the code. Run 14 met the archive after run 13 had
+			// renamed the comment too.
+			renamed := strings.Replace(hostSource, "  clearingHost: string;", "  settlementHost: string;", 1)
+			if commentRenamed {
+				renamed = strings.ReplaceAll(renamed, "clearingHost", "settlementHost")
+			}
+			f.write(renamed)
+			renameIn(t, f, archive)
+			if said := f.run("--archive=" + archive); said.code != exitClean || strings.Contains(f.body(), "clearingHost") {
+				t.Fatalf("exit %d: %s\n%s", said.code, said.stderr, f.body())
+			}
+		})
+	}
+}
+
+// A rename blesses no other change to the code under a block.
+func TestARenameLeavesAnotherCodeChangeReopening(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", hostSource)
+	archive := filepath.Join(f.dir, "archive")
+	writeRecord(t, f, archive, "2", hostRecord)
+	f.write(strings.Replace(hostSource, "  clearingHost: string;", "  settlementHost: string;\n  backupHost?: string;", 1))
+	renameIn(t, f, archive)
+	if said := f.run("--archive=" + archive); said.code != exitCut {
+		t.Fatalf("a block over a second code change stood: exit %d: %s", said.code, said.stderr)
+	}
+}

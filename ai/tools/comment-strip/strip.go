@@ -36,7 +36,7 @@ const archiveOption = "--archive="
 // a caller who needs the form, and the refusal alone gives them half of it.
 const usage = "usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>\n" +
 	"       comment-strip.sh --archive=<dir> --contradict=<run> <path> <record id or claim> <review sentence>\n" +
-	"       comment-strip.sh --rename=<old>=<new> <path>\n" +
+	"       comment-strip.sh --rename=<old>=<new> [--archive=<dir>] <path>\n" +
 	"       comment-strip.sh --archive=<dir> --written=<run> <path> <declaration line> <record file>"
 
 const (
@@ -769,10 +769,23 @@ var identifierShape = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)
 // rename rewrites an identifier inside the file's comment blocks, whole word, after the refactor lane
 // renamed it in the code. A rename is a text substitution, and run 12 spent one voice-loop writer on
 // each block naming a renamed symbol. A block the toolchain reads is left as it stands.
+//
+// With the archive, the blocks it keeps are renamed as well. Run 13 renamed a field, and the archived
+// record still named the old one, so two blocks would be written again on unchanged code.
 func rename(pair string, args []string, cwd string, stdout io.Writer, refuse func(string, ...any) int) int {
 	old, replacement, found := strings.Cut(pair, "=")
 	if !found || !identifierShape.MatchString(old) || !identifierShape.MatchString(replacement) {
 		return refuse("--rename holds %q, and it takes <old>=<new>, two identifiers", shell.Echoable(pair))
+	}
+	archive := ""
+	if len(args) > 0 && strings.HasPrefix(args[0], archiveOption) {
+		archive, args = strings.TrimPrefix(args[0], archiveOption), args[1:]
+		if archive == "" {
+			return refuse("%s", "--archive needs a directory")
+		}
+		if !filepath.IsAbs(archive) {
+			archive = filepath.Join(cwd, archive)
+		}
 	}
 	if len(args) != 1 {
 		return refuse("%s", "--rename takes one path")
@@ -789,7 +802,7 @@ func rename(pair string, args []string, cwd string, stdout io.Writer, refuse fun
 	if err != nil {
 		return refuse("cannot read %s", shell.Echoable(args[0]))
 	}
-	whole := regexp.MustCompile(`(^|[^\w$])` + regexp.QuoteMeta(old) + `($|[^\w$])`)
+	forward, back := substitution(old, replacement), substitution(replacement, old)
 	lines := shell.SplitLines(string(raw))
 	rewritten := 0
 	for _, u := range readerjudge.CommentBlocks(lines) {
@@ -797,28 +810,46 @@ func rename(pair string, args []string, cwd string, stdout io.Writer, refuse fun
 			continue
 		}
 		for at := u.Line; at < u.Line+u.Span && at <= len(lines); at++ {
-			line := lines[at-1]
-			// The match takes the character on each side, so a name repeated with one character between
-			// needs a second pass.
-			for next := whole.ReplaceAllString(line, "${1}"+replacement+"${2}"); next != line; next = whole.ReplaceAllString(line, "${1}"+replacement+"${2}") {
-				line = next
-			}
-			if line != lines[at-1] {
+			if line := forward(lines[at-1]); line != lines[at-1] {
 				lines[at-1] = line
 				rewritten++
 			}
 		}
 	}
-	if rewritten == 0 {
+	if rewritten > 0 {
+		body := strings.Join(lines, "\n")
+		if strings.HasSuffix(string(raw), "\n") && !strings.HasSuffix(body, "\n") {
+			body += "\n"
+		}
+		if err := os.WriteFile(path, []byte(body), info.Mode().Perm()); err != nil {
+			return refuse("cannot write %s", shell.Echoable(args[0]))
+		}
+		fmt.Fprintf(stdout, "%s: %d comment line(s) now name %s\n", args[0], rewritten, replacement)
+	}
+	renamed := 0
+	if archive != "" {
+		var err error
+		if renamed, err = renameWritten(archive, args[0], lines, forward, back); err != nil {
+			return refuse("%s", err.Error())
+		}
+		if renamed > 0 {
+			fmt.Fprintf(stdout, "%s: %d archived block(s) now name %s\n", args[0], renamed, replacement)
+		}
+	}
+	if rewritten == 0 && renamed == 0 {
 		return exitClean
 	}
-	body := strings.Join(lines, "\n")
-	if strings.HasSuffix(string(raw), "\n") && !strings.HasSuffix(body, "\n") {
-		body += "\n"
-	}
-	if err := os.WriteFile(path, []byte(body), info.Mode().Perm()); err != nil {
-		return refuse("cannot write %s", shell.Echoable(args[0]))
-	}
-	fmt.Fprintf(stdout, "%s: %d comment line(s) now name %s\n", args[0], rewritten, replacement)
 	return exitCut
+}
+
+// substitution rewrites one identifier, whole word. The match takes the character on each side, so a
+// name repeated with one character between needs a second pass.
+func substitution(old, replacement string) func(string) string {
+	whole := regexp.MustCompile(`(^|[^\w$])` + regexp.QuoteMeta(old) + `($|[^\w$])`)
+	return func(text string) string {
+		for next := whole.ReplaceAllString(text, "${1}"+replacement+"${2}"); next != text; next = whole.ReplaceAllString(text, "${1}"+replacement+"${2}") {
+			text = next
+		}
+		return text
+	}
 }
