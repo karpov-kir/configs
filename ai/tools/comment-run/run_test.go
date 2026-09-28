@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"configs/ai/tools/repo"
+	treefingerprint "configs/ai/tools/tree-fingerprint"
 )
 
 // rulesHome is a home directory holding the rules a block is written under.
@@ -296,5 +297,77 @@ func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 	if said := c.run("prompts", "--run-dir="+runDir, "--workers=1"); said.code != exitDidNotRun ||
 		!strings.Contains(said.stderr, "a slot this tool does not fill: Budget") {
 		t.Fatalf("a grown template ran: exit %d: %s", said.code, said.stderr)
+	}
+}
+
+// archive-written reads the verdict shapes run 14's writers returned: a note after the line, the site
+// in brackets or parentheses, and a path dropped after the first verdict. A verdict it cannot place is
+// refused by writer and line, with the shape it wants.
+func TestArchiveWrittenReadsTheVerdictShapesWritersReturn(t *testing.T) {
+	c := newChange(t)
+	c.write("book.ts", "// A ledger closes a book at midnight, so this constant holds the hour.\nexport const CLOSE_HOUR = 0;\n\n"+
+		"// A ledger rounds to cents, so this constant holds two places.\nexport const CENT_PLACES = 2;\n\n"+
+		"// A ledger names its schemes in lower case, so this constant holds the casing.\nexport const SCHEME_CASE = 'lower';\n")
+	block := func(comment, code string) string {
+		return "```ts\n" + comment + "\n" + code + "\n```\nfact: " + strings.TrimPrefix(comment, "// ") + "\nbears_on: x\ndoes: none\n"
+	}
+	ret := filepath.Join(t.TempDir(), "writer-C-results.md")
+	body := "Block 1/4 book.ts:1 (landed on line 1) | OK\n" + block("// A ledger closes a book at midnight, so this constant holds the hour.", "export const CLOSE_HOUR = 0;") +
+		"Block 2/4 :3 (landed on line 4) | OK\n" + block("// A ledger rounds to cents, so this constant holds two places.", "export const CENT_PLACES = 2;") +
+		"Block 3/4 book.ts:7 [site :6] | OK\n" + block("// A ledger names its schemes in lower case, so this constant holds the casing.", "export const SCHEME_CASE = 'lower';") +
+		"Block 4/4 the header | OK\n"
+	if err := os.WriteFile(ret, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said := c.run("archive-written", "--run=run15", "--archive="+t.TempDir(), ret)
+	if said.code != exitFindings || strings.Count(said.stdout, " archived\n") != 3 {
+		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
+	}
+	if !strings.Contains(said.stdout, "writer-C-results.md:") || !strings.Contains(said.stdout, "names no <path>:<line>; the shape is `Block N/M <path>:<offered line> | OK`") {
+		t.Fatalf("the unplaced verdict was not refused by writer, line and shape:\n%s", said.stdout)
+	}
+}
+
+// loop records the contradiction, strips the one site, adds the review's sentence to its facts file and
+// fills the loop writer's prompt with the run tree's fingerprint. Run 14's runner computed the
+// fingerprint in its session's own worktree, so the stage runs from elsewhere here.
+func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	// The writer wrote a block back at the site, and review found its claim false.
+	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for every scheme, so this function asks it once.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	var out, errOut strings.Builder
+	code := Run("comment-run.sh", []string{"loop", "--run-dir=" + runDir, "--archive=" + archive, "--run=run15",
+		"--contradict=canPost answers for its own scheme only", "ledger.ts:4", "canPost answers for its own scheme only"},
+		t.TempDir(), repo.Exec{}, &out, &errOut)
+	if code != exitClean {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	prompt, err := os.ReadFile(strings.TrimSpace(out.String()))
+	if err != nil {
+		t.Fatalf("no prompt at %q: %v", out.String(), err)
+	}
+	fingerprint, err := treefingerprint.Fingerprint(c.top)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(prompt), fingerprint) {
+		t.Errorf("the prompt names no fingerprint of the run's tree %s:\n%s", fingerprint, prompt)
+	}
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*.facts"))
+	if len(facts) != 1 {
+		t.Fatalf("want one facts file, got %v", facts)
+	}
+	body, _ := os.ReadFile(facts[0])
+	for _, want := range []string{"contradicted: run15 canPost answers for its own scheme only", "# code review:\ncanPost answers for its own scheme only"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("the facts file lacks %q:\n%s", want, body)
+		}
+	}
+	if file, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); strings.Contains(string(file), "//") {
+		t.Errorf("the site still holds its block:\n%s", file)
 	}
 }

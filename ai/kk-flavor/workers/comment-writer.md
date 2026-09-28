@@ -159,7 +159,7 @@ Write the block in the comment syntax the file's other blocks use, and change no
 
 ## Verdict
 
-`Block N/M <file>:<line> | OK` followed by the block you wrote, verbatim, in a fenced code block, or `Block N/M <file>:<line> | none`. A site is `none` only where both parts are.
+`Block N/M <file>:<line> | OK` followed by the block you wrote, verbatim, in a fenced code block, or `Block N/M <file>:<line> | none`. A site is `none` only where both parts are. Every verdict line holds the file and the site's line as offered, and only those, even where the block landed elsewhere: `Block 2/16 src/ledger.ts:64 | OK`.
 
 Under each verdict line, its two part lines: `summary: needed` or `summary: none`, and `note: written` or `note: none`. A lane reading your return counts the parts, so a site that lost its note to the summary's verdict can be seen. Under a written note, its record, one slot to a line: `fact:`, `bears_on:` and `does:`. The lane archives the block with it, and the next run keeps the block while the record holds.
 
