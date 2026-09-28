@@ -92,15 +92,34 @@ func spanSum(span []string) string {
 	return hex.EncodeToString(sum[:])[:12]
 }
 
-// declarationUnder is the first code line after the block, the line the block sits on. A file header
-// and the block under it both sit on that line.
-func declarationUnder(lines []string, u readerjudge.Unit) int {
+// commentLines is every line a comment block in the file covers.
+func commentLines(lines []string) map[int]bool {
 	comment := map[int]bool{}
-	for _, other := range readerjudge.CommentBlocks(lines) {
-		for at := other.Line; at < other.Line+other.Span; at++ {
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		for at := u.Line; at < u.Line+u.Span; at++ {
 			comment[at] = true
 		}
 	}
+	return comment
+}
+
+// codeSum is the span's hash with its comment lines left out. Run 13's loop rewrote a row note inside
+// an object literal, and the block over the literal reopened although no code under it changed.
+func codeSum(lines []string, at int) string {
+	comment := commentLines(lines)
+	var code []string
+	for n, line := range declarationSpan(lines, at) {
+		if !comment[at+n] {
+			code = append(code, line)
+		}
+	}
+	return spanSum(code)
+}
+
+// declarationUnder is the first code line after the block, the line the block sits on. A file header
+// and the block under it both sit on that line.
+func declarationUnder(lines []string, u readerjudge.Unit) int {
+	comment := commentLines(lines)
 	next := u.Line + u.Span
 	for next <= len(lines) && (strings.TrimSpace(lines[next-1]) == "" || comment[next]) {
 		next++
@@ -166,14 +185,19 @@ func (k keeper) keeps(file string, lines []string, u readerjudge.Unit) string {
 		return ""
 	}
 	span := declarationSpan(lines, at)
+	// An entry written before run 14 hashed the span with its comment lines, and it still matches.
+	code, whole := codeSum(lines, at), spanSum(span)
 	for _, w := range k.held {
 		if w.Block != block || w.Rules != k.rules || w.Decl != strings.TrimSpace(lines[at-1]) ||
-			w.Span != spanSum(span) || k.contradiction[recordID(block)] {
+			(w.Span != code && w.Span != whole) || k.contradiction[recordID(block)] {
 			continue
 		}
-		input := append(append(shell.SplitLines(w.Record), "---"), shell.SplitLines(block)...)
-		if len(voicecheck.RecordFindings(file, append(input, span...))) > 0 {
-			continue
+		// A block holding a summary alone has no note, so the writer returned no record for it.
+		if strings.TrimSpace(w.Record) != "" {
+			input := append(append(shell.SplitLines(w.Record), "---"), shell.SplitLines(block)...)
+			if len(voicecheck.RecordFindings(file, append(input, span...))) > 0 {
+				continue
+			}
 		}
 		return w.Run
 	}
@@ -230,7 +254,7 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 			return refuse("the block on line %d of %s sits on no code", u.Line, shell.Echoable(path))
 		}
 		entry := written{Run: run, Rules: rules, Decl: strings.TrimSpace(lines[at-1]),
-			Span: spanSum(declarationSpan(lines, at)), Block: blockText(lines, u), Record: strings.TrimSpace(string(record))}
+			Span: codeSum(lines, at), Block: blockText(lines, u), Record: strings.TrimSpace(string(record))}
 		held := readWritten(archive, path)
 		kept := held[:0]
 		// An entry goes only where the same block stands on the same declaration and body again. A file

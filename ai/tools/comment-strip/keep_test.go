@@ -1,10 +1,13 @@
 package commentstrip
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"configs/ai/tools/shell"
 )
 
 // rulesHome is a home directory holding the rules a block is written under.
@@ -141,5 +144,73 @@ func TestAHeaderAndTheBlockUnderItBothStand(t *testing.T) {
 	said := f.run("--archive=" + archive)
 	if said.code != exitClean || strings.Count(said.stderr, "kept as run13") != 2 {
 		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+}
+
+// writeRecord archives the block on the declaration at `line` with this record, as run13 wrote it.
+func writeRecord(t *testing.T, f *fixture, archive, line, record string) {
+	t.Helper()
+	path := filepath.Join(f.dir, "record.txt")
+	if err := os.WriteFile(path, []byte(record), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--written=run13", f.path, line, path},
+		f.dir, noRepository, &out, &errOut); code != exitClean {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+}
+
+// A block holding a summary alone has no note, so the writer returns no record for it. Run 13 had four,
+// and the check wanted slots they could not have, so every run rewrote them.
+func TestASummaryAloneIsKeptWithoutARecord(t *testing.T) {
+	rulesHome(t, "rules one ")
+	source := "// Lists the postings of a closed book, newest first.\nexport function listPostings(book: LedgerBook): Posting[] {\n  return book.postings.slice().reverse();\n}\n"
+	f := newFixture(t, "f.ts", source)
+	archive := filepath.Join(f.dir, "archive")
+	writeRecord(t, f, archive, "2", "")
+	if said := f.run("--archive=" + archive); said.code != exitClean || f.body() != source {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+}
+
+const literalSource = "// A ledger export names each scheme in its own casing, so `schemeTags` keeps the casing.\n" +
+	"export const schemeTags = {\n" +
+	"  // An accrual row predates the casing rule.\n" +
+	"  accrual: 'Accrual',\n" +
+	"  deferred: 'Deferred',\n" +
+	"};\n"
+
+const literalRecord = "fact: a ledger export names each scheme in its own casing\nbears_on: schemeTags\ndoes: none\n"
+
+// A note inside a body that a later run rewrote leaves the block over the body standing. Run 13's
+// loop rewrote a row note in an object literal, and the block over the literal reopened.
+func TestARewrittenNoteInsideABodyLeavesTheBlockOverItStanding(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", literalSource)
+	archive := filepath.Join(f.dir, "archive")
+	writeRecord(t, f, archive, "2", literalRecord)
+	f.write(strings.Replace(literalSource, "An accrual row predates the casing rule.", "The accrual row predates the rule on casing.", 1))
+	said := f.run("--archive=" + archive)
+	if !strings.Contains(said.stderr, ":1: kept as run13") {
+		t.Fatalf("the block over the literal reopened: %s", said.stderr)
+	}
+}
+
+// An entry run 13 wrote hashed the span with its comment lines, and it is still read.
+func TestAnEntryHashedWithItsCommentLinesStillStands(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", literalSource)
+	archive := filepath.Join(f.dir, "archive")
+	writeRecord(t, f, archive, "2", literalRecord)
+	held := readWritten(archive, f.path)
+	lines := shell.SplitLines(literalSource)
+	held[0].Span = spanSum(declarationSpan(lines, 2))
+	body, _ := json.Marshal(held)
+	if err := os.WriteFile(writtenName(archive, f.path), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := f.run("--archive=" + archive); !strings.Contains(said.stderr, ":1: kept as run13") {
+		t.Fatalf("an entry hashed the older way reopened: %s", said.stderr)
 	}
 }
