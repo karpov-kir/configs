@@ -173,6 +173,8 @@ func TestADataDeclarationOfAnyLengthTakesDoesNone(t *testing.T) {
 		{"type", "PostingShape", "export type PostingShape = {\n  format: string;\n};"},
 		{"object constant", "schemeIdentifiers", "export const schemeIdentifiers: Record<Scheme, string[]> = {\n  accrual: ['a'],\n};"},
 		{"array constant", "LEDGER_SOURCES", "export const LEDGER_SOURCES: LedgerSource[] = [\n  { id: 'accrual-eu' },\n];"},
+		// A catalogue row under a computed key. Run 13 read nine of them as declarations with a body.
+		{"computed key", "EscrowDeferred", "  [Clearing.EscrowDeferred]: undefined,"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			text := fmt.Sprintf(record, tc.name, tc.name) + tc.code
