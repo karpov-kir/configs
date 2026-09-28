@@ -1,0 +1,15 @@
+expect: written
+note: written
+keeps: starts with | begins with | start with | begin with
+keeps: groups | group
+bars: that opens | which opens | value of this enum that
+why: Kirill found "groups the results of each cell by the value of this enum that opens the cell's refusal message" hard to follow; the fact opens on the thing a reader can picture, each refusal message starting with one of these values, and then says the dataset groups by it
+labelled: 2026-09-28
+--- code
+export enum SettlementOutcome {
+  Settled = 'SETTLED',
+  RefusedByLedger = 'REFUSED_BY_LEDGER',
+  RefusedByClearing = 'REFUSED_BY_CLEARING',
+}
+--- facts
+The audit dataset groups the results of each posting cell by the value of this enum that opens the cell's refusal message.
