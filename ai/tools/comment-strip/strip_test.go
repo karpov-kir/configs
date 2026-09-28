@@ -706,3 +706,22 @@ func TestAContradictionByLineReachesTheLoopsOwnStrip(t *testing.T) {
 		t.Fatalf("the loop's facts file carries no contradiction:\n%s", facts)
 	}
 }
+
+// A `--lines` strip at a site whose block was deleted offers the archive's claims there, as a full strip
+// would. Run 14's loop sent three findings to such sites, and the strip printed none of them.
+func TestALinesStripOffersTheArchivedSiteWhereNoBlockStands(t *testing.T) {
+	f := newFixture(t, "f.go", "func a() {}\n\n// b answers for one book at a time.\nfunc b() {}\n")
+	archive := filepath.Join(f.dir, "archive")
+	f.cut("--archive=" + archive)
+	// The writers deleted b's block, and review sends a finding to b's line.
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	said := f.cut("--archive="+archive, "--lines=3")
+	if !strings.Contains(said.stdout, "f.go:3 1.facts") {
+		t.Fatalf("no site printed: %q", said.stdout)
+	}
+	if facts := f.fact("1.facts"); !strings.Contains(facts, earlierMarker) || !strings.Contains(facts, "b answers for one book at a time.") {
+		t.Fatalf("the facts file offers no archived claim:\n%s", facts)
+	}
+}
