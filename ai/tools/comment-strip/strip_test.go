@@ -690,3 +690,19 @@ func TestARenameRewritesTheIdentifierInCommentBlocksAlone(t *testing.T) {
 		t.Fatalf("a name that is no identifier ran: exit %d", code)
 	}
 }
+
+// A review records its contradiction by the line it read, before the loop strips that site. Run 13's
+// loop stripped first, and its facts file held no `contradicted:` line.
+func TestAContradictionByLineReachesTheLoopsOwnStrip(t *testing.T) {
+	f := newFixture(t, "f.ts", "// canPost throws when its this binding is not the object that owns it.\nconst claim = keys.canPost?.(scheme);\n")
+	archive := filepath.Join(f.dir, "archive")
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=run13", f.path, "line:2",
+		"canPost is static on both prefixed interfaces"}, f.dir, noRepository, &out, &errOut); code != exitClean {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	f.cut("--archive="+archive, "--lines=2")
+	if facts := f.fact("1.facts"); !strings.Contains(facts, "contradicted: run13 canPost is static") {
+		t.Fatalf("the loop's facts file carries no contradiction:\n%s", facts)
+	}
+}

@@ -92,15 +92,34 @@ func spanSum(span []string) string {
 	return hex.EncodeToString(sum[:])[:12]
 }
 
-// declarationUnder is the first code line after the block, the line the block sits on. A file header
-// and the block under it both sit on that line.
-func declarationUnder(lines []string, u readerjudge.Unit) int {
+// commentLines is every line a comment block in the file covers.
+func commentLines(lines []string) map[int]bool {
 	comment := map[int]bool{}
-	for _, other := range readerjudge.CommentBlocks(lines) {
-		for at := other.Line; at < other.Line+other.Span; at++ {
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		for at := u.Line; at < u.Line+u.Span; at++ {
 			comment[at] = true
 		}
 	}
+	return comment
+}
+
+// codeSum is the span's hash with its comment lines left out. Run 13's loop rewrote a row note inside
+// an object literal, and the block over the literal reopened although no code under it changed.
+func codeSum(lines []string, at int) string {
+	comment := commentLines(lines)
+	var code []string
+	for n, line := range declarationSpan(lines, at) {
+		if !comment[at+n] {
+			code = append(code, line)
+		}
+	}
+	return spanSum(code)
+}
+
+// declarationUnder is the first code line after the block, the line the block sits on. A file header
+// and the block under it both sit on that line.
+func declarationUnder(lines []string, u readerjudge.Unit) int {
+	comment := commentLines(lines)
 	next := u.Line + u.Span
 	for next <= len(lines) && (strings.TrimSpace(lines[next-1]) == "" || comment[next]) {
 		next++
@@ -166,14 +185,19 @@ func (k keeper) keeps(file string, lines []string, u readerjudge.Unit) string {
 		return ""
 	}
 	span := declarationSpan(lines, at)
+	// An entry written before run 14 hashed the span with its comment lines, and it still matches.
+	code, whole := codeSum(lines, at), spanSum(span)
 	for _, w := range k.held {
 		if w.Block != block || w.Rules != k.rules || w.Decl != strings.TrimSpace(lines[at-1]) ||
-			w.Span != spanSum(span) || k.contradiction[recordID(block)] {
+			(w.Span != code && w.Span != whole) || k.contradiction[recordID(block)] {
 			continue
 		}
-		input := append(append(shell.SplitLines(w.Record), "---"), shell.SplitLines(block)...)
-		if len(voicecheck.RecordFindings(file, append(input, span...))) > 0 {
-			continue
+		// A block holding only a summary carries an empty record, since a record belongs to a note.
+		if strings.TrimSpace(w.Record) != "" {
+			input := append(append(shell.SplitLines(w.Record), "---"), shell.SplitLines(block)...)
+			if len(voicecheck.RecordFindings(file, append(input, span...))) > 0 {
+				continue
+			}
 		}
 		return w.Run
 	}
@@ -230,7 +254,7 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 			return refuse("the block on line %d of %s sits on no code", u.Line, shell.Echoable(path))
 		}
 		entry := written{Run: run, Rules: rules, Decl: strings.TrimSpace(lines[at-1]),
-			Span: spanSum(declarationSpan(lines, at)), Block: blockText(lines, u), Record: strings.TrimSpace(string(record))}
+			Span: codeSum(lines, at), Block: blockText(lines, u), Record: strings.TrimSpace(string(record))}
 		held := readWritten(archive, path)
 		kept := held[:0]
 		// An entry goes only where the same block stands on the same declaration and body again. A file
@@ -254,4 +278,49 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 		return exitClean
 	}
 	return refuse("no comment block sits on line %d of %s", at, shell.Echoable(path))
+}
+
+// renameWritten renames the identifier in the blocks the archive keeps for one file, which is `lines`
+// after the rename. The span's hash is replaced where undoing the rename in the span gives the archived
+// hash. Any other change to the code under a block still reopens it.
+func renameWritten(archive, path string, lines []string, forward, back func(string) string) (int, error) {
+	held := readWritten(archive, path)
+	renamed := 0
+	for i, w := range held {
+		next := w
+		next.Block, next.Record, next.Decl = forward(w.Block), forward(w.Record), forward(w.Decl)
+		for _, u := range readerjudge.CommentBlocks(lines) {
+			at := declarationUnder(lines, u)
+			if blockText(lines, u) != next.Block || at > len(lines) || strings.TrimSpace(lines[at-1]) != next.Decl {
+				continue
+			}
+			comment := commentLines(lines)
+			var code, whole []string
+			for n, line := range declarationSpan(lines, at) {
+				whole = append(whole, back(line))
+				if !comment[at+n] {
+					code = append(code, back(line))
+				}
+			}
+			if spanSum(code) == w.Span || spanSum(whole) == w.Span {
+				next.Span = codeSum(lines, at)
+			}
+			break
+		}
+		if next != w {
+			held[i] = next
+			renamed++
+		}
+	}
+	if renamed == 0 {
+		return 0, nil
+	}
+	body, err := json.MarshalIndent(held, "", " ")
+	if err != nil {
+		return 0, err
+	}
+	if err := os.WriteFile(writtenName(archive, path), append(body, '\n'), 0o644); err != nil {
+		return 0, fmt.Errorf("cannot write %s", shell.Echoable(writtenName(archive, path)))
+	}
+	return renamed, nil
 }
