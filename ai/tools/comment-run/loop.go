@@ -90,7 +90,7 @@ func loop(r *runner, opts options, operands []string) int {
 		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`, tree fingerprint `%s`. Code review "+
 			"sent one block back, and the strip removed it; its facts file carries the review's sentence under "+
 			"`# code review:`. No reusable verdicts.", tree, held["head"], held["base"], fingerprint),
-		"Change scope": fmt.Sprintf("the one site code review sent back, in `%s`:\n%s\nYou write into that file only.",
+		"Change scope": fmt.Sprintf("the one site code review sent back, in `%s`:\n%s\nYou write into that file only. "+verdictSentence,
 			path, strings.TrimRight(sites.String(), "\n")),
 		"Held by a concurrent lane": "",
 		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",

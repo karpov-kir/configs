@@ -280,7 +280,7 @@ func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 			t.Errorf("a slot is left as its placeholder: %s", paragraph[at+2:])
 		}
 	}
-	for _, want := range []string{"Apply the `~/.kk-flavor/workers/comment-writer.md` contract", "User-stated emphasis", "none", "ledger.ts:3 1.facts"} {
+	for _, want := range []string{"Apply the `~/.kk-flavor/workers/comment-writer.md` contract", "User-stated emphasis", "none", "ledger.ts:3 1.facts", verdictSentence} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("the prompt lacks %q:\n%s", want, body)
 		}
@@ -353,6 +353,9 @@ func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
 	fingerprint, err := treefingerprint.Fingerprint(c.top)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(string(prompt), verdictSentence) {
+		t.Errorf("the loop prompt asks for no verdict shape:\n%s", prompt)
 	}
 	if !strings.Contains(string(prompt), fingerprint) {
 		t.Errorf("the prompt names no fingerprint of the run's tree %s:\n%s", fingerprint, prompt)

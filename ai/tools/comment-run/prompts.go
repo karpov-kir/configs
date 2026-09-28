@@ -180,7 +180,7 @@ func writerPrompt(template string, run map[string]string, runDir, name string, f
 			"not given, and you leave it as it stands. No reusable verdicts.", run["top"], run["head"], run["base"]),
 		"Change scope": fmt.Sprintf("the change set `%s...%s`. Your sites, %d, in `%s`, one facts directory per file, "+
 			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only. Write each block into its file "+
-			"as soon as it passes its gate.", run["base"], run["head"], n, strings.Join(files, "`, `"),
+			"as soon as it passes its gate. "+verdictSentence, run["base"], run["head"], n, strings.Join(files, "`, `"),
 			strings.TrimRight(sites.String(), "\n")),
 		"Held by a concurrent lane": others,
 		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
