@@ -8,7 +8,7 @@
 #   usage: comment-run.sh taint --ledger=<file> <transcript>... [--ledger=<file> <transcript>...]
 #   usage: comment-run.sh keep-test --archive=<dir> <path>...
 #
-# Exit 0 found nothing to report, 1 reported findings, 2 did not run.
+# Exit 0 is a clean run, 1 a run that reported findings, and 2 a stage that did not run.
 #
 # tested by: the Go suite in ai/tools/comment-run/. The shared stub region and the resolver it
 # calls have their own cases in the Go suite in ai/tools/reach/.

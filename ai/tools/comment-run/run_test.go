@@ -121,7 +121,7 @@ func TestSeedStripsTheChangeSetAgainstASeededArchive(t *testing.T) {
 	}
 }
 
-// seed strips nothing where the tree stands elsewhere than the head, or holds changes of its own.
+// seed refuses a tree standing elsewhere than the head, or holding changes of its own.
 func TestSeedRefusesATreeThatIsNotTheHead(t *testing.T) {
 	c := newChange(t)
 	args := []string{"seed", "--run-dir=" + t.TempDir(), "--archive=" + t.TempDir(), "--range=" + c.base + ".." + c.earlier}
@@ -206,7 +206,7 @@ func transcript(t *testing.T, calls ...[3]string) string {
 
 // taint counts a history read of a writer's file before its last write, reads the writes from the
 // ledger, and prints a chained command for a hand read. A lint run naming the file, the results file
-// and a read after the ledger entry count for nothing. Runs 12 and 13 counted all three.
+// and a read after the ledger entry are no taint. Runs 12 and 13 counted all three.
 func TestTaintReadsWritesFromTheLedger(t *testing.T) {
 	c := newChange(t)
 	ledger := filepath.Join(t.TempDir(), "comment-writer-A-queue.md")

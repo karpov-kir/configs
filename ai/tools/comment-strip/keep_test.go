@@ -270,7 +270,7 @@ func TestARenameLeavesAnotherCodeChangeReopening(t *testing.T) {
 	}
 }
 
-// The dry keep test reads each block against the archive and names why one reopens, changing nothing.
+// The dry keep test reads each block against the archive and names why one reopens. It only reads.
 func TestKeepVerdictsNameWhyABlockReopens(t *testing.T) {
 	rulesHome(t, "rules one ")
 	f := newFixture(t, "f.ts", keptSource)

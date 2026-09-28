@@ -15,9 +15,9 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// seed prepares a run: it seeds the archive from each earlier head of the change, maps the claims code
-// review found false to the record ids a trial strip names, and strips the change set in the tree the
-// command stands in. The tree must sit at the range's head, clean. Each earlier head is stripped in a
+// seed prepares a run. It seeds the archive from each earlier head of the change, and maps the claims
+// code review found false to the record ids a trial strip names. Then it strips the change set in the
+// tree the command stands in. The tree must sit at the range's head, clean. Each earlier head is stripped in a
 // disposable worktree, so every archived record carries its site's declaration.
 func seed(r *runner, opts options, _ []string) int {
 	runDir, archive, span := opts.one("run-dir"), opts.one("archive"), opts.one("range")

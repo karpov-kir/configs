@@ -234,8 +234,7 @@ type KeepVerdict struct {
 	Reopened string
 }
 
-// KeepVerdicts reads every block in one file against the archive, as a full strip would, and changes
-// nothing. A run's dry keep test prints them, so a block that will be written again names its reason.
+// KeepVerdicts reads every block in one file against the archive, as a full strip would, and only reads. A run's dry keep test prints them, so a block that will be written again names its reason.
 func KeepVerdicts(archive, path string, lines []string) []KeepVerdict {
 	k := newKeeper(archive, path)
 	var out []KeepVerdict

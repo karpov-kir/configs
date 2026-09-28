@@ -75,7 +75,7 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 	return exitClean
 }
 
-// recordOf is the record lines a verdict's segment carries, or nothing for a summary alone.
+// recordOf is the record lines a verdict's segment carries, or an empty string for a summary.
 func recordOf(segment string) string {
 	var slots []string
 	for _, line := range strings.Split(segment, "\n") {

@@ -8,7 +8,7 @@
 //	usage: comment-run.sh taint --ledger=<file> <transcript>... [--ledger=<file> <transcript>...]
 //	usage: comment-run.sh keep-test --archive=<dir> <path>...
 //
-// Exit 0 found nothing to report, 1 reported findings, 2 did not run.
+// Exit 0 is a clean run, 1 a run that reported findings, and 2 a stage that did not run.
 package commentrun
 
 import (
@@ -44,7 +44,7 @@ var stages = map[string]stage{
 	"keep-test":       keepTest,
 }
 
-// runner holds what every stage reads: where it stands and where it writes.
+// runner holds the directory a stage stands in and the streams it writes to.
 type runner struct {
 	self   string
 	cwd    string

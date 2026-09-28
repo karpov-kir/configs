@@ -13,8 +13,8 @@ import (
 
 // prompts partitions the sites seed printed over the writers and writes each writer's spawn prompt.
 // A file's sites go to one writer, and the files go to the writer holding the fewest sites so far. The
-// emphasis slot quotes the human's words from `licence.txt` in the run directory, and nothing else:
-// runs 11 and 12 carried an approval sentence the human never wrote.
+// emphasis slot quotes only the human's words, from `licence.txt` in the run directory. Runs 11 and
+// 12 carried an approval sentence the human never wrote.
 func prompts(r *runner, opts options, _ []string) int {
 	runDir := opts.one("run-dir")
 	workers, err := strconv.Atoi(opts.one("workers"))
