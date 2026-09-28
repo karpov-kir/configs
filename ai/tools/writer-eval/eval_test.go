@@ -145,7 +145,7 @@ func TestTheBlockThatStatesTheMechanismTwiceFails(t *testing.T) {
 	}
 	named := Return{Summary: PartNone, Note: PartWritten, Block: "/**\n" +
 		" * A LiveEntryView stops listing an entry as soon as the book removes it.\n" +
-		" * toEntries copies it, so a caller iterating the result still reaches every entry.\n */"}
+		" * This function copies it, so a caller iterating the result still reaches every entry.\n */"}
 	if v := JudgeCase(k11, named); !v.Passed() {
 		t.Errorf("a block naming the caller's walk failed k11: %v", v.Failures)
 	}

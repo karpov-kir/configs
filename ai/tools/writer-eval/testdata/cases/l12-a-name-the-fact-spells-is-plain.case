@@ -1,0 +1,10 @@
+expect: written
+note: written
+keeps: kestrel
+bars: some terminals | a class of | terminals of those years
+why: the record's fact names one vendor's terminals, and the audit's classes left the vendor's name nowhere, so run 13's writer widened the fact to every terminal of those years to pass it and the note lost the vendor; a name the fact spells is plain, and a fact is never widened to pass the audit
+labelled: 2026-09-28
+--- code
+[Clearing.EscrowDeferred]: undefined,
+--- facts
+The Harbour escrow vector does not settle under the accrual scheme on 2024 and 2025 Kestrel terminals.

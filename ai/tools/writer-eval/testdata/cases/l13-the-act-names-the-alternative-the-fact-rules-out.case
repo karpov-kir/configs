@@ -1,0 +1,14 @@
+expect: written
+note: written
+keeps: this function | this method | this member | this property | this call | this branch
+keeps: newline | line break
+keeps: no posting reference | no reference | which no | holds no | contains no | rather than | instead of | never holds | never contains | not a semicolon | and not | in place of | a semicolon would | semicolon between | semicolon separator | would split | not semicolons | not with a semicolon | instead
+bars: \bformatpostingidentities\b
+why: the fact that a posting reference puts a semicolon before each qualifier is why the cells are joined with a newline, and run 13's writer said so in its own restatement but wrote the fact and the join as two sentences with no tie; where the fact rules out an alternative the act avoids, the act names it
+labelled: 2026-09-28
+--- code
+export function formatPostingIdentities(identity: PostingIdentity): string {
+  return [identity.book, identity.reference, identity.settlementHost].join('\n');
+}
+--- facts
+A posting reference puts a semicolon before each of its qualifiers, such as the clearing list.

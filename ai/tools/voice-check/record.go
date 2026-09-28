@@ -16,6 +16,7 @@ const (
 	checkRecordElsewhere = "bears-on-elsewhere"
 	checkRecordUnnamed   = "block-omits-bears-on"
 	checkRecordUntied    = "does-untied"
+	checkRecordSelfNamed = "block-names-its-declaration"
 )
 
 // recordMarker ends the record and opens the block. Everything above it is slots, everything under
@@ -107,6 +108,45 @@ func blockAndBody(lines []string) (block, body []string) {
 	return block, lines[at:]
 }
 
+// reThisDeclaration is how a note names the declaration it sits on.
+var reThisDeclaration = regexp.MustCompile(`(?i)\bthis (function|method|constructor|class|interface|type|enum|member|row|constant|field|property|getter|setter|call|branch|test|hook|table|list|map|object|value|variable|module|guard|check|helper|loop|statement)\b`)
+
+// declarationKeywords open a declaration before its name. statementKeywords open a line that declares
+// no name.
+var declarationKeywords = map[string]bool{"export": true, "default": true, "async": true, "function": true,
+	"const": true, "let": true, "var": true, "class": true, "interface": true, "type": true, "enum": true,
+	"readonly": true, "static": true, "private": true, "public": true, "protected": true, "declare": true,
+	"abstract": true, "get": true, "set": true, "func": true, "def": true}
+var statementKeywords = map[string]bool{"if": true, "else": true, "for": true, "while": true, "switch": true,
+	"return": true, "case": true, "await": true, "throw": true, "try": true, "do": true, "new": true}
+
+// reComputedName is the last name inside a computed key, such as Deferred in `[Clearing.Deferred]:`.
+var reComputedName = regexp.MustCompile(`^\[[\w$.]*?([\w$]+)\]`)
+
+// declaredName is the name the first code line under the block declares, or "" where that line is a
+// statement.
+func declaredName(body []string) string {
+	for _, line := range body {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if m := reComputedName.FindStringSubmatch(trimmed); m != nil {
+			return m[1]
+		}
+		for _, token := range identifierToken.FindAllString(trimmed, -1) {
+			switch {
+			case statementKeywords[token]:
+				return ""
+			case !declarationKeywords[token]:
+				return token
+			}
+		}
+		return ""
+	}
+	return ""
+}
+
 // reDataKeyword opens a declaration that holds values and performs no act: an enum, an interface or
 // a type, whatever its length.
 var reDataKeyword = regexp.MustCompile(`^\s*(export\s+)?(declare\s+)?(default\s+)?(const\s+enum|enum|interface|type)\b`)
@@ -164,7 +204,19 @@ func RecordFindings(file string, lines []string) []Finding {
 		out = append(out, Finding{file, at, checkRecordElsewhere,
 			fmt.Sprintf("%s is declared nowhere under this block", bearsOn)})
 	}
-	if !spellsTheName(bearsOn, strings.Join(block, "\n")) {
+	// The note calls the declaration it sits on this function, this row or this constant, and the record
+	// keeps the name. A reviewer's eye jumped to each such name in run 13 to check it was the current one.
+	// A name another interface qualifies, such as `LedgerBook.SETTLED` over `SETTLED`, is that interface's.
+	blockText := strings.Join(block, "\n")
+	own := declaredName(body) == bearsOn
+	switch {
+	case own && regexp.MustCompile(`(^|[^\w$.])`+regexp.QuoteMeta(bearsOn)+`($|[^\w$])`).MatchString(blockText):
+		out = append(out, Finding{file, at, checkRecordSelfNamed,
+			fmt.Sprintf("the block names %s, the declaration it sits on; write this function, this row or this constant", bearsOn)})
+	case own && !strings.EqualFold(held["does"], noDoes) && !reThisDeclaration.MatchString(blockText):
+		out = append(out, Finding{file, at, checkRecordUnnamed,
+			fmt.Sprintf("the block never says this function, this method or this call for %s", bearsOn)})
+	case !own && !spellsTheName(bearsOn, blockText):
 		out = append(out, Finding{file, at, checkRecordUnnamed,
 			fmt.Sprintf("the block never says %s", bearsOn)})
 	}
