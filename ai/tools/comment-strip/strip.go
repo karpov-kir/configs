@@ -715,8 +715,7 @@ func contradict(archive, run string, args []string, cwd string, refuse func(stri
 	}
 	claim := args[1]
 	// `line:<n>` names the block on that line, and the review records its id before the loop strips it.
-	// The loop stripped first in run 13, so its facts file held the review's sentence and no
-	// `contradicted:` line.
+	// Run 13's loop stripped first, and the writer read the review's sentence without the finding.
 	if rest, found := strings.CutPrefix(claim, "line:"); found {
 		at, err := strconv.Atoi(rest)
 		readPath := args[0]
@@ -796,7 +795,7 @@ var identifierShape = regexp.MustCompile(`^[A-Za-z_$][\w$]*$`)
 // each block naming a renamed symbol. A block the toolchain reads is left as it stands.
 //
 // With the archive, the blocks it keeps are renamed as well. Run 13 renamed a field, and the archived
-// record still named the old one, so two blocks would be written again on unchanged code.
+// record kept the old name. Run 14 was due to write two blocks again on unchanged code.
 func rename(pair string, args []string, cwd string, stdout io.Writer, refuse func(string, ...any) int) int {
 	old, replacement, found := strings.Cut(pair, "=")
 	if !found || !identifierShape.MatchString(old) || !identifierShape.MatchString(replacement) {

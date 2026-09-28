@@ -161,8 +161,8 @@ func writeRecord(t *testing.T, f *fixture, archive, line, record string) {
 	}
 }
 
-// A block holding a summary alone has no note, so the writer returns no record for it. Run 13 had four,
-// and the check wanted slots they could not have, so every run rewrote them.
+// A block holding only a summary carries an empty record, since a record belongs to a note. Run 13 had
+// four such blocks, and the check wanted slots they could not have, so every run rewrote them.
 func TestASummaryAloneIsKeptWithoutARecord(t *testing.T) {
 	rulesHome(t, "rules one ")
 	source := "// Lists the postings of a closed book, newest first.\nexport function listPostings(book: LedgerBook): Posting[] {\n  return book.postings.slice().reverse();\n}\n"

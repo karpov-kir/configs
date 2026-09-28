@@ -192,7 +192,7 @@ func (k keeper) keeps(file string, lines []string, u readerjudge.Unit) string {
 			(w.Span != code && w.Span != whole) || k.contradiction[recordID(block)] {
 			continue
 		}
-		// A block holding a summary alone has no note, so the writer returned no record for it.
+		// A block holding only a summary carries an empty record, since a record belongs to a note.
 		if strings.TrimSpace(w.Record) != "" {
 			input := append(append(shell.SplitLines(w.Record), "---"), shell.SplitLines(block)...)
 			if len(voicecheck.RecordFindings(file, append(input, span...))) > 0 {
@@ -281,8 +281,8 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 }
 
 // renameWritten renames the identifier in the blocks the archive keeps for one file, which is `lines`
-// after the rename. A span is hashed again only where undoing the rename in it gives the hash the
-// archive holds, so a rename never blesses any other change to the code under a block.
+// after the rename. The span's hash is replaced where undoing the rename in the span gives the archived
+// hash. Any other change to the code under a block still reopens it.
 func renameWritten(archive, path string, lines []string, forward, back func(string) string) (int, error) {
 	held := readWritten(archive, path)
 	renamed := 0

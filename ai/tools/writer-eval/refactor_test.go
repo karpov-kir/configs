@@ -196,8 +196,8 @@ func TestTheRefusalPatternMatchesTheGuardAndNotTheDomainWord(t *testing.T) {
 		"Comment 6/9 src/Ledger.ts:40 | stays: the license server answers a posting before its books": false,
 		// Run 13's fact held the verb, and the refusal names the noun.
 		"Comment 8/9 src/Ledger.ts:45 | stays: canPost returns maybe for a book the ledger cannot confirm it settles": false,
-		"Comment 9/9 src/Ledger.ts:60 | stays: touching this file needs the caller's confirmation": true,
-		"Comment 7/9 src/Ledger.ts:52 | carried by `POSTING_RETRIES`":                                 false,
+		"Comment 9/9 src/Ledger.ts:60 | stays: touching this file needs the caller's confirmation":                    true,
+		"Comment 7/9 src/Ledger.ts:52 | carried by `POSTING_RETRIES`":                                                 false,
 	} {
 		if got := refuse.MatchString(line); got != want {
 			t.Errorf("refused %v, want %v: %s", got, want, line)
