@@ -9,9 +9,9 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// keepTest reads every block in the named files against the archive, as the next full strip would, and
-// prints whether it stands and why it reopens. It only reads the files and the archive. Run 13 took a copy
-// of the tree and the archive by hand to learn that 16 of 73 blocks would be written again.
+// keepTest reads every block in the named files against the archive, as the next full strip would,
+// and prints whether it stands and why it reopens. It only reads the files and the archive. Run 13
+// took a copy of the tree and the archive by hand to learn that 16 of 73 blocks would be rewritten.
 func keepTest(r *runner, opts options, paths []string) int {
 	archive := opts.one("archive")
 	if archive == "" || len(paths) == 0 {

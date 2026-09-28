@@ -12,12 +12,9 @@ import (
 )
 
 // taint reads each writer's transcript for a history read that showed it the blocks it was sent to
-// replace. A hit counts where the read targets a file the writer's ledger lists, before the writer's
-// last write to that file, and its output holds a comment line. A chained command's output mixes its
-// parts, so it is printed for a hand read and never counted.
-//
-// The ledger names the writes. Runs 12 and 13 read them from shell text, and counted the results file,
-// a lint run naming a file and an append to the ledger.
+// replace. A hit reads a file the ledger lists, before the last write to it, and shows a comment line.
+// The ledger names the writes, where runs 12 and 13 read them from shell text and overcounted. A chained
+// command's output mixes its parts, so it goes to a hand read and never counts.
 func taint(r *runner, opts options, _ []string) int {
 	ledger := ""
 	counted, byHand, read := 0, 0, 0
