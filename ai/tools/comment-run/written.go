@@ -14,7 +14,12 @@ import (
 )
 
 var (
-	reWrittenVerdict = regexp.MustCompile(`(?m)^Block \d+/\d+ (\S+?):(\d+) \| OK`)
+	// A verdict names the file and a line, and may carry a note between the line and the bar. Run 14's
+	// writers wrote `(landed on line 23)`, `[site :19]` and `(offered :64)` there, and one dropped the
+	// path after its first verdict.
+	reWrittenVerdict = regexp.MustCompile(`(?m)^\**Block \d+/\d+ (\S*?):(\d+)\s*([(\[][^)\]]*[)\]])?\s*\| OK`)
+	reAnyVerdict     = regexp.MustCompile(`(?m)^\**Block \d+/\d+ .*\| OK.*$`)
+	reLandedNote     = regexp.MustCompile(`landed on line (\d+)`)
 	reFence          = regexp.MustCompile("(?s)```[A-Za-z]*\n(.*?)```")
 	reRecordSlot     = regexp.MustCompile(`^\s*(?:-\s*)?(fact|bears_on|does):\s*(.*)$`)
 	reCommentLine    = regexp.MustCompile(`^\s*(/\*|\*|//|#)`)
@@ -40,13 +45,42 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 			return r.refuse("cannot read %s", shell.Echoable(path))
 		}
 		text := string(body)
+		placed := map[int]bool{}
 		starts := reWrittenVerdict.FindAllStringSubmatchIndex(text, -1)
+		for _, m := range starts {
+			placed[m[0]] = true
+		}
+		// A verdict this stage cannot place goes back by writer and line, with the shape it wants, so a
+		// runner never re-asks a writer by hand.
+		for _, m := range reAnyVerdict.FindAllStringIndex(text, -1) {
+			if !placed[m[0]] {
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%d refused: the verdict %q names no <path>:<line>; the shape is %s\n",
+					path, strings.Count(text[:m[0]], "\n")+1, shell.CutBytesMarked(text[m[0]:m[1]], 80), verdictShape)
+			}
+		}
+		lastFile := ""
 		for n, m := range starts {
 			end := len(text)
 			if n+1 < len(starts) {
 				end = starts[n+1][0]
 			}
 			file, site := text[m[2]:m[3]], text[m[4]:m[5]]
+			if file == "" {
+				file = lastFile
+			}
+			if file == "" {
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%d refused: the verdict names no path and none comes before it; the shape is %s\n",
+					path, strings.Count(text[:m[0]], "\n")+1, verdictShape)
+				continue
+			}
+			lastFile = file
+			if m[6] >= 0 {
+				if landed := reLandedNote.FindStringSubmatch(text[m[6]:m[7]]); landed != nil {
+					site = landed[1]
+				}
+			}
 			at, why := r.locate(file, site, text[m[0]:end])
 			if why != "" {
 				refused++
@@ -74,6 +108,13 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 	}
 	return exitClean
 }
+
+// verdictShape is the verdict line this stage reads, with its example.
+const verdictShape = "`Block N/M <path>:<offered line> | OK`, as in `Block 2/16 src/ledger.ts:64 | OK`"
+
+// verdictSentence asks a writer for that shape in its prompt. A sentence in the brief changes the rules
+// sum, and every block a run wrote would reopen, so the prompt carries it.
+const verdictSentence = "Every verdict line holds the file and the site's line as offered, and only those, even where the block landed elsewhere: " + verdictShape + "."
 
 // recordOf is the record lines a verdict's segment carries, or an empty string for a summary.
 func recordOf(segment string) string {
