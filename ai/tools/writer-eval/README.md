@@ -171,6 +171,10 @@ full table kept `6e36ff2ae7df` with l07 at 10. #59 had written that the fact nam
 its identifier, for k23's enum, and l07's writers applied it to a function. Item 22 scoped the
 sentence to a note on data, and l07 read 15 with k23 at 14.
 
+Full tables run seldom, so a rule change measured by a targeted read keeps no column. Item 27's rules
+landed that way, and runs read `bb34e7de7f18` in their place until a change that needs a full table
+keeps one.
+
 ## The record check runs inside a roll
 
 The pipeline's writer runs the record check on each block before it writes it. It rewrites for each
