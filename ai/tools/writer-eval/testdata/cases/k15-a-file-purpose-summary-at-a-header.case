@@ -3,8 +3,8 @@ note: written
 site: 1
 lands: export function readPostings
 floor: 60
-bars: reads postings out of | reads the postings
-keeps: readPostings
+bars: reads postings out of | reads the postings | \breadpostings\b
+keeps: this function | this method | this member | this property | this call | this branch
 why: the strip offered the header and the claim is about the function below it; Kirill on 2026-09-22 on a header of this shape: "Not useful and looks out of place"; the first half says what the file's own name says, and the second is a fact about a specification that bears on the one function doing the inheriting, so the block goes there and the header keeps none of it
 labelled: 2026-09-22
 --- code

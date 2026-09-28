@@ -2,7 +2,7 @@ expect: written
 note: written
 keeps: this function | this method | this member | this property | this call | this branch
 keeps: newline
-keeps: no posting reference | no reference | which no | holds no | contains no | rather than | instead of | never holds | never contains
+keeps: no posting reference | no reference | which no | holds no | contains no | rather than | instead of | never holds | never contains | not a semicolon | and not
 bars: \bformatpostingidentities\b
 why: the fact that a posting reference puts a semicolon before each qualifier is why the cells are joined with a newline, and run 13's writer said so in its own restatement but wrote the fact and the join as two sentences with no tie; where the fact rules out an alternative the act avoids, the act names it
 labelled: 2026-09-28
