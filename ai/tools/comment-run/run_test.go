@@ -24,6 +24,16 @@ func rulesHome(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	template, err := os.ReadFile("../../kk-flavor/templates/spawn-prompt.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(home, ".kk-flavor", "templates"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, spawnTemplate), template, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Setenv("HOME", home)
 }
 
@@ -215,6 +225,7 @@ func TestTaintReadsWritesFromTheLedger(t *testing.T) {
 	}
 	path := transcript(t,
 		[3]string{"Bash", `{"command":"git show HEAD:ledger.ts"}`, `"// canPost throws\nexport function claimFor"`},
+		[3]string{"Bash", `{"command":"git log --graph --oneline -3"}`, `"* 1a2b3c4 head\n* 5d6e7f8 earlier head"`},
 		[3]string{"Bash", `{"command":"git diff main -- ledger.ts; sed -n 1,5p other.ts"}`, `"// a comment\n"`},
 		[3]string{"Edit", `{"file_path":"/tree/ledger.ts","old_string":"a","new_string":"b"}`, `"ok"`},
 		[3]string{"Bash", `{"command":"npx eslint ledger.ts 2>&1 | tail -3"}`, `"clean"`},
@@ -224,7 +235,7 @@ func TestTaintReadsWritesFromTheLedger(t *testing.T) {
 	)
 	said := c.run("taint", "--ledger="+ledger, path)
 	if said.code != exitFindings || strings.Count(said.stdout, "tainted:") != 1 || !strings.Contains(said.stdout, "tainted: call 1 ") ||
-		strings.Count(said.stdout, "read by hand:") != 1 || !strings.Contains(said.stdout, "read by hand: call 2,") {
+		strings.Count(said.stdout, "read by hand:") != 1 || !strings.Contains(said.stdout, "read by hand: call 3,") {
 		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }
@@ -244,5 +255,46 @@ func TestAStageRefusesWhatItCannotRun(t *testing.T) {
 		if said := c.run(args...); said.code != exitDidNotRun || !strings.Contains(said.stderr, "did NOT run") {
 			t.Errorf("%v: exit %d: %s", args, said.code, said.stderr)
 		}
+	}
+}
+
+// The prompt is the ecosystem's spawn template with every slot it names filled or, where empty,
+// omitted. A copy of the template in the tool drifted from the one the rest of the ecosystem uses.
+func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
+	c := newChange(t)
+	runDir := filepath.Join(t.TempDir(), "run")
+	if said := c.run("seed", "--run-dir="+runDir, "--archive="+t.TempDir(), "--range="+c.base+".."+c.head); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	if said := c.run("prompts", "--run-dir="+runDir, "--workers=1"); said.code != exitClean {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+	body, _ := os.ReadFile(filepath.Join(runDir, "spawn-writer-A.md"))
+	template, _ := os.ReadFile("../../kk-flavor/templates/spawn-prompt.md")
+	for _, paragraph := range strings.Split(string(template), "\n\n") {
+		if strings.HasPrefix(paragraph, "You are spawned") {
+			continue
+		}
+		if at := strings.Index(paragraph, ": <"); at >= 0 && strings.Contains(string(body), paragraph[at+2:]) {
+			t.Errorf("a slot is left as its placeholder: %s", paragraph[at+2:])
+		}
+	}
+	for _, want := range []string{"Apply the `~/.kk-flavor/workers/comment-writer.md` contract", "User-stated emphasis", "none", "ledger.ts:3 1.facts"} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("the prompt lacks %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(string(body), "Patch queue") || strings.Contains(string(body), "Reached by a handoff") {
+		t.Errorf("an empty slot stayed:\n%s", body)
+	}
+	// A slot the template gains and the tool does not know refuses the prompt.
+	home, _ := os.LookupEnv("HOME")
+	grown := string(template) + "\n\nBudget: <the calls this spawn may spend>\n"
+	if err := os.WriteFile(filepath.Join(home, spawnTemplate), []byte(grown), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run("prompts", "--run-dir="+runDir, "--workers=1"); said.code != exitDidNotRun ||
+		!strings.Contains(said.stderr, "a slot this tool does not fill: Budget") {
+		t.Fatalf("a grown template ran: exit %d: %s", said.code, said.stderr)
 	}
 }

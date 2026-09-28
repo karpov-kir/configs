@@ -47,10 +47,18 @@ func prompts(r *runner, opts options, _ []string) int {
 		return exitClean
 	}
 	groups := partition(order, byFile, min(workers, len(order)))
+	home, _ := os.LookupEnv("HOME")
+	template, err := os.ReadFile(filepath.Join(home, spawnTemplate))
+	if err != nil {
+		return r.refuse("cannot read the spawn template at ~/%s", spawnTemplate)
+	}
 	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
 	for n, files := range groups {
 		name := string(rune('A' + n))
-		prompt := writerPrompt(run, runDir, name, files, groups, byFile, strings.TrimSpace(string(licence)))
+		prompt, err := writerPrompt(string(template), run, runDir, name, files, groups, byFile, strings.TrimSpace(string(licence)))
+		if err != nil {
+			return r.refuse("%v", err)
+		}
 		out := filepath.Join(runDir, "spawn-writer-"+name+".md")
 		if err := os.WriteFile(out, []byte(prompt), 0o644); err != nil {
 			return r.refuse("cannot write %s", shell.Echoable(out))
@@ -97,15 +105,61 @@ func readRun(path string) (map[string]string, error) {
 	return run, nil
 }
 
-func writerPrompt(run map[string]string, runDir, name string, files []string, groups [][]string,
-	byFile map[string][]string, licence string) string {
-	var sites, held strings.Builder
+// spawnTemplate is the template every dispatch in the ecosystem fills, under the flavor root.
+const spawnTemplate = ".kk-flavor/templates/spawn-prompt.md"
+
+// fill fills the spawn template's slots by their labels, and omits a slot left empty, as the template
+// says. A slot the tool does not know refuses the prompt: a copy of the template drifted from the
+// template the rest of the ecosystem dispatches with.
+func fill(template string, slots map[string]string, contract string) (string, error) {
+	if _, rest, found := strings.Cut(template, "-->"); found && strings.HasPrefix(strings.TrimSpace(template), "<!--") {
+		template = rest
+	}
+	var out []string
+	for _, paragraph := range strings.Split(strings.TrimSpace(template), "\n\n") {
+		paragraph = strings.TrimSpace(paragraph)
+		switch {
+		case paragraph == "":
+		case strings.HasPrefix(paragraph, "Apply the `<"):
+			_, rest, _ := strings.Cut(paragraph, ">`")
+			out = append(out, "Apply the `"+contract+"`"+rest)
+		case strings.HasPrefix(paragraph, "You are spawned"):
+			out = append(out, paragraph)
+		case strings.HasPrefix(paragraph, "Reached by a handoff"):
+			// A writer is dispatched by the lane itself, and no handoff opened it.
+		default:
+			at := strings.Index(paragraph, ": <")
+			if at < 0 {
+				return "", fmt.Errorf("the template holds a paragraph this tool cannot fill: %s", shell.CutBytesMarked(paragraph, 60))
+			}
+			label := paragraph[:at]
+			value, known := "", false
+			for name, v := range slots {
+				if strings.HasPrefix(label, name) {
+					value, known = v, true
+				}
+			}
+			if !known {
+				return "", fmt.Errorf("the template names a slot this tool does not fill: %s", shell.CutBytesMarked(label, 60))
+			}
+			if value != "" {
+				out = append(out, paragraph[:at+2]+value)
+			}
+		}
+	}
+	return strings.Join(out, "\n\n") + "\n", nil
+}
+
+func writerPrompt(template string, run map[string]string, runDir, name string, files []string, groups [][]string,
+	byFile map[string][]string, licence string) (string, error) {
+	var sites, held, stdout strings.Builder
 	n := 0
 	for _, file := range files {
 		for _, line := range byFile[file] {
 			n++
 			site, facts, _ := strings.Cut(line, " ")
 			fmt.Fprintf(&sites, "%d. `%s` — facts `%s`\n", n, site, facts)
+			fmt.Fprintf(&stdout, "%s %s\n", site, filepath.Base(facts))
 		}
 	}
 	for g, other := range groups {
@@ -115,31 +169,23 @@ func writerPrompt(run map[string]string, runDir, name string, files []string, gr
 		fmt.Fprintf(&held, "`%s` (comment-writer %c); ", strings.Join(other, "`, `"), 'A'+g)
 	}
 	others := strings.TrimSuffix(held.String(), "; ")
-	if others == "" {
-		others = "none"
-	}
 	emphasis := "none"
 	if licence != "" {
 		emphasis = licence
 	}
-	return fmt.Sprintf(`Apply the `+"`~/.kk-flavor/workers/comment-writer.md`"+` contract for the requested scope. Read its common procedure and only the branch references this task needs. Work as a leaf; return further-work requests to the caller.
-
-Model: `+"`comment-writer`"+`, the `+"`workers`"+` row in `+"`~/.kk-flavor/configs/models.json`"+`.
-
-Candidate and evidence: the tree at `+"`%s`"+`, at HEAD `+"`%s`"+`, base `+"`%s`"+`. The tree is HEAD with the strip's removals applied; no block stands at any site you are given. A block the strip kept stands at a site you are not given, and you leave it as it stands.
-
-Change scope: the change set `+"`%s...%s`"+`. Your sites, %d, in `+"`%s`"+`, one facts directory per file, `+"`identifiers.txt`"+` beside each facts file:
-%s
-You write into those file(s) only. Write each block into its file as soon as it passes its gate.
-
-Held by a concurrent lane: read freely, write none, and return a fix that lands there as a proposal: %s. Every other file: read freely, write none.
-
-Ledger: `+"`%s`"+`
-
-User-stated emphasis, the human's own words: %s
-
-You are spawned, with no interactive user: return your verdicts and findings as data, or `+"`blocked: <what you need>`"+`, per your contract and `+"`~/.kk-flavor/standards/skill-protocol.md`"+`. An act your own contract leaves to its caller or the human is one you return as a proposal.
-`, run["top"], run["head"], run["base"], run["base"], run["head"], n, strings.Join(files, "`, `"),
-		strings.TrimRight(sites.String(), "\n"), others,
-		filepath.Join(runDir, "comment-writer-"+name+"-queue.md"), emphasis)
+	return fill(template, map[string]string{
+		"Model": "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch.",
+		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`. The tree is HEAD with the strip's "+
+			"removals applied; no block stands at any site you are given. A block the strip kept stands at a site you are "+
+			"not given, and you leave it as it stands. No reusable verdicts.", run["top"], run["head"], run["base"]),
+		"Change scope": fmt.Sprintf("the change set `%s...%s`. Your sites, %d, in `%s`, one facts directory per file, "+
+			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only. Write each block into its file "+
+			"as soon as it passes its gate.", run["base"], run["head"], n, strings.Join(files, "`, `"),
+			strings.TrimRight(sites.String(), "\n")),
+		"Held by a concurrent lane": others,
+		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
+		"Patch queue":               "",
+		"User-stated emphasis":      emphasis,
+		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> <file>` on your file(s), stdout:\n```\n" + strings.TrimRight(stdout.String(), "\n") + "\n```",
+	}, "~/.kk-flavor/workers/comment-writer.md")
 }

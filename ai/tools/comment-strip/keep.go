@@ -25,6 +25,9 @@ import (
 
 const writtenOption = "--written="
 
+// KeptLine ends the stderr line naming a block the strip kept. A run counts its kept blocks by it.
+const KeptLine = " wrote it, since its record holds"
+
 // written is one block the lane wrote, as the archive keeps it.
 type written struct {
 	Run   string `json:"run"`

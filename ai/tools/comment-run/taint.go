@@ -160,6 +160,10 @@ var (
 	reHistoryRead = regexp.MustCompile(`\bgit\s+(diff|show|log)\b`)
 	reChained     = regexp.MustCompile(`;|&&|\|\||\n`)
 	reCommentOut  = regexp.MustCompile(`(?m)^\s*(\d+[:\t]\s*)?(//|/\*|\*\s|\*/|#\s)`)
+	// A log's graph opens lines on `* `, so a log read counts only a line opening a block. Run 13's one
+	// log read flagged every file its writer held.
+	reBlockOpener = regexp.MustCompile(`(?m)^[+-]?\s*(\d+[:\t]\s*)?(//|/\*)`)
+	reLogRead     = regexp.MustCompile(`\bgit\s+log\b`)
 )
 
 // hit is one history read that showed the writer a comment line of a file it still wrote to after.
@@ -198,6 +202,10 @@ func hits(calls []call, files []string, ledger string) []hit {
 	for _, c := range calls {
 		command := c.text("command")
 		if c.tool != "Bash" || !reHistoryRead.MatchString(command) || !reCommentOut.MatchString(c.result) {
+			continue
+		}
+		if reLogRead.MatchString(command) && !reHistoryRead.MatchString(reLogRead.ReplaceAllString(command, "")) &&
+			!reBlockOpener.MatchString(c.result) {
 			continue
 		}
 		targets := named(command, files)
