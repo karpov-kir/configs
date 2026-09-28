@@ -30,8 +30,8 @@ func TestRecordFindings(t *testing.T) {
 bears_on: getFormatClaim
 does: returns LedgerClaim.Accepted where either answers it
 ---
-// The book took a posting format long before the probe reported it.
-// ` + "`getFormatClaim`" + ` returns ` + "`Accepted`" + ` where either answers ` + "`Accepted`" + `.
+// The book took a posting format long before the probe reported it,
+// so this function returns ` + "`Accepted`" + ` where either answers ` + "`Accepted`" + `.
 export function getFormatClaim(formatName: string): LedgerClaim {
   return LedgerClaim.Accepted;
 }`,
@@ -70,7 +70,7 @@ export async function claimsSchemeThroughStandardApi(scheme: PostingScheme): Pro
 bears_on: SETTLED
 does: none
 ---
-// ` + "`LedgerBook.SETTLED`" + ` is missing on some ledger builds here, so ` + "`SETTLED`" + ` is spelled out.
+// ` + "`LedgerBook.SETTLED`" + ` is missing on some ledger builds here, so this constant spells the value out.
 const SETTLED = 2;`,
 		},
 		{
@@ -79,7 +79,7 @@ const SETTLED = 2;`,
 bears_on: getFormatClaim
 does: none
 ---
-// The book took a format long before the probe did, and ` + "`getFormatClaim`" + ` reads both.
+// The book took a format long before the probe did, so this function reads both.
 export function getFormatClaim(formatName: string): LedgerClaim {
   return LedgerClaim.Accepted;
 }`,
@@ -91,7 +91,7 @@ export function getFormatClaim(formatName: string): LedgerClaim {
 bears_on: getProbeFormatClaim
 does: keeps the reader honest
 ---
-// The probe hedges where the ledger will not commit. ` + "`getProbeFormatClaim`" + ` keeps the reader honest.
+// The probe hedges where the ledger will not commit, so this function keeps the reader honest.
 export function getProbeFormatClaim(formatName: string): LedgerClaim {
   return LedgerClaim.Unknown;
 }`,
@@ -108,14 +108,14 @@ const HEDGED = 'maybe';`,
 		{
 			// Run 10's shape is a block on an object member, and the writer piped the member's enclosing
 			// `return {` first. The check read an empty block and refused the name the block spelled.
-			name: "code piped above the block is context, and the block still says bears_on",
+			name: "code piped above the block is context, and the block still names its declaration",
 			text: `fact: how a ledger treats a book left with no posting is unknown
 bears_on: keepsBook
 does: returns false for a posting book where no posting declares the currency
 ---
   return {
     // How a ledger treats a book left with no posting is unknown.
-    // ` + "`keepsBook`" + ` returns false for a posting book where no posting declares ` + "`currency`" + `.
+    // So this member returns false for a posting book where no posting declares ` + "`currency`" + `.
     keepsBook: book =>
       !isPostingBook(book) || hasPostingDeclaring(book, currency),`,
 		},
@@ -166,7 +166,7 @@ func TestSegmentsAreNotSubstrings(t *testing.T) {
 // Run 9's writers filled `does` on an enum, an interface and an object constant to get past a check.
 // The check read the opening brace as a body, and the writers invented the tie the rule removes.
 func TestADataDeclarationOfAnyLengthTakesDoesNone(t *testing.T) {
-	record := "fact: The vendor names these in its own export.\nbears_on: %s\ndoes: none\n---\n// The vendor names these in its own export, and `%s` keeps its spelling.\n"
+	record := "fact: The vendor names these in its own export.\nbears_on: %s\ndoes: none\n---\n// The vendor names these in its own export, and the spelling here is the vendor's.%.0s\n"
 	for _, tc := range []struct{ kind, name, code string }{
 		{"enum", "SettlementScheme", "export enum SettlementScheme {\n  Accrual = 'accrual',\n}"},
 		{"interface", "PostingRow", "export interface PostingRow {\n  format: string;\n}"},
@@ -187,5 +187,24 @@ func TestADataDeclarationOfAnyLengthTakesDoesNone(t *testing.T) {
 	fn := fmt.Sprintf(record, "readRate", "readRate") + "export function readRate(book: LedgerBook): number {\n  return book.rate;\n}"
 	if got := checksOf(RecordFindings("-", shell.SplitLines(fn))); len(got) != 1 || got[0] != checkRecordSlot {
 		t.Fatalf("a function with does: none reports %v, want record-slot-missing", got)
+	}
+}
+
+// The note calls the declaration it sits on this function or this row, and the record keeps the name.
+// Run 13's reviewer read each note naming its own declaration and looked back to check which one it was.
+func TestABlockCallsItsDeclarationThisFunction(t *testing.T) {
+	record := "fact: The book took a posting format long before the probe reported the same format.\n" +
+		"bears_on: getFormatClaim\ndoes: returns LedgerClaim.Accepted where either answers it\n---\n"
+	code := "\nexport function getFormatClaim(formatName: string): LedgerClaim {\n  return LedgerClaim.Accepted;\n}"
+	named := record + "// The book took a format long before the probe did, so `getFormatClaim` returns `Accepted`." + code
+	if got := checksOf(RecordFindings("-", shell.SplitLines(named))); len(got) != 1 || got[0] != checkRecordSelfNamed {
+		t.Fatalf("a block naming its own declaration reports %v", got)
+	}
+	// A branch declares nothing, so its record names the identifier the branch reads, and the block does too.
+	branch := "fact: a ledger answers 0 for a request that never reached it\nbears_on: status\ndoes: keeps a status from 100 up\n---\n" +
+		"// A ledger answers 0 for a request that never reached it, and this branch keeps a `status` from 100 up.\n" +
+		"if (status >= 100) {\n  return status;\n}"
+	if got := checksOf(RecordFindings("-", shell.SplitLines(branch))); len(got) != 0 {
+		t.Fatalf("a branch naming the value it reads reports %v", got)
 	}
 }
