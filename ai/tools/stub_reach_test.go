@@ -5,7 +5,7 @@
 
 // They sit in this package, away from the resolver's own cases in `reach/`, for the reason
 // shipped_tree_test.go gives. Each of them reads the checkout: the stubs themselves, the tree they
-// walk, and the two real files the ledger case compares. A fixture would hold none of that.
+// walk, and the real resolver and stats.sh the ledger case copies. A fixture would hold none of that.
 
 // Two of these must not be weakened. The first is that a stub reaches its tool from an unrelated cwd,
 // which is the defect the region exists for. A stub that failed to resolve stays silent, and silence
@@ -209,10 +209,9 @@ func TestAStubThatCannotReachAResolverExitsTwoAndNamesTheFix(t *testing.T) {
 // argv[0] survives the exec. The tools derive their skill directory from it, and a stub that let the
 // binary's own path through would send every write to the tools directory. The ledger proves it. Its
 // write is the only one with a visible destination. Both ends are asserted, and a run that wrote
-// nowhere would satisfy the first half on its own.
+// nowhere would satisfy the last check on its own.
 func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing.T) {
 	t.Parallel()
-	before := runtest.ReadFile(t, liveLedger)
 
 	// Mirrors the real layout, because stats.sh's declared offset is counted from
 	// `kk-flavor/skills/<skill>/scripts/`. A shallower fixture puts the resolver out of its reach, and
@@ -221,31 +220,33 @@ func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing
 	fake := runtest.Sandboxed(t, sandbox, filepath.Join(sandbox, "checkout"))
 	runtest.WriteFile(t, filepath.Join(fake, "tools", resolveScript),
 		runtest.ReadFile(t, runtest.Runnable(t, resolveScript)), 0o755)
-	stats := filepath.Join("kk-flavor", "skills", "kk-reduce", "scripts", "stats.sh")
+	reduceSkill := filepath.Join("kk-flavor", "skills", "kk-reduce")
+	stats := filepath.Join(reduceSkill, "scripts", "stats.sh")
 	runtest.WriteFile(t, filepath.Join(fake, stats),
 		runtest.ReadFile(t, runtest.Runnable(t, filepath.Join(repoRoot, "ai", stats))), 0o755)
 	buildTool(t, "eco-stats", filepath.Join(fake, "tools", "bin", "eco-stats"))
 
-	// The real ai/ as the root to measure, named absolutely: the launch runs from a directory of its own,
-	// and the tool would read a relative root against that one.
-	root, err := filepath.Abs(filepath.Join(repoRoot, "ai"))
-	if err != nil {
-		t.Fatalf("resolving the tree to measure: %v — nothing was measured", err)
-	}
+	// The tool refuses to append when a path it listed is gone before it reads it, and a parallel case's
+	// stub builds into ai/tools/bin/ by staging and renaming. So root is a tree of this case's own and
+	// never the live ai/.
+	root := filepath.Join(sandbox, "measured")
+	runtest.WriteFile(t, filepath.Join(root, "kk-flavor", "inject.md"), "# Flavor\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(root, reduceSkill, "SKILL.md"), "# kk-reduce\n", 0o644)
+	measuredLedger := filepath.Join(root, reduceSkill, filepath.Base(liveLedger))
 	appended := runtest.Launch(t, newStubLaunch(t, filepath.Join(fake, stats),
 		"--agent=claude", "--append", "a row from the suite's own fixture", root))
-	fixtureLedger := filepath.Join(fake, "kk-flavor", "skills", "kk-reduce", filepath.Base(liveLedger))
+	fixtureLedger := filepath.Join(fake, reduceSkill, filepath.Base(liveLedger))
 	if appended.Code != 0 || !appended.Said(fixtureLedger) {
 		t.Errorf("the append did not land under the skill directory the stub was invoked by, which is where "+
 			"a skill reached through its mount symlink keeps its own ledger\n%v", appended)
 	}
 	if body, err := os.ReadFile(fixtureLedger); err != nil || len(body) == 0 {
-		t.Errorf("nothing was written to %s (%v), so the comparison below would pass against a run that "+
+		t.Errorf("nothing was written to %s (%v), so the check below would pass against a run that "+
 			"wrote nowhere at all", fixtureLedger, err)
 	}
-	if runtest.ReadFile(t, liveLedger) != before {
-		t.Errorf("%s changed: the run wrote into the checkout it was reading, which is the incident every "+
-			"fixture here is built under a sandbox to stop", liveLedger)
+	if _, err := os.Lstat(measuredLedger); !os.IsNotExist(err) {
+		t.Errorf("%s exists (%v): the run wrote into the tree it was measuring rather than beside the "+
+			"stub it was invoked by", measuredLedger, err)
 	}
 }
 
