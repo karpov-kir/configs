@@ -3,7 +3,7 @@
 # with the old block gone. It runs without a model.
 #
 #   usage: comment-strip.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path>
-#   usage: comment-strip.sh --archive=<dir> --contradict=<run> <path> <record id or claim> <review sentence>
+#   usage: comment-strip.sh --archive=<dir> --contradict=<run> <path> <record id, line:<n> or claim> <review sentence>
 #   usage: comment-strip.sh --rename=<old>=<new> [--archive=<dir>] <path>
 #   usage: comment-strip.sh --archive=<dir> --written=<run> <path> <declaration line> <record file>
 #
