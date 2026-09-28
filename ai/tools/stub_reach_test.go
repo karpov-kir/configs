@@ -225,11 +225,9 @@ func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing
 		runtest.ReadFile(t, runtest.Runnable(t, filepath.Join(repoRoot, "ai", stats))), 0o755)
 	buildTool(t, "eco-stats", filepath.Join(fake, "tools", "bin", "eco-stats"))
 
-	// A tree of this case's own to measure, never the live ai/. The tool refuses to append when a path
-	// it listed is gone by the time it reads it, and the live tree is written while this runs: a
-	// parallel case's stub builds into ai/tools/bin/ through a staging name and a rename. That failed
-	// the go job on Linux on a cold bin/. The sandbox is absolute, and the launch runs from a directory
-	// of its own.
+	// A tree of this case's own to measure. The tool refuses to append when a path it listed is gone
+	// before it reads it. A parallel case's stub builds into ai/tools/bin/ by staging and renaming.
+	// This case measured the live ai/ once, and that failed the go job on Linux.
 	root := filepath.Join(sandbox, "measured")
 	runtest.WriteFile(t, filepath.Join(root, "kk-flavor", "inject.md"), "# Flavor\n", 0o644)
 	runtest.WriteFile(t, filepath.Join(root, "kk-flavor", "skills", "kk-reduce", "SKILL.md"), "# kk-reduce\n", 0o644)
