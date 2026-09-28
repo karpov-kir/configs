@@ -39,6 +39,7 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 	}
 	defer os.RemoveAll(records)
 	archived, refused := 0, 0
+	snapshot := map[string]bool{}
 	for _, path := range returns {
 		body, err := os.ReadFile(path)
 		if err != nil {
@@ -100,6 +101,21 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 			}
 			archived++
 			fmt.Fprintf(r.stdout, "%s:%d archived\n", file, at)
+			snapshot[file] = true
+		}
+	}
+	// The file as the writers left it, which the carried stage reads the refactor lane's lines against.
+	// The lane's verdict names a line of this tree, and its edit then moves or removes the block.
+	if runDir := opts.one("run-dir"); runDir != "" {
+		if !filepath.IsAbs(runDir) {
+			runDir = filepath.Join(r.cwd, runDir)
+		}
+		var files []string
+		for file := range snapshot {
+			files = append(files, file)
+		}
+		if err := copyFiles(r.cwd, files, filepath.Join(runDir, "written")); err != nil {
+			return r.refuse("%v", err)
 		}
 	}
 	fmt.Fprintf(r.stderr, "%s: %d block(s) archived, %d refused\n", r.self, archived, refused)

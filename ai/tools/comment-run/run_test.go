@@ -443,3 +443,57 @@ func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 		}
 	}
 }
+
+// A block the refactor lane carried into code stays carried: the next seed offers no site for it while
+// the carrier stands, keep-test counts it kept, and removing the carrier reopens it. Runs 14 and 16
+// carried one block away twice, and the writers wrote it back from the archive each time.
+func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
+	c := newChange(t)
+	archive := filepath.Join(t.TempDir(), "archive")
+	first := filepath.Join(t.TempDir(), "run16")
+	if said := c.run("seed", "--run-dir="+first, "--archive="+archive, "--range="+c.base+".."+c.head, "--heads="+c.earlier); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	written := "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n" +
+		"export function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+	c.write("ledger.ts", written)
+	ret := filepath.Join(t.TempDir(), "writer-A.md")
+	if err := os.WriteFile(ret, []byte("Block 1/1 ledger.ts:3 | OK\n```ts\n"+
+		"// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n```\n"+
+		"fact: a ledger build answers for its own scheme only\nbears_on: claimFor\ndoes: returns keys.canPost(scheme)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run("archive-written", "--run=run16", "--archive="+archive, "--run-dir="+first, ret); said.code != exitClean {
+		t.Fatalf("archive-written: %s%s", said.stdout, said.stderr)
+	}
+	// The lane carries the block into a constant the function reads, and removes it.
+	carriedTree := "const ASKS_ONCE_PER_SCHEME = true;\n\nexport function other() {}\n\n" +
+		"export function claimFor(scheme: string): boolean {\n  return ASKS_ONCE_PER_SCHEME && keys.canPost(scheme);\n}\n"
+	c.write("ledger.ts", carriedTree)
+	lane := filepath.Join(t.TempDir(), "refactor.md")
+	if err := os.WriteFile(lane, []byte("Comment 1/1 ledger.ts:3 | carried by `ASKS_ONCE_PER_SCHEME`\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run("carried", "--run=run16", "--run-dir="+first, "--archive="+archive, lane); said.code != exitClean ||
+		!strings.Contains(said.stdout, "ledger.ts:3 carried by `ASKS_ONCE_PER_SCHEME`") {
+		t.Fatalf("carried: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	head := c.commit("run 16")
+	next := filepath.Join(t.TempDir(), "run17")
+	said := c.run("seed", "--run-dir="+next, "--archive="+archive, "--range="+c.base+".."+head)
+	if said.code != exitClean || strings.Contains(said.stdout, "ledger.ts:5 ") {
+		t.Fatalf("the carried site was offered again: exit %d\n%s%s", said.code, said.stdout, said.stderr)
+	}
+	if said := c.run("keep-test", "--archive="+archive, "ledger.ts"); said.code != exitClean ||
+		!strings.Contains(said.stdout, "carried by `ASKS_ONCE_PER_SCHEME` as run16 left it") {
+		t.Fatalf("keep-test: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	// With the carrier gone, the site is offered again.
+	c.git("checkout", "--", "ledger.ts")
+	c.write("ledger.ts", "export function other() {}\n\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	head = c.commit("carrier removed")
+	again := filepath.Join(t.TempDir(), "run18")
+	if said := c.run("seed", "--run-dir="+again, "--archive="+archive, "--range="+c.base+".."+head); !strings.Contains(said.stdout, "ledger.ts:3 ") {
+		t.Fatalf("the site stayed closed with its carrier gone: exit %d\n%s%s", said.code, said.stdout, said.stderr)
+	}
+}

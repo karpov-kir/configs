@@ -288,3 +288,27 @@ func TestKeepVerdictsNameWhyABlockReopens(t *testing.T) {
 		t.Fatal("the dry test changed the file")
 	}
 }
+
+// A contradiction against a carried block's record reopens it, and so does a carrier the file no
+// longer holds.
+func TestACarriedBlockReopensOnAContradictionOrAGoneCarrier(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", keptSource)
+	archive := filepath.Join(f.dir, "archive")
+	lines := shell.SplitLines(keptSource)
+	if err := Carry(archive, "run16", f.path, lines, 4, "`ASKS_ONCE`"); err != nil {
+		t.Fatal(err)
+	}
+	f.write(strings.Replace(keptSource, "  return keys.canPost(scheme);", "  return ASKS_ONCE && keys.canPost(scheme);", 1))
+	if got := carriedDecls(archive, f.path, f.dir, f.path, nil); len(got) != 1 {
+		t.Fatalf("the carried block is not held while its carrier stands: %v", got)
+	}
+	block := "// A ledger build answers `canPost` for its own scheme alone, so this function asks it once per scheme.\n"
+	if got := carriedDecls(archive, f.path, f.dir, f.path, map[string]bool{recordID(block): true}); len(got) != 0 {
+		t.Fatalf("a contradicted carried block stays closed: %v", got)
+	}
+	f.write(keptSource)
+	if got := carriedDecls(archive, f.path, f.dir, f.path, nil); len(got) != 0 {
+		t.Fatalf("a carried block stays closed with its carrier gone: %v", got)
+	}
+}

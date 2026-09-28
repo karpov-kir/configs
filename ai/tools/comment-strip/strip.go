@@ -309,6 +309,17 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	// deleted the block decided under the rules of its day. This offers the site again, with the
 	// claims and an empty block, so the writer decides it under the rules standing now.
 	held := recordSites(records, sites, shared, only != nil)
+	// A block the refactor lane carried into code that still stands is offered no more.
+	root := cwd
+	if git != nil {
+		if top, err := git.TopLevel(cwd); err == nil && top != "" {
+			root = top
+		}
+	}
+	var carriedAt map[string]carried
+	if archive != "" {
+		carriedAt = carriedDecls(archive, path, root, readPath, contradictedIDs(archive, path))
+	}
 	// A `--lines` strip offers the archive's site on a requested line the same way. Run 14's loop sent
 	// three findings to sites whose block the writers had deleted, and the strip printed no site there.
 	if archive != "" {
@@ -321,6 +332,10 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		for _, record := range records {
 			// A kept block's own record stays unread: the block standing there is what it became.
 			if _, found := held[record.name]; found || (record.decl != "" && keptDecls[record.decl]) {
+				continue
+			}
+			if _, gone := carriedAt[record.decl]; record.decl != "" && gone {
+				fmt.Fprintf(stderr, "%s: %s carried by %s, so its site is not offered\n", path, record.decl, carriedAt[record.decl].Carrier)
 				continue
 			}
 			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))

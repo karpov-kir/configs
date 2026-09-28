@@ -20,6 +20,10 @@ func keepTest(r *runner, opts options, paths []string) int {
 	if !filepath.IsAbs(archive) {
 		archive = filepath.Join(r.cwd, archive)
 	}
+	root := r.cwd
+	if top, err := git(r.cwd, "rev-parse", "--show-toplevel"); err == nil {
+		root = top
+	}
 	kept, total := 0, 0
 	for _, path := range paths {
 		read := path
@@ -30,7 +34,13 @@ func keepTest(r *runner, opts options, paths []string) int {
 		if err != nil {
 			return r.refuse("cannot read %s", shell.Echoable(path))
 		}
-		for _, v := range commentstrip.KeepVerdicts(archive, path, shell.SplitLines(string(raw))) {
+		lines := shell.SplitLines(string(raw))
+		for _, c := range commentstrip.CarriedVerdicts(archive, path, root, read, lines) {
+			total++
+			kept++
+			fmt.Fprintf(r.stdout, "%s: %s carried by %s as %s left it\n", path, c.Decl, c.Carrier, c.Run)
+		}
+		for _, v := range commentstrip.KeepVerdicts(archive, path, lines) {
 			total++
 			if v.Run != "" {
 				kept++
