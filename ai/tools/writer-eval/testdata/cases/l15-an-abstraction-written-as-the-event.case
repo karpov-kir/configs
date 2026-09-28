@@ -1,0 +1,14 @@
+expect: written
+note: written
+keeps: accept any | accepts any
+keeps: does not exist | nonexistent | no such | not exist | no ledger defines | defines no | undefined
+keeps: refuse | rejects | reject | rejection | refusal
+bars: older than | grants? any | grant any
+why: Kirill read "platforms older than the field ignore the field and grant any value" as very confusing, especially the first part; a fact opens on a thing a reader can picture and says what happens to it, so the ledger build accepts any value in the field, and this function asks for a mode that does not exist, which a build reading the field refuses
+labelled: 2026-09-28
+--- code
+export async function readsSettlementMode(access: SettlementAccess): Promise<boolean> {
+  return access.request({ settlementMode: NONEXISTENT_SETTLEMENT_MODE }).then(() => false, () => true);
+}
+--- facts
+Ledger builds older than the `settlementMode` field, many hosted ledgers among them, ignore the field and grant any value.

@@ -1,0 +1,13 @@
+expect: written
+note: written
+keeps: alone | without | only the | drops the currenc | leaves out the currenc | removes the currenc
+bars: before its first semicolon | before the first semicolon | part of the | split
+why: Kirill found "keeps the part of the content type before its first semicolon" hard to follow; the act is said by what it does to the domain's thing, so the constant holds the posting kind alone, without its currencies, and the string mechanics stay in the code
+labelled: 2026-09-28
+--- code
+export function postingKindOf(requirement: SettlementRequirement): string {
+  const kind = requirement.entryType.split(';')[0];
+  return kind;
+}
+--- facts
+An entry type names the posting kind and then, after a semicolon, the currencies it settles in, and the ledger's clearing house answers for the kind alone.

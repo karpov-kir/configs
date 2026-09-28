@@ -1,0 +1,13 @@
+expect: written
+note: written
+keeps: rather than | instead of | never leaves | so no | empt
+keeps: drops | removes | leaves out | rejects
+bars: returns false | returns true
+why: Kirill asked why "how a ledger treats an empty one" was there at all, and read the function as a guard; the act keeps a state from arising, so the note says what it prevents: this function drops the whole book when none of its postings declares the currency, rather than leave it emptied
+labelled: 2026-09-28
+--- code
+export function keepsBook(book: PostingBook, currency: string): boolean {
+  return !isPostingBook(book) || book.postings.some((posting) => declaresCurrency(posting, currency));
+}
+--- facts
+No catalogued ledger export has a posting book with no posting, and how a ledger treats one is unknown.
