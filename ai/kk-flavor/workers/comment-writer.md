@@ -96,8 +96,8 @@ or `this constant`. The record's
 would look it up anyway: a platform's or a library's interface, a constant, or another declaration the
 reader must edit. That name stands beside the words and never in their place. A consequence in the
 world is something you would be inventing. A declaration holding values, one line or many, gets the fact
-alone as its note, and the fact calls it this enum or this row: a row, a constant, a field, an enum
-member, an interface or a type. The value under
+alone as its note: a row, a constant, a field, an enum member, an interface or a type. The fact calls
+it this enum or this row. The value under
 it is the tie a reader reads, and the sentences about the act hold for a declaration with a body.
 
 Four blocks a reviewer read on 2026-09-22 each stated a fact and stopped, on a function, a branch, a
