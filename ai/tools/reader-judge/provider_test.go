@@ -520,3 +520,12 @@ func TestJudgedTextAboutRateLimitsIsNotAnExhaustedLogin(t *testing.T) {
 		t.Fatal("the judged text was read back as the provider's own answer")
 	}
 }
+
+// In JSON mode the CLI puts its limit sentence in the answer's result. The limit line quotes that
+// sentence, with its reset time, where it quoted the JSON object.
+func TestAJSONAnswersLimitLineKeepsTheResetTime(t *testing.T) {
+	said := []byte(`{"type":"result","is_error":true,"result":"You've hit your session limit · resets 3:50pm (Europe/Moscow)","total_cost_usd":0}` + "\n")
+	if got := exhausted("claude", "", said); got != "You've hit your session limit · resets 3:50pm (Europe/Moscow)" {
+		t.Fatalf("got %q", got)
+	}
+}

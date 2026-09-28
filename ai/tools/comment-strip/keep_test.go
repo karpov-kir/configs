@@ -269,3 +269,22 @@ func TestARenameLeavesAnotherCodeChangeReopening(t *testing.T) {
 		t.Fatalf("a block over a second code change stood: exit %d: %s", said.code, said.stderr)
 	}
 }
+
+// The dry keep test reads each block against the archive and names why one reopens. It only reads.
+func TestKeepVerdictsNameWhyABlockReopens(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", keptSource)
+	archive := filepath.Join(f.dir, "archive")
+	archiveWritten(t, f, archive)
+	lines := shell.SplitLines(keptSource)
+	if got := KeepVerdicts(archive, f.path, lines); len(got) != 1 || got[0].Run != "run11" {
+		t.Fatalf("got %+v, want the block kept as run11 wrote it", got)
+	}
+	changed := shell.SplitLines(strings.Replace(keptSource, "keys.canPost(scheme)", "keys.canPost(scheme) === true", 1))
+	if got := KeepVerdicts(archive, f.path, changed); len(got) != 1 || got[0].Reopened != "the code under it changed" {
+		t.Fatalf("got %+v, want the changed code named", got)
+	}
+	if f.body() != keptSource {
+		t.Fatal("the dry test changed the file")
+	}
+}

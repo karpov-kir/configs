@@ -226,7 +226,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			continue
 		}
 		if run := keep.keeps(path, lines, u); run != "" {
-			fmt.Fprintf(stderr, "%s:%d: kept as %s wrote it, since its record holds\n", path, u.Line, run)
+			fmt.Fprintf(stderr, "%s:%d: kept as %s%s\n", path, u.Line, run, KeptLine)
 			keptDecls[strings.TrimSpace(lines[declarationUnder(lines, u)-1])] = true
 			continue
 		}

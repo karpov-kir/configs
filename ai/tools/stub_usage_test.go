@@ -46,6 +46,7 @@ import (
 	aibootstrap "configs/ai/tools/ai-bootstrap"
 	buildgate "configs/ai/tools/build-gate"
 	"configs/ai/tools/cadence"
+	commentrun "configs/ai/tools/comment-run"
 	commentstrip "configs/ai/tools/comment-strip"
 	duplicates "configs/ai/tools/dup-literals"
 	ecocheck "configs/ai/tools/eco-check"
@@ -227,6 +228,10 @@ var refusals = []refusal{
 	// path or reaches git. The refusal states the grammar, and it makes no claim about the tree.
 	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-strip.sh", call: func(i invocation) int {
 		return commentstrip.Strip(i.self(), i.args, i.cwd, repo.Exec{}, i.out, i.out)
+	}},
+	// No stage named. The tool refuses before it reads a path or reaches git.
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-run.sh", call: func(i invocation) int {
+		return commentrun.Run(i.self(), i.args, i.cwd, repo.Exec{}, i.out, i.out)
 	}},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh", call: func(i invocation) int {
 		// An environment no GIT_DIR can redirect, which is what the command hands it: a session drafting
