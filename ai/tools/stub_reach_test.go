@@ -209,7 +209,7 @@ func TestAStubThatCannotReachAResolverExitsTwoAndNamesTheFix(t *testing.T) {
 // argv[0] survives the exec. The tools derive their skill directory from it, and a stub that let the
 // binary's own path through would send every write to the tools directory. The ledger proves it. Its
 // write is the only one with a visible destination. Both ends are asserted, and a run that wrote
-// nowhere would satisfy the first half on its own.
+// nowhere would satisfy the last check on its own.
 func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing.T) {
 	t.Parallel()
 
@@ -220,27 +220,28 @@ func TestTheLedgerWriteLandsUnderTheSkillDirectoryTheStubWasInvokedBy(t *testing
 	fake := runtest.Sandboxed(t, sandbox, filepath.Join(sandbox, "checkout"))
 	runtest.WriteFile(t, filepath.Join(fake, "tools", resolveScript),
 		runtest.ReadFile(t, runtest.Runnable(t, resolveScript)), 0o755)
-	stats := filepath.Join("kk-flavor", "skills", "kk-reduce", "scripts", "stats.sh")
+	reduceSkill := filepath.Join("kk-flavor", "skills", "kk-reduce")
+	stats := filepath.Join(reduceSkill, "scripts", "stats.sh")
 	runtest.WriteFile(t, filepath.Join(fake, stats),
 		runtest.ReadFile(t, runtest.Runnable(t, filepath.Join(repoRoot, "ai", stats))), 0o755)
 	buildTool(t, "eco-stats", filepath.Join(fake, "tools", "bin", "eco-stats"))
 
-	// A tree of this case's own to measure. The tool refuses to append when a path it listed is gone
-	// before it reads it. A parallel case's stub builds into ai/tools/bin/ by staging and renaming.
-	// This case measured the live ai/ once, and that failed the go job on Linux.
+	// The tool refuses to append when a path it listed is gone before it reads it, and a parallel case's
+	// stub builds into ai/tools/bin/ by staging and renaming. So root is a tree of this case's own and
+	// never the live ai/.
 	root := filepath.Join(sandbox, "measured")
 	runtest.WriteFile(t, filepath.Join(root, "kk-flavor", "inject.md"), "# Flavor\n", 0o644)
-	runtest.WriteFile(t, filepath.Join(root, "kk-flavor", "skills", "kk-reduce", "SKILL.md"), "# kk-reduce\n", 0o644)
-	measuredLedger := filepath.Join(root, "kk-flavor", "skills", "kk-reduce", filepath.Base(liveLedger))
+	runtest.WriteFile(t, filepath.Join(root, reduceSkill, "SKILL.md"), "# kk-reduce\n", 0o644)
+	measuredLedger := filepath.Join(root, reduceSkill, filepath.Base(liveLedger))
 	appended := runtest.Launch(t, newStubLaunch(t, filepath.Join(fake, stats),
 		"--agent=claude", "--append", "a row from the suite's own fixture", root))
-	fixtureLedger := filepath.Join(fake, "kk-flavor", "skills", "kk-reduce", filepath.Base(liveLedger))
+	fixtureLedger := filepath.Join(fake, reduceSkill, filepath.Base(liveLedger))
 	if appended.Code != 0 || !appended.Said(fixtureLedger) {
 		t.Errorf("the append did not land under the skill directory the stub was invoked by, which is where "+
 			"a skill reached through its mount symlink keeps its own ledger\n%v", appended)
 	}
 	if body, err := os.ReadFile(fixtureLedger); err != nil || len(body) == 0 {
-		t.Errorf("nothing was written to %s (%v), so the comparison below would pass against a run that "+
+		t.Errorf("nothing was written to %s (%v), so the check below would pass against a run that "+
 			"wrote nowhere at all", fixtureLedger, err)
 	}
 	if _, err := os.Lstat(measuredLedger); !os.IsNotExist(err) {
