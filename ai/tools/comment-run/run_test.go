@@ -259,7 +259,7 @@ func TestAStageRefusesWhatItCannotRun(t *testing.T) {
 }
 
 // The prompt is the ecosystem's spawn template with every slot it names filled or, where empty,
-// omitted. A copy of the template in the tool drifted from the one the rest of the ecosystem uses.
+// omitted. A copy of the template in the tool drifted from the template every other dispatch fills.
 func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 	c := newChange(t)
 	runDir := filepath.Join(t.TempDir(), "run")
