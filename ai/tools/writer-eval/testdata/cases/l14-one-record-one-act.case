@@ -1,0 +1,17 @@
+expect: written
+note: written
+keeps: getsettlementclaim
+keeps: legacyledgerkeys
+bars: first[\s\S]*first | ahead[\s\S]*ahead | first[\s\S]*ahead | ahead[\s\S]*first
+why: the fact has two clauses, that the standard interface rejects escrow on older ledgers and that the legacy keys answer for escrow only, and both explain one act, asking the legacy keys ahead of the standard interface for escrow; run 13's loop writer wrote that act at the end of each of two sentences; one record gets one act, written once, however many clauses its fact has
+labelled: 2026-09-28
+--- code
+export async function getSettlementClaim(requirement: SettlementRequirement): Promise<LedgerClaim> {
+  if (registry.legacyLedgerKeys && requirement.clearing === Clearing.Escrow) {
+    return getLegacyEscrowClaim(requirement);
+  }
+
+  return getClaimThroughStandardApi(requirement);
+}
+--- facts
+On older ledgers `requestSettlementAccess` rejects escrow, and `legacyLedgerKeys` answers for escrow only.

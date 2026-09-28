@@ -112,7 +112,7 @@ func blockAndBody(lines []string) (block, body []string) {
 var reDataKeyword = regexp.MustCompile(`^\s*(export\s+)?(declare\s+)?(default\s+)?(const\s+enum|enum|interface|type)\b`)
 
 // reValueLine is a constant, a variable or a field: a name, then a type or a value. A computed key,
-// `[Protection.Cbcs]: undefined,`, is a field too. Run 13 read one as a declaration with a body, and
+// `[Clearing.Deferred]: undefined,`, is a field too. Run 13 read one as a declaration with a body, and
 // nine catalogue rows written with `does: none` could not be kept.
 var reValueLine = regexp.MustCompile(`^\s*(export\s+)?((const|let|var|readonly|static|private|public|protected|declare)\s+)*([A-Za-z_$][\w$]*|\[[\w$.]+\])\??\s*[:=]`)
 

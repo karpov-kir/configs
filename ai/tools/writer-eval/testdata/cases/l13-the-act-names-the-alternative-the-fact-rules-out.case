@@ -1,0 +1,13 @@
+expect: written
+note: written
+keeps: formatpostingidentities
+keeps: newline
+keeps: no posting reference | no reference | which no | holds no | contains no | rather than | instead of | never holds | never contains
+why: the fact that a posting reference puts a semicolon before each qualifier is why the cells are joined with a newline, and run 13's writer said so in its own restatement but wrote the fact and the join as two sentences with no tie; where the fact rules out an alternative the act avoids, the act names it
+labelled: 2026-09-28
+--- code
+export function formatPostingIdentities(identity: PostingIdentity): string {
+  return [identity.book, identity.reference, identity.settlementHost].join('\n');
+}
+--- facts
+A posting reference puts a semicolon before each of its qualifiers, such as the clearing list.
