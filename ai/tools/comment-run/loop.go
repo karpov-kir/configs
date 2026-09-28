@@ -14,14 +14,13 @@ import (
 	treefingerprint "configs/ai/tools/tree-fingerprint"
 )
 
-// loop sends code-review findings back to a writer at their sites in one file. Where review found a
-// claim false, it records the contradiction first, and the strip then offers it. It strips only those
-// sites, adds each review sentence to its facts file and fills one loop writer's prompt. The
-// fingerprint is the run's own tree: run 14's runner computed it in its session's worktree.
-//
-// Sites are stripped from the last line up, so a strip never moves a site still to come. Each strip
-// moves the sites already stripped below it up by the lines it removed. Run 16 looped two sites of one
-// file in two calls, and the second prompt named a line the first strip had moved.
+// loop sends code-review findings back to a writer at their sites in one file. It records each
+// contradiction first, strips only those sites, adds each review sentence to its facts file and fills
+// one prompt. The fingerprint is the run's own tree: run 14's runner computed it in the wrong one.
+
+// Sites are stripped from the last line up, and each strip moves the sites stripped before it up by the
+// lines it removed. Run 16 looped two sites of one file in two calls, and the second prompt named a
+// line the first strip had moved.
 func loop(r *runner, opts options, _ []string) int {
 	runDir, archive, run := opts.one("run-dir"), opts.one("archive"), opts.one("run")
 	type finding struct {

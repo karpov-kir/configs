@@ -17,7 +17,7 @@ var (
 	reStaysVerdict   = regexp.MustCompile(`(?m)^\**Comment \d+/\d+ \S+ \| stays:`)
 )
 
-// carriedStage records each block the refactor lane carried into code, so the next strip offers its
+// carriedStage records each block the refactor lane carried into code. The next strip then offers its
 // site no more while the carrier stands. The lane's verdict names a line of the tree the writers left,
 // which archive-written saved under the run directory. A `stays:` verdict leaves the block standing,
 // and the strip reads that block as it reads any other.

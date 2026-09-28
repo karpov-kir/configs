@@ -14,9 +14,9 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// A block the refactor lane carried into code is recorded, so the archive stops offering its site
-// while the carrier stands. Nothing recorded a carried verdict in runs 14 and 16: the next strip
-// offered the carried claim again, and the writers wrote it back as a fact about the world.
+// The archive records a block the refactor lane carried into code, and stops offering its site while
+// the carrier stands. Runs 14 and 16 kept no record of a carried verdict. The next strip offered the
+// carried claim again, and the writers wrote it back as a fact about the world.
 
 // carried is one block the refactor lane carried, as the archive keeps it.
 type carried struct {
@@ -86,7 +86,7 @@ var (
 )
 
 // carrierNames is what a carrier verdict names: its code spans, its quoted test names, and the
-// identifiers it spells. A carrier naming none of these can be checked for nothing.
+// identifiers it spells. A carrier naming none of these has no name to find in the tree.
 func carrierNames(carrier string) []string {
 	var names []string
 	for _, m := range reCarrierSpan.FindAllStringSubmatch(carrier, -1) {
@@ -102,7 +102,7 @@ func carrierNames(carrier string) []string {
 }
 
 // carrierStands says every name the carrier cites still appears in the tree at root. Where root is no
-// git work tree, it reads the one file.
+// git work tree, it reads only the file.
 func carrierStands(root, file, carrier string) bool {
 	names := carrierNames(carrier)
 	if len(names) == 0 {

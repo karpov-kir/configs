@@ -444,7 +444,7 @@ func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 	}
 }
 
-// A block the refactor lane carried into code stays carried: the next seed offers no site for it while
+// A block the refactor lane carried into code stays carried. The next seed offers no site for it while
 // the carrier stands, keep-test counts it kept, and removing the carrier reopens it. Runs 14 and 16
 // carried one block away twice, and the writers wrote it back from the archive each time.
 func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
