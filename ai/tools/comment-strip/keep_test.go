@@ -322,7 +322,9 @@ func TestATestIsNeverACarrier(t *testing.T) {
 	archive := filepath.Join(f.dir, "archive")
 	lines := shell.SplitLines(keptSource)
 	for _, test := range []string{"the test 'asks once per scheme'", "fx.spec.ts", "the spec `asks once`", "src/claims.test.ts",
-		"a unit test pinning the order", "carried by claims_test.go, which pins it"} {
+		"a unit test pinning the order", "carried by claims_test.go, which pins it", "the ordering test on `claimFor`",
+		"a regression test pinning `claimFor`", "pinned by tests in `claimFor`'s suite", "`claimFor`'s own test",
+		"test('asks once per scheme')", "tests 'ask once per scheme'"} {
 		if err := Carry(archive, "run16", f.path, lines, 4, test); err == nil {
 			t.Fatalf("%q was taken as a carrier", test)
 		}
@@ -379,5 +381,22 @@ func TestACarrierSpelledOnlyInATestDoesNotStand(t *testing.T) {
 	}
 	if !carrierStands(dir, filepath.Join(dir, "src/claims.ts"), "`ASKS_ONCE`") {
 		t.Fatal("a name the source spells did not hold its carried block")
+	}
+}
+
+// Outside a git work tree the carrier stands on the file alone, and a unit test's file holds none.
+func TestACarrierOutsideGitStandsOnTheSourceFileAlone(t *testing.T) {
+	dir := t.TempDir()
+	source, test := filepath.Join(dir, "claims.ts"), filepath.Join(dir, "claims.test.ts")
+	for _, path := range []string{source, test} {
+		if err := os.WriteFile(path, []byte("const ASKS_ONCE = true;\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !carrierStands(dir, source, "`ASKS_ONCE`") {
+		t.Fatal("a name the source file spells did not stand outside git")
+	}
+	if carrierStands(dir, test, "`ASKS_ONCE`") {
+		t.Fatal("a name a test file spells stood outside git")
 	}
 }
