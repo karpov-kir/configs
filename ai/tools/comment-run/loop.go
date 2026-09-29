@@ -53,6 +53,7 @@ func loop(r *runner, opts options, _ []string) int {
 	if err != nil {
 		return r.refuse("%v", err)
 	}
+	warnWithoutWriterAgent(r)
 	tree := held["top"]
 	var out, errOut strings.Builder
 	for _, f := range findings {
@@ -95,7 +96,7 @@ func loop(r *runner, opts options, _ []string) int {
 	var sites, printed strings.Builder
 	n := 0
 	for _, path := range paths {
-		stripped, err := loopStrip(tree, archive, filepath.Join(facts, strings.ReplaceAll(path, "/", "_")), path, byPath[path])
+		stripped, err := loopStrip(tree, archive, factsDir(facts, path), path, byPath[path])
 		if err != nil {
 			undo()
 			return r.refuse("%v; no file of the round was stripped", err)

@@ -576,6 +576,24 @@ func TestAContradictedClaimComesBackWithTheFinding(t *testing.T) {
 	}
 }
 
+// A contradiction recorded twice with the same run and sentence stays one line. A loop round run again
+// after a refusal records its contradictions again.
+func TestAContradictionRecordedTwiceStaysOneLine(t *testing.T) {
+	f := newFixture(t, "f.ts", "// canPost throws for another scheme.\nconst claim = keys.canPost?.(scheme);\n")
+	archive := filepath.Join(f.dir, "archive")
+	for range 2 {
+		var out, errOut strings.Builder
+		if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=run19", f.path,
+			"canPost throws for another scheme", "canPost answers for its own scheme only"}, f.dir, noRepository, &out, &errOut); code != exitClean {
+			t.Fatalf("exit %d: %s", code, errOut.String())
+		}
+	}
+	held, _ := filepath.Glob(filepath.Join(archive, "*.contradicted"))
+	if len(held) != 1 || strings.Count(string(mustRead(t, held[0])), "\n") != 1 {
+		t.Fatalf("a contradiction recorded twice is not one line: %v", held)
+	}
+}
+
 // The block a finding sends back is a writer's wording no other run keeps. A `--lines` strip with no
 // archive loses it, and run 12's loop lost the wording before the loop that way.
 func TestALinesStripNeedsTheArchive(t *testing.T) {

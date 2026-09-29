@@ -245,6 +245,7 @@ func TestAStemInsideABacktickedPathIsNoBareName(t *testing.T) {
 	// A call and a member access each hold a dot and name code, and prose after a path is read too.
 	for _, note := range []string{
 		"// The pool in `apiResponse.json()` closes idle links, and this row must match it.",
+		"// The pool in `writeMutex.lock` closes idle links, and this row must match it.",
 		"// The pool in `pool.ts` holds connectionPool open, and this row must match it.",
 	} {
 		if !hasCheck(s.scanSource("f.ts", []string{note, "export const LINKS = 3;"}, nil, nil), checkBareIdent) {

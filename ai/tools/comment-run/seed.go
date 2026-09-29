@@ -101,7 +101,7 @@ func (r *runner) stripAll(dir, base, rev, factsRoot, archive string, errs *strin
 	}
 	var sites []string
 	for _, file := range files {
-		facts := filepath.Join(factsRoot, strings.ReplaceAll(file, "/", "_"))
+		facts := factsDir(factsRoot, file)
 		var out, errOut strings.Builder
 		code := commentstrip.Strip("comment-strip.sh", []string{"--facts=" + facts, "--archive=" + archive, file},
 			dir, repo.Exec{}, &out, &errOut)
@@ -118,6 +118,11 @@ func (r *runner) stripAll(dir, base, rev, factsRoot, archive string, errs *strin
 		}
 	}
 	return sites, exitClean
+}
+
+// factsDir is the facts directory a strip under root writes for one file of the change set.
+func factsDir(root, file string) string {
+	return filepath.Join(root, strings.ReplaceAll(file, "/", "_"))
 }
 
 // inWorktree runs work in a disposable worktree at rev, and removes the worktree whatever work did.
@@ -169,7 +174,7 @@ func (r *runner) contradict(top, runDir, archive, base, head, tsv string) int {
 				shell.Echoable(tsv), n+1, len(fields))
 		}
 		path, claim, run, sentence := fields[0], fields[1], fields[2], fields[3]
-		ids := blocksHolding(filepath.Join(facts, strings.ReplaceAll(path, "/", "_")), claim)
+		ids := blocksHolding(factsDir(facts, path), claim)
 		if len(ids) == 0 {
 			ids = []string{claim}
 			byText++

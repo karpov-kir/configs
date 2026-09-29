@@ -176,9 +176,7 @@ func (r *runner) locate(file, site, segment string) (int, string) {
 		return 0, "the fenced block holds no comment line"
 	}
 	read := file
-	if !filepath.IsAbs(read) {
-		read = filepath.Join(r.cwd, read)
-	}
+	r.absolute(&read)
 	raw, err := os.ReadFile(read)
 	if err != nil {
 		return 0, "cannot read " + shell.Echoable(file)
