@@ -106,8 +106,8 @@ func carrierNames(carrier string) []string {
 	return names
 }
 
-// reTestWord is a word that names a test or its evidence: a test, a spec, a suite, a fixture, a
-// snapshot, an assertion, or a claim "pinned" or "covered" by something. reTitleCall is a title call.
+// reTestWord is a word naming a test or its evidence, such as a spec, a suite, a fixture or a snapshot.
+// "Pinned by" and "covered by" count too. reTitleCall is a test's title call.
 var (
 	reTestWord  = regexp.MustCompile(`(?i)\b(test\w*|specs?|suites?|fixtures?|e2e|golden|snapshots?|assert\w*)\b|\b(pinned|covered)\s+by\b`)
 	reTitleCall = regexp.MustCompile(`(?i)\b(it|describe|test)\s*\(`)
