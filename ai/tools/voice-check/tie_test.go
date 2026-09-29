@@ -42,14 +42,14 @@ function c() {}
 	if got := TieFindings("-", varied, file); len(got) != 0 {
 		t.Fatalf("a varied tie reports %v", got)
 	}
-	// The block the file already holds is the one being checked again, and it is not its own neighbour.
+	// A block the file already holds is being checked again, and it is not its own neighbour.
 	again := []string{"The ledger rounds late, so this function reads both fields."}
 	if got := TieFindings("-", again, file); len(got) != 0 {
 		t.Fatalf("a block counted against itself reports %v", got)
 	}
 }
 
-// The bound reads the file only where the writer names it. The keep criteria run RecordFindings alone,
+// The bound reads the file only where the writer names it. The keep criteria run only RecordFindings,
 // so a kept block is never reopened by a neighbour written after it.
 func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 	dir := t.TempDir()

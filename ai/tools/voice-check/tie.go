@@ -10,7 +10,7 @@ import (
 // Within one file no tie opening, a connector with its subject, stands in more than two blocks. A
 // reviewer read 72 blocks on 2026-09-29, 27 of them tied with "so" and 25 with "this function", and
 // the fixed form written 72 times was what he read. The bound reads the file the writer holds at write
-// time, and the keep criteria never run it, so no kept block is reopened by a neighbour.
+// time. The keep criteria leave it out, so a kept block stays kept whatever a neighbour says.
 const checkTieRepeated = "tie-opening-repeated"
 
 // tieBound is how many other blocks of one file may already open a tie the same way.

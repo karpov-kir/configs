@@ -211,9 +211,9 @@ func RecordFindings(file string, lines []string) []Finding {
 	}
 	// The note never names the declaration it sits on, and the record keeps the name. A reviewer's eye
 	// jumped to each such name in run 13 to check it was the current one. A name another interface
-	// qualifies, such as `LedgerBook.SETTLED` over `SETTLED`, is that interface's. The check that a block
-	// said this function went on 2026-09-29: it put the phrase in 50 of 72 blocks, and the reviewer read
-	// the repetition as the fault.
+	// qualifies, such as `LedgerBook.SETTLED` over `SETTLED`, is that interface's.
+	//
+	// A check that the block said this function put the phrase in 50 of 72 blocks, and it went.
 	blockText := strings.Join(block, "\n")
 	own := declaredName(body) == bearsOn
 	switch {

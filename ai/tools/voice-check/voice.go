@@ -496,8 +496,8 @@ type scanner struct {
 	// record says the text opens with the note's record, which RecordFindings reads against the block
 	// and the source under it. The register checks read the prose either way.
 	record bool
-	// tieLines is the file the writer is writing the block into, read for the tie openings its other
-	// blocks already use. Nil where the caller named no file, as the keep criteria never do.
+	// tieLines is the file the writer is writing the block into. The tie bound reads its other blocks.
+	// It is nil where the caller named no file, which is how the keep criteria call.
 	tieLines []string
 	// kind is the body a prose text is read as, empty for none. template is its template's lines,
 	// which the checks leave unread.
@@ -1067,7 +1067,7 @@ func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int
 	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
 	// stopped, and the register checks passed every one, because their prose was sound.
 	record := false
-	// `--file` names the file the block goes into, read for the tie openings of its other blocks.
+	// `--file` names the file the block goes into. The tie bound reads its other blocks.
 	tieFile := ""
 	// A PR body and a ticket each have a width, and `--kind` reads the prose as one of them.
 	kind := ""
