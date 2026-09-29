@@ -48,6 +48,10 @@ func revert(r *runner, opts options, paths []string) int {
 		return r.refuse("%s holds no run.txt: run seed first", shell.Echoable(runDir))
 	}
 	for _, path := range paths {
+		// A path comes from a lane's return, and one leaving the tree would be copied over a file outside it.
+		if !filepath.IsLocal(path) {
+			return r.refuse("%s is no path inside the tree", shell.Echoable(path))
+		}
 		snapshot, err := os.ReadFile(filepath.Join(runDir, "written", path))
 		if err != nil {
 			return r.refuse("no copy of %s as the writers left it; run archive-written with --run-dir", shell.Echoable(path))

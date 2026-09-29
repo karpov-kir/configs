@@ -1489,6 +1489,36 @@ func withoutSharedRegions(lines []string, within map[int]bool) map[int]bool {
 	return kept
 }
 
+// partMarker parts the blocks of one file piped in a single call.
+const partMarker = "==="
+
+// splitParts cuts the piped lines at each line reading `===`. Text with no such line is one part.
+func splitParts(lines []string) [][]string {
+	var parts [][]string
+	var part []string
+	for _, line := range lines {
+		if strings.TrimSpace(line) == partMarker {
+			parts = append(parts, part)
+			part = nil
+			continue
+		}
+		part = append(part, line)
+	}
+	return append(parts, part)
+}
+
+// recordPart reads one record against its block and the code under it, with the file bound where a
+// file is named.
+func (s scanner) recordPart(name string, lines, ties []string) []Finding {
+	found := RecordFindings(name, lines)
+	_, under, _ := splitRecord(lines)
+	if ties != nil {
+		block, _ := blockAndBody(under)
+		found = append(found, TieFindings(name, block, ties)...)
+	}
+	return append(found, s.scanSource(name, under, nil, under)...)
+}
+
 // scanDiff is the diff half on its own, for a caller holding the bytes.
 func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
 	added := newAddedLines()
@@ -1506,13 +1536,29 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			if !s.record {
 				return s.scanSource(file, lines, nil, lines)
 			}
-			found := RecordFindings(file, lines)
-			_, under, _ := splitRecord(lines)
-			if s.tieLines != nil {
-				block, _ := blockAndBody(under)
-				found = append(found, TieFindings(file, block, s.tieLines)...)
+			// A writer checks all of a file's blocks in one call, each part a record, `---`, and the
+			// block with its code, the parts apart on a line reading `===`. Run 18's writers called the
+			// check once per block, and each call was a turn that carried the whole context again.
+			parts := splitParts(lines)
+			var found []Finding
+			ties := s.tieLines
+			for n, part := range parts {
+				name := file
+				if len(parts) > 1 {
+					name = fmt.Sprintf("%s#%d", file, n+1)
+				}
+				found = append(found, s.recordPart(name, part, ties)...)
+				// A block checked in this call is not in the file yet, and the next part's bound counts it.
+				if ties != nil {
+					_, under, _ := splitRecord(part)
+					block, _ := blockAndBody(under)
+					for _, line := range block {
+						ties = append(ties, "// "+line)
+					}
+					ties = append(ties, "")
+				}
 			}
-			return append(found, s.scanSource(file, under, nil, under)...)
+			return found
 		}
 		if s.kind == "" {
 			return s.scanProse(file, lines)

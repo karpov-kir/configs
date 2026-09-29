@@ -271,16 +271,19 @@ func TestUsageReadsATranscriptsFigures(t *testing.T) {
 	c := newChange(t)
 	path := filepath.Join(t.TempDir(), "writer-A.jsonl")
 	lines := []string{
-		`{"timestamp":"2026-09-29T10:00:00Z","message":{"content":[{"type":"text"}],"usage":{"input_tokens":2,"cache_read_input_tokens":100,"cache_creation_input_tokens":40000,"output_tokens":10}}}`,
-		`{"timestamp":"2026-09-29T10:00:05Z","message":{"content":[{"type":"tool_use","id":"a","name":"Read","input":{}}],"usage":{"input_tokens":2,"cache_read_input_tokens":40100,"cache_creation_input_tokens":900,"output_tokens":20}}}`,
+		`{"timestamp":"2026-09-29T10:00:00Z","message":{"id":"m1","content":[{"type":"text"}],"usage":{"input_tokens":2,"cache_read_input_tokens":100,"cache_creation_input_tokens":40000,"output_tokens":10}}}`,
+		`{"timestamp":"2026-09-29T10:00:05Z","message":{"id":"m2","content":[{"type":"text"}],"usage":{"input_tokens":2,"cache_read_input_tokens":40100,"cache_creation_input_tokens":900,"output_tokens":20}}}`,
+		`{"timestamp":"2026-09-29T10:00:05Z","message":{"id":"m2","content":[{"type":"tool_use","id":"a","name":"Read","input":{}}],"usage":{"input_tokens":2,"cache_read_input_tokens":40100,"cache_creation_input_tokens":900,"output_tokens":20}}}`,
 		`{"timestamp":"2026-09-29T10:00:09Z","message":{"content":[{"type":"tool_result","tool_use_id":"a","content":"x"}]}}`,
-		`{"timestamp":"2026-09-29T10:01:40Z","message":{"content":[{"type":"tool_use","id":"b","name":"Edit","input":{}}],"usage":{"input_tokens":2,"cache_read_input_tokens":41000,"cache_creation_input_tokens":3000,"output_tokens":30}}}`,
+		`{"timestamp":"2026-09-29T10:01:40Z","message":{"id":"m3","content":[{"type":"tool_use","id":"b","name":"Edit","input":{}}],"usage":{"input_tokens":2,"cache_read_input_tokens":41000,"cache_creation_input_tokens":3000,"output_tokens":30}}}`,
 	}
 	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	said := c.run("usage", path)
-	if said.code != exitClean || !strings.Contains(said.stdout, "writer-A.jsonl | 41002 | 44002 | 60 | 2 | 100 s") {
+	said := c.run("usage", path, path)
+	// Turns count a message once, though the transcript writes it on two lines.
+	if said.code != exitClean || !strings.Contains(said.stdout, "writer-A.jsonl | 3 | 40102 | 41002 | 44002 | 81200 | 43900 | 60 | 2 | 100 s") ||
+		!strings.Contains(said.stdout, "total | 6 | | | | 162400 | 87800 | 120 | 4 | 200 s") {
 		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }
@@ -299,6 +302,7 @@ func TestAStageRefusesWhatItCannotRun(t *testing.T) {
 		{"keep-test", "--archive=" + t.TempDir()},
 		{"usage"},
 		{"revert", "--run=run18"},
+		{"revert", "--run=run18", "--run-dir=" + t.TempDir(), "--archive=" + t.TempDir(), "../outside.ts"},
 	} {
 		if said := c.run(args...); said.code != exitDidNotRun || !strings.Contains(said.stderr, "did NOT run") {
 			t.Errorf("%v: exit %d: %s", args, said.code, said.stderr)
@@ -328,7 +332,7 @@ func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 		}
 	}
 	for _, want := range []string{"Apply the `" + writerContract + "` contract", "User-stated emphasis", "none", "ledger.ts:3 1.facts",
-		verdictSentence, "return-writer-A.md", "with the Edit tool", "rules standards/code-style.md", "rules workers/comment-writer.md"} {
+		verdictSentence, "return-writer-A.md", "Edit calls issued together", "Work a file at a time", "rules standards/code-style.md", "rules workers/comment-writer.md"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("the prompt lacks %q:\n%s", want, body)
 		}

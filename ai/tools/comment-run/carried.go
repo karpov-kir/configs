@@ -46,6 +46,11 @@ func carriedStage(r *runner, opts options, returns []string) int {
 		for _, m := range reCarriedVerdict.FindAllStringSubmatch(string(body), -1) {
 			file, carrier := m[1], strings.TrimSpace(m[3])
 			at, _ := strconv.Atoi(m[2])
+			if !filepath.IsLocal(file) {
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%d refused: no path inside the tree\n", shell.Echoable(file), at)
+				continue
+			}
 			snapshot, err := os.ReadFile(filepath.Join(runDir, "written", file))
 			if err != nil {
 				refused++
