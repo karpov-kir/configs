@@ -109,13 +109,28 @@ func carrierNames(carrier string) []string {
 // reTestCarrier is a carrier verdict that names a test: a test or a spec as a word, or a title call.
 var reTestCarrier = regexp.MustCompile(`(?i)\b(tests?|specs?)\b|\b(it|describe|test)\s*\(`)
 
-// reTestVerb is "tests" as a verb closing a relative clause, as in "the platform that the branch tests;".
-// A message carrier ending that way is still a carrier, and the match leaves the verb out.
-var reTestVerb = regexp.MustCompile(`(?i)\b(that|which)\s+(\S+\s+){0,3}?tests\s*([;.,)]|$)`)
+// reTestVerb is "tests" as a verb closing a relative clause, as in "the platform that the branch tests;",
+// with the word before it. A message carrier ending that way is still a carrier.
+var reTestVerb = regexp.MustCompile(`(?i)(\b(?:that|which)\s+(?:\S+\s+){0,3}?)(\S+)\s+tests(\s*(?:[;.,)]|$))`)
 
-// namesATest says the carrier verdict names a test, in words or by a unit test's file.
+// testQualifiers make the "tests" after them a noun, as in "which the integration tests".
+var testQualifiers = map[string]bool{"unit": true, "integration": true, "e2e": true, "regression": true,
+	"smoke": true, "acceptance": true, "end-to-end": true}
+
+// reBackticked is a name in backticks. It is read only as a file name, so a `retry-spec` key is no test.
+var reBackticked = regexp.MustCompile("`[^`]*`")
+
+// namesATest says the carrier verdict names a test, in words or by a unit test's file. Only the verb
+// word is set aside, so a test named anywhere in its clause is still read.
 func namesATest(carrier string) bool {
-	if reTestCarrier.MatchString(reTestVerb.ReplaceAllString(carrier, " ")) {
+	prose := reTestVerb.ReplaceAllStringFunc(reBackticked.ReplaceAllString(carrier, " "), func(m string) string {
+		parts := reTestVerb.FindStringSubmatch(m)
+		if testQualifiers[strings.ToLower(parts[2])] {
+			return m
+		}
+		return parts[1] + parts[2] + " checks" + parts[3]
+	})
+	if reTestCarrier.MatchString(prose) {
 		return true
 	}
 	for _, token := range strings.FieldsFunc(carrier, func(r rune) bool { return strings.ContainsRune(" `'\"", r) }) {

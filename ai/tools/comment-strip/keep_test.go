@@ -323,7 +323,8 @@ func TestATestIsNeverACarrier(t *testing.T) {
 	for _, test := range []string{"the test 'asks once per scheme'", "fx.spec.ts", "the spec `asks once`", "src/claims.test.ts",
 		"a unit test pinning the order", "carried by claims_test.go, which pins it", "the ordering test on `claimFor`",
 		"a regression test pinning `claimFor`", "pinned by tests in `claimFor`'s suite", "`claimFor`'s own test",
-		"test('asks once per scheme')", "tests 'ask once per scheme'"} {
+		"test('asks once per scheme')", "tests 'ask once per scheme'", "the ordering that the claims spec tests; `claimFor`",
+		"`claimFor`, which the unit test tests.", "`ORDER`, pinned by the cases that run in integration tests."} {
 		if err := Carry(archive, "run16", f.path, lines, 4, test); err == nil {
 			t.Fatalf("%q was taken as a carrier", test)
 		}
@@ -344,8 +345,11 @@ func TestATestIsNeverACarrier(t *testing.T) {
 }
 
 func TestAVerbNamedTestsIsNoTest(t *testing.T) {
-	if namesATest("`SkipException` message naming the platform that the branch tests; block deleted") {
-		t.Fatal("a message carrier was read as a test")
+	for _, carrier := range []string{"`SkipException` message naming the platform that the branch tests; block deleted",
+		"the `retry-spec` config key", "`test-fixtures` config"} {
+		if namesATest(carrier) {
+			t.Fatalf("%q was read as a test", carrier)
+		}
 	}
 }
 
