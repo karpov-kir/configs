@@ -106,14 +106,22 @@ func carrierNames(carrier string) []string {
 	return names
 }
 
-// reTestCarrier is a carrier verdict that names a test: the word, or a test's title call.
-var reTestCarrier = regexp.MustCompile(`(?i)\btests?\b|\b(it|describe)\s*\(`)
+// reTestCarrier is a carrier verdict that names a test: the word, a spec, or a test's title call.
+var reTestCarrier = regexp.MustCompile(`(?i)\b(tests?|specs?)\b|\b(it|describe)\s*\(`)
 
 // namesATest says the carrier is a test. A carrier is what the reader sees at the site without leaving
 // it: a name, a type, a compiler or lint message, a single place both sides are read from. Run 16
 // carried an ordering every caller owes into a test's name, and the interface lost the order.
 func namesATest(carrier string) bool {
-	return reTestCarrier.MatchString(carrier)
+	if reTestCarrier.MatchString(carrier) {
+		return true
+	}
+	for _, token := range strings.FieldsFunc(carrier, func(r rune) bool { return strings.ContainsRune(" `'\"", r) }) {
+		if voicecheck.IsTestFile(token) {
+			return true
+		}
+	}
+	return false
 }
 
 // carrierStands says the carrier is code the site shows, and every name it cites still appears in the

@@ -98,3 +98,23 @@ func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 		t.Fatalf("--file without --record exits %d, want 2", code)
 	}
 }
+
+// The summary tally names the file bound and the record checks, which sit outside the corpus list.
+func TestTheTallyNamesAFileBoundFinding(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "ledger.ts")
+	if err := os.WriteFile(source, []byte("// A ledger rounds late, so this function reads both.\nfunction a() {}\n"+
+		"// A book drops a period, so this function asks twice.\nfunction b() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	record := filepath.Join(dir, "record.txt")
+	if err := os.WriteFile(record, []byte("fact: an export predates the field\nbears_on: readType\ndoes: reads the type\n---\n"+
+		"// An export predates the field, so this function reads the type.\nfunction readType(row) {\n  return row.type;\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	Run("voice-check.sh", []string{"--profile=comment", "--source", "--record", "--file=" + source, record}, dir, repo.Exec{}, baseConfig(), &out, &errOut)
+	if !strings.Contains(errOut.String(), checkTieRepeated+" 2") {
+		t.Fatalf("the tally leaves the file bound out:\n%s", errOut.String())
+	}
+}

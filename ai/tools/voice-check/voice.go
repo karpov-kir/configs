@@ -1593,10 +1593,23 @@ func reportVoice(out console, profile Profile, found []Finding, over scanned) in
 		byCheck[f.Check]++
 	}
 	var parts []string
+	listed := map[string]bool{}
 	for _, name := range AllChecks {
+		listed[name] = true
 		if byCheck[name] > 0 {
 			parts = append(parts, fmt.Sprintf("%s %d", name, byCheck[name]))
 		}
+	}
+	// The record checks and the file bound sit outside the corpus list, and the tally still names them.
+	var others []string
+	for name := range byCheck {
+		if !listed[name] {
+			others = append(others, name)
+		}
+	}
+	sort.Strings(others)
+	for _, name := range others {
+		parts = append(parts, fmt.Sprintf("%s %d", name, byCheck[name]))
 	}
 	out.note("%s profile: %d finding(s)%s over %d file(s), %d declined unread.",
 		profile, len(found), tally(parts), over.files, over.declined)

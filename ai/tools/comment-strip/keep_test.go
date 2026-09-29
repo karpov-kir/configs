@@ -321,8 +321,10 @@ func TestATestIsNeverACarrier(t *testing.T) {
 	f := newFixture(t, "f.ts", keptSource)
 	archive := filepath.Join(f.dir, "archive")
 	lines := shell.SplitLines(keptSource)
-	if err := Carry(archive, "run16", f.path, lines, 4, "the test 'asks once per scheme'"); err == nil {
-		t.Fatal("a test was taken as a carrier")
+	for _, test := range []string{"the test 'asks once per scheme'", "fx.spec.ts", "the spec `asks once`", "src/claims.test.ts"} {
+		if err := Carry(archive, "run16", f.path, lines, 4, test); err == nil {
+			t.Fatalf("%q was taken as a carrier", test)
+		}
 	}
 	if err := Carry(archive, "run16", f.path, lines, 4, "`ASKS_ONCE`"); err != nil {
 		t.Fatal(err)
