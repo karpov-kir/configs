@@ -324,7 +324,9 @@ func TestATestIsNeverACarrier(t *testing.T) {
 		"a unit test pinning the order", "carried by claims_test.go, which pins it", "the ordering test on `claimFor`",
 		"a regression test pinning `claimFor`", "pinned by tests in `claimFor`'s suite", "`claimFor`'s own test",
 		"test('asks once per scheme')", "tests 'ask once per scheme'", "the ordering that the claims spec tests; `claimFor`",
-		"`claimFor`, which the unit test tests.", "`ORDER`, pinned by the cases that run in integration tests."} {
+		"`claimFor`, which the unit test tests.", "`ORDER`, pinned by the cases that run in integration tests.",
+		"`ORDER`, pinned by the cases that run in parser tests.", "which the snapshot tests.", "which the e2e/unit tests.",
+		"which the Go tests;", "`it('asks once per scheme')`", "`describe('claimFor')`", "the platform that `ci.yml` tests;"} {
 		if err := Carry(archive, "run16", f.path, lines, 4, test); err == nil {
 			t.Fatalf("%q was taken as a carrier", test)
 		}

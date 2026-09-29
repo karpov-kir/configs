@@ -106,31 +106,38 @@ func carrierNames(carrier string) []string {
 	return names
 }
 
-// reTestCarrier is a carrier verdict that names a test: a test or a spec as a word, or a title call.
-var reTestCarrier = regexp.MustCompile(`(?i)\b(tests?|specs?)\b|\b(it|describe|test)\s*\(`)
+// reTestWord is a test or a spec as a word, and reTitleCall a test's title call.
+var (
+	reTestWord  = regexp.MustCompile(`(?i)\b(tests?|specs?)\b`)
+	reTitleCall = regexp.MustCompile(`(?i)\b(it|describe|test)\s*\(`)
+)
 
-// reTestVerb is "tests" as a verb closing a relative clause, as in "the platform that the branch tests;",
-// with the word before it. A message carrier ending that way is still a carrier.
+// reTestVerb is "tests" closing a relative clause, as in "the platform that the branch tests;", with
+// the word before it.
 var reTestVerb = regexp.MustCompile(`(?i)(\b(?:that|which)\s+(?:\S+\s+){0,3}?)(\S+)\s+tests(\s*(?:[;.,)]|$))`)
 
-// testQualifiers make the "tests" after them a noun, as in "which the integration tests".
-var testQualifiers = map[string]bool{"unit": true, "integration": true, "e2e": true, "regression": true,
-	"smoke": true, "acceptance": true, "end-to-end": true}
+// verbSubjects are the code that tests something in a message carrier's wording. After any other word
+// "tests" is read as a noun, and a carrier naming one is refused, which only reopens its block.
+var verbSubjects = map[string]bool{"branch": true, "check": true, "guard": true, "condition": true,
+	"code": true, "call": true, "function": true, "lookup": true}
 
-// reBackticked is a name in backticks. It is read only as a file name, so a `retry-spec` key is no test.
+// reBackticked is a name in backticks, read only as a file name, so a `retry-spec` key is no test.
 var reBackticked = regexp.MustCompile("`[^`]*`")
 
-// namesATest says the carrier verdict names a test, in words or by a unit test's file. Only the verb
-// word is set aside, so a test named anywhere in its clause is still read.
+// namesATest says the carrier verdict names a test: a title call, a test or a spec as a word outside a
+// backticked name, or a unit test's file. Only "tests" after a verb subject reads as the verb.
 func namesATest(carrier string) bool {
-	prose := reTestVerb.ReplaceAllStringFunc(reBackticked.ReplaceAllString(carrier, " "), func(m string) string {
+	if reTitleCall.MatchString(carrier) {
+		return true
+	}
+	prose := reTestVerb.ReplaceAllStringFunc(carrier, func(m string) string {
 		parts := reTestVerb.FindStringSubmatch(m)
-		if testQualifiers[strings.ToLower(parts[2])] {
+		if !verbSubjects[strings.ToLower(parts[2])] {
 			return m
 		}
 		return parts[1] + parts[2] + " checks" + parts[3]
 	})
-	if reTestCarrier.MatchString(prose) {
+	if reTestWord.MatchString(reBackticked.ReplaceAllString(prose, " ")) {
 		return true
 	}
 	for _, token := range strings.FieldsFunc(carrier, func(r rune) bool { return strings.ContainsRune(" `'\"", r) }) {
