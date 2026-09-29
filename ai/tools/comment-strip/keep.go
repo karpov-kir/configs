@@ -19,9 +19,14 @@ import (
 // written correctly, with no change of fact or tie, and a reviewer read those rewordings as a diff.
 
 // The lane archives each block it wrote with its record, `--written=<run>`. The next full strip keeps
-// the block where its bytes, its rules and the declaration and body under it are unchanged. Its record
-// id must carry no contradiction, and its record check must pass. The strip decides this itself, so a
-// kept block costs no call.
+// the block where its bytes and the declaration and body under it are unchanged, its record id carries
+// no contradiction, and the checks standing now find nothing against it. The strip decides this
+// itself, so a kept block costs no call.
+//
+// A change of rules reopens only what fails. Every rule change once rolled all 72 blocks again, the
+// ones a reviewer had read and left included, and each round brought new faults into blocks that had
+// been fine. The archive records the check version each block last passed, so an unchanged tool reads
+// no block twice and the no-change run starts no writer.
 
 const writtenOption = "--written="
 
@@ -37,6 +42,8 @@ type written struct {
 	Block string `json:"block"`
 	// Record is the note's three slot lines, as the writer returned them.
 	Record string `json:"record"`
+	// Checked is the check version the block last passed, empty until a strip reads it.
+	Checked string `json:"checked,omitempty"`
 }
 
 // writtenName is the file under the archive holding the blocks the lane wrote in one source file.
@@ -44,8 +51,8 @@ func writtenName(archive, path string) string {
 	return filepath.Join(archive, strings.TrimSuffix(archiveName(path, 0), "@0.facts")+".written")
 }
 
-// rulePaths are the rules a block is written under, below the flavor root. A block written under
-// other rules is written again.
+// rulePaths are the rules a block is written under, below the flavor root. The archive records their
+// hash with each block, and a change of rules alone reopens none.
 var rulePaths = []string{"standards/code-style.md", "workers/comment-writer.md"}
 
 // rulesSum is a hash of the rules standing now, or "" where they cannot be read. `~/.kk-flavor` is
@@ -169,25 +176,52 @@ func contradictedIDs(archive, path string) map[string]bool {
 // keeper says which of a file's blocks stand as the lane wrote them. It reads the archive once.
 type keeper struct {
 	held          []written
-	rules         string
 	contradiction map[string]bool
+	// version is the checks' version now, and check reads one block with them. A test puts a check of
+	// its own here.
+	version string
+	check   func(file, record string, block, span, fileLines []string, blockLine int) []string
+	// passed is the entries a check read and found nothing against, which save records.
+	passed map[int]bool
 }
 
-func newKeeper(archive, path string) keeper {
-	return keeper{held: readWritten(archive, path), rules: rulesSum(), contradiction: contradictedIDs(archive, path)}
+// checkVersion and keepChecks are the checks a kept block is read by. A test puts its own in.
+var (
+	checkVersion = voicecheck.Version
+	keepChecks   = voicecheck.KeepFindings
+)
+
+func newKeeper(archive, path string) *keeper {
+	return &keeper{held: readWritten(archive, path), contradiction: contradictedIDs(archive, path),
+		version: checkVersion(), check: keepChecks, passed: map[int]bool{}}
+}
+
+// save records the check version against every entry a check passed in this strip.
+func (k *keeper) save(archive, path string) error {
+	if k == nil || len(k.passed) == 0 {
+		return nil
+	}
+	for i := range k.passed {
+		k.held[i].Checked = k.version
+	}
+	body, err := json.MarshalIndent(k.held, "", " ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(writtenName(archive, path), append(body, '\n'), 0o644)
 }
 
 // keeps is the run that wrote the block, where the block stands as that run wrote it, or "".
-func (k keeper) keeps(file string, lines []string, u readerjudge.Unit) string {
+func (k *keeper) keeps(file string, lines []string, u readerjudge.Unit) string {
+	if k == nil {
+		return ""
+	}
 	run, _ := k.verdict(file, lines, u)
 	return run
 }
 
 // verdict is the run that wrote the block where it stands, or why it reopens.
-func (k keeper) verdict(file string, lines []string, u readerjudge.Unit) (run, reopened string) {
-	if k.rules == "" {
-		return "", "the rules under ~/.kk-flavor could not be read"
-	}
+func (k *keeper) verdict(file string, lines []string, u readerjudge.Unit) (run, reopened string) {
 	block := blockText(lines, u)
 	at := declarationUnder(lines, u)
 	if at > len(lines) {
@@ -197,28 +231,24 @@ func (k keeper) verdict(file string, lines []string, u readerjudge.Unit) (run, r
 	// An entry written before run 14 hashed the span with its comment lines, and it still matches.
 	code, whole := codeSum(lines, at), spanSum(span)
 	reopened = "no archived entry holds these bytes"
-	for _, w := range k.held {
+	for i, w := range k.held {
 		why := ""
 		switch {
 		case w.Block != block:
 			continue
-		case w.Rules != k.rules:
-			why = "the rules changed since " + w.Run
 		case w.Decl != strings.TrimSpace(lines[at-1]):
 			why = "the declaration under it changed"
 		case w.Span != code && w.Span != whole:
 			why = "the code under it changed"
 		case k.contradiction[recordID(block)]:
 			why = "code review contradicted its record"
-		case strings.TrimSpace(w.Record) != "":
-			// A block holding only a summary carries an empty record, since a record belongs to a note.
-			input := append(append(shell.SplitLines(w.Record), "---"), shell.SplitLines(block)...)
-			var checks []string
-			for _, f := range voicecheck.RecordFindings(file, append(input, span...)) {
-				checks = append(checks, f.Check)
-			}
+		case w.Checked != k.version:
+			// A block holding only a summary carries an empty record, and the checks read no record for it.
+			checks := k.check(file, w.Record, shell.SplitLines(block), span, lines, u.Line)
 			if len(checks) > 0 {
-				why = "the record check reports " + strings.Join(checks, ", ")
+				why = "the checks report " + strings.Join(checks, ", ")
+			} else {
+				k.passed[i] = true
 			}
 		}
 		if why == "" {

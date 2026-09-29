@@ -1504,8 +1504,8 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			found := RecordFindings(file, lines)
 			_, under, _ := splitRecord(lines)
 			if s.tieLines != nil {
-				block, _ := blockAndBody(under)
-				found = append(found, TieFindings(file, block, s.tieLines)...)
+				block, body := blockAndBody(under)
+				found = append(found, TieFindings(file, block, body, s.tieLines)...)
 			}
 			return append(found, s.scanSource(file, under, nil, under)...)
 		}

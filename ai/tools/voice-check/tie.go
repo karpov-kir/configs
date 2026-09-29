@@ -46,30 +46,55 @@ func tieOpenings(text string) map[string]bool {
 	return out
 }
 
-// fileBlocks is each run of comment lines in a file, with the comment leads stripped.
-func fileBlocks(lines []string) []string {
-	var out []string
+// TieFindings reports each tie opening of the block that stands in two blocks above its declaration
+// already. The bound runs in file order, so which block of a file answers for a repeat is fixed: the
+// third and later. A declaration the file does not hold yet puts the block under every block.
+func TieFindings(file string, block, body, fileLines []string) []Finding {
+	at := len(fileLines) + 1
+	for _, line := range body {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		for n, held := range fileLines {
+			if strings.TrimSpace(held) == strings.TrimSpace(line) {
+				at = n + 1
+				break
+			}
+		}
+		break
+	}
+	return tieFindingsAbove(file, block, fileLines, at)
+}
+
+// fileBlocks is each run of comment lines in a file with its first line, the comment leads stripped.
+func fileBlocks(lines []string) (blocks []string, starts []int) {
 	var held []string
-	for _, line := range append(lines, "") {
+	start := 0
+	for n, line := range append(lines, "") {
 		if commentLead.MatchString(line) {
+			if len(held) == 0 {
+				start = n + 1
+			}
 			held = append(held, commentLead.ReplaceAllString(line, ""))
 			continue
 		}
 		if len(held) > 0 {
-			out = append(out, strings.Join(held, "\n"))
+			blocks = append(blocks, strings.Join(held, "\n"))
+			starts = append(starts, start)
 			held = nil
 		}
 	}
-	return out
+	return blocks, starts
 }
 
-// TieFindings reports each tie opening of the block that stands in two other blocks of the file
-// already. A block the file already holds word for word is the block itself, and it is not counted.
-func TieFindings(file string, block []string, fileLines []string) []Finding {
+// tieFindingsAbove counts the tie openings of the blocks that start above line `at`, and reports each
+// opening of the block that two of them use already.
+func tieFindingsAbove(file string, block, fileLines []string, at int) []Finding {
 	own := strings.TrimSpace(strings.Join(block, "\n"))
 	counts := map[string]int{}
-	for _, other := range fileBlocks(fileLines) {
-		if strings.TrimSpace(other) == own {
+	blocks, starts := fileBlocks(fileLines)
+	for i, other := range blocks {
+		if starts[i] >= at || strings.TrimSpace(other) == own {
 			continue
 		}
 		for opening := range tieOpenings(other) {
@@ -86,7 +111,7 @@ func TieFindings(file string, block []string, fileLines []string) []Finding {
 	var out []Finding
 	for _, opening := range repeated {
 		out = append(out, Finding{file, 1, checkTieRepeated,
-			fmt.Sprintf("%q opens the tie in %d other blocks of this file; vary the connector or the subject", opening, counts[opening])})
+			fmt.Sprintf("%q opens the tie in %d blocks above this one; vary the connector or the subject", opening, counts[opening])})
 	}
 	return out
 }

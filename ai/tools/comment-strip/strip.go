@@ -212,7 +212,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	var units []readerjudge.Unit
 	// A block the lane wrote whose record still holds stands. A `--lines` strip is a review sending
 	// that very block back, so it keeps none.
-	var keep keeper
+	var keep *keeper
 	if archive != "" && only == nil {
 		keep = newKeeper(archive, path)
 	}
@@ -231,6 +231,9 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			continue
 		}
 		units = append(units, u)
+	}
+	if err := keep.save(archive, path); err != nil {
+		return refuse("cannot record the checks the kept blocks passed: %v", err)
 	}
 	var records []archived
 	if archive != "" {

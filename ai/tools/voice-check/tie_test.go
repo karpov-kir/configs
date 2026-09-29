@@ -35,16 +35,16 @@ function b() {}
 function c() {}
 `)
 	third := []string{"The export predates the field, so this function reads the type."}
-	if got := checksOf(TieFindings("-", third, file)); strings.Join(got, ",") != checkTieRepeated {
+	if got := checksOf(TieFindings("-", third, nil, file)); strings.Join(got, ",") != checkTieRepeated {
 		t.Fatalf("a third so this function reports %v", got)
 	}
 	varied := []string{"The export predates the field, which is why this lookup reads the type."}
-	if got := TieFindings("-", varied, file); len(got) != 0 {
+	if got := TieFindings("-", varied, nil, file); len(got) != 0 {
 		t.Fatalf("a varied tie reports %v", got)
 	}
 	// A block the file already holds is being checked again, and it is not its own neighbour.
 	again := []string{"The ledger rounds late, so this function reads both fields."}
-	if got := TieFindings("-", again, file); len(got) != 0 {
+	if got := TieFindings("-", again, nil, file); len(got) != 0 {
 		t.Fatalf("a block counted against itself reports %v", got)
 	}
 }
@@ -76,5 +76,37 @@ func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 	}
 	if code, _ := run("--profile=comment", "--source", "--file="+source, record); code != 2 {
 		t.Fatalf("--file without --record exits %d, want 2", code)
+	}
+}
+
+// The bound runs in file order. A block above the two that share its opening stays, and the third and
+// later answer for the repeat, so which block reopens is fixed.
+func TestTheFileBoundLandsOnTheThirdBlockInFileOrder(t *testing.T) {
+	file := shell.SplitLines(`// The ledger rounds late, so this function reads both fields.
+function a() {}
+// The book drops a period, so this function asks twice.
+function b() {}
+// The export predates the field, so this function reads the type.
+function c() {}
+`)
+	first := []string{"// The ledger rounds late, so this function reads both fields."}
+	third := []string{"// The export predates the field, so this function reads the type."}
+	if got := KeepFindings("-", "", first, nil, file, 1); len(got) != 0 {
+		t.Fatalf("the first block reports %v", got)
+	}
+	if got := KeepFindings("-", "", third, nil, file, 5); strings.Join(got, ",") != checkTieRepeated {
+		t.Fatalf("the third block reports %v", got)
+	}
+	// At write time the block's place is its declaration's line.
+	body := []string{"function a() {}"}
+	if got := TieFindings("-", []string{"The export predates the field, so this function reads the type."}, body, file); len(got) != 0 {
+		t.Fatalf("a block written over the first declaration reports %v", got)
+	}
+}
+
+// The version is the checks' own source, so it holds across calls and moves only with an edit.
+func TestTheVersionIsStable(t *testing.T) {
+	if Version() == "" || Version() != Version() {
+		t.Fatal("the check version is empty or moves between calls")
 	}
 }

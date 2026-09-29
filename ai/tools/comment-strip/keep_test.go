@@ -64,13 +64,9 @@ func TestABlockWhoseRecordHoldsStandsAsWritten(t *testing.T) {
 	}
 }
 
-// A changed rule, a changed body, a contradiction and a review sending the block back each reopen it.
-func TestAKeptBlockReopensOnARuleABodyAContradictionOrAReview(t *testing.T) {
+// A changed body, a contradiction and a review sending the block back each reopen it.
+func TestAKeptBlockReopensOnABodyAContradictionOrAReview(t *testing.T) {
 	cases := map[string]func(t *testing.T, f *fixture, archive string) []string{
-		"a changed rule": func(t *testing.T, f *fixture, archive string) []string {
-			rulesHome(t, "rules two ")
-			return nil
-		},
 		"a changed body": func(t *testing.T, f *fixture, archive string) []string {
 			f.write(strings.Replace(keptSource, "keys.canPost(scheme)", "keys.canPost(scheme) === true", 1))
 			return nil
@@ -336,5 +332,78 @@ func TestATestIsNeverACarrier(t *testing.T) {
 	f.write(strings.Replace(keptSource, "  return keys.canPost(scheme);", "  return ASKS_ONCE && keys.canPost(scheme);", 1))
 	if got := carriedDecls(archive, f.path, f.dir, f.path, nil); len(got) != 0 {
 		t.Fatalf("an archived test carrier still holds its site: %v", got)
+	}
+}
+
+// twoBlocks is two archived blocks in one file, each on its own function.
+const twoBlocks = keptSource + "\n" +
+	"// A ledger build closes its book at midnight, so this function reads the date before the time.\n" +
+	"export function closedOn(book: string): string {\n" +
+	"  return book.slice(0, 10);\n" +
+	"}\n"
+
+func archiveBoth(t *testing.T, f *fixture, archive string) {
+	t.Helper()
+	archiveWritten(t, f, archive)
+	writeRecord(t, f, archive, "9", "fact: a ledger build closes its book at midnight\nbears_on: closedOn\ndoes: returns book.slice(0, 10)\n")
+}
+
+// withChecks puts a check of the test's own in for the strip, and counts the blocks it reads.
+func withChecks(t *testing.T, version string, finds func(block string) bool) *int {
+	t.Helper()
+	read := 0
+	oldVersion, oldChecks := checkVersion, keepChecks
+	checkVersion = func() string { return version }
+	keepChecks = func(_, _ string, block, _, _ []string, _ int) []string {
+		read++
+		if finds(strings.Join(block, "\n")) {
+			return []string{"a-new-check"}
+		}
+		return nil
+	}
+	t.Cleanup(func() { checkVersion, keepChecks = oldVersion, oldChecks })
+	return &read
+}
+
+// A rules change reopens only what fails. An edit to the brief with every check clean keeps every
+// block byte for byte. Every rule change once rolled all 72 blocks of a change again.
+func TestABriefEditWithEveryCheckCleanKeepsAllBlocks(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", twoBlocks)
+	archive := filepath.Join(f.dir, "archive")
+	archiveBoth(t, f, archive)
+	rulesHome(t, "rules two ")
+	withChecks(t, "v1", func(string) bool { return false })
+	if said := f.run("--archive=" + archive); said.code != exitClean || f.body() != twoBlocks || said.stdout != "" {
+		t.Fatalf("exit %d, sites %q, stderr %s", said.code, said.stdout, said.stderr)
+	}
+}
+
+// A new check reopens exactly the blocks it finds against, and the rest stay byte for byte.
+func TestANewCheckReopensExactlyTheBlocksItFindsAgainst(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", twoBlocks)
+	archive := filepath.Join(f.dir, "archive")
+	archiveBoth(t, f, archive)
+	withChecks(t, "v2", func(block string) bool { return strings.Contains(block, "midnight") })
+	said := f.run("--archive=" + archive)
+	if said.code != exitCut || strings.Contains(f.body(), "midnight") || !strings.Contains(f.body(), "// A ledger build answers") {
+		t.Fatalf("exit %d, stderr %s, file:\n%s", said.code, said.stderr, f.body())
+	}
+}
+
+// The no-change run after a new check keeps everything, and reads no block the check passed.
+func TestTheNoChangeRunAfterANewCheckKeepsEverything(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", twoBlocks)
+	archive := filepath.Join(f.dir, "archive")
+	archiveBoth(t, f, archive)
+	read := withChecks(t, "v2", func(string) bool { return false })
+	if said := f.run("--archive=" + archive); said.code != exitClean || *read != 2 {
+		t.Fatalf("the first run under v2: exit %d, %d block(s) read: %s", said.code, *read, said.stderr)
+	}
+	read = withChecks(t, "v2", func(string) bool { return true })
+	if said := f.run("--archive=" + archive); said.code != exitClean || f.body() != twoBlocks || *read != 0 {
+		t.Fatalf("the no-change run: exit %d, %d block(s) read: %s", said.code, *read, said.stderr)
 	}
 }
