@@ -4,10 +4,11 @@
 //
 //	usage: comment-run.sh seed --run-dir=<dir> --archive=<dir> --range=<base>..<head> [--heads=<sha,...>] [--contradictions=<tsv>]
 //	usage: comment-run.sh prompts --run-dir=<dir> --workers=<n>
-//	usage: comment-run.sh archive-written --run=<run> --archive=<dir> <writer return>...
+//	usage: comment-run.sh archive-written --run=<run> --archive=<dir> [--run-dir=<dir>] <writer return>...
+//	usage: comment-run.sh carried --run=<run> --run-dir=<dir> --archive=<dir> <refactor return>...
 //	usage: comment-run.sh taint --ledger=<file> <transcript>... [--ledger=<file> <transcript>...]
 //	usage: comment-run.sh keep-test --archive=<dir> <path>...
-//	usage: comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>
+//	usage: comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>...
 //
 // Exit 0 is a clean run, 1 a run that reported findings, and 2 a stage that did not run.
 package commentrun
@@ -24,10 +25,11 @@ import (
 // The grammar. It carries the stub's name where argv[0] would carry the binary's.
 const usage = "usage: comment-run.sh seed --run-dir=<dir> --archive=<dir> --range=<base>..<head> [--heads=<sha,...>] [--contradictions=<tsv>]\n" +
 	"       comment-run.sh prompts --run-dir=<dir> --workers=<n>\n" +
-	"       comment-run.sh archive-written --run=<run> --archive=<dir> <writer return>...\n" +
+	"       comment-run.sh archive-written --run=<run> --archive=<dir> [--run-dir=<dir>] <writer return>...\n" +
+	"       comment-run.sh carried --run=<run> --run-dir=<dir> --archive=<dir> <refactor return>...\n" +
 	"       comment-run.sh taint --ledger=<file> <transcript>... [--ledger=<file> <transcript>...]\n" +
 	"       comment-run.sh keep-test --archive=<dir> <path>...\n" +
-	"       comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>"
+	"       comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>..."
 
 const (
 	exitClean     = 0
@@ -45,6 +47,7 @@ var stages = map[string]stage{
 	"taint":           taint,
 	"keep-test":       keepTest,
 	"loop":            loop,
+	"carried":         carriedStage,
 }
 
 // runner holds the directory a stage stands in and the streams it writes to.
@@ -67,7 +70,7 @@ func (r *runner) refuse(format string, a ...any) int {
 func Run(self string, args []string, cwd string, git repo.Git, stdout, stderr io.Writer) int {
 	r := &runner{self: self, cwd: cwd, git: git, stdout: stdout, stderr: stderr}
 	if len(args) == 0 {
-		return r.refuse("%s", "name a stage: seed, prompts, archive-written, taint, keep-test or loop")
+		return r.refuse("%s", "name a stage: seed, prompts, archive-written, carried, taint, keep-test or loop")
 	}
 	run, known := stages[args[0]]
 	if !known {
