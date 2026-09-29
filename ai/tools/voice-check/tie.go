@@ -47,8 +47,8 @@ func tieOpenings(text string) map[string]bool {
 }
 
 // TieFindings reports each tie opening of the block that stands in two blocks above its declaration
-// already. The bound runs in file order, so which block of a file answers for a repeat is fixed: the
-// third and later. A declaration the file does not hold yet puts the block under every block.
+// already. The bound runs in file order. The third and later
+// block with one opening answer for the repeat, and that choice is fixed. A declaration the file does not hold yet puts the block under every block.
 func TieFindings(file string, block, body, fileLines []string) []Finding {
 	at := len(fileLines) + 1
 	for _, line := range body {
@@ -87,8 +87,8 @@ func fileBlocks(lines []string) (blocks []string, starts []int) {
 	return blocks, starts
 }
 
-// tieFindingsAbove counts the tie openings of the blocks that start above line `at`, and reports each
-// opening of the block that two of them use already.
+// tieFindingsAbove counts the tie openings of each block starting before line `at`. It reports each
+// opening of the block that two of those blocks use already.
 func tieFindingsAbove(file string, block, fileLines []string, at int) []Finding {
 	own := strings.TrimSpace(strings.Join(block, "\n"))
 	counts := map[string]int{}

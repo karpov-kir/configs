@@ -19,14 +19,15 @@ import (
 // written correctly, with no change of fact or tie, and a reviewer read those rewordings as a diff.
 
 // The lane archives each block it wrote with its record, `--written=<run>`. The next full strip keeps
-// the block where its bytes and the declaration and body under it are unchanged, its record id carries
-// no contradiction, and the checks standing now find nothing against it. The strip decides this
-// itself, so a kept block costs no call.
+// a block while its bytes, its declaration and the code under it hold, code review has left its record
+// standing, and the checks standing now pass it. The strip decides this itself, so a kept block
+// costs no call.
 //
-// A change of rules reopens only what fails. Every rule change once rolled all 72 blocks again, the
-// ones a reviewer had read and left included, and each round brought new faults into blocks that had
-// been fine. The archive records the check version each block last passed, so an unchanged tool reads
-// no block twice and the no-change run starts no writer.
+// A change of rules reopens only the blocks that fail. Every rule change once rolled all 72 blocks
+// again, the ones a reviewer had read and left included, and each round brought new faults.
+//
+// The archive records the check version each block last passed. A tool whose checks are unchanged
+// reads each block once, and a run over an unchanged tree starts no writer.
 
 const writtenOption = "--written="
 
@@ -52,7 +53,7 @@ func writtenName(archive, path string) string {
 }
 
 // rulePaths are the rules a block is written under, below the flavor root. The archive records their
-// hash with each block, and a change of rules alone reopens none.
+// hash with each block, and a change of rules reopens no block by itself.
 var rulePaths = []string{"standards/code-style.md", "workers/comment-writer.md"}
 
 // rulesSum is a hash of the rules standing now, or "" where they cannot be read. `~/.kk-flavor` is
@@ -181,7 +182,7 @@ type keeper struct {
 	// its own here.
 	version string
 	check   func(file, record string, block, span, fileLines []string, blockLine int) []string
-	// passed is the entries a check read and found nothing against, which save records.
+	// passed is the entries a check read and passed, which save records.
 	passed map[int]bool
 }
 

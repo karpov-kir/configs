@@ -8,9 +8,8 @@ import (
 	"strings"
 )
 
-// A kept block is read again only where the checks changed since it last passed. The archive records
-// the version it passed, and the version is the checks' own source, so an edit to any check moves it
-// and an unchanged tool reads no block twice.
+// A kept block is read again when the checks change. The archive records the version each block
+// passed. The version is a hash of the checks' own source, so an edit to a check moves it.
 
 //go:embed *.go
 var sources embed.FS
@@ -34,9 +33,9 @@ func Version() string {
 	return hex.EncodeToString(sum.Sum(nil))[:12]
 }
 
-// KeepFindings is what the checks standing now report against a kept block: its record check, and the
-// file bound counted in file order, so the third and later block with one tie opening reopens and the
-// two above it stay. A block with an empty record holds a summary alone and has no record to read.
+// KeepFindings lists the checks standing now that fail a kept block. They are its record check and the
+// file bound in file order: the third and later block with one tie opening reopens, and the first two
+// stay. A block with an empty record holds a summary only, and it has no record to read.
 func KeepFindings(file, record string, block, span, fileLines []string, blockLine int) []string {
 	var checks []string
 	if strings.TrimSpace(record) != "" {

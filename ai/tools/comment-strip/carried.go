@@ -150,7 +150,7 @@ func spelledOutsideTests(root, name string) bool {
 }
 
 // carriedDecls is every declaration whose block was carried into code that still stands, with no
-// contradiction against the carried block. A change of rules alone reopens none of them.
+// contradiction against the carried block. A change of rules reopens none of them by itself.
 func carriedDecls(archive, path, root, file string, contradiction map[string]bool) map[string]carried {
 	out := map[string]carried{}
 	for _, c := range readCarried(archive, path) {

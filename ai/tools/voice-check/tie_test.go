@@ -79,8 +79,8 @@ func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 	}
 }
 
-// The bound runs in file order. A block above the two that share its opening stays, and the third and
-// later answer for the repeat, so which block reopens is fixed.
+// The bound runs in file order. The first block with an opening stays. The third and later answer
+// for the repeat.
 func TestTheFileBoundLandsOnTheThirdBlockInFileOrder(t *testing.T) {
 	file := shell.SplitLines(`// The ledger rounds late, so this function reads both fields.
 function a() {}

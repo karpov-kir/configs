@@ -392,7 +392,7 @@ func TestANewCheckReopensExactlyTheBlocksItFindsAgainst(t *testing.T) {
 	}
 }
 
-// The no-change run after a new check keeps everything, and reads no block the check passed.
+// A run after a new check, over an unchanged tree, keeps every block and reads each passed block once.
 func TestTheNoChangeRunAfterANewCheckKeepsEverything(t *testing.T) {
 	rulesHome(t, "rules one ")
 	f := newFixture(t, "f.ts", twoBlocks)
