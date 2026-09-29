@@ -10,22 +10,42 @@ import (
 	"configs/ai/tools/shell"
 )
 
-func TestTieOpeningsReadTheConnectorAndItsSubject(t *testing.T) {
-	for _, tc := range []struct{ text, want string }{
-		{"The ledger rounds late, so this function reads both fields.", "so this function"},
-		{"The ledger rounds late. This check therefore tells the two apart.", "therefore this check"},
-		{"The ledger rounds late, therefore this lookup reads both.", "therefore this lookup"},
-		{"The ledger rounds late, which is why a deferred posting goes first.", "which is why a deferred"},
-		{"This branch keeps a status from 100 up, because a fetch reports 0.", "because a fetch"},
+func TestTieOpeningsCountTheConnectorAndTheSubjectApart(t *testing.T) {
+	for _, tc := range []struct {
+		text string
+		want []string
+	}{
+		{"The ledger rounds late, so this function reads both fields.", []string{"so", "this function"}},
+		{"The ledger rounds late. This check therefore tells the two apart.", []string{"therefore", "this check"}},
+		{"The ledger rounds late, which is why a deferred posting goes first.", []string{"which is why"}},
+		{"This branch keeps a status from 100 up, because a fetch reports 0.", []string{"because", "this branch"}},
 	} {
 		got := tieOpenings(tc.text)
-		if !got[tc.want] || len(got) != 1 {
-			t.Errorf("%q opens %v, want %q", tc.text, got, tc.want)
+		for _, w := range tc.want {
+			if !got[w] {
+				t.Errorf("%q opens %v, want %q", tc.text, got, w)
+			}
+		}
+		if len(got) != len(tc.want) {
+			t.Errorf("%q opens %v, want %v", tc.text, got, tc.want)
 		}
 	}
 }
 
-// Two blocks of a file already tie with "so this function", and the third is the writer's to vary.
+// "so" with three different subjects is still "so" three times, which is what the reviewer counted.
+func TestAConnectorWithVariedSubjectsStillCounts(t *testing.T) {
+	file := shell.SplitLines(`// The ledger rounds late, so this check reads both fields.
+function a() {}
+// The book drops a period, so a posting is asked twice.
+function b() {}
+`)
+	if got := checksOf(TieFindings("-", []string{"The export predates the field, so this lookup reads the type."}, file)); strings.Join(got, ",") != checkTieRepeated {
+		t.Fatalf("a third so reports %v", got)
+	}
+}
+
+// Two blocks of a file already tie with "so this function", and the third is the writer's to vary: its
+// connector and its subject are each named.
 func TestATieOpeningInTwoOtherBlocksIsNamed(t *testing.T) {
 	file := shell.SplitLines(`// The ledger rounds late, so this function reads both fields.
 function a() {}
@@ -35,7 +55,7 @@ function b() {}
 function c() {}
 `)
 	third := []string{"The export predates the field, so this function reads the type."}
-	if got := checksOf(TieFindings("-", third, file)); strings.Join(got, ",") != checkTieRepeated {
+	if got := checksOf(TieFindings("-", third, file)); strings.Join(got, ",") != checkTieRepeated+","+checkTieRepeated {
 		t.Fatalf("a third so this function reports %v", got)
 	}
 	varied := []string{"The export predates the field, which is why this lookup reads the type."}

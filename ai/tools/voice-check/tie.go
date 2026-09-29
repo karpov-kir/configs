@@ -7,41 +7,31 @@ import (
 	"strings"
 )
 
-// Within one file no tie opening, a connector with its subject, stands in more than two blocks. A
+// Within one file no connector, and no "this <noun>" subject, stands in more than two blocks. A
 // reviewer read 72 blocks on 2026-09-29, 27 of them tied with "so" and 25 with "this function", and
-// the fixed form written 72 times was what he read. The bound reads the file the writer holds at write
-// time. The keep criteria leave it out, so a kept block stays kept whatever a neighbour says.
+// the fixed form written 72 times was what he read. He counted the connector and the subject each on
+// its own, so the bound counts them apart. It reads the file the writer holds at write time, and the
+// keep criteria leave it out.
 const checkTieRepeated = "tie-opening-repeated"
 
-// tieBound is how many other blocks of one file may already open a tie the same way.
+// tieBound is how many other blocks of one file may already use a connector or a subject.
 const tieBound = 2
 
-// reConnector is a connector that claims the act follows from the fact. `therefore` may follow its
-// subject, as in "this check therefore tells", and every other connector opens its clause.
+// reConnector is a connector that claims the act follows from the fact.
 var reConnector = regexp.MustCompile(`\b(which is why|that is why|for that reason|therefore|because|so)\b`)
 
-var reTieWord = regexp.MustCompile(`[a-z0-9_$]+`)
+// reThisSubject is a declaration or a role noun said as "this <noun>".
+var reThisSubject = regexp.MustCompile(`\bthis (function|method|member|property|call|branch|check|lookup|filter|probe|guard|helper|match|copy|test|loop|constant|field|row|enum|type)\b`)
 
-// tieOpenings is each connector in the text with the two words of its subject, lower-cased: "so this
-// function", or "therefore this check" for a subject standing before the connector.
+// tieOpenings is each connector and each "this <noun>" subject in the text, lower-cased.
 func tieOpenings(text string) map[string]bool {
 	text = strings.ToLower(text)
 	out := map[string]bool{}
-	for _, at := range reConnector.FindAllStringSubmatchIndex(text, -1) {
-		connector := text[at[2]:at[3]]
-		before := strings.TrimRight(text[:at[0]], " \t\n")
-		var subject []string
-		if connector == "therefore" && before != "" && !strings.HasSuffix(before, ",") && !strings.HasSuffix(before, ".") {
-			words := reTieWord.FindAllString(before[strings.LastIndexAny(before, ".,;:")+1:], -1)
-			if len(words) > 2 {
-				words = words[len(words)-2:]
-			}
-			subject = words
-		} else {
-			words := reTieWord.FindAllString(text[at[1]:], 2)
-			subject = words
-		}
-		out[strings.TrimSpace(connector+" "+strings.Join(subject, " "))] = true
+	for _, m := range reConnector.FindAllString(text, -1) {
+		out[m] = true
+	}
+	for _, m := range reThisSubject.FindAllString(text, -1) {
+		out[m] = true
 	}
 	return out
 }

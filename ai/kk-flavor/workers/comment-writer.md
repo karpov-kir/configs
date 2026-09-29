@@ -132,17 +132,17 @@ currency`, and not `an unpriced book`.
 
 **Back-references.** A pronoun stands only for the subject of the sentence before it. `that`,
 `those` or `such a` with the noun repeated may stand for any noun of that sentence. Any other
-back-reference repeats the noun. Two sentences is the ceiling.
+back-reference repeats the noun.
 
 ## Words
 
 - Use the identifier's name or the domain's own word. Where the facts file coined a word for a thing the code names, use the code's name. Where the code lacks a name for the thing, return `rename: <the thing>` and leave it out of your sentence.
 - A hyphenated pair inside an identifier is the code's own coined compound. It is a rename finding, and your prose takes the plain phrase instead. Return `rename: <the identifier>`.
-- A boolean is a value. Write the call and the value it returns. Leave out a yes, an answer and a question as nouns. Leave out a device that says something.
+- A boolean is a value. Leave out a yes, an answer and a question as nouns. Leave out a device that says something.
 - Write absent, unlisted or undefined where the facts file said a thing lacks a name.
 - Put one idea in a sentence, and keep it under 20 words.
 - Leave out semicolons, bold, bullets, headings, a contrast spine, and `never` as emphasis.
-- Name the actor of every verb.
+- The code under the block may be the unnamed actor of a passive. Every other verb names its actor.
 - Name a language mechanism by the language's own word: `this` binding, closure, promise, iterator, generator. A metaphor for one is a word the reader has to translate.
 
 ## The audit, before you return a block
@@ -168,7 +168,7 @@ Return the audit lines beside the block, one per line, as `term: <phrase> — id
 
 ## Check each block before you write it
 
-Run the edit lane's voice check over the block on stdin: `voice-check.sh --profile=comment --source --record --file=<the file> -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`, with the file you are writing into. `--file` reads the file's other blocks for a tie opening that stands in two of them already. Pipe the note's three slots, then a line reading `---`, then the block with the declaration it will sit on and that declaration's body under it. The check reads the record against both: `bears_on` names a declaration under the block and the block spells it, and `does` shares a word with the body. The prose profile leaves out bare-identifier, long-block and coined-identifier, and a run on 2026-09-21 put a block past it twice that the comment profile refused both times. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `does not fit`. Show the two rewrites: `attempt 1: <the part> - <the finding>` and `attempt 2: <the part> - <the finding>`, one to a line, above the part's `none`. A part you set out to write and answered `none` for, with no two attempts under it, is a part you skipped, and your caller returns it to you. The gate applies to each part on its own.
+Run the edit lane's voice check over the block on stdin: `voice-check.sh --profile=comment --source --record --file=<the file> -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`, with the file you are writing into. `--file` reads the file's other blocks for a connector or a `this <noun>` subject that stands in two of them already. Pipe the note's three slots, then a line reading `---`, then the block with the declaration it will sit on and that declaration's body under it. The check reads the record against both. `bears_on` is declared under the block, and the block spells it unless the block sits on it. `does` shares a word with the body. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `does not fit`. Show the two rewrites: `attempt 1: <the part> - <the finding>` and `attempt 2: <the part> - <the finding>`, one to a line, above the part's `none`. A part you set out to write and answered `none` for, with no two attempts under it, is a part you skipped, and your caller returns it to you. The gate applies to each part on its own.
 
 A `long-line` finding is a line to wrap at the width it names. Wrap it and run the check again.
 
@@ -181,12 +181,12 @@ Then read the block as the engineer opening this file for the first time, with t
 5. Does the fact belong here, so the block would lose something without it?
 6. Are the words plain, with a name only for a platform interface, a constant or a declaration to edit?
 7. Is the declaration unnamed, with a value opening on its verb and a function's subject varied?
-8. Does its tie opening differ from two other blocks of the file, and do siblings share one form?
+8. Do its connector and its `this <noun>` subject each stand in at most two other blocks of the file, and do siblings share one form?
 9. Does it read once, the concrete thing first and each sentence parsed at one reading?
 
 A sentence a reviewer suggested reaches you as a fact at its site, and you answer it the way you answer any site. A sentence under `# code review:` in the facts file says what the code does, as a reviewer read it. Where it contradicts a clause of the old block, drop that clause, and write the note from the review's sentence where you can tie it to the code.
 
-The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function and names it. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A header you write keeps one blank line between it and the code under it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
+The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A header you write keeps one blank line between it and the code under it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
 
 Write the block in the comment syntax the file's other blocks use, and change no other line.
 
