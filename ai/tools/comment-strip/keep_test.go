@@ -329,7 +329,10 @@ func TestATestIsNeverACarrier(t *testing.T) {
 		"which the Go tests;", "`it('asks once per scheme')`", "`describe('claimFor')`", "the platform that `ci.yml` tests;",
 		"`ORDER`, tested by the parser suite.", "`ORDER`, as the golden cases have tested it.", "`ORDER`, pinned by the e2e suite.",
 		"`ORDER`, covered by the snapshot testing.", "`ORDER`, asserted by the golden fixtures.", "`ORDER`, which the e2e check tests.",
-		"`ORDER`, which the CI check tests;", "`ORDER`, which the snapshot check tests."} {
+		"`ORDER`, which the CI check tests;", "`ORDER`, which the snapshot check tests.",
+		"`ORDER`, pinned by `claimFor`", "`ORDER`, covered by `claimFor`", "`ORDER` in the parser suite",
+		"`ORDER` in the fixtures", "`ORDER` under e2e", "`ORDER`, the golden file", "`ORDER` in the snapshot",
+		"`ORDER`, which asserts it", "`ORDER`, which a check tests;"} {
 		if err := Carry(archive, "run16", f.path, lines, 4, test); err == nil {
 			t.Fatalf("%q was taken as a carrier", test)
 		}

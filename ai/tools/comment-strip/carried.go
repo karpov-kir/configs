@@ -125,8 +125,9 @@ var verbSubjects = map[string]bool{"branch": true, "check": true, "guard": true,
 // reBackticked is a name in backticks, read only as a file name, so a `retry-spec` key is no test.
 var reBackticked = regexp.MustCompile("`[^`]*`")
 
-// namesATest says the carrier verdict names a test: a title call, a test or a spec as a word outside a
-// backticked name, or a unit test's file. Only "tests" after a verb subject reads as the verb.
+// namesATest says the carrier verdict names a test: a title call, a test word outside a backticked
+// name, or a unit test's file. It refuses when unsure, and a refusal only reopens its block. A word
+// list stays open to the next synonym, so the refactor lane's own rule and carrierStands back it.
 func namesATest(carrier string) bool {
 	if reTitleCall.MatchString(carrier) {
 		return true
