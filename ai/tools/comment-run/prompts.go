@@ -48,6 +48,7 @@ func prompts(r *runner, opts options, _ []string) int {
 	if err != nil {
 		return r.refuse("%v", err)
 	}
+	warnWithoutWriterAgent(r)
 	batches := plan(order, byFile)
 	n := 0
 	for b, groups := range batches {
@@ -371,4 +372,19 @@ func writerSlots(run map[string]string, share writerShare) map[string]string {
 		"Held by a concurrent lane": strings.Join(held, "; "),
 		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> <file>` on your file(s), stdout:\n```\n" + strings.TrimRight(stdout.String(), "\n") + "\n```",
 	}
+}
+
+// writerAgent is where the installer mounts the thin writer for Claude. Codex has no directory for a
+// defined agent, and the installer mounts none there.
+const writerAgent = ".claude/agents/comment-writer.md"
+
+// warnWithoutWriterAgent says so where the thin writer is not installed. A writer dispatched then starts
+// as a general agent, some 32k tokens heavier at its first turn, and the run's report names that.
+func warnWithoutWriterAgent(r *runner) {
+	home, _ := os.LookupEnv("HOME")
+	if _, err := os.Stat(filepath.Join(home, writerAgent)); err == nil {
+		return
+	}
+	fmt.Fprintf(r.stderr, "%s: no comment-writer agent at ~/%s: a writer dispatched here starts as a general agent; "+
+		"run bootstrap for Claude, or name the general writers in the run's report\n", r.self, writerAgent)
 }

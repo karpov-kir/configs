@@ -161,6 +161,10 @@ func TestPromptsQuoteTheHumansWordsAndNoApproval(t *testing.T) {
 		t.Fatal(err)
 	}
 	said := c.run("prompts", "--run-dir="+runDir)
+	// The test home mounts no comment-writer agent, and the stage says so.
+	if !strings.Contains(said.stderr, "no comment-writer agent at ~/.claude/agents/comment-writer.md") {
+		t.Errorf("a home with no writer agent went unsaid:\n%s", said.stderr)
+	}
 	if said.code != exitClean || !strings.HasPrefix(said.stdout, "A batch 1, 1 site(s) in 1 file(s)") {
 		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
 	}
