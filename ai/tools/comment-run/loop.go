@@ -75,8 +75,8 @@ func loop(r *runner, opts options, _ []string) int {
 		}
 		byPath[f.path] = append(byPath[f.path], f)
 	}
-	// A round strips its files together or none of them. A refused site leaves no file stripped and no
-	// facts with no prompt to carry them to a writer, and the round can run again as it was given.
+	// A round strips its files together or none of them. A refused site restores every file of the round
+	// and removes its facts, and the round can run again as it was given.
 	before := map[string][]byte{}
 	for _, path := range paths {
 		body, err := os.ReadFile(filepath.Join(tree, path))
