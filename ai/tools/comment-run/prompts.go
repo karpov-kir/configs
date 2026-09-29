@@ -11,8 +11,8 @@ import (
 )
 
 // prompts partitions the sites seed printed over the writers and writes each writer's spawn prompt.
-// It decides the number of writers from the sites. Run 16 used ten writers for 162 sites, and run
-// 18b's one writer wrote the same sites at a quarter of the tokens.
+// It decides the number of writers from the sites. Run 18's ten writers read 48.9M tokens from the cache
+// over 412 turns, and run 18b's one writer read 34.9M over 133 turns for the same 162 sites.
 
 // The emphasis slot quotes only the human's words, from `licence.txt` in the run directory. Runs 11
 // and 12 carried an approval sentence the human never wrote.
@@ -169,6 +169,8 @@ func partition(files []string, byFile map[string][]string, n int) [][]string {
 		}
 	}
 	sort.SliceStable(units, func(i, j int) bool { return sizeOf(units[i]) > sizeOf(units[j]) })
+	// A writer holds at least one unit, so a directory that fits one writer never leaves another empty.
+	n = min(n, len(units))
 	groups := make([][]string, n)
 	load := make([]int, n)
 	for _, unit := range units {
@@ -268,7 +270,8 @@ func writerRules(home string) (string, error) {
 	if end >= 0 {
 		section = text[start : start+1+end]
 	}
-	return "The rules, word for word. Read no rule file: the text below is what the files hold.\n\n" +
+	return "The rules, word for word. Read no rule file: the text below is what the files hold, and your task " +
+		"follows it.\n\n" +
 		"=== ~/.kk-flavor/workers/comment-writer.md ===\n" + strings.TrimSpace(string(brief)) + "\n\n" +
 		"=== ~/.kk-flavor/standards/code-style.md → Comments ===\n" + strings.TrimSpace(section) + "\n", nil
 }
@@ -286,7 +289,7 @@ func returnSentence(path string) string {
 	return "Work a file at a time. Read all of a file's facts files in one call. Check all of its blocks in one " +
 		"voice-check call, where the brief checks one block: each part is a record, a line reading `---`, and the " +
 		"block with its declaration and body, the parts apart on a line reading `===`, and each finding names its " +
-		"part as `<file>#<n>`. Then write the file's blocks with Edit calls issued together in one turn; no shell " +
+		"part as `-#<n>` on stdin. Then write the file's blocks with Edit calls issued together in one turn; no shell " +
 		"command writes a source file. Write your whole return, in the brief's Verdict shape, to `" + path +
 		"` with the Write tool, and end your message with that path."
 }
@@ -322,8 +325,7 @@ func writerPrompt(template, rules string, run map[string]string, runDir, name st
 			"removals applied; no block stands at any site you are given. A block the strip kept stands at a site you are "+
 			"not given, and you leave it as it stands. No reusable verdicts.", run["top"], run["head"], run["base"]),
 		"Change scope": fmt.Sprintf("the change set `%s...%s`. Your sites, %d, in `%s`, one facts directory per file, "+
-			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only. Write each block into its file "+
-			"as soon as it passes its gate. "+verdictSentence+" "+returnSentence(returnFile(runDir, name)), run["base"], run["head"], n,
+			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only. "+verdictSentence+" "+returnSentence(returnFile(runDir, name)), run["base"], run["head"], n,
 			strings.Join(files, "`, `"), strings.TrimRight(sites.String(), "\n")),
 		"Held by a concurrent lane": strings.Join(held, "; "),
 		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
@@ -334,5 +336,6 @@ func writerPrompt(template, rules string, run map[string]string, runDir, name st
 	if err != nil {
 		return "", err
 	}
-	return prompt + "\n" + rules, nil
+	// The rules come first, so every writer opens on the same text and only the sites differ.
+	return rules + "\n" + prompt, nil
 }

@@ -47,8 +47,10 @@ func revert(r *runner, opts options, paths []string) int {
 	if err != nil {
 		return r.refuse("%s holds no run.txt: run seed first", shell.Echoable(runDir))
 	}
-	for _, path := range paths {
+	for _, given := range paths {
 		// A path comes from a lane's return, and one leaving the tree would be copied over a file outside it.
+		// Every spelling of one file reaches the same archive key.
+		path := filepath.Clean(given)
 		if !filepath.IsLocal(path) {
 			return r.refuse("%s is no path inside the tree", shell.Echoable(path))
 		}

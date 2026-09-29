@@ -156,8 +156,6 @@ func quotedBlockFindings(file string, line addedLine, archived map[string]bool) 
 	return found
 }
 
-// testTitleFindings reports each test title among a unit test's added lines that shares a word run with
-// an archived block.
 // testTitleFindings reports a test title that quotes an archived block no comment in the tree holds any
 // more. The fault is the block dropped in favour of the test. A title that repeats a block still
 // standing is no fault: run 18 reported 14 titles whose blocks the change still carried.

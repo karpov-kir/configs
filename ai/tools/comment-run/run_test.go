@@ -519,6 +519,47 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 	}
 }
 
+// A round strips its files together or none of them. A site the strip refuses leaves every file of the
+// round as it stood, so the round can run again as it was given.
+func TestALoopRoundThatRefusesStripsNothing(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	ledger := "// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+	c.write("ledger.ts", ledger)
+	c.write("book.ts", "export const CLOSE_HOUR = 0;\n")
+	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19",
+		"ledger.ts:2", "claimFor asks each scheme once", "book.ts:1", "the book closes at the ledger's midnight")
+	if said.code != exitDidNotRun || !strings.Contains(said.stderr, "no file of the round was stripped") {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != ledger {
+		t.Fatalf("a file of the refused round was stripped:\n%s", body)
+	}
+	if _, err := os.Stat(filepath.Join(runDir, "review-loop", "loop-round-1")); err == nil {
+		t.Fatal("the refused round left its facts behind")
+	}
+}
+
+// carried refuses a lane's verdict naming a path outside the tree.
+func TestCarriedRefusesAPathOutsideTheTree(t *testing.T) {
+	c := newChange(t)
+	runDir := filepath.Join(t.TempDir(), "run")
+	if said := c.run("seed", "--run-dir="+runDir, "--archive="+t.TempDir(), "--range="+c.base+".."+c.head); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	lane := filepath.Join(t.TempDir(), "refactor.md")
+	if err := os.WriteFile(lane, []byte("Comment 1/1 ../outside.ts:3 | carried by `X`\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run("carried", "--run=run18", "--run-dir="+runDir, "--archive="+t.TempDir(), lane); said.code != exitFindings ||
+		!strings.Contains(said.stdout, "no path inside the tree") {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+}
+
 // The stage decides the writers from the sites: one up to 150, two up to 300, and three above. A file
 // stays whole, and past three writers' reach the batches follow.
 func TestPlanDecidesTheWritersFromTheSites(t *testing.T) {
@@ -562,8 +603,15 @@ func TestPlanDecidesTheWritersFromTheSites(t *testing.T) {
 			t.Errorf("%v: writers per batch %v, want %v", tc.counts, got, tc.writers)
 		}
 	}
+	// No writer comes back empty where one file holds most of the sites.
+	order, byFile := sites(map[string]int{"a/x.ts": 300, "b/y.ts": 20, "b/z.ts": 20})
+	for _, group := range plan(order, byFile)[0] {
+		if len(group) == 0 {
+			t.Error("a writer holds no file")
+		}
+	}
 	// A directory's files stay with one writer where its size allows.
-	order, byFile := sites(map[string]int{"a/x.ts": 80, "a/y.ts": 70, "b/z.ts": 100, "b/w.ts": 60})
+	order, byFile = sites(map[string]int{"a/x.ts": 80, "a/y.ts": 70, "b/z.ts": 100, "b/w.ts": 60})
 	for _, group := range plan(order, byFile)[0] {
 		dirs := map[string]bool{}
 		for _, file := range group {
@@ -619,7 +667,7 @@ func TestCarriedRefusesALaneCommentEditAndRevertWithdraws(t *testing.T) {
 	if said := c.run("carried", "--run=run18", "--run-dir="+runDir, "--archive="+archive, lane); said.code != exitClean {
 		t.Fatalf("carried: exit %d %s%s", said.code, said.stdout, said.stderr)
 	}
-	said := c.run("revert", "--run=run18", "--run-dir="+runDir, "--archive="+archive, "ledger.ts")
+	said := c.run("revert", "--run=run18", "--run-dir="+runDir, "--archive="+archive, "./sub/../ledger.ts")
 	if said.code != exitClean || !strings.Contains(said.stdout, "ledger.ts restored as the writers left it, 1 carried record(s) withdrawn") {
 		t.Fatalf("revert: exit %d %s%s", said.code, said.stdout, said.stderr)
 	}

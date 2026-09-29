@@ -224,7 +224,7 @@ func CarriedVerdicts(archive, path, root, file string, lines []string) []Carried
 // site no more while the reverted carrier's names still stand.
 func Withdraw(archive, run, path string) (int, error) {
 	held := readCarried(archive, path)
-	var kept []carried
+	kept := []carried{}
 	for _, c := range held {
 		if c.Run != run {
 			kept = append(kept, c)

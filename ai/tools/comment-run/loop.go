@@ -75,12 +75,29 @@ func loop(r *runner, opts options, _ []string) int {
 		}
 		byPath[f.path] = append(byPath[f.path], f)
 	}
+	// A round strips its files together or none of them. A refused site leaves no file stripped and no
+	// facts with no prompt to carry them to a writer, and the round can run again as it was given.
+	before := map[string][]byte{}
+	for _, path := range paths {
+		body, err := os.ReadFile(filepath.Join(tree, path))
+		if err != nil {
+			return r.refuse("cannot read %s", shell.Echoable(path))
+		}
+		before[path] = body
+	}
+	undo := func() {
+		for path, body := range before {
+			_ = os.WriteFile(filepath.Join(tree, path), body, 0o644)
+		}
+		_ = os.RemoveAll(facts)
+	}
 	var sites, printed strings.Builder
 	n := 0
 	for _, path := range paths {
 		stripped, err := loopStrip(tree, archive, filepath.Join(facts, strings.ReplaceAll(path, "/", "_")), path, byPath[path])
 		if err != nil {
-			return r.refuse("%v", err)
+			undo()
+			return r.refuse("%v; no file of the round was stripped", err)
 		}
 		for i := len(stripped) - 1; i >= 0; i-- {
 			for _, line := range stripped[i].printed {
@@ -126,7 +143,7 @@ func loop(r *runner, opts options, _ []string) int {
 		return r.refuse("%v", err)
 	}
 	prompted := filepath.Join(runDir, "spawn-writer-"+name+".md")
-	if err := os.WriteFile(prompted, []byte(prompt+"\n"+rules), 0o644); err != nil {
+	if err := os.WriteFile(prompted, []byte(rules+"\n"+prompt), 0o644); err != nil {
 		return r.refuse("cannot write %s", shell.Echoable(prompted))
 	}
 	fmt.Fprintln(r.stdout, prompted)

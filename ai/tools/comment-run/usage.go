@@ -13,7 +13,7 @@ import (
 
 // usageStage reads each writer's transcript and prints the run's cost lines, per writer and in total.
 // Each turn reads the whole context again from the cache, so a writer's cost is its context times its
-// turns. Run 18's one writer took 133 turns and read 34.9M tokens from the cache, and its end figure of
+// turns. Run 18b's one writer took 133 turns and read 34.9M tokens from the cache, and its end figure of
 // 431k hid that.
 func usageStage(r *runner, _ options, transcripts []string) int {
 	if len(transcripts) == 0 {

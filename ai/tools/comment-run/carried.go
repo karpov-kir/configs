@@ -44,7 +44,7 @@ func carriedStage(r *runner, opts options, returns []string) int {
 		}
 		stays += len(reStaysVerdict.FindAllString(string(body), -1))
 		for _, m := range reCarriedVerdict.FindAllStringSubmatch(string(body), -1) {
-			file, carrier := m[1], strings.TrimSpace(m[3])
+			file, carrier := filepath.Clean(m[1]), strings.TrimSpace(m[3])
 			at, _ := strconv.Atoi(m[2])
 			if !filepath.IsLocal(file) {
 				refused++
