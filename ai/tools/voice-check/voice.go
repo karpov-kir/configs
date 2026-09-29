@@ -669,6 +669,9 @@ func doubtInStrings(file string, lines []string, held present) []Finding {
 	return found
 }
 
+// IsTestFile says the file is a unit test's own. The carried stage reads no carrier there.
+func IsTestFile(file string) bool { return isTestFile(file) }
+
 // isTestFile is a unit test's own file, whose strings are fixtures and quote whatever the case needs.
 func isTestFile(file string) bool {
 	base := path.Base(file)

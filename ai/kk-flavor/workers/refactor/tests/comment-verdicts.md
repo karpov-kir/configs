@@ -93,6 +93,6 @@ the clearing house settles a day late at quarter end.`
 Scope: this file alone. The only test naming the cutoff lives in `tests/settlement/Cutoff.test.ts`,
 outside the scope.
 
-Expected: `stays: <the fact>`. A test would carry the claim about this code's own window, and the lane
-may not write one outside its scope. `carried by <test>` there would leave a fact the tree holds
-nowhere, and a PR body is no place for a fact about code with a declaration.
+Expected: `stays: <the fact>`. A test is never a carrier, inside the scope or outside it: the
+reader of the cutoff reads the function and its block, and the test stays unread. A PR body is no place for a fact about code with a
+declaration.

@@ -71,8 +71,8 @@ func TestAStringCarrierOnAFieldNobodyReadsIsThreeFindings(t *testing.T) {
 	}
 }
 
-// The carriers the contract names pass. They are a read field, a short constant name, a lint rule's
-// message and a test named for the fact.
+// The carriers the contract names pass. They are a read field, a short constant name and a lint
+// rule's message.
 func TestARealCarrierPasses(t *testing.T) {
 	block := "// A posting is retried three times, and the poster gives up on it after the third."
 	added := addedFrom("src/postings/Retry.ts",
@@ -80,8 +80,6 @@ func TestARealCarrierPasses(t *testing.T) {
 		"  closingProfile?: string;",
 		"      message: 'A posting is retried three times, and the poster gives up on it after the third.',",
 	)
-	added.take("src/postings/Retry.test.ts", 1,
-		"it('gives up on a posting after it is retried three times, and the poster gives up', () => {")
 	tree := treeOf(
 		"export const POSTING_RETRIES = 3;",
 		"  for (let attempt = 0; attempt < POSTING_RETRIES; attempt++) {",
@@ -184,5 +182,46 @@ func TestTheCarrierCheckReadsATestHelper(t *testing.T) {
 	code := Run("voice-check.sh", []string{"--carriers=" + facts, "HEAD"}, dir, repo.Exec{}, baseConfig(), &out, &errOut)
 	if code != exitFound || !strings.Contains(out.String(), helper+":1: "+checkCarrierQuotes) {
 		t.Fatalf("exit %d: the helper's landing was not read\n%s%s", code, out.String(), errOut.String())
+	}
+}
+
+// A test is never a carrier. Run 16 routed an ordering every caller owes to a test's name, and the
+// interface then told its caller nothing of the order.
+func TestATestNamedForTheFactIsNoCarrier(t *testing.T) {
+	block := "// A posting is retried three times, and the poster gives up on it after the third."
+	added := addedFrom("src/postings/Retry.test.ts",
+		"it('gives up on a posting after it is retried three times, and the poster gives up', () => {",
+		"  expect(retries).toBe('a posting is retried three times, and the poster gives up');")
+	got := carrierChecks(t, []string{block}, added, treeOf())
+	if len(got) != 1 || !strings.HasPrefix(got[0], checkCarrierTest) {
+		t.Fatalf("findings %v, want one %s on the title and none on the fixture", got, checkCarrierTest)
+	}
+}
+
+// A value read only inside a unit test is unread: the reader of the site never sees that read.
+func TestAReadInsideATestIsNoRead(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"src/Retry.ts":      "export const POSTING_RETRIES = 3;\n",
+		"src/Retry.test.ts": "expect(retry(POSTING_RETRIES)).toBe(3);\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	held, err := gitTree(dir)([]string{"POSTING_RETRIES"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if readsAnywhere("POSTING_RETRIES", held["POSTING_RETRIES"]) {
+		t.Fatalf("a read inside a test counted: %v", held["POSTING_RETRIES"])
 	}
 }

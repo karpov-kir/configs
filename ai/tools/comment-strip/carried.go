@@ -12,6 +12,7 @@ import (
 
 	readerjudge "configs/ai/tools/reader-judge"
 	"configs/ai/tools/shell"
+	voicecheck "configs/ai/tools/voice-check"
 )
 
 // The archive records a block the refactor lane carried into code, and stops offering its site while
@@ -50,6 +51,10 @@ func Carry(archive, run, path string, lines []string, at int, carrier string) er
 	rules := rulesSum()
 	if rules == "" {
 		return fmt.Errorf("%s", "cannot read the rules under ~/.kk-flavor, and a carried block keeps the rules it was carried under")
+	}
+	if namesATest(carrier) {
+		return fmt.Errorf("%s names a test, and a test is never a carrier: the claim is shown by the body or it stays at the site",
+			shell.Echoable(carrier))
 	}
 	for _, u := range readerjudge.CommentBlocks(lines) {
 		if !blockAt(lines, u, map[int]bool{at: true}) {
@@ -101,23 +106,47 @@ func carrierNames(carrier string) []string {
 	return names
 }
 
-// carrierStands says every name the carrier cites still appears in the tree at root. Where root is no
-// git work tree, it reads only the file.
+// reTestCarrier is a carrier verdict that names a test: the word, or a test's title call.
+var reTestCarrier = regexp.MustCompile(`(?i)\btests?\b|\b(it|describe)\s*\(`)
+
+// namesATest says the carrier is a test. A carrier is what the reader sees at the site without leaving
+// it: a name, a type, a compiler or lint message, a single place both sides are read from. Run 16
+// carried an ordering every caller owes into a test's name, and the interface told its caller nothing.
+func namesATest(carrier string) bool {
+	return reTestCarrier.MatchString(carrier)
+}
+
+// carrierStands says the carrier names no test and every name it cites still appears in the tree at
+// root, outside a unit test's file. Where root is no git work tree, it reads only the file.
 func carrierStands(root, file, carrier string) bool {
 	names := carrierNames(carrier)
-	if len(names) == 0 {
+	if len(names) == 0 || namesATest(carrier) {
 		return false
 	}
 	for _, name := range names {
-		if err := exec.Command("git", "-C", root, "grep", "-F", "-q", "--", name).Run(); err == nil {
+		if spelledOutsideTests(root, name) {
 			continue
 		}
 		body, err := os.ReadFile(file)
-		if err != nil || !strings.Contains(string(body), name) {
+		if err != nil || voicecheck.IsTestFile(file) || !strings.Contains(string(body), name) {
 			return false
 		}
 	}
 	return true
+}
+
+// spelledOutsideTests says a tracked file at root other than a unit test spells the name.
+func spelledOutsideTests(root, name string) bool {
+	out, err := exec.Command("git", "-C", root, "grep", "-l", "-F", "--", name).Output()
+	if err != nil {
+		return false
+	}
+	for _, path := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if path != "" && !voicecheck.IsTestFile(path) {
+			return true
+		}
+	}
+	return false
 }
 
 // carriedDecls is every declaration whose block was carried into code that still stands, under the

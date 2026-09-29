@@ -312,3 +312,29 @@ func TestACarriedBlockReopensOnAContradictionOrAGoneCarrier(t *testing.T) {
 		t.Fatalf("a carried block stays closed with its carrier gone: %v", got)
 	}
 }
+
+// A test is never a carrier. Carry refuses one, and an entry an earlier run archived naming a test no
+// longer holds its site, so the claim is offered again. Run 16 carried an ordering every caller owes
+// into a test's name.
+func TestATestIsNeverACarrier(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", keptSource)
+	archive := filepath.Join(f.dir, "archive")
+	lines := shell.SplitLines(keptSource)
+	if err := Carry(archive, "run16", f.path, lines, 4, "the test 'asks once per scheme'"); err == nil {
+		t.Fatal("a test was taken as a carrier")
+	}
+	if err := Carry(archive, "run16", f.path, lines, 4, "`ASKS_ONCE`"); err != nil {
+		t.Fatal(err)
+	}
+	held := readCarried(archive, f.path)
+	held[0].Carrier = "it('asks once per scheme')"
+	body, _ := json.Marshal(held)
+	if err := os.WriteFile(carriedName(archive, f.path), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.write(strings.Replace(keptSource, "  return keys.canPost(scheme);", "  return ASKS_ONCE && keys.canPost(scheme);", 1))
+	if got := carriedDecls(archive, f.path, f.dir, f.path, nil); len(got) != 0 {
+		t.Fatalf("an archived test carrier still holds its site: %v", got)
+	}
+}

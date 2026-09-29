@@ -20,7 +20,13 @@ const (
 	checkCarrierQuotes   = "carrier-quotes-the-block"
 	checkCarrierSentence = "carrier-sentence-name"
 	checkCarrierUnread   = "carrier-unread"
+	checkCarrierTest     = "carrier-is-a-test"
 )
+
+// A test is never a carrier. A carrier is what the reader sees at the site without leaving it: a name,
+// a type, a compiler or lint message, a single place both sides are read from. Run 16 routed some 30
+// claims to a test's name, and eight were a why or an ordering the reader of the site then lacked.
+var reTestTitle = regexp.MustCompile(`\b(?:it|test|describe)(?:\.\w+)?\s*\(\s*(['"\x60])(.*?)['"\x60]`)
 
 // carrierRunWords is how many words in a row a string shares with a block before it is the block's
 // prose moved into a value.
@@ -77,7 +83,8 @@ func nameWords(name string) int {
 type treeReader func(names []string) (map[string][]string, error)
 
 // CarrierFindings reads the added lines of one change set against the archived blocks. A unit test's
-// file is left out: its strings are fixtures, and a test named for the fact is a carrier.
+// strings are fixtures, and only its titles are read: a test named for an archived fact took the
+// fact from the site, and a test is never a carrier.
 func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Finding, error) {
 	archived := map[string]bool{}
 	for _, text := range blocks {
@@ -90,6 +97,16 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 	var unreadCandidates []string
 	for _, file := range added.order {
 		if isTestFile(file) {
+			for _, line := range added.byFile[file] {
+				for _, m := range reTestTitle.FindAllStringSubmatch(line.text, -1) {
+					for _, run := range wordRuns(m[2]) {
+						if archived[run] {
+							found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierTest, Text: run})
+							break
+						}
+					}
+				}
+			}
 			continue
 		}
 		inMessage := false
@@ -170,10 +187,11 @@ func readsAnywhere(name string, lines []string) bool {
 	return false
 }
 
-// gitTree reads the tracked files at root for each name, as whole words.
+// gitTree reads the tracked files at root for each name, as whole words. A read inside a unit test is
+// no read: the reader of the site never sees it.
 func gitTree(root string) treeReader {
 	return func(names []string) (map[string][]string, error) {
-		args := []string{"-C", root, "grep", "-h", "-w", "-F", "-I"}
+		args := []string{"-C", root, "grep", "--full-name", "-w", "-F", "-I"}
 		for _, name := range names {
 			args = append(args, "-e", name)
 		}
@@ -185,7 +203,11 @@ func gitTree(root string) treeReader {
 			return nil, fmt.Errorf("git grep over the tree failed (%v) — the check did NOT run", err)
 		}
 		held := map[string][]string{}
-		for _, line := range strings.Split(string(out), "\n") {
+		for _, grepped := range strings.Split(string(out), "\n") {
+			file, line, _ := strings.Cut(grepped, ":")
+			if isTestFile(file) {
+				continue
+			}
 			for _, name := range names {
 				if strings.Contains(line, name) {
 					held[name] = append(held[name], line)
