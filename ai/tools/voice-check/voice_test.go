@@ -960,7 +960,7 @@ func TestAConformingNoteIsNotAClauseDepthFinding(t *testing.T) {
 }
 
 // A term the rules ask to be said in the words of the code's condition takes "in which". That phrase
-// defines the term and opens no clause, so the act-first note it sits in is no finding.
+// defines the term, and the act-first note it sits in passes.
 func TestATermDefinedWithInWhichIsNotAClauseDepthFinding(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	note := "// Drops a posting book in which no posting declares the currency, because narrowing would empty it."
