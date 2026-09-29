@@ -107,8 +107,8 @@ func carrierNames(carrier string) []string {
 }
 
 // reTestCarrier is a carrier verdict that names a test: a test or a spec as a noun, a quoted test
-// title, or a title call. The verb in "the branch tests" names none, and a message carrier ending
-// that way stays a carrier.
+// title, or a title call. The verb in "the branch tests" is a verb, and a message carrier ending that
+// way stays a carrier.
 var reTestCarrier = regexp.MustCompile("(?i)\\b(the|a|an|unit|this|that|its)\\s+(tests?|specs?)\\b|\\b(tests?|specs?)\\s+[`'\"]|\\b(it|describe|test)\\s*\\(")
 
 // namesATest says the carrier verdict names a test, in words or by a unit test's file.

@@ -25,8 +25,8 @@ type Case struct {
 	// a caller does to the site's result. A writer shown no callers reads every caller as hypothetical
 	// and leaves the consequence out, which is what a run did on 2026-09-21 at a site with two.
 	Callers string
-	// Tests is what the change set's tests hold about this site. A test is never a carrier, and a case
-	// shows one where a writer could route a claim to it, which the case then withholds.
+	// Tests is what the change set's tests hold about this site. A test is never a carrier. A case shows
+	// one where a writer could route a claim to it, and withholds that route.
 	Tests string
 	// WantSummary and WantNote are what a case expects of each part, where it cares. An empty field
 	// leaves the case scored on the site alone.

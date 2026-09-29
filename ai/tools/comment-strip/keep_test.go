@@ -342,7 +342,7 @@ func TestATestIsNeverACarrier(t *testing.T) {
 	}
 }
 
-// The verb "tests" names no test. A message carrier ending "that the branch tests" stays a carrier.
+// The verb "tests" is a verb. A message carrier ending "that the branch tests" stays a carrier.
 func TestAVerbNamedTestsIsNoTest(t *testing.T) {
 	if namesATest("`SkipException` message naming the platform that the branch tests; block deleted") {
 		t.Fatal("a message carrier was read as a test")
