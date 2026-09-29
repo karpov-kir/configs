@@ -11,4 +11,4 @@ export const clearingCatalogue: Record<Clearing, ClearingRow> = {
 };
 --- facts
 Mainframe ledgers from 2024 and 2025 fail to start the reference escrow vector under deferred clearing.
-Mainframe ledgers from 2024 and 2025 settle the posting in this cell.
+Mainframe ledgers from 2024 and 2025 post the entry in this cell.

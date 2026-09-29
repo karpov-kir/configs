@@ -3,7 +3,7 @@ note: written
 site: 3
 lands: Profile5
 keeps: profile 5
-keeps: deferred
+keeps: deferred | defer
 bars: this member | this row | this enum | this constant
 why: Kirill read "This member names Dolby Vision profile 5, whose video is HEVC" and said it could be just "Names …"; a value declaration states the fact alone or opens on its verb with no subject, and the members of one enum take one form
 labelled: 2026-09-29

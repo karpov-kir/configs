@@ -1,6 +1,6 @@
 expect: written
 note: written
-keeps: this function | this method | this member | this property | this call | this branch | this check | this lookup | this filter | this probe | this guard | this helper | this match | goes to | go to | is asked | are asked
+keeps: this function | this method | this member | this property | this call | this branch | this check | this lookup | this filter | this probe | this guard | this helper | this match | goes to | go to | is asked | are asked | goes through | go through
 keeps: legacyledgerkeys | legacy keys | legacy ledger keys
 bars: first[\s\S]*first | ahead[\s\S]*ahead | first[\s\S]*ahead | ahead[\s\S]*first | \bgetsettlementclaim\b
 why: the fact has two clauses, that the standard interface rejects escrow on older ledgers and that the legacy keys answer for escrow only, and both explain one act, asking the legacy keys ahead of the standard interface for escrow; run 13's loop writer wrote that act at the end of each of two sentences; one record gets one act, written once, however many clauses its fact has

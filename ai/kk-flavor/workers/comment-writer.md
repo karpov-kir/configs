@@ -90,12 +90,14 @@ export function snapshotPostings(list: LivePostingList): Posting[] {
 export function formatPostingCellName(format: PostingFormat, scheme: SettlementScheme): string {
 ```
 
-The first is a file header, and it leaves the file's own name unsaid. The second warns that a build
-here lacks the name. The sixth explains a number no consequence explains: a specification permits
+The first is a file header, and it leaves the file's own name unsaid. The sixth explains a number no consequence explains: a specification permits
 anything and a person chose forty. The eleventh reads its fact from the callers you found, and the
-copy is the act their removal explains. The twelfth warns about an edit.
+copy is the act their removal explains.
 
-The block is the record in plain words, and never names the declaration it sits on.
+The block is the record in plain words, and never names the declaration it sits on. A local, a
+parameter or a private helper is said in words. A name stays only where a reader would look it up
+anyway: a platform's or a library's interface, a constant, or another declaration the reader must
+edit. That name stands beside the words and never in their place.
 
 **The act.** On a declaration with a body, the act says what the declaration establishes for its
 caller: checks whether, tells apart, keeps out of, drops, asks for. The means follows with `by` only
@@ -106,8 +108,9 @@ fact rules out an alternative, the act names it: `joins the fields with a tab, w
 reference contains`. Where the act keeps a state from arising, it says what it prevents.
 
 **The order.** The fact leads, on a thing a reader can picture. It says what happens to that thing in
-the order a reader meets it. So `builds older than the field grant any value` becomes `many builds
-predate the field and accept any value in it`. Where the fact is about a state the act prevents or a
+the order a reader meets it, whatever order the facts file uses. So `builds older than the field grant
+any value` becomes `many builds predate the field and accept any value in it`. The facts file's
+abstract verb goes with its abstract subject. Where the fact is about a state the act prevents or a
 thing the act produces, the act leads, verb-first. The fact follows as its reason: `Drops a book in
 which no posting declares the currency. Narrowing would empty that book, and how a ledger treats an
 empty book is unknown.`
@@ -164,7 +167,7 @@ Then list every verb and classify each as `literal` or `figure`. These four are 
 
 Then read each sentence you wrote back against the file. A word of exclusivity — only, no other, every, always — claims something of every site in this file that handles the same identifier. `only` is the word, and `alone` after a noun is a rewrite the comment profile reports. Read those sites. Drop the word where one of them contradicts it, and keep the sentence. A word this file contradicts is an edit to the sentence, and it is never a reason to answer `note: none`. Where dropping the word leaves the claim saying something you cannot check here, keep the sentence and return `unverified: <site>: <claim>`. The stale step reads the facts file against the code, and it never reaches a sentence you wrote fresh.
 
-Then count the note's sentences, and leave the summary out of that count. Two is the ceiling, and a fact may share one sentence with its consequence. On a declaration with a body, one record gets one act, written once, however many clauses its fact has. The act follows from the fact, and it says what the fact changes, as **The act** above puts it. An act the fact does not lead to has lost its tie. Write that act again from what the fact makes the code do, and never answer `none` or `does not fit` for it. Two facts explaining two acts in one function are two notes, each above the statement performing its act, a branch included, with one record each. Two acts can sit in one statement, such as a branch whose condition and call each have a reason. One note above it then carries both, each fact in one sentence with its act. A fact that explains no act here stays out of both. Run 10 kept one of two such facts and sent the other to the human, and the branch condition the second one explains lost its reason. At three the facts need more room than a note, so the note is `none` and they go back as `does not fit`. The block's own bound is four prose lines.
+Then count the note's sentences, and leave the summary out of that count. Two is the ceiling, and a fact may share one sentence with its consequence. On a declaration with a body, one record gets one act, written once, however many clauses its fact has. The act follows from the fact, and it says what the fact changes. An act the fact does not lead to has lost its tie. Write that act again from what the fact makes the code do, and never answer `none` or `does not fit` for it. Two facts explaining two acts in one function are two notes, each above the statement performing its act, a branch included, with one record each. Two acts can sit in one statement, such as a branch whose condition and call each have a reason. One note above it then carries both, each fact in one sentence with its act. A fact that explains no act here stays out of both. At three the facts need more room than a note, so the note is `none` and they go back as `does not fit`. The block's own bound is four prose lines.
 
 Return the audit lines beside the block, one per line, as `term: <phrase> — identifier|plain|path` and `verb: <word> — literal|figure`.
 

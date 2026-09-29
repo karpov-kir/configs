@@ -1,6 +1,6 @@
 expect: written
 note: written
-keeps: renam
+keeps: renam | new name
 keeps: history
 bars: \bso this function\b | builds the key from | \bformatauditkey\b
 why: the dataset keeping a history is no reason the key is built from two values, and "So this function builds the key" claimed a causation that is not there; a note warning about an edit gives the fact, then what the edit breaks, with no act and no connector

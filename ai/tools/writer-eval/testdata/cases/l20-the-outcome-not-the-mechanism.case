@@ -2,8 +2,8 @@ expect: written
 note: written
 site: 3
 lands: readsSettlementScheme
-keeps: whether
-keeps: reads the field | reads the `settlementscheme` | reads `settlementscheme` | honours | honors | supports the field | understands | reads that field
+keeps: whether | apart
+keeps: reads the field | reads the `settlementscheme` | reads `settlementscheme` | honours | honors | supports the field | understands | reads that field | reading the field
 bars: returns true | returns false | \breadssettlementscheme\b
 why: Kirill read "asks about the nonexistent scheme and returns true when the platform refuses that scheme" as too low level and asked for the outcome: the check tells whether the platform reads the field, by asking about a scheme that does not exist and expecting a refusal; a return value is a means, and the act says what the declaration establishes for its caller
 labelled: 2026-09-29
