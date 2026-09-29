@@ -1,8 +1,3 @@
-// The register check for comments and prose, and the density figure beside it.
-//
-// Two modes, one question each. Bare arguments read the comments a change set added and report which
-// sentences are written in the register the rule forbids (voice.go). `--density` reports how many
-// comment lines the set carries beside the host repository's own rate (bar.go). No lane reads it.
 package voicecheck
 
 import (
@@ -44,7 +39,7 @@ const stubName = "voice-check.sh"
 //
 // The stub's header states this line word for word, and a case holds the two together, so a flag added
 // here is added there in the same edit.
-const usage = "usage: " + stubName + " [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]"
+const usage = "usage: " + stubName + " [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record [--file=<path>]] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. A finding goes to stdout bare. A note goes to
 // stderr under the tool's name, and the rest of the package writes there through this type alone. The
@@ -149,7 +144,7 @@ func (s *stats) add(other stats) {
 	s.longBlocks += other.longBlocks
 }
 
-// Two modes, one question each. Bare is the register check and exits 1 on findings. `--density`
+// Each mode answers one question. Bare is the register check and exits 1 on findings. `--density`
 // reports a change set's comment lines beside the host repository's rate, and always exits 0,
 // because no edit turns on that figure. `--density` selects the mode only as the first argument.
 // Later in the arguments it is an option like any other, and refused as one.
@@ -189,22 +184,10 @@ func isProseOrData(file string) bool {
 	return false
 }
 
-// A continuation `*` or a closing `*/` counts only where a space or the end of the line follows. That
-// keeps `*ptr = 1` and `*/2` counted as code. A bare `*` opens a dereference or a multiplication, and
-// counting it as a comment would flag dense arithmetic as dense prose.
 func isComment(line string) bool {
-	switch {
-	case strings.HasPrefix(line, "//"), strings.HasPrefix(line, "/*"), strings.HasPrefix(line, "#"):
+	if strings.HasPrefix(line, "//") || strings.HasPrefix(line, "/*") || strings.HasPrefix(line, "#") {
 		return true
 	}
-	rest := ""
-	switch {
-	case strings.HasPrefix(line, "*/"):
-		rest = line[2:]
-	case strings.HasPrefix(line, "*"):
-		rest = line[1:]
-	default:
-		return false
-	}
-	return rest == "" || rest[0] == ' ' || rest[0] == '\t'
+	_, marked := continuation(line)
+	return marked
 }

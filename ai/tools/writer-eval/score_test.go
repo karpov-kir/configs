@@ -274,3 +274,28 @@ func TestACodeObservationIsRouted(t *testing.T) {
 		t.Fatalf("return %+v", r)
 	}
 }
+
+// A case holding a kept block scores the writer's own words. A return that copies the kept block keeps
+// its tie opening out of the bars, and the block the writer wrote is still read.
+func TestAKeptBlockIsScoredWithoutItsLines(t *testing.T) {
+	c, err := ParseCase("kept", "expect: written\nkept: yes\nbars: so this function\nwhy: a fixture\nlabelled: 2026-09-29\n"+
+		"--- code\n// A ledger rounds late, so this function reads both.\nfunction a() {}\n\nfunction b() {}\n--- facts\nA fact.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied := "Block 1/1 kept.ts:4 | OK\n```ts\n// A ledger rounds late, so this function reads both.\nfunction a() {}\n\n" +
+		"// An export predates the field, which is why the entry is read first.\nfunction b() {}\n```\nsummary: none\nnote: written\n"
+	for _, f := range JudgeCase(c, ParseReturn(copied)).Failures {
+		if f.Check == "wrote-the-barred-shape" {
+			t.Fatalf("the kept block's tie was scored as the writer's: %+v", f)
+		}
+	}
+	own := strings.Replace(copied, "which is why the entry", "so this function reads the entry", 1)
+	barred := false
+	for _, f := range JudgeCase(c, ParseReturn(own)).Failures {
+		barred = barred || f.Check == "wrote-the-barred-shape"
+	}
+	if !barred {
+		t.Fatal("the writer's own third so this function passed")
+	}
+}

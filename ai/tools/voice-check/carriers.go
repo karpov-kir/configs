@@ -15,29 +15,34 @@ import (
 
 // A carrier is code that reads or enforces a fact. Run 10 landed six blocks as string constants on a
 // field no code read, and the facts lost their reader. `--carriers=<facts dir>` reads the code a
-// change set adds against the blocks the strip archived, and reports three landings that are no carrier.
+// change set adds against the blocks the strip archived, and reports four landings that are no carrier.
 const (
 	checkCarrierQuotes   = "carrier-quotes-the-block"
 	checkCarrierSentence = "carrier-sentence-name"
 	checkCarrierUnread   = "carrier-unread"
+	checkCarrierTest     = "carrier-is-a-test"
 )
 
-// carrierRunWords is how many words in a row a string shares with a block before it is the block's
-// prose moved into a value.
-const carrierRunWords = 6
+// reTestTitle is a test's title call, with the title in its second group. Run 16 routed some 30 claims
+// to a test's name, and eight were a why or an ordering the reader of the site then lacked.
+var reTestTitle = regexp.MustCompile(`\b(?:it|test|describe)(?:\.\w+)?\s*\(\s*(['"\x60])(.*?)['"\x60]`)
 
-// carrierNameWords is the most words a declared name may hold. Past it the name is a sentence.
-const carrierNameWords = 5
+// minQuotedRunWords is how many words in a row a string shares with a block before it is the block's
+// prose moved into a value.
+const minQuotedRunWords = 6
+
+// A declared name longer than this is a sentence.
+const maxCarrierNameWords = 5
 
 var reCarrierWord = regexp.MustCompile(`[a-z0-9]+`)
 
-// wordRuns lists the text's word runs, lower-cased and in order, each as long as carrierRunWords, the
+// wordRuns lists the text's word runs, lower-cased and in order, each as long as minQuotedRunWords, the
 // run length.
 func wordRuns(text string) []string {
 	words := reCarrierWord.FindAllString(strings.ToLower(text), -1)
 	var out []string
-	for i := 0; i+carrierRunWords <= len(words); i++ {
-		out = append(out, strings.Join(words[i:i+carrierRunWords], " "))
+	for i := 0; i+minQuotedRunWords <= len(words); i++ {
+		out = append(out, strings.Join(words[i:i+minQuotedRunWords], " "))
 	}
 	return out
 }
@@ -77,7 +82,8 @@ func nameWords(name string) int {
 type treeReader func(names []string) (map[string][]string, error)
 
 // CarrierFindings reads the added lines of one change set against the archived blocks. A unit test's
-// file is left out: its strings are fixtures, and a test named for the fact is a carrier.
+// strings are fixtures, and only its titles are read: a test named for an archived fact took the
+// fact from the site.
 func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Finding, error) {
 	archived := map[string]bool{}
 	for _, text := range blocks {
@@ -89,7 +95,8 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 	declaredAt := map[string]Finding{}
 	var unreadCandidates []string
 	for _, file := range added.order {
-		if isTestFile(file) {
+		if IsTestFile(file) {
+			found = append(found, testTitleFindings(file, added.byFile[file], archived)...)
 			continue
 		}
 		inMessage := false
@@ -101,35 +108,13 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 			message := inMessage || reMessageSite.MatchString(line.text)
 			inMessage = reMessageOpens.MatchString(line.text) || (inMessage && strings.HasSuffix(strings.TrimSpace(line.text), "+"))
 			if !message {
-				for _, literal := range reStringLiteral.FindAllString(line.text, -1) {
-					if !reProse.MatchString(literal) {
-						continue
-					}
-					for _, run := range wordRuns(literal) {
-						if archived[run] {
-							found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierQuotes, Text: run})
-							break
-						}
-					}
-				}
+				found = append(found, quotedBlockFindings(file, line, archived)...)
 			}
-			// A sentence-named carrier holds a value. A function or a type named at length carries no
-			// fact moved out of a block, and run 11 flagged a six-word function name.
-			var names []string
-			for _, m := range reValueName.FindAllStringSubmatch(line.text, -1) {
-				names = append(names, m[1])
-			}
-			for _, name := range names {
-				if nameWords(name) > carrierNameWords {
-					found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierSentence, Text: name})
-				}
-			}
-			for _, re := range []*regexp.Regexp{reValueName, reTypeMember} {
-				for _, m := range re.FindAllStringSubmatch(line.text, -1) {
-					if _, seen := declaredAt[m[1]]; !seen {
-						declaredAt[m[1]] = Finding{File: file, Line: line.at, Check: checkCarrierUnread, Text: m[1]}
-						unreadCandidates = append(unreadCandidates, m[1])
-					}
+			found = append(found, sentenceNameFindings(file, line)...)
+			for _, name := range lineDeclarations(line.text) {
+				if _, seen := declaredAt[name]; !seen {
+					declaredAt[name] = Finding{File: file, Line: line.at, Check: checkCarrierUnread, Text: name}
+					unreadCandidates = append(unreadCandidates, name)
 				}
 			}
 		}
@@ -146,6 +131,66 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 		}
 	}
 	return found, nil
+}
+
+// archivedRun is the first word run the text shares with an archived block, or "" where it shares none.
+func archivedRun(text string, archived map[string]bool) string {
+	for _, run := range wordRuns(text) {
+		if archived[run] {
+			return run
+		}
+	}
+	return ""
+}
+
+// quotedBlockFindings reports each prose string literal on the line that shares a word run with an
+// archived block.
+func quotedBlockFindings(file string, line addedLine, archived map[string]bool) []Finding {
+	var found []Finding
+	for _, literal := range reStringLiteral.FindAllString(line.text, -1) {
+		if run := archivedRun(literal, archived); run != "" && reProse.MatchString(literal) {
+			found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierQuotes, Text: run})
+		}
+	}
+	return found
+}
+
+// testTitleFindings reports each test title among a unit test's added lines that shares a word run with
+// an archived block.
+func testTitleFindings(file string, lines []addedLine, archived map[string]bool) []Finding {
+	var found []Finding
+	for _, line := range lines {
+		for _, m := range reTestTitle.FindAllStringSubmatch(line.text, -1) {
+			if run := archivedRun(m[2], archived); run != "" {
+				found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierTest, Text: run})
+			}
+		}
+	}
+	return found
+}
+
+// sentenceNameFindings reports each value the line declares under a name of more words than a carrier
+// name holds. A function or a type named at length carries no fact moved out of a block, and run 11
+// flagged a six-word function name.
+func sentenceNameFindings(file string, line addedLine) []Finding {
+	var out []Finding
+	for _, m := range reValueName.FindAllStringSubmatch(line.text, -1) {
+		if nameWords(m[1]) > maxCarrierNameWords {
+			out = append(out, Finding{File: file, Line: line.at, Check: checkCarrierSentence, Text: m[1]})
+		}
+	}
+	return out
+}
+
+// lineDeclarations is each constant, variable or type member the line declares.
+func lineDeclarations(text string) []string {
+	var out []string
+	for _, re := range []*regexp.Regexp{reValueName, reTypeMember} {
+		for _, m := range re.FindAllStringSubmatch(text, -1) {
+			out = append(out, m[1])
+		}
+	}
+	return out
 }
 
 // readsAnywhere says one of the lines reads the name, and does more than declare or assign it.
@@ -170,10 +215,11 @@ func readsAnywhere(name string, lines []string) bool {
 	return false
 }
 
-// gitTree reads the tracked files at root for each name, as whole words.
+// gitTree reads the tracked files at root for each name, as whole words. A read inside a unit test is
+// left out, because the reader of the site sees only the site.
 func gitTree(root string) treeReader {
 	return func(names []string) (map[string][]string, error) {
-		args := []string{"-C", root, "grep", "-h", "-w", "-F", "-I"}
+		args := []string{"-C", root, "grep", "--full-name", "-w", "-F", "-I"}
 		for _, name := range names {
 			args = append(args, "-e", name)
 		}
@@ -185,7 +231,11 @@ func gitTree(root string) treeReader {
 			return nil, fmt.Errorf("git grep over the tree failed (%v) — the check did NOT run", err)
 		}
 		held := map[string][]string{}
-		for _, line := range strings.Split(string(out), "\n") {
+		for _, grepped := range strings.Split(string(out), "\n") {
+			file, line, _ := strings.Cut(grepped, ":")
+			if IsTestFile(file) {
+				continue
+			}
 			for _, name := range names {
 				if strings.Contains(line, name) {
 					held[name] = append(held[name], line)
@@ -262,7 +312,7 @@ func carriers(out console, dir string, args []string, cwd string, git repo.Git, 
 	out.note("carriers: %d finding(s) over %d file(s) against %d archived block(s).",
 		len(found), len(added.order), len(blocks))
 	if len(found) > 0 {
-		out.note("each finding is a landing that carries nothing: refuse the `carried by` lines of its file, so the refactor lane lands a real carrier or returns `stays:`.")
+		out.note("each finding is a landing that carries nothing: refuse the `carried by` lines of its file, so the refactor lane lands a real carrier or returns `stays:`. A carrier-is-a-test finding sits in the test: refuse the `carried by` line of the block whose words its title quotes, and the claim stays at its site.")
 		return exitFound
 	}
 	return exitClean

@@ -3,10 +3,12 @@ package commentstrip
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"configs/ai/tools/repo/repotest"
 	"configs/ai/tools/shell"
 )
 
@@ -64,7 +66,6 @@ func TestABlockWhoseRecordHoldsStandsAsWritten(t *testing.T) {
 	}
 }
 
-// A changed rule, a changed body, a contradiction and a review sending the block back each reopen it.
 func TestAKeptBlockReopensOnARuleABodyAContradictionOrAReview(t *testing.T) {
 	cases := map[string]func(t *testing.T, f *fixture, archive string) []string{
 		"a changed rule": func(t *testing.T, f *fixture, archive string) []string {
@@ -174,7 +175,7 @@ func TestASummaryAloneIsKeptWithoutARecord(t *testing.T) {
 	}
 }
 
-const literalSource = "// A ledger export names each scheme in its own casing, so this constant keeps the casing.\n" +
+const literalSource = "// Holds each scheme's tag in the casing a ledger export names it in.\n" +
 	"export const schemeTags = {\n" +
 	"  // An accrual row predates the casing rule.\n" +
 	"  accrual: 'Accrual',\n" +
@@ -257,7 +258,6 @@ func TestARenameReachesTheArchivedBlock(t *testing.T) {
 	}
 }
 
-// A rename blesses no other change to the code under a block.
 func TestARenameLeavesAnotherCodeChangeReopening(t *testing.T) {
 	rulesHome(t, "rules one ")
 	f := newFixture(t, "f.ts", hostSource)
@@ -310,5 +310,89 @@ func TestACarriedBlockReopensOnAContradictionOrAGoneCarrier(t *testing.T) {
 	f.write(keptSource)
 	if got := carriedDecls(archive, f.path, f.dir, f.path, nil); len(got) != 0 {
 		t.Fatalf("a carried block stays closed with its carrier gone: %v", got)
+	}
+}
+
+// Carry refuses a test, and an entry an earlier run archived naming a test no longer holds its site, so
+// the claim is offered again.
+func TestATestIsNeverACarrier(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", keptSource)
+	archive := filepath.Join(f.dir, "archive")
+	lines := shell.SplitLines(keptSource)
+	for _, test := range []string{"the test 'asks once per scheme'", "fx.spec.ts", "the spec `asks once`", "src/claims.test.ts",
+		"a unit test pinning the order", "carried by claims_test.go, which pins it", "the ordering test on `claimFor`",
+		"a regression test pinning `claimFor`", "pinned by tests in `claimFor`'s suite", "`claimFor`'s own test",
+		"test('asks once per scheme')", "tests 'ask once per scheme'", "the ordering that the claims spec tests; `claimFor`",
+		"`claimFor`, which the unit test tests.", "`ORDER`, pinned by the cases that run in integration tests.",
+		"`ORDER`, pinned by the cases that run in parser tests.", "which the snapshot tests.", "which the e2e/unit tests.",
+		"which the Go tests;", "`it('asks once per scheme')`", "`describe('claimFor')`", "the platform that `ci.yml` tests;",
+		"`ORDER`, tested by the parser suite.", "`ORDER`, as the golden cases have tested it.", "`ORDER`, pinned by the e2e suite.",
+		"`ORDER`, covered by the snapshot testing.", "`ORDER`, asserted by the golden fixtures.", "`ORDER`, which the e2e check tests.",
+		"`ORDER`, which the CI check tests;", "`ORDER`, which the snapshot check tests.",
+		"`ORDER`, pinned by `claimFor`", "`ORDER`, covered by `claimFor`", "`ORDER` in the parser suite",
+		"`ORDER` in the fixtures", "`ORDER` under e2e", "`ORDER`, the golden file", "`ORDER` in the snapshot",
+		"`ORDER`, which asserts it", "`ORDER`, which a check tests;"} {
+		if err := Carry(archive, "run16", f.path, lines, 4, test); err == nil {
+			t.Fatalf("%q was taken as a carrier", test)
+		}
+	}
+	if err := Carry(archive, "run16", f.path, lines, 4, "`ASKS_ONCE`"); err != nil {
+		t.Fatal(err)
+	}
+	held := readCarried(archive, f.path)
+	held[0].Carrier = "it('asks once per scheme')"
+	body, _ := json.Marshal(held)
+	if err := os.WriteFile(carriedName(archive, f.path), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f.write(strings.Replace(keptSource, "  return keys.canPost(scheme);", "  return ASKS_ONCE && keys.canPost(scheme);", 1))
+	if got := carriedDecls(archive, f.path, f.dir, f.path, nil); len(got) != 0 {
+		t.Fatalf("an archived test carrier still holds its site: %v", got)
+	}
+}
+
+func TestAVerbNamedTestsIsNoTest(t *testing.T) {
+	for _, carrier := range []string{"`SkipException` message naming the platform that the branch tests; block deleted",
+		"the `retry-spec` config key", "`test-fixtures` config"} {
+		if namesATest(carrier) {
+			t.Fatalf("%q was read as a test", carrier)
+		}
+	}
+}
+
+func TestACarrierSpelledOnlyInATestDoesNotStand(t *testing.T) {
+	dir := repotest.Staged(t, map[string]string{
+		"src/claims.ts":      "export function claimFor() {}\n",
+		"src/claims.test.ts": "const ASKS_ONCE = true;\n",
+	})
+	if carrierStands(dir, filepath.Join(dir, "src/claims.ts"), "`ASKS_ONCE`") {
+		t.Fatal("a name only a test spells held a carried block")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "src/claims.ts"), []byte("export const ASKS_ONCE = true;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", dir, "add", "-A").CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
+	}
+	if !carrierStands(dir, filepath.Join(dir, "src/claims.ts"), "`ASKS_ONCE`") {
+		t.Fatal("a name the source spells did not hold its carried block")
+	}
+}
+
+// Outside a git work tree the carrier stands only on the file, and a unit test's file holds none.
+func TestACarrierOutsideGitStandsOnTheSourceFileAlone(t *testing.T) {
+	dir := t.TempDir()
+	source, test := filepath.Join(dir, "claims.ts"), filepath.Join(dir, "claims.test.ts")
+	for _, path := range []string{source, test} {
+		if err := os.WriteFile(path, []byte("const ASKS_ONCE = true;\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !carrierStands(dir, source, "`ASKS_ONCE`") {
+		t.Fatal("a name the source file spells did not stand outside git")
+	}
+	if carrierStands(dir, test, "`ASKS_ONCE`") {
+		t.Fatal("a name a test file spells stood outside git")
 	}
 }

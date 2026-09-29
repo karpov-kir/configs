@@ -1,5 +1,9 @@
-expect: none
-why: both claims the facts carry are named by a test in the change set, almost in the test's own words, so question 3's carried-by-a-test step reaches each of them; the case held a third claim no test carries and called the site none for it, which is why it read 7 of 15 at baseline and why it is split
+expect: written
+note: written
+keeps: catalog
+keeps: must match | has to match | in step | same order | matches the order | match the order | order of the | ordered
+withholds: carried by
+why: both claims the facts carry are named by a test in the change set, almost in the test's own words, and the case read none while a test counted as a carrier; on 2026-09-29 Kirill ruled that code and comments are understood without the reader jumping to tests, so a test is never a carrier, and the ordering the posting catalog is owed stays at the enum whatever test pins it
 labelled: 2026-09-22
 --- code
 export enum Settlement {

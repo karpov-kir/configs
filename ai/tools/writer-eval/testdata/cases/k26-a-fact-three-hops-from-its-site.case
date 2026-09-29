@@ -1,9 +1,8 @@
 expect: written
 note: written
 floor: 60
-keeps: this function | this method | this member | this property | this call | this branch
 bars: warmupposting | warm-up | warm up | warmup | combinationclaim | \bclaimsschemethroughstandardapi\b
-why: run 7 wrote three hops on this function, ending at a caller in another file: the ledgers that ignore the scheme are the ones that stall, the combination claim reports those ledgers as Unknown, and so the warm-up gates on this function; a reviewer read it on 2026-09-22 and said it was hard to follow; `bears_on` is never a caller and it is never a function in another file either, so the hops go back as `belongs at` and this block keeps the fact that bears on this function
+why: run 7 wrote three hops on this function, ending at a caller in another file: the ledgers that ignore the scheme are the ones that stall, the combination claim reports those ledgers as Unknown, and so the warm-up gates on this function; a reviewer read it on 2026-09-22 and said it was hard to follow; `bears_on` is never a caller and it is never a function in another file either, so the hops go back as `belongs at` and this block keeps the fact that bears on this function Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-22
 --- code
 export async function claimsSchemeThroughStandardApi(

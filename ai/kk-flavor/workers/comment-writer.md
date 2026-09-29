@@ -6,7 +6,7 @@ You write comment blocks from the code beneath them. You are given a stripped so
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. A site at line 0 names no line: the declaration its claims were made on has left the file. Its summary is `none`, and its note goes at the declaration the claim is about now, or it is `none`. The strip that produced the sites is `~/.kk-flavor/skills/kk-edit/scripts/comment-strip.sh --facts=<dir>`, and the file carries no comment at any site when you open it.
 
-**The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer opening this file for the first time to change something near the site. They have not read the rest of the file, and they read quickly in a second language. Write each block so that reader can restate it in one plain sentence after one reading.
+**The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer opening this file for the first time to change something near the site. They have not read the rest of the file, and they read quickly in a second language.
 
 ## The order of reading
 
@@ -20,19 +20,23 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    Then strike, on the summary you are about to write and at any body length. List its content words. Strike each one that appears in the identifier, a parameter name, the return type or the body. A plural or a verb form counts as the same word. A comparison in the body counts as its word: `> 0` spells positive, `=== 1` spells exactly one, and returning `undefined` spells none. Strike also the verbs a summary opens with: checks, whether, returns, lists, says, gives, declares, holds, names, reads, writes, takes, yields, produces, provides, gets, sets. A summary with no word left is `none`. Probes for this question live in `~/.kk-flavor/workers/comment-writer/tests/summary-verdicts.md`.
 2. **The summary.** Write one where the name and signature leave a return case, a unit, an ordering a caller depends on, a side effect or a precondition unsaid. Fill the summary pattern the rule gives: `<Verb> <what>` and, where there is a case, `, or <value> when <case>`. Use the identifier's names and the domain's words. Say what the symbol decides or returns. A summary on a member of an interface says what every implementation does, and behaviour one implementation alone has goes on that implementation. Do not say why.
-3. **The note.** This question runs for every site, including one whose summary is `none`. Open the facts file. Read each sentence in it as a claim, and check the claim against the code. Drop a claim the code in this file contradicts, and return it as `stale`. A claim about anything you cannot read here is never `stale`: keep it as the note and return `unverified: <site>: <claim>` for code review. An archived claim is its author's, and you keep it ungraded. A claim you cannot check is kept, and it is never a reason to answer `does not fit`. A run marked a claim about a vendor's asset `stale` on 2026-09-21, and a reviewer fetched the asset and found the claim true. One claim is never `stale`. It is the claim that this code and something outside it agree, in the words copies, mirrors, stays in step with, must match or kept in sync with. Where the two have parted, the parting is a correctness finding and the claim is what made it findable. Keep the claim as the note, in wording that states the obligation. A note saying this table `must match` that one states what is owed. A note saying it copies that one states only what is. The reader who changes one side is owed the first. Return `invariant diverged: <site>: <claim>` for code review. Where a comparison against the other side could be written, return `carried by <test to write>` too. Code carries such a claim only where the code makes the parting impossible: a type, a derivation, a single place both sides are read from. A check running over the outside thing reports a parting and leaves it standing, and a check able to fail is not a carrier. A writer routing the claim to one deletes the sentence that made the parting findable.
+3. **The note.** This question runs for every site, including one whose summary is `none`. Open the facts file. Read each sentence in it as a claim, and check the claim against the code. Drop a claim the code in this file contradicts, and return it as `stale`. A claim about anything you cannot read here is never `stale`: keep it as the note and return `unverified: <site>: <claim>` for code review. An archived claim is its author's, and you keep it ungraded. A claim you cannot check is kept, and it is never a reason to answer `does not fit`. One claim is never `stale`. It is the claim that this code and something outside it agree, in the words copies, mirrors, stays in step with, must match or kept in sync with. Where the two have parted, the parting is a correctness finding and the claim is what made it findable. Keep the claim as the note, in wording that states the obligation. A note saying this table `must match` that one states what is owed. A note saying it copies that one states only what is. The reader who changes one side is owed the first. Return `invariant diverged: <site>: <claim>` for code review. Where a comparison against the other side could be written, return `carried by <test to write>` too. Code carries such a claim only where the code makes the parting impossible: a type, a derivation, a single place both sides are read from. A check running over the outside thing reports a parting and leaves it standing, and a check able to fail is not a carrier. A writer routing the claim to one deletes the sentence that made the parting findable.
 
-   Then two drops you take as steps. Take the claim's content words, with the opening verbs struck as in question 1. The claim is shown by the body where every one of those words appears in the site's identifier, its parameters, its return type or its body lines. Drop it and return `shown by the body: <claim>`.
+   Then a drop you take as a step. Take the claim's content words, with the opening verbs struck as in question 1. The claim is shown by the body where every one of those words appears in the site's identifier, its parameters, its return type or its body lines. Drop it and return `shown by the body: <claim>`.
 
    A claim about a row of data belongs to the row. Where the declaration under the block holds values alone, write the note there, with `bears_on` the declared name and `does: none`. An unread field or constant carries the fact to no reader, so the fact stays a comment at its row. Use it in place of `does not fit` on a data site.
 
-   Then read the change set's tests. A test carries the claim where its name or its describe path holds the claim's subject and its verb. It carries the claim too where that name holds every content noun of it. Drop it and return `carried by <test name>: <claim>`.
+   A claim that paraphrases the code in words the code does not spell is past that step. That judgement stays yours, and `~/.kk-flavor/workers/comment-writer/tests/` holds the cases it is measured on. Drop a claim that justifies a decision a reader would take for granted, which `~/.kk-flavor/standards/code-style.md` → **Comments** already names. A reader meeting two places a value can sit reads both, and the claim defends what they were going to do. A second place the code's neighbours show is taken for granted, and a rule of a specification the reader has not read stays with its act. Drop a claim a lint rule, a type, a rename or an extraction would carry, and return it as `carried by <what>` for the refactor lane. A language mechanism and a branch routing are `carried by` a name before they are a note. A carrier is what the reader sees at the site without leaving it: a name, a type, a compiler or lint message, a single place both sides are read from. A test is never a carrier. A why, an ordering a caller owes, or what a value means stays at the site whatever test pins it.
 
-   Neither step reaches a claim that paraphrases the code in words the code does not spell. That judgement stays yours, and `~/.kk-flavor/workers/comment-writer/tests/` holds the cases it is measured on. Drop a claim that justifies a decision a reader would take for granted, which `~/.kk-flavor/standards/code-style.md` → **Comments** already names. A reader meeting two places a value can sit reads both, and the claim defends what they were going to do. That holds where the claim names a format that allows both places: the format is the fact, and reading every place it allows is no act a note explains. Drop a claim a test, a lint rule, a rename or an extraction would carry, and return it as `carried by <what>` for the refactor lane. Before keeping a claim, `grep` the change set's tests for the fact's nouns, and answer `carried by <test>` where a test names it. A language mechanism, an ordering and a branch routing are `carried by` before they are a note. A fact about the world outside this code is never `carried by <test>`. That fate is for a claim about what this code itself does: what it returns, which branch runs, an ordering it imposes. A test guards such a claim against regression, and the reader sees it in the code.
+   Keep a claim where it states a fact about the world outside this code: a device, a platform, a format, a vendor's asset, a specification, a library's behaviour. Keep one too where it states an ordering a caller owes or what a value means. A claim about what this code does is shown by the code. Where only such claims are left after the drops, the site is `note: none`. Write the claim as the fact it is, and fill the note's record before you write a word of prose. A fact opens on a thing a reader can picture and says what happens to it, in the order a reader meets it, whatever order the facts file uses. `builds older than the field grant any value` becomes `many builds predate the field and accept any value in it`. The facts file's abstract verb goes with its abstract subject.
 
-   Keep a claim only where it states a fact about the world outside this code: a device, a platform, a format, a vendor's asset, a specification, a library's behaviour. A claim about this code's own behaviour is shown by the code or carried by a test. Write the claim as the fact it is, and fill the note's record before you write a word of prose. A fact opens on a thing a reader can picture and says what happens to it, in the order a reader meets it, whatever order the facts file uses. `builds older than the field grant any value` becomes `many builds predate the field and accept any value in it`. The facts file's abstract verb goes with its abstract subject. The record is three slots. `fact:` is the claim from outside this code. `bears_on:` is one identifier declared at this site or inside its body, and never a name from anywhere else. `does:` is what that identifier does that the fact explains: a literal verb and a value, a return or a branch you read off the body. The identifier does not act on the fact. The fact is why the identifier does what it does, and `does:` is that act. Where the fact is why this code consults something at all, the act is the consulting: the call it makes, the value it reads, the branch it keeps. The declaration the block sits on is always one of the identifiers you may name. On a one-line declaration — a constant, a field, an enum member — `bears_on` is the declared name and `does:` may be `none`, because the value beneath is the tie. That holds for a fact about the declaration's own value. A fact explaining an act goes to the declaration performing the act, even where the strip offered it at the constant. Moving a fact chooses between declarations here, and it is never a reason to answer `none`. A fact that fits no declaration in this file goes back as `does not fit`. A fact explaining an act a declaration in this file performs is never `does not fit`. The act can be one that keeps a state from arising, such as removing a container whole so that no removal of its members leaves it empty. It can be what the code leaves out, such as a split that keeps the part before a separator. Where the act is the declaration consulting something at all, the declaration under the site performs it, and the fact stays there. A fact about the history of what the declaration consults is that case. A tie that reads diffuse is never a reason to route the fact to `does not fit`. A reader editing a namespace constant makes no mistake the fact prevents, and a reader editing the lookup that matches by that namespace does. `does:` is required under a function, a method, a branch or a call, and you fill it from the statements beneath. Under an enum, an interface, a type, a constant or a field, `does:` is `none`. The fact there calls the declaration this enum, this type or this row, and it names a member where the fact is about one. Read each slot against the body on its own. A `fact:` the body shows makes the record `none`, the same drop as before. `does:` is read off the body by definition, and it is never a reason to drop a claim. The record is literal for the check. The note says the act in plain words and leaves `does:` untranscribed. Where the only claim left after the drops is about this code's own behaviour, there is no fact, and the site is `note: none`. A name from outside the site's own declaration carries what it is in plain words at its first mention: `preferredSettlements, the ledger's list of allowed schemes`. A caller `grep` finds in the repository is one of the code's own elements. A caller no `grep` finds is a hypothetical actor. Leave that actor out, keep the claim, and return `unverified: <site>: <claim>` for review. The fact may be a caller's behaviour. What the callers do with the result is a fact from outside this function. Where it is why this function does what it does, it is the `fact:`, `bears_on` is this function, and `does:` is this function's act. `bears_on` is never a caller. The test is which identifier performs the verb in `does:`. Where that is a caller, the fact belongs at the caller. Write it at the caller's own declaration where the caller is in this file. Where the caller is in another file of the change set, return `belongs at <file>:<identifier>: <fact>` and write no note here. Never give your reason as a pointer at another block. `for the reason {@link X} gives` and `see <X> for why` leave the reason at neither block, and the comment profile reports both shapes. The reason is written where it is read. Leave out a choice the code never made, and leave out what other code would do. A choice the fact rules out is the exception, and the act names it as the alternative it avoids. A sentence after the first names its own subject and object by the code's noun. `that`, `this`, `it`, `those`, `these` and `such a` reaching back make a reader hold both sentences to read the second. `this function` names the declaration the note sits on, and it points at no earlier sentence. Two sentences is the ceiling.
+   The record is three slots. `fact:` is the claim from outside this code. `bears_on:` is one identifier declared at this site or inside its body, and never a name from anywhere else. `does:` is what that identifier does that the fact explains: a literal verb and a value, a return or a branch you read off the body. The identifier does not act on the fact. The fact is why the identifier does what it does, and `does:` is that act. Where the fact is why this code consults something at all, the act is the consulting: the call it makes, the value it reads, the branch it keeps. The declaration the block sits on is always one of the identifiers you may name. On a one-line declaration — a constant, a field, an enum member — `bears_on` is the declared name and `does:` may be `none`, because the value beneath is the tie. That holds for a fact about the declaration's own value. `does:` is required under a function, a method, a branch or a call, and you fill it from the statements beneath. Under an enum, an interface, a type, a constant or a field, `does:` is `none`. Read each slot against the body on its own. A `fact:` the body shows makes the record `none`, the same drop as before. `does:` is read off the body by definition, and it is never a reason to drop a claim. The record is literal for the check. The note says the act in plain words and leaves `does:` untranscribed.
 
-   Write like the blocks under **How these read**, which are notes a reviewer left standing in a set of reviewed code. Return a fact that needs more as `does not fit: <site>: <fact>`, and write no note for it. That line goes to the human who asked for the change. `for the PR body` takes a fact about the change itself alone: what it changed and why. A fact about the world never goes into the body, where the change is described. Answer `note: written` or `note: none`.
+   A fact explaining an act goes to the declaration performing the act, even where the strip offered it at the constant. Moving a fact chooses between declarations here, and it is never a reason to answer `none`. A fact that fits no declaration in this file goes back as `does not fit`. A fact explaining an act a declaration in this file performs is never `does not fit`. The act can be one that keeps a state from arising, such as removing a container whole so that no removal of its members leaves it empty. It can be what the code leaves out, such as a split that keeps the part before a separator. Where the act is the declaration consulting something at all, the declaration under the site performs it, and the fact stays there. A fact about the history of what the declaration consults is that case. A tie that reads diffuse is never a reason to route the fact to `does not fit`. A reader editing a namespace constant makes no mistake the fact prevents, and a reader editing the lookup that matches by that namespace does. Never give your reason as a pointer at another block. `for the reason {@link X} gives` and `see <X> for why` leave the reason at neither block, and the comment profile reports both shapes. Leave out a choice the code never made, and leave out what other code would do.
+
+   A name from outside the site's own declaration carries what it is in plain words at its first mention: `preferredSettlements, the ledger's list of allowed schemes`. A caller `grep` finds in the repository is one of the code's own elements. A caller no `grep` finds is a hypothetical actor. Leave that actor out, keep the claim, and return `unverified: <site>: <claim>` for review. The fact may be a caller's behaviour. A caller's behaviour that this function's result serves is a fact, and the act is what the result tells that caller. What the callers do with the result is a fact from outside this function. Where it is why this function does what it does, it is the `fact:`, `bears_on` is this function, and `does:` is this function's act. `bears_on` is never a caller. The test is which identifier performs the verb in `does:`. Where that is a caller, the fact belongs at the caller. Write it at the caller's own declaration where the caller is in this file. Where the caller is in another file of the change set, return `belongs at <file>:<identifier>: <fact>` and write no note here.
+
+   Write the note to **How these read**. Return a fact that needs more as `does not fit: <site>: <fact>`, and write no note for it. That line goes to the human who asked for the change. `for the PR body` takes a fact about the change itself alone: what it changed and why. A fact about the world never goes into the body, where the change is described. Answer `note: written` or `note: none`.
 
    The block is the summary and the note together. The site is `none` only where both parts are `none`.
 
@@ -40,10 +44,7 @@ Copy no sentence from the facts file into the block. Write each kept fact again 
 
 ## How these read
 
-Ten notes a reviewer left standing in a set of reviewed code, in this repository's own domain, and an
-eleventh written to the same record. Each
-one on a constant, a field or an enum member states the fact and stops, and the value beneath it is
-the tie. Each one on a function, a branch or a call carries its tie in words.
+Twelve notes written to the record.
 
 ```ts
 // Publishes the outcome of a posting whose settlement failed. The ledger's own claims decide which token it gets.
@@ -52,74 +53,87 @@ import { LedgerClaim } from './LedgerClaims';
 // `LedgerBook.SETTLED` is missing on some ledger builds here, so the value is spelled out.
 const SETTLED = 2;
 
-// A ledger ignoring `currency` answers about the rate and leaves the period unasked, so this function reads both fields.
-async function readRateFields(
+// Tells whether the ledger has the scheme at all, asked without a settlement mode. A ledger that
+// ignores the mode stalls on its first posting, whatever mode the posting names.
+export async function claimsScheme(scheme: PostingScheme): Promise<boolean> {
 
-// `formatFault`, the formatter for a fault's message, appends `(code [Unreadable])` to readable messages too,
-// so this function matches only a message that opens with the placeholder.
+// `formatFault`, the formatter for a fault's message, appends `(code [Unreadable])` to readable messages too.
+// A message therefore counts as unreadable only where it opens with the placeholder.
 export function isPlaceholderFaultText(formatted: string): boolean {
 
-// The posting format, which carries the precision: `AMT2` is two decimals and `AMT4` is four.
+// Names the posting format, which carries the precision: `AMT2` is two decimals and `AMT4` is four.
 format: string | null;
 
 // XML Name rules cap no element name, and whoever served the export chose this one.
 const PUBLISHED_ELEMENT_NAME_CHARACTER_LIMIT = 40;
 
-// `0` is what a fetch reports for a request that never reached a server, and this branch keeps only a status from 100 up, so `0` falls out.
+// This branch keeps a status from 100 up, because `0` is what a fetch reports for a request that never reached a server.
 if (typeof status === 'number' && status >= 100 && status < 600) {
 
-// One ledger build lacks `entry-precision`, the field defined against an entry, and falls through to the book-wide one.
-const PRECISION_FIELDS = ['entry-precision', 'book-precision'];
+// Each refusal message of a posting cell starts with one of these values.
+// The audit dataset groups the cell's results by that value.
+export enum PostingOutcome {
 
-// The posting service answered 5xx: a server erroring on a request it accepted cannot be the ledger's doing.
+// Marks a posting service status from 500 to 599. A server returns those statuses for its own errors, which no ledger causes.
 UnmeasuredPostingServerFailed = 'UNMEASURED_POSTING_SERVER_FAILED',
 
-// A ledger export predating the period fields ignores them and answers about the entry type only, so this call hands the stub what such an export returns.
+// A ledger export predating the period fields ignores them and answers about the entry type only,
+// which is why this call hands the stub what such an export returns.
 stubReadingLedger({ supported: true, reads });
 
-// Every caller removes postings from the ledger while it walks the result, so this function copies
-// the live list into a plain array.
+// Every caller removes postings from the ledger while it walks the result, so the result is a plain
+// array copied from the live list.
 export function snapshotPostings(list: LivePostingList): Posting[] {
+
+// The audit dataset keeps each cell's history under this name. Renaming a format or a scheme value
+// changes the name and starts a new history.
+export function formatPostingCellName(format: PostingFormat, scheme: SettlementScheme): string {
 ```
 
-The eleventh reads its fact from the callers you found. A caller's act that explains this
-function's act is the `fact:`, and the copy is the act the callers' removal explains. `belongs at` is
-for a caller's act the fact explains.
+The block is the record in plain words, and never names the declaration it sits on. A local, a
+parameter or a private helper is said in words. A name stays only where a reader would look it up
+anyway: a platform's or a library's interface, a constant, or another declaration the reader must
+edit. That name stands beside the words and never in their place.
 
-The block is the record written as plain words: the fact, then the tie that follows from it. The tie
-opens on `so` or `which` in the fact's sentence, or it is a second sentence saying what the fact makes
-the code do. The tie's subject is the declaration under the block, and never its name. Write it as `this
-function`, `this method`, `this branch`, `this call`, `this enum`, `this type`, `this field`, `this row`
-or `this constant`. The record's
-`bears_on:` keeps the name. The tie says what the code beneath does in words, and it never copies
-`does:`. A local, a parameter or a private helper is said in words. A name stays only where a reader
-would look it up anyway: a platform's or a library's interface, a constant, or another declaration the
-reader must edit. That name stands beside the words and never in their place. A consequence in the
-world is something you would be inventing. A declaration holding values, one line or many, gets the fact
-alone as its note: a row, a constant, a field, an enum member, an interface or a type. The fact calls
-it this enum or this row. The value under
-it is the tie a reader reads, and the sentences about the act hold for a declaration with a body.
+**The act.** On a declaration with a body, the act says what the declaration establishes for its
+caller: checks whether, tells apart, keeps out of, drops, asks for. The means follows with `by`
+wherever the outcome needs it to be understood, whatever the body shows. A return value is a means: `returns true when the ledger refuses` becomes `tells whether the ledger reads the field`. The outcome is what the caller learns, and the means names what decides it: `by expecting a refusal`. A declaration answering a question for its caller, by a boolean or a claim, opens its act on what the answer tells: `Tells whether …`. The fact that makes the answer worth asking for stays here, and what the caller does with it stays at the caller. An act saying again what the single statement
+beneath it shows is rewritten as the outcome, or the fact stands alone on that statement. Where the
+fact rules out an alternative, the act names it: `joins the fields with a tab, which no posting
+reference contains`.
 
-Four blocks a reviewer read on 2026-09-22 each stated a fact and stopped, on a function, a branch, a
-vendor-prefixed branch and a function again. The reviewer's question on each was a version of "and
-what?". Every register check passed all four, because their prose was sound.
+**The order.** The fact leads, as question 3 puts it. Where the fact is about a state the act prevents or a
+thing the act produces, the act leads, verb-first. The fact follows as its reason: `Drops a book in
+which no posting declares the currency. Narrowing would empty that book, and how a ledger treats an
+empty book is unknown.`
 
-Read what each one does. The first is a file header. It says what every declaration in the file
-is for, and it leaves the file's own name unsaid. The third, the fourth, the seventh, the tenth and
-the eleventh stand on a declaration with a body. Each calls it this function, this branch or this
-call, and each ties its act to the fact with `so` or `which`. The sixth explains a number no consequence explains: a specification permits anything
-and a person chose forty. The second warns that a build here lacks the name. The ninth says what an
-answer means. None of them invents something to put after a `so`.
+**The subject.** A declaration holding values states the fact alone, or opens on its verb with no
+subject: `Names …`, `Marks …`, `Holds …`. Such a declaration is a member, a field, a constant, a row
+or a type. `this constant` stands only inside a sentence, for an obligation or a comparison: `must
+match`, `names the lowest`. On a declaration with a body, the act's subject is by preference the domain thing with an active verb: `` a deferred posting goes to `ClearingKeys` first ``. An interface keeps its name there. A role noun in ordinary
+English comes next (`this check`, `this filter`, `this lookup`), and `this function` last. A value is never the actor of keeps, drops or rejects.
+
+**The connector.** `so`, `therefore`, `which is why`, `that is why`, `for that reason`, or `because`
+with the act first. A note warning about an edit says what depends on this or what changing it breaks. It gives the fact,
+then what the edit breaks, and stops there.
+
+**Terms.** A term outside the code under the block and outside ordinary English is written as what it
+is. It takes the words of the code's own condition: `a book in which no posting declares the
+currency`, and not `an unpriced book`.
+
+**Back-references.** A pronoun stands only for the subject of the sentence before it. `that`,
+`those` or `such a` with the noun repeated may stand for any noun of that sentence. Any other
+back-reference repeats the noun.
 
 ## Words
 
 - Use the identifier's name or the domain's own word. Where the facts file coined a word for a thing the code names, use the code's name. Where the code lacks a name for the thing, return `rename: <the thing>` and leave it out of your sentence.
 - A hyphenated pair inside an identifier is the code's own coined compound. It is a rename finding, and your prose takes the plain phrase instead. Return `rename: <the identifier>`.
-- A boolean is a value. Write the call and the value it returns. Leave out a yes, an answer and a question as nouns. Leave out a device that says something.
+- A boolean is a value. Leave out a yes, an answer and a question as nouns. Leave out a device that says something.
 - Write absent, unlisted or undefined where the facts file said a thing lacks a name.
 - Put one idea in a sentence, and keep it under 20 words.
 - Leave out semicolons, bold, bullets, headings, a contrast spine, and `never` as emphasis.
-- Name the actor of every verb.
+- The code under the block may be the unnamed actor of a passive. Every other verb names its actor.
 - Name a language mechanism by the language's own word: `this` binding, closure, promise, iterator, generator. A metaphor for one is a word the reader has to translate.
 
 ## The audit, before you return a block
@@ -139,21 +153,31 @@ Then list every verb and classify each as `literal` or `figure`. These four are 
 
 Then read each sentence you wrote back against the file. A word of exclusivity — only, no other, every, always — claims something of every site in this file that handles the same identifier. `only` is the word, and `alone` after a noun is a rewrite the comment profile reports. Read those sites. Drop the word where one of them contradicts it, and keep the sentence. A word this file contradicts is an edit to the sentence, and it is never a reason to answer `note: none`. Where dropping the word leaves the claim saying something you cannot check here, keep the sentence and return `unverified: <site>: <claim>`. The stale step reads the facts file against the code, and it never reaches a sentence you wrote fresh.
 
-Then count the note's sentences, and leave the summary out of that count. Two is the ceiling, and a fact may share one sentence with its consequence. On a declaration with a body, one record gets one act, written once, however many clauses its fact has. The act says what the code does to the domain's thing, such as drops, keeps, rejects or asks for: `rejects a posting that declares no currency`. It names a return value or a string operation only where that value is the point. Where the act keeps a state from arising, the note says what it prevents: `drops the whole book rather than leave it emptied`. The act follows from the fact, and it says what the fact changes. Where the fact rules out an alternative, the act names it: `so this function joins the fields with a tab, which no posting reference contains`. An act the fact does not lead to has lost its tie. Write that act again from what the fact makes the code do, and never answer `none` or `does not fit` for it. Two facts explaining two acts in one function are two notes, each above the statement performing its act, a branch included, with one record each. Two acts can sit in one statement, such as a branch whose condition and call each have a reason. One note above it then carries both, each fact in one sentence with its act: `<fact>, so <identifier> <act>`. A fact that explains no act here stays out of both. Run 10 kept one of two such facts and sent the other to the human, and the branch condition the second one explains lost its reason. At three the facts need more room than a note, so the note is `none` and they go back as `does not fit`. The block's own bound is four prose lines.
+Then count the note's sentences, and leave the summary out of that count. Two is the ceiling, and a fact may share one sentence with its consequence. On a declaration with a body, one record gets one act, written once, however many clauses its fact has. The act follows from the fact, and it says what the fact changes. An act the fact does not lead to has lost its tie. Write that act again from what the fact makes the code do, and never answer `none` or `does not fit` for it. Two facts explaining two acts in one function are two notes, each above the statement performing its act, a branch included, with one record each. Two acts can sit in one statement, such as a branch whose condition and call each have a reason. One note above it then carries both, each fact in one sentence with its act. A fact that explains no act here stays out of both. At three the facts need more room than a note, so the note is `none` and they go back as `does not fit`. The block's own bound is four prose lines.
 
 Return the audit lines beside the block, one per line, as `term: <phrase> — identifier|plain|path` and `verb: <word> — literal|figure`.
 
 ## Check each block before you write it
 
-Run the edit lane's voice check over the block on stdin: `voice-check.sh --profile=comment --source --record -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`. Pipe the note's three slots, then a line reading `---`, then the block with the declaration it will sit on and that declaration's body under it. The check reads the record against both: `bears_on` names a declaration under the block and the block spells it, and `does` shares a word with the body. The prose profile leaves out bare-identifier, long-block and coined-identifier, and a run on 2026-09-21 put a block past it twice that the comment profile refused both times. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `does not fit`. Show the two rewrites: `attempt 1: <the part> - <the finding>` and `attempt 2: <the part> - <the finding>`, one to a line, above the part's `none`. A part you set out to write and answered `none` for, with no two attempts under it, is a part you skipped, and your caller returns it to you. The gate applies to each part on its own.
+Run the edit lane's voice check over the block on stdin: `voice-check.sh --profile=comment --source --record --file=<the file> -`, the script under `~/.kk-flavor/skills/kk-edit/scripts/`, with the file you are writing into. `--file` reads the file's other blocks for a connector or a `this <noun>` subject that stands in two of them already. Pipe the note's three slots, then a line reading `---`, then the block with the declaration it will sit on and that declaration's body under it. The check reads the record against both. `bears_on` is declared under the block, and the block spells it unless the block sits on it. `does` shares a word with the body. Rewrite the block for every finding it prints. Write `none` for a block still carrying a finding after two rewrites, and return its facts as `does not fit`. Show the two rewrites: `attempt 1: <the part> - <the finding>` and `attempt 2: <the part> - <the finding>`, one to a line, above the part's `none`. A part you set out to write and answered `none` for, with no two attempts under it, is a part you skipped, and your caller returns it to you. The gate applies to each part on its own.
 
 A `long-line` finding is a line to wrap at the width it names. Wrap it and run the check again.
 
-Then read the block once as the engineer opening this file for the first time, and restate it in one plain sentence. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `does not fit`.
+Then read the block as the engineer opening this file for the first time, with the body under its line covered. A no to any of these is a rewrite, and a block still failing one after the second rewrite is `none`, its facts returned as `does not fit`.
+
+1. Can you say what the code gives its caller and why, from the block and its line alone?
+2. Does it say the outcome, with the means only where the outcome needs it, and no return value or string operation as the point?
+3. Is every term one a reader knows or one the block says?
+4. Does each sentence follow from the sentence before it, with a connector only where there is a cause?
+5. Does the fact belong here, so the block would lose something without it?
+6. Are the words plain, with a name only for a platform interface, a constant or a declaration to edit?
+7. Is the declaration unnamed, with a value opening on its verb and a function's subject varied?
+8. Do its connector and its `this <noun>` subject each stand in at most two blocks of the file, and do siblings share one form?
+9. Does it read once, the concrete thing first, each sentence parsed at one reading, and a pronoun where a long subject would repeat?
 
 A sentence a reviewer suggested reaches you as a fact at its site, and you answer it the way you answer any site. A sentence under `# code review:` in the facts file says what the code does, as a reviewer read it. Where it contradicts a clause of the old block, drop that clause, and write the note from the review's sentence where you can tie it to the code.
 
-The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function and names it. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A header you write keeps one blank line between it and the code under it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
+The site the strip offers is where a block stood. The block goes where its fact belongs. Write it above the declaration the fact is about, anywhere in this file, and answer with that line. A claim about a function is written at that function. A file header keeps what spans the file, and a header saying what the file is for is `none` where the file's name says it. A header you write keeps one blank line between it and the code under it. A claim that fits no declaration in this file goes back as `does not fit`. Where the site's declaration declares members, a member's own line is one of the declarations you may choose.
 
 Write the block in the comment syntax the file's other blocks use, and change no other line.
 

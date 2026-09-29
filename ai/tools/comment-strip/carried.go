@@ -12,6 +12,7 @@ import (
 
 	readerjudge "configs/ai/tools/reader-judge"
 	"configs/ai/tools/shell"
+	voicecheck "configs/ai/tools/voice-check"
 )
 
 // The archive records a block the refactor lane carried into code, and stops offering its site while
@@ -50,6 +51,10 @@ func Carry(archive, run, path string, lines []string, at int, carrier string) er
 	rules := rulesSum()
 	if rules == "" {
 		return fmt.Errorf("%s", "cannot read the rules under ~/.kk-flavor, and a carried block keeps the rules it was carried under")
+	}
+	if namesATest(carrier) {
+		return fmt.Errorf("%s names a test, and a test is never a carrier: the claim is shown by the body or it stays at the site",
+			shell.Echoable(carrier))
 	}
 	for _, u := range readerjudge.CommentBlocks(lines) {
 		if !blockAt(lines, u, map[int]bool{at: true}) {
@@ -101,23 +106,81 @@ func carrierNames(carrier string) []string {
 	return names
 }
 
-// carrierStands says every name the carrier cites still appears in the tree at root. Where root is no
-// git work tree, it reads only the file.
+// reTestWord is a word naming a test or its evidence, such as a spec, a suite, a fixture or a snapshot.
+// "Pinned by" and "covered by" count too. reTitleCall is a test's title call.
+var (
+	reTestWord  = regexp.MustCompile(`(?i)\b(test\w*|specs?|suites?|fixtures?|e2e|golden|snapshots?|assert\w*)\b|\b(pinned|covered)\s+by\b`)
+	reTitleCall = regexp.MustCompile(`(?i)\b(it|describe|test)\s*\(`)
+)
+
+// reTestVerb is "tests" closing a relative clause, as in "the platform that the branch tests;", with
+// the word before it.
+var reTestVerb = regexp.MustCompile(`(?i)(\b(?:that|which)\s+(?:(?:the|this|its)\s+)?)(\S+)\s+tests(\s*(?:[;.,)]|$))`)
+
+// verbSubjects are the code that tests something in a message carrier's wording. After any other word
+// "tests" is read as a noun, and a carrier naming one is refused, which only reopens its block.
+var verbSubjects = map[string]bool{"branch": true, "check": true, "guard": true, "condition": true,
+	"code": true, "call": true, "function": true, "lookup": true}
+
+// reBackticked is a name in backticks, read only as a file name, so a `retry-spec` key is no test.
+var reBackticked = regexp.MustCompile("`[^`]*`")
+
+// namesATest says the carrier verdict names a test: a title call, a test word outside a backticked
+// name, or a unit test's file. It refuses when unsure, and a refusal only reopens its block. A word
+// list stays open to the next synonym, so the refactor lane's own rule and the standing check back it.
+func namesATest(carrier string) bool {
+	if reTitleCall.MatchString(carrier) {
+		return true
+	}
+	prose := reTestVerb.ReplaceAllStringFunc(carrier, func(m string) string {
+		parts := reTestVerb.FindStringSubmatch(m)
+		if !verbSubjects[strings.ToLower(parts[2])] {
+			return m
+		}
+		return parts[1] + parts[2] + " checks" + parts[3]
+	})
+	if reTestWord.MatchString(reBackticked.ReplaceAllString(prose, " ")) {
+		return true
+	}
+	for _, token := range strings.FieldsFunc(carrier, func(r rune) bool { return strings.ContainsRune(" `'\"", r) }) {
+		if voicecheck.IsTestFile(strings.Trim(token, ".,;:()[]")) {
+			return true
+		}
+	}
+	return false
+}
+
+// carrierStands says the carrier is code the site shows, and every name it cites still appears in the
+// tree at root, outside a unit test's file. Where root is no git work tree, it reads only the file.
 func carrierStands(root, file, carrier string) bool {
 	names := carrierNames(carrier)
-	if len(names) == 0 {
+	if len(names) == 0 || namesATest(carrier) {
 		return false
 	}
 	for _, name := range names {
-		if err := exec.Command("git", "-C", root, "grep", "-F", "-q", "--", name).Run(); err == nil {
+		if spelledOutsideTests(root, name) {
 			continue
 		}
 		body, err := os.ReadFile(file)
-		if err != nil || !strings.Contains(string(body), name) {
+		if err != nil || voicecheck.IsTestFile(file) || !strings.Contains(string(body), name) {
 			return false
 		}
 	}
 	return true
+}
+
+// spelledOutsideTests says a tracked file at root other than a unit test spells the name.
+func spelledOutsideTests(root, name string) bool {
+	out, err := exec.Command("git", "-C", root, "grep", "-l", "-F", "--", name).Output()
+	if err != nil {
+		return false
+	}
+	for _, path := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		if path != "" && !voicecheck.IsTestFile(path) {
+			return true
+		}
+	}
+	return false
 }
 
 // carriedDecls is every declaration whose block was carried into code that still stands, under the

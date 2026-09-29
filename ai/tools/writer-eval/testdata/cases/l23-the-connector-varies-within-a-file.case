@@ -1,0 +1,25 @@
+expect: written
+note: written
+site: 11
+lands: readCurrency
+keeps: entry
+bars: so this function
+why: Kirill counted 27 blocks of 72 tying with "so" and asked why not "therefore" and the like; within one file no tie opening stands in more than two blocks, and the file here already holds two blocks tying with "so this function"
+kept: yes
+labelled: 2026-09-29
+--- code
+// A ledger ignoring `currency` answers about the rate only, so this function reads both fields.
+export function readRateFields(row: LedgerRow): RateFields {
+  return { rate: row.rate, period: row.period };
+}
+
+// Some exports omit the period, so this function falls back to the book's period.
+export function readPeriod(row: LedgerRow, book: LedgerBook): string {
+  return row.period ?? book.period;
+}
+
+export function readCurrency(row: LedgerRow, book: LedgerBook): string {
+  return row.entryCurrency ?? book.currency;
+}
+--- facts
+Exports older than version 3 put the currency on each entry and leave the book's empty, so this function reads the entry's currency before the book's.

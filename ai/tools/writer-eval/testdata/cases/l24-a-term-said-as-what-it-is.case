@@ -1,0 +1,19 @@
+expect: written
+note: written
+site: 3
+lands: keepsBook
+keeps: declar
+keeps: empt
+bars: fallback
+why: Kirill asked, on the third finding at this block, what the coined set name the block used was at all; a term neither the code nor ordinary English gives is written as what it is in the words of the code's own condition, and where the act prevents a state the act leads, verb-first, with the fact as its reason Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
+labelled: 2026-09-29
+--- code
+export function newBookNarrowing(currency: string): BookNarrowing {
+  return {
+    keepsBook: (book) => !isPostingBook(book) || book.postings.some((posting) => declaresCurrency(posting, currency)),
+    keepsPosting: (posting, book) => !isPostingBook(book) || declaresCurrency(posting, currency),
+  };
+}
+--- facts
+How a ledger treats an empty posting book is unknown, since every catalogued export gives each book a posting.
+So this function drops a fallback posting book whole instead of letting the narrowing remove each of its postings.

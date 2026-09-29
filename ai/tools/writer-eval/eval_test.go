@@ -94,8 +94,7 @@ func rollsFromEnv(set string) (int, string) {
 	return count, ""
 }
 
-// labelledBar is what every labelled case has to do. A step decides a none and a rename, so those
-// clear every roll. The writer judges a written block, so that one clears writtenFloor.
+// labelledBar is what every labelled case has to do.
 //
 // The floors came apart after the steps that fixed every none case collapsed every written one. The
 // writer had moved from judging to refusing, and one number could not see that happen.
@@ -229,14 +228,12 @@ func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
 		if c.Label == "" {
 			t.Errorf("%s says no date, and a case with no provenance cannot be re-read against its review", c.Name)
 		}
-		if strings.Contains(c.Code, "/*") || strings.Contains(c.Code, "//") {
+		if !c.Kept && (strings.Contains(c.Code, "/*") || strings.Contains(c.Code, "//")) {
 			t.Errorf("%s shows the writer a comment, and the strip removes every block before the writer reads", c.Name)
 		}
 	}
 }
 
-// The fixture is the private review translated into the ledger domain. The rule it enforces is
-// ai/kk-flavor/standards/ecosystem.md -> No outside names.
 // ownNames reads the owner and the organisation off what this machine already holds: the owner in the
 // remote's URL, and the organisation the CLI is signed into. The guard spells neither, because a list
 // written here would put that name in a public repository.
@@ -276,6 +273,8 @@ func TestOwnNamesComeFromTheRemoteAndTheSignedInOrganisation(t *testing.T) {
 	}
 }
 
+// The fixture is the private review translated into the ledger domain. The rule it enforces is
+// ai/kk-flavor/standards/ecosystem.md -> No outside names.
 func TestNoCaseCarriesTheReviewedCodebasesWords(t *testing.T) {
 	cases, err := LoadCases(casesDir)
 	if err != nil {
@@ -624,9 +623,6 @@ func oneLine(text string) string {
 	return flat
 }
 
-// ledgerEnv names a file this eval appends each run's per-case counts to. A per-case count at five
-// rolls still carries noise. A change is attributable where it is larger than the spread the ledger
-// shows across runs. Unset, the run reports itself alone.
 // dumpEnv names a file every raw return is appended to. A decline is classified from the writer's
 // own words, and a run that keeps only the verdict has thrown those away.
 const dumpEnv = "WRITER_EVAL_DUMP"
@@ -663,6 +659,9 @@ func dumpReturns(rows []dumped) {
 	}
 }
 
+// ledgerEnv names a file this eval appends each run's per-case counts to. A per-case count at five
+// rolls still carries noise. A change is attributable where it is larger than the spread the ledger
+// shows across runs. Unset, the run reports only itself.
 const ledgerEnv = "WRITER_EVAL_LEDGER"
 
 type pooled struct {
@@ -720,12 +719,11 @@ const plainSetEnv = "JUDGE_EVAL_PLAIN"
 const plainBlocksEnv = "WRITER_EVAL_PLAIN_BLOCKS"
 const plainBlockBudget = 20
 
-// plainFailureBound is the share of written blocks that may fail a check. plainWriteFloor is the
-// share of the set the writer has to write for at all. The bound alone scored what was written, so a
-// writer answering none everywhere cleared it with an empty numerator. Both numbers were written
-// down before the run that reads them.
-const plainFailureBound = 0.10
-const plainWriteFloor = 0.50
+// The failure share counts the written blocks, and the write share the whole set. A failure bound with
+// no write floor scored only what was written, and a writer answering none everywhere cleared it with
+// an empty numerator. Both numbers were written down before the run that reads them.
+const maxPlainFailureShare = 0.10
+const minPlainWriteShare = 0.50
 
 var plainExtensions = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".go": true}
 
@@ -879,11 +877,11 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 		len(cases), written, declined)
 	if written > 0 {
 		fmt.Fprintf(&out, "%d of %d written block(s) failed a check, which is %.0f%% against a bound of %.0f%%\n",
-			failed, written, float64(failed)/float64(written)*100, plainFailureBound*100)
+			failed, written, float64(failed)/float64(written)*100, maxPlainFailureShare*100)
 	}
 	rate := float64(written) / float64(len(cases))
 	fmt.Fprintf(&out, "the writer wrote for %.0f%% of the set, against a floor of %.0f%%\n",
-		rate*100, plainWriteFloor*100)
+		rate*100, minPlainWriteShare*100)
 	// The parts split. A site is none only where both are. This line exists to show a note lost to
 	// the summary's verdict.
 	summaries, notes := 0, 0
@@ -904,13 +902,13 @@ func TestWriterEvalOverThePlainSet(t *testing.T) {
 	sort.Strings(checks)
 	fmt.Fprintf(&out, "checks: %s\ncases: %s\n", strings.Join(checks, ", "), strings.Join(names, ", "))
 	t.Log(out.String())
-	if written > 0 && float64(failed)/float64(written) > plainFailureBound {
+	if written > 0 && float64(failed)/float64(written) > maxPlainFailureShare {
 		t.Errorf("%d of %d written block(s) failed a check, over the bound of %.0f%%",
-			failed, written, plainFailureBound*100)
+			failed, written, maxPlainFailureShare*100)
 	}
-	if rate < plainWriteFloor {
+	if rate < minPlainWriteShare {
 		t.Errorf("the writer wrote for %d of %d block(s) a reviewer kept, under the floor of %.0f%%",
-			written, len(cases), plainWriteFloor*100)
+			written, len(cases), minPlainWriteShare*100)
 	}
 }
 
@@ -970,9 +968,7 @@ func TestAFloorAsksTheSameShareAtAnyRollCount(t *testing.T) {
 	}
 }
 
-// The prompt read both rule files off disk every time. An edit made while a run was going then
-// reached the rolls after it. A run at fifteen rolls takes long enough that somebody will want to edit a rule
-// beside it.
+// A run at fifteen rolls takes long enough that somebody will want to edit a rule beside it.
 func TestTheRuleFilesAreReadOnceForTheWholeRun(t *testing.T) {
 	first := readRules(t)
 	if len(first) != len(rulePaths) {

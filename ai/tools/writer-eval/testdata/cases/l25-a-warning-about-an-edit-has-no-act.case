@@ -1,0 +1,14 @@
+expect: written
+note: written
+keeps: renam | new name
+keeps: history
+bars: \bso this function\b | builds the key from | \bformatauditkey\b
+why: the dataset keeping a history is no reason the key is built from two values, and "So this function builds the key" claimed a causation that is not there; a note warning about an edit gives the fact, then what the edit breaks, with no act and no connector
+labelled: 2026-09-29
+--- code
+export function formatAuditKey(book: BookKind, period: PeriodKind): string {
+  return `${book}/${period}`;
+}
+--- facts
+The audit archive keeps the history of each book's audit under the key this function returns.
+So this function builds the key from the book and period values, and renaming either value starts a new history.

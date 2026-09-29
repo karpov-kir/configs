@@ -1,8 +1,7 @@
 expect: written
 note: written
-keeps: rejects | drops | removes | leaves out
 bars: returns false | returns true
-why: Kirill asked why the block said "returns false" and not that the function rejects a posting that does not declare the currency; the act is said by what it does to the domain's thing, and a return value only where the value is the point
+why: Kirill asked why the block said "returns false" and not that the function rejects a posting that does not declare the currency; the act is said by what it does to the domain's thing, and a return value only where the value is the point Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-28
 --- code
 export function keepsPosting(posting: Posting, currency: string): boolean {

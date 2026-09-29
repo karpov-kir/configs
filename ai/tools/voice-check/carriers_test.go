@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 // addedFrom builds the added lines of one file, and the first is line 1.
@@ -48,8 +49,6 @@ func carrierChecks(t *testing.T, blocks []string, added *addedLines, tree treeRe
 	return out
 }
 
-// Run 10's shape: the archived block moved into a string constant named as a sentence, on a
-// catalogue field no code reads.
 func TestAStringCarrierOnAFieldNobodyReadsIsThreeFindings(t *testing.T) {
 	block := "// The accrual export has no base ledger to fall back on, so a book without the closing\n" +
 		"// profile cannot post it."
@@ -71,8 +70,8 @@ func TestAStringCarrierOnAFieldNobodyReadsIsThreeFindings(t *testing.T) {
 	}
 }
 
-// The carriers the contract names pass. They are a read field, a short constant name, a lint rule's
-// message and a test named for the fact.
+// The carriers the contract names pass. They are a read field, a short constant name and a lint
+// rule's message.
 func TestARealCarrierPasses(t *testing.T) {
 	block := "// A posting is retried three times, and the poster gives up on it after the third."
 	added := addedFrom("src/postings/Retry.ts",
@@ -80,8 +79,6 @@ func TestARealCarrierPasses(t *testing.T) {
 		"  closingProfile?: string;",
 		"      message: 'A posting is retried three times, and the poster gives up on it after the third.',",
 	)
-	added.take("src/postings/Retry.test.ts", 1,
-		"it('gives up on a posting after it is retried three times, and the poster gives up', () => {")
 	tree := treeOf(
 		"export const POSTING_RETRIES = 3;",
 		"  for (let attempt = 0; attempt < POSTING_RETRIES; attempt++) {",
@@ -93,7 +90,6 @@ func TestARealCarrierPasses(t *testing.T) {
 	}
 }
 
-// A constant whose only line is its own declaration has no reader.
 func TestAConstantNobodyReadsIsUnread(t *testing.T) {
 	added := addedFrom("src/Ledger.ts", "export const CLOSING_NOTE = 'closing';")
 	got := carrierChecks(t, []string{"// unrelated block of six or more words here"}, added,
@@ -103,8 +99,6 @@ func TestAConstantNobodyReadsIsUnread(t *testing.T) {
 	}
 }
 
-// An object literal's entry passes a value to whatever reads it, often a library outside the tree.
-// The check reads only a type's members as fields.
 func TestAnObjectEntryIsNoUnreadField(t *testing.T) {
 	added := addedFrom("jest.config.js", "  testTimeout: 5000,")
 	if got := carrierChecks(t, []string{"// a block"}, added, treeOf("  testTimeout: 5000,")); len(got) != 0 {
@@ -126,9 +120,6 @@ func TestANameCountsItsWords(t *testing.T) {
 	}
 }
 
-// Run 11's eight false findings pass. A lint message and a skip message opened on the line before
-// their text. Enum token values hold no space, and one function is named at length. None is a landing
-// the refactor rules bar.
 func TestRunElevensFalseCarriersPass(t *testing.T) {
 	block := "// The accrual export was refused by the ledger before any posting reached the measurement stage."
 	added := addedFrom("src/Ledger.ts",
@@ -184,5 +175,30 @@ func TestTheCarrierCheckReadsATestHelper(t *testing.T) {
 	code := Run("voice-check.sh", []string{"--carriers=" + facts, "HEAD"}, dir, repo.Exec{}, baseConfig(), &out, &errOut)
 	if code != exitFound || !strings.Contains(out.String(), helper+":1: "+checkCarrierQuotes) {
 		t.Fatalf("exit %d: the helper's landing was not read\n%s%s", code, out.String(), errOut.String())
+	}
+}
+
+func TestATestNamedForTheFactIsNoCarrier(t *testing.T) {
+	block := "// A posting is retried three times, and the poster gives up on it after the third."
+	added := addedFrom("src/postings/Retry.test.ts",
+		"it('gives up on a posting after it is retried three times, and the poster gives up', () => {",
+		"  expect(retries).toBe('a posting is retried three times, and the poster gives up');")
+	got := carrierChecks(t, []string{block}, added, treeOf())
+	if len(got) != 1 || !strings.HasPrefix(got[0], checkCarrierTest) {
+		t.Fatalf("findings %v, want one %s on the title and none on the fixture", got, checkCarrierTest)
+	}
+}
+
+func TestAReadInsideATestIsNoRead(t *testing.T) {
+	dir := repotest.Staged(t, map[string]string{
+		"src/Retry.ts":      "export const POSTING_RETRIES = 3;\n",
+		"src/Retry.test.ts": "expect(retry(POSTING_RETRIES)).toBe(3);\n",
+	})
+	held, err := gitTree(dir)([]string{"POSTING_RETRIES"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if readsAnywhere("POSTING_RETRIES", held["POSTING_RETRIES"]) {
+		t.Fatalf("a read inside a test counted: %v", held["POSTING_RETRIES"])
 	}
 }

@@ -278,6 +278,21 @@ was built on 2026-09-23 and never run. The blind reader above had shown that a m
 a block to its code connects almost anything. l03 had meanwhile reached 14 of 15 under the writer's own
 per-slot drop. A judge there was machinery over a case that already held.
 
+## A cold reader, measured and left on its branch
+
+A third reader got a block and the single line it sits on, and it read no other line of the tree. It
+answered `clear` or `unclear` against the nine acceptance questions the writer's last step asks. Its
+bar was fixed before the first roll, at fifteen rolls a block on sonnet. It had to call each block a
+reviewer flagged as written `unclear` on 12 rolls or more, and each block he read and left on 2 or
+fewer. The plan's own expected wordings were reported beside the bar. After the first rolls they left
+the verdict, since they predate the rule that a block is understood from its line.
+
+It missed both sides. Ten of the twelve flagged blocks reached 12, and two read 10 and 8. Of the ten
+left blocks, seven read `unclear` on 6 to 15 rolls, one on 0, and two drew too few answers to count.
+The reader asked the questions a reviewer asks, and it asked them of blocks the reviewer had read and
+let stand. The expected wordings ranged from 0 to 15. The harness stays on the `claude/item-30`
+branch, and the nine questions stay as the writer's last step.
+
 ## A spelling check, measured and left unbuilt
 
 A comment word missing from both the repository's tree and the system dictionary was measured as a

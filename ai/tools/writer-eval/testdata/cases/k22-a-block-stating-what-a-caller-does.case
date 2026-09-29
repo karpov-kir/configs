@@ -1,9 +1,8 @@
 expect: written
 note: written
 floor: 60
-keeps: this function | this method | this member | this property | this call | this branch
 bars: warmupposting | warm-up | warm up | warmup | \bclaimsschemethroughstandardapi\b
-why: the first fact bears on this function, which turns the API's rejection into `false`, and it stays here with the tie naming that; the second fact is about what this function's one caller does with the result, and that caller sits in another file of the change set; a writer on 2026-09-22 wrote the caller's act into this block, and a reviewer asked how the warm-up was related to this function at all; the caller's fact belongs at the caller and comes back as `belongs at <file>:<identifier>: <fact>`, and this block keeps the ledger's fact with the tie naming what `claimsSchemeThroughStandardApi` does about it
+why: the first fact bears on this function, which turns the API's rejection into `false`, and it stays here with the tie naming that; the second fact is about what this function's one caller does with the result, and that caller sits in another file of the change set; a writer on 2026-09-22 wrote the caller's act into this block, and a reviewer asked how the warm-up was related to this function at all; the caller's fact belongs at the caller and comes back as `belongs at <file>:<identifier>: <fact>`, and this block keeps the ledger's fact with the tie naming what `claimsSchemeThroughStandardApi` does about it Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-22
 --- code
 export async function claimsSchemeThroughStandardApi(
