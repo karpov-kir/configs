@@ -32,7 +32,7 @@ func TestTieOpeningsCountTheConnectorAndTheSubjectApart(t *testing.T) {
 	}
 }
 
-// "so" with three different subjects is still "so" three times. The reviewer counted that.
+// A file whose three blocks each tie with "so" breaks the bound, whatever subject each one takes.
 func TestAConnectorWithVariedSubjectsStillCounts(t *testing.T) {
 	file := shell.SplitLines(`// The ledger rounds late, so this check reads both fields.
 function a() {}
