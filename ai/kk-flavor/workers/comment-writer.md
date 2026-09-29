@@ -44,7 +44,7 @@ Copy no sentence from the facts file into the block. Write each kept fact again 
 
 ## How these read
 
-Twelve notes in this repository's own domain, each written to the record.
+Twelve notes written to the record.
 
 ```ts
 // Publishes the outcome of a posting whose settlement failed. The ledger's own claims decide which token it gets.
@@ -53,8 +53,9 @@ import { LedgerClaim } from './LedgerClaims';
 // `LedgerBook.SETTLED` is missing on some ledger builds here, so the value is spelled out.
 const SETTLED = 2;
 
-// A ledger ignoring `currency` answers about the rate and leaves the period unasked, so this lookup reads both fields.
-async function readRateFields(
+// Tells whether the ledger has the scheme at all, asked without a settlement mode. The warm-up in
+// `postings/warmup/PostingWarmUp.ts` posts first where it does, since a ledger ignoring the mode stalls.
+export async function claimsScheme(scheme: PostingScheme): Promise<boolean> {
 
 // `formatFault`, the formatter for a fault's message, appends `(code [Unreadable])` to readable messages too.
 // A message therefore counts as unreadable only where it opens with the placeholder.
@@ -110,9 +111,7 @@ empty book is unknown.`
 subject: `Names …`, `Marks …`, `Holds …`. Such a declaration is a member, a field, a constant, a row
 or a type. `this constant` stands only inside a sentence, for an obligation or a comparison: `must
 match`, `names the lowest`. On a declaration with a body, the act's subject is by preference the domain thing with an active verb: `` a deferred posting goes to `ClearingKeys` first ``. An interface keeps its name there. A role noun in ordinary
-English comes next (`this check`, `this filter`, `this lookup`), and `this function` last. A value is
-never the actor of keeps, drops or rejects: `this constant keeps the currency` becomes `the ledger is
-asked about the currency alone`.
+English comes next (`this check`, `this filter`, `this lookup`), and `this function` last. A value is never the actor of keeps, drops or rejects.
 
 **The connector.** `so`, `therefore`, `which is why`, `that is why`, `for that reason`, or `because`
 with the act first. A note warning about an edit says what depends on this or what changing it breaks. It gives the fact,

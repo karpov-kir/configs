@@ -1,29 +1,23 @@
 expect: written
 note: written
 keeps: whether
-keeps: stall
-bars: returns true | returns false | \bclaimsschemethroughstandardapi\b
-why: run 16 wrote that this function asks about each scheme id without a settlement mode and returns true on a ledger that ignores the mode; what the function tells its caller, and why asking without a mode gives it, was reached only by reading the body and the caller; Kirill: the reader should not have to open the implementation to understand the comment, so a reader holding the block and the signature alone says the function tells whether the ledger has the scheme at all, whatever mode it reads, and that the warm-up needs this because the ledgers that stall are the ones that ignore the mode Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
+bars: returns true | returns false | \bhasrateatall\b
+why: run 16 wrote that a function asks without a mode and returns true where the platform ignores the mode; what the function tells its caller, and why asking that way gives it, was reached only by reading the body and the caller; Kirill: the reader should not have to open the implementation to understand the comment, so a reader holding the block and the signature alone says what the result tells the caller, and the caller's need as its reason. Re-cut 2026-09-29 under §97 to another fact of the class, since the brief's exemplar now carries the original; its earlier figures no longer compare.
 labelled: 2026-09-29
 --- code
-export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, formatName: string): Promise<boolean> {
-  for (const schemeId of listSchemeIds(scheme)) {
-    if ((await askScheme({ schemeId, formatName })) === LedgerClaim.Accepted) {
-      return true;
-    }
-  }
-
-  return false;
+export async function hasRateAtAll(currency: string): Promise<boolean> {
+  const quotes = await rateService.quotes({ currency });
+  return quotes.length > 0;
 }
 --- callers
-// postings/warmup/PostingWarmUp.ts
-export async function warmUpPosting(scheme: PostingScheme, formatName: string): Promise<void> {
-  if (!(await claimsSchemeThroughStandardApi(scheme, formatName))) {
+// revaluation/Revaluation.ts
+export async function revalue(book: LedgerBook): Promise<void> {
+  if (!(await hasRateAtAll(book.currency))) {
     return;
   }
 
-  await openPostingSession(scheme, formatName);
+  await revalueEntries(book);
 }
 --- facts
-A ledger that ignores the settlement mode stalls on its first posting under that scheme, and the warm-up in `postings/warmup/PostingWarmUp.ts` makes that first posting.
-So this function asks about each scheme id without a settlement mode, and returns true on a ledger that ignores the mode.
+A rate service missing a currency altogether hangs on the first revaluation that asks for it, whatever date the revaluation names, and the revaluation in `revaluation/Revaluation.ts` runs first.
+So this function asks the rate service for the currency without a date, and returns true when any quote comes back.
