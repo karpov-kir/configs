@@ -242,7 +242,7 @@ func TestAStemInsideABacktickedPathIsNoBareName(t *testing.T) {
 	if !hasCheck(s.scanSource("f.ts", []string{"// The pool in connectionPool closes idle links, and this row must match it.", "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
 		t.Error("a bare stem outside a path passes")
 	}
-	// A call holds a dot and names no file, and neither does a member access. Prose after a path is read.
+	// A call and a member access each hold a dot and name code, and prose after a path is read too.
 	for _, note := range []string{
 		"// The pool in `apiResponse.json()` closes idle links, and this row must match it.",
 		"// The pool in `pool.ts` holds connectionPool open, and this row must match it.",

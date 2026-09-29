@@ -47,8 +47,8 @@ func loop(r *runner, opts options, _ []string) int {
 	if err != nil {
 		return r.refuse("%v", err)
 	}
-	// The dispatch reads the template and the rules before any file is stripped, so a missing one refuses a
-	// round that has changed nothing, contradictions included.
+	// The dispatch reads the template and the rules before any file is stripped. A missing one refuses the
+	// round while every file and the contradictions stand as they were.
 	dispatch, err := newWriterDispatch(runDir)
 	if err != nil {
 		return r.refuse("%v", err)

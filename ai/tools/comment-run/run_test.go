@@ -549,8 +549,8 @@ func TestALoopRoundThatRefusesStripsNothing(t *testing.T) {
 	}
 }
 
-// A round whose prompt cannot be written strips nothing, and a round run again records each
-// contradiction once. The first cut restored files only for a strip's own refusal.
+// A round whose prompt cannot be written leaves its files as they stood, and a round run again records
+// each contradiction once. The first cut restored files only for a strip's own refusal.
 func TestALoopRoundRefusedAtItsPromptStripsNothingAndRerunsClean(t *testing.T) {
 	c := newChange(t)
 	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
