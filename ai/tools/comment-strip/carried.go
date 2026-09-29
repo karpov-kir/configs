@@ -127,7 +127,7 @@ var reBackticked = regexp.MustCompile("`[^`]*`")
 
 // namesATest says the carrier verdict names a test: a title call, a test word outside a backticked
 // name, or a unit test's file. It refuses when unsure, and a refusal only reopens its block. A word
-// list stays open to the next synonym, so the refactor lane's own rule and carrierStands back it.
+// list stays open to the next synonym, so the refactor lane's own rule and `carrierStands` back it.
 func namesATest(carrier string) bool {
 	if reTitleCall.MatchString(carrier) {
 		return true
