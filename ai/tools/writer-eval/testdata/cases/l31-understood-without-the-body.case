@@ -1,10 +1,9 @@
 expect: written
 note: written
 keeps: whether
-keeps: whatever | any mode | regardless | at all | with or without | either way
 keeps: stall
 bars: returns true | returns false | \bclaimsschemethroughstandardapi\b
-why: run 16 wrote that this function asks about each scheme id without a settlement mode and returns true on a ledger that ignores the mode; what the function tells its caller, and why asking without a mode gives it, was reached only by reading the body and the caller; Kirill: the reader should not have to open the implementation to understand the comment, so a reader holding the block and the signature alone says the function tells whether the ledger has the scheme at all, whatever mode it reads, and that the warm-up needs this because the ledgers that stall are the ones that ignore the mode
+why: run 16 wrote that this function asks about each scheme id without a settlement mode and returns true on a ledger that ignores the mode; what the function tells its caller, and why asking without a mode gives it, was reached only by reading the body and the caller; Kirill: the reader should not have to open the implementation to understand the comment, so a reader holding the block and the signature alone says the function tells whether the ledger has the scheme at all, whatever mode it reads, and that the warm-up needs this because the ledgers that stall are the ones that ignore the mode Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-29
 --- code
 export async function claimsSchemeThroughStandardApi(scheme: PostingScheme, formatName: string): Promise<boolean> {

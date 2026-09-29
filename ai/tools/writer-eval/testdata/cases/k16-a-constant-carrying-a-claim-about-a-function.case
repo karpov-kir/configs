@@ -4,8 +4,7 @@ site: 3
 lands: export function findField
 floor: 60
 bars: the field lookup | the lookup matches | the entry type check | \bfindfield\b
-keeps: this function | this method | this member | this property | this call | this branch | this check | this lookup | this filter | this probe | this guard | this helper | this match | matched by | is matched | matches by
-why: the strip offered the constant and the claim is about the function below it; Kirill on 2026-09-22 on a block of this shape: "First part is complete garbage. The second part 'so the content type check' is not clear and I don't see what is 'content type check' from this comment"; a writer at the constant cannot name the function, so it paraphrased one, and the remedy is to write the block at the function and name it
+why: the strip offered the constant and the claim is about the function below it; Kirill on 2026-09-22 on a block of this shape: "First part is complete garbage. The second part 'so the content type check' is not clear and I don't see what is 'content type check' from this comment"; a writer at the constant cannot name the function, so it paraphrased one, and the remedy is to write the block at the function and name it Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-22
 --- code
 import { Field, LedgerBook } from './book';

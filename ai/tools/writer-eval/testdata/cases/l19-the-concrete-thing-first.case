@@ -1,15 +1,14 @@
 expect: written
 note: written
-keeps: starts with | begins with | start with | begin with | message opens with | messages open with
-keeps: groups | group
-bars: that opens | which opens | value of this enum that | groups[\s\S]*\bby\b[\s\S]*\bopens?\b
-why: Kirill found "groups the results of each cell by the value of this enum that opens the cell's refusal message" hard to follow; the fact opens on the thing a reader can picture, each refusal message starting with one of these values, and then says the dataset groups by it
-labelled: 2026-09-28
+keeps: starts with | begins with | start with | begin with | opens with | open with | leads with | lead with
+bars: that heads | which heads | value of this enum that | sorts[\s\S]*\bby\b[\s\S]*\bheads?\b
+why: Kirill found "groups the results of each cell by the value of this enum that opens the cell's refusal message" hard to follow; the fact opens on the thing a reader can picture, and then says what is done by it; the brief's exemplar now carries that refusal-message fact, so this case measures the rule on another fact of the class: each line of the reconciliation report starts with one of these values, and the report sorts a book's lines by it. Re-cut 2026-09-29 under §94, so its earlier figures no longer compare.
+labelled: 2026-09-29
 --- code
-export enum SettlementOutcome {
-  Settled = 'SETTLED',
-  RefusedByLedger = 'REFUSED_BY_LEDGER',
-  RefusedByClearing = 'REFUSED_BY_CLEARING',
+export enum ReconciliationMark {
+  Matched = 'MATCHED',
+  MissingAtClearing = 'MISSING_AT_CLEARING',
+  AmountDiffers = 'AMOUNT_DIFFERS',
 }
 --- facts
-The audit dataset groups the results of each posting cell by the value of this enum that opens the cell's refusal message.
+The reconciliation report sorts the lines of each book by the value of this enum that heads the line's first column.

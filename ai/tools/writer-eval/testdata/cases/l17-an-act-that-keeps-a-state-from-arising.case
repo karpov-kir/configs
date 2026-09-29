@@ -1,9 +1,8 @@
 expect: written
 note: written
-keeps: rather than | instead of | never leaves | so no | empt
-keeps: drops | removes | leaves out | rejects
+keeps: empt
 bars: returns false | returns true
-why: Kirill asked why "how a ledger treats an empty one" was there at all, and read the function as a guard; the act keeps a state from arising, so the note says what it prevents: this function drops the whole book when none of its postings declares the currency, rather than leave it emptied
+why: Kirill asked why "how a ledger treats an empty one" was there at all, and read the function as a guard; the act keeps a state from arising, so the note says what it prevents: this function drops the whole book when none of its postings declares the currency, rather than leave it emptied Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-28
 --- code
 export function keepsBook(book: PostingBook, currency: string): boolean {

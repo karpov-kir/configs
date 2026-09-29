@@ -3,10 +3,9 @@ note: written
 site: 2
 lands: keepsBook
 keeps: before
-keeps: whole | entire | removed | dropped | drops
 withholds: carried by
 bars: \bkeepsbook\b
-why: run 16 routed "apply this before the posting filter, so a book that keeps no posting is removed whole" to a test named for the ordering, and the interface then told its caller nothing of the order; Kirill: code and comments are understood without the reader jumping to tests, so a test is never a carrier and an ordering every caller owes stays at the site
+why: run 16 routed "apply this before the posting filter, so a book that keeps no posting is removed whole" to a test named for the ordering, and the interface then told its caller nothing of the order; Kirill: code and comments are understood without the reader jumping to tests, so a test is never a carrier and an ordering every caller owes stays at the site Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-29
 --- code
 export interface BookNarrowing {

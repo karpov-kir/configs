@@ -34,7 +34,7 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    A fact explaining an act goes to the declaration performing the act, even where the strip offered it at the constant. Moving a fact chooses between declarations here, and it is never a reason to answer `none`. A fact that fits no declaration in this file goes back as `does not fit`. A fact explaining an act a declaration in this file performs is never `does not fit`. The act can be one that keeps a state from arising, such as removing a container whole so that no removal of its members leaves it empty. It can be what the code leaves out, such as a split that keeps the part before a separator. Where the act is the declaration consulting something at all, the declaration under the site performs it, and the fact stays there. A fact about the history of what the declaration consults is that case. A tie that reads diffuse is never a reason to route the fact to `does not fit`. A reader editing a namespace constant makes no mistake the fact prevents, and a reader editing the lookup that matches by that namespace does. Never give your reason as a pointer at another block. `for the reason {@link X} gives` and `see <X> for why` leave the reason at neither block, and the comment profile reports both shapes. The reason is written where it is read. Leave out a choice the code never made, and leave out what other code would do.
 
-   A name from outside the site's own declaration carries what it is in plain words at its first mention: `preferredSettlements, the ledger's list of allowed schemes`. A caller `grep` finds in the repository is one of the code's own elements. A caller no `grep` finds is a hypothetical actor. Leave that actor out, keep the claim, and return `unverified: <site>: <claim>` for review. The fact may be a caller's behaviour. What the callers do with the result is a fact from outside this function. Where it is why this function does what it does, it is the `fact:`, `bears_on` is this function, and `does:` is this function's act. `bears_on` is never a caller. The test is which identifier performs the verb in `does:`. Where that is a caller, the fact belongs at the caller. Write it at the caller's own declaration where the caller is in this file. Where the caller is in another file of the change set, return `belongs at <file>:<identifier>: <fact>` and write no note here.
+   A name from outside the site's own declaration carries what it is in plain words at its first mention: `preferredSettlements, the ledger's list of allowed schemes`. A caller `grep` finds in the repository is one of the code's own elements. A caller no `grep` finds is a hypothetical actor. Leave that actor out, keep the claim, and return `unverified: <site>: <claim>` for review. The fact may be a caller's behaviour. A caller's behaviour that this function's result serves is a fact, and the act is what the result tells that caller. What the callers do with the result is a fact from outside this function. Where it is why this function does what it does, it is the `fact:`, `bears_on` is this function, and `does:` is this function's act. `bears_on` is never a caller. The test is which identifier performs the verb in `does:`. Where that is a caller, the fact belongs at the caller. Write it at the caller's own declaration where the caller is in this file. Where the caller is in another file of the change set, return `belongs at <file>:<identifier>: <fact>` and write no note here.
 
    Write the note to **How these read**. Return a fact that needs more as `does not fit: <site>: <fact>`, and write no note for it. That line goes to the human who asked for the change. `for the PR body` takes a fact about the change itself alone: what it changed and why. A fact about the world never goes into the body, where the change is described. Answer `note: written` or `note: none`.
 
@@ -69,8 +69,9 @@ const PUBLISHED_ELEMENT_NAME_CHARACTER_LIMIT = 40;
 // This branch keeps a status from 100 up, because `0` is what a fetch reports for a request that never reached a server.
 if (typeof status === 'number' && status >= 100 && status < 600) {
 
-// One ledger build lacks `entry-precision`, the field defined against an entry, and falls through to the book-wide one.
-const PRECISION_FIELDS = ['entry-precision', 'book-precision'];
+// Each refusal message of a posting cell starts with one of these values.
+// The audit dataset groups the cell's results by that value.
+export enum PostingOutcome {
 
 // Marks a posting service status from 500 to 599. A server returns those statuses for its own errors, which no ledger causes.
 UnmeasuredPostingServerFailed = 'UNMEASURED_POSTING_SERVER_FAILED',
@@ -88,10 +89,6 @@ export function snapshotPostings(list: LivePostingList): Posting[] {
 export function formatPostingCellName(format: PostingFormat, scheme: SettlementScheme): string {
 ```
 
-The sixth explains a number no consequence explains: a specification permits
-anything and a person chose forty. The eleventh reads its fact from the callers you found, and the
-copy is the act their removal explains.
-
 The block is the record in plain words, and never names the declaration it sits on. A local, a
 parameter or a private helper is said in words. A name stays only where a reader would look it up
 anyway: a platform's or a library's interface, a constant, or another declaration the reader must
@@ -99,8 +96,7 @@ edit. That name stands beside the words and never in their place.
 
 **The act.** On a declaration with a body, the act says what the declaration establishes for its
 caller: checks whether, tells apart, keeps out of, drops, asks for. The means follows with `by`
-wherever the outcome needs it to be understood, whatever the body shows. A return value is a means: `returns true when the ledger refuses`
-becomes `tells whether the ledger reads the field`. An act saying again what the single statement
+wherever the outcome needs it to be understood, whatever the body shows. A return value is a means: `returns true when the ledger refuses` becomes `tells whether the ledger reads the field`. The outcome is what the caller learns, and the means names what decides it: `by expecting a refusal`. An act saying again what the single statement
 beneath it shows is rewritten as the outcome, or the fact stands alone on that statement. Where the
 fact rules out an alternative, the act names it: `joins the fields with a tab, which no posting
 reference contains`. Where the act keeps a state from arising, it says what it prevents.

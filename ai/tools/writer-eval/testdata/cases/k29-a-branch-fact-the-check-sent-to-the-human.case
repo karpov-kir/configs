@@ -2,10 +2,9 @@ expect: written
 note: written
 site: 3
 lands: keepsBook
-keeps: keepsbook | this member | this property | this function | this check | this filter | a posting book in which | a book in which
-keeps: false | removes | whole | drops
+keeps: whole | empt
 withholds: does not fit
-why: the fact is why `keepsBook` takes a book out whole: how a ledger treats a book left holding no posting is unknown, so `keepsBook` returns false for a posting book where no posting declares the currency; run 10's writer wrote this note, the record check refused it twice as never saying `keepsBook` although the block said it, because the check read the line piped above the block as the block, and the fact went to the human as `does not fit`; the case runs the check the pipeline runs, so it measures that loop
+why: the fact is why `keepsBook` takes a book out whole: how a ledger treats a book left holding no posting is unknown, so `keepsBook` returns false for a posting book where no posting declares the currency; run 10's writer wrote this note, the record check refused it twice as never saying `keepsBook` although the block said it, because the check read the line piped above the block as the block, and the fact went to the human as `does not fit`; the case runs the check the pipeline runs, so it measures that loop Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
 labelled: 2026-09-24
 --- code
 export function newBookNarrowing(currency: string): BookNarrowing {
