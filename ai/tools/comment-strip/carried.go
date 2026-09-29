@@ -111,13 +111,13 @@ var reTestCarrier = regexp.MustCompile(`(?i)\btests?\b|\b(it|describe)\s*\(`)
 
 // namesATest says the carrier is a test. A carrier is what the reader sees at the site without leaving
 // it: a name, a type, a compiler or lint message, a single place both sides are read from. Run 16
-// carried an ordering every caller owes into a test's name, and the interface told its caller nothing.
+// carried an ordering every caller owes into a test's name, and the interface lost the order.
 func namesATest(carrier string) bool {
 	return reTestCarrier.MatchString(carrier)
 }
 
-// carrierStands says the carrier names no test and every name it cites still appears in the tree at
-// root, outside a unit test's file. Where root is no git work tree, it reads only the file.
+// carrierStands says the carrier is code the site shows, and every name it cites still appears in the
+// tree at root, outside a unit test's file. Where root is no git work tree, it reads only the file.
 func carrierStands(root, file, carrier string) bool {
 	names := carrierNames(carrier)
 	if len(names) == 0 || namesATest(carrier) {

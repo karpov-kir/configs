@@ -188,7 +188,7 @@ func readsAnywhere(name string, lines []string) bool {
 }
 
 // gitTree reads the tracked files at root for each name, as whole words. A read inside a unit test is
-// no read: the reader of the site never sees it.
+// left out, because the reader of the site sees only the site.
 func gitTree(root string) treeReader {
 	return func(names []string) (map[string][]string, error) {
 		args := []string{"-C", root, "grep", "--full-name", "-w", "-F", "-I"}

@@ -186,7 +186,7 @@ func TestTheCarrierCheckReadsATestHelper(t *testing.T) {
 }
 
 // A test is never a carrier. Run 16 routed an ordering every caller owes to a test's name, and the
-// interface then told its caller nothing of the order.
+// interface then lost the order.
 func TestATestNamedForTheFactIsNoCarrier(t *testing.T) {
 	block := "// A posting is retried three times, and the poster gives up on it after the third."
 	added := addedFrom("src/postings/Retry.test.ts",
