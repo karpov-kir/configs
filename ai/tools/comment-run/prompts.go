@@ -378,7 +378,7 @@ func writerSlots(run map[string]string, share writerShare) map[string]string {
 // defined agent, and the installer mounts none there.
 const writerAgent = ".claude/agents/comment-writer.md"
 
-// warnWithoutWriterAgent says so where the thin writer is not installed. A writer dispatched then starts
+// warnWithoutWriterAgent names a home missing the thin writer. A writer dispatched there starts
 // as a general agent, some 32k tokens heavier at its first turn, and the run's report names that.
 func warnWithoutWriterAgent(r *runner) {
 	home, _ := os.LookupEnv("HOME")
