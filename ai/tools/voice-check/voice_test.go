@@ -677,8 +677,8 @@ func TestASecretNamedFileIsDeclinedUnreadAndSaidSo(t *testing.T) {
 	r.expectStderrHas("secret")
 }
 
-// A sentence the guard spares in a named file is reported in a file with an ordinary name, so the guard
-// is what spares it and the check never goes quiet.
+// A file with an ordinary name gets the finding the guard spares a named file. The guard spares it, and
+// the check stays awake.
 func TestTheSameSentenceInAnOrdinaryFileIsStillReported(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")
