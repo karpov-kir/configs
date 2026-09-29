@@ -40,6 +40,8 @@ func rulesHome(t *testing.T) {
 	t.Setenv("HOME", home)
 }
 
+const claimForDecl = "export function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+
 // change is a repository holding a base commit, an earlier head and the head, with the tree at the head.
 type change struct {
 	t                   *testing.T
@@ -54,9 +56,9 @@ func newChange(t *testing.T) *change {
 	c.git("init", "-q", "-b", "main")
 	c.write("ledger.ts", "export function other() {}\n")
 	c.base = c.commit("base")
-	c.write("ledger.ts", "export function other() {}\n\n// canPost throws when its this binding is not the object that owns it.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "export function other() {}\n\n// canPost throws when its this binding is not the object that owns it.\n"+claimForDecl)
 	c.earlier = c.commit("earlier head")
-	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n"+claimForDecl)
 	c.head = c.commit("head")
 	return c
 }
@@ -390,7 +392,7 @@ func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
 		t.Fatalf("seed: %s", said.stderr)
 	}
 	// The writer wrote a block back at the site, and review found its claim false.
-	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for every scheme, so this function asks it once.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for every scheme, so this function asks it once.\n"+claimForDecl)
 	var out, errOut strings.Builder
 	code := Run("comment-run.sh", []string{"loop", "--run-dir=" + runDir, "--archive=" + archive, "--run=run15",
 		"--contradict=canPost answers for its own scheme only", "ledger.ts:4", "canPost answers for its own scheme only"},
@@ -463,7 +465,7 @@ func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 		t.Fatalf("seed: %s", said.stderr)
 	}
 	c.write("ledger.ts", "// A ledger lists other postings first.\nexport function other() {}\n\n"+
-		"// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+		"// A ledger build answers for every scheme.\n"+claimForDecl)
 	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run17",
 		"ledger.ts:2", "other lists nothing first",
 		"--contradict=canPost answers for its own scheme only", "ledger.ts:5", "canPost answers for its own scheme only")
@@ -504,7 +506,7 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
 		t.Fatalf("seed: %s", said.stderr)
 	}
-	c.write("ledger.ts", "// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "// A ledger build answers for every scheme.\n"+claimForDecl)
 	c.write("book.ts", "// A book closes at midnight.\nexport const CLOSE_HOUR = 0;\n")
 	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19",
 		"ledger.ts:2", "claimFor asks each scheme once", "book.ts:2", "the book closes at the ledger's midnight")
@@ -527,7 +529,7 @@ func TestALoopRoundThatRefusesStripsNothing(t *testing.T) {
 	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
 		t.Fatalf("seed: %s", said.stderr)
 	}
-	ledger := "// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+	ledger := "// A ledger build answers for every scheme.\n" + claimForDecl
 	c.write("ledger.ts", ledger)
 	c.write("book.ts", "export const CLOSE_HOUR = 0;\n")
 	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19",
@@ -634,7 +636,7 @@ func TestCarriedRefusesALaneCommentEditAndRevertWithdraws(t *testing.T) {
 		t.Fatalf("seed: %s", said.stderr)
 	}
 	written := "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n" +
-		"export function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+		claimForDecl
 	c.write("ledger.ts", written)
 	ret := filepath.Join(t.TempDir(), "return-writer-A.md")
 	if err := os.WriteFile(ret, []byte("Block 1/1 ledger.ts:3 | OK\n```ts\n"+
@@ -687,7 +689,7 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 		t.Fatalf("seed: %s", said.stderr)
 	}
 	written := "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n" +
-		"export function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+		claimForDecl
 	c.write("ledger.ts", written)
 	ret := filepath.Join(t.TempDir(), "writer-A.md")
 	if err := os.WriteFile(ret, []byte("Block 1/1 ledger.ts:3 | OK\n```ts\n"+
@@ -722,7 +724,7 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 	}
 	// With the carrier gone, the site is offered again.
 	c.git("checkout", "--", "ledger.ts")
-	c.write("ledger.ts", "export function other() {}\n\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "export function other() {}\n\n"+claimForDecl)
 	head = c.commit("carrier removed")
 	again := filepath.Join(t.TempDir(), "run18")
 	if said := c.run("seed", "--run-dir="+again, "--archive="+archive, "--range="+c.base+".."+head); !strings.Contains(said.stdout, "ledger.ts:3 ") {

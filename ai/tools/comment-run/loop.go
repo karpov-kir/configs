@@ -18,7 +18,6 @@ import (
 // It records each contradiction first, strips only those sites, adds each review sentence to its facts
 // file and fills one prompt. Run 16 dispatched one loop writer per site, and each paid a writer's
 // start-up. The fingerprint is the run's own tree: run 14's runner computed it in the wrong one.
-
 func loop(r *runner, opts options, _ []string) int {
 	runDir, archive, run := opts.one("run-dir"), opts.one("archive"), opts.one("run")
 	var findings []*loopFinding
@@ -43,14 +42,10 @@ func loop(r *runner, opts options, _ []string) int {
 	if runDir == "" || archive == "" || run == "" || len(findings) == 0 || site != "" {
 		return r.refuse("%s", "loop takes --run-dir=<dir>, --archive=<dir>, --run=<run>, and each site as <path>:<line> with the review's sentence")
 	}
-	for _, p := range []*string{&runDir, &archive} {
-		if !filepath.IsAbs(*p) {
-			*p = filepath.Join(r.cwd, *p)
-		}
-	}
-	held, err := readRun(filepath.Join(runDir, "run.txt"))
+	r.absolute(&runDir, &archive)
+	held, err := readRun(runDir)
 	if err != nil {
-		return r.refuse("%s holds no run.txt: run seed first", shell.Echoable(runDir))
+		return r.refuse("%v", err)
 	}
 	tree := held["top"]
 	var out, errOut strings.Builder
@@ -64,7 +59,7 @@ func loop(r *runner, opts options, _ []string) int {
 		}
 	}
 	// One round is one writer, and its name counts the rounds already prompted.
-	previous, _ := filepath.Glob(filepath.Join(runDir, "spawn-writer-loop-round-*.md"))
+	previous, _ := filepath.Glob(spawnFile(runDir, "loop-round-*"))
 	name := fmt.Sprintf("loop-round-%d", len(previous)+1)
 	facts := filepath.Join(runDir, "review-loop", name)
 	var paths []string
@@ -112,39 +107,21 @@ func loop(r *runner, opts options, _ []string) int {
 	if err != nil {
 		return r.refuse("cannot fingerprint %s: %v", shell.Echoable(tree), err)
 	}
-	home, _ := os.LookupEnv("HOME")
-	template, err := os.ReadFile(filepath.Join(home, spawnTemplate))
-	if err != nil {
-		return r.refuse("cannot read the spawn template at ~/%s", spawnTemplate)
-	}
-	rules, err := writerRules(home)
+	dispatch, err := newWriterDispatch(runDir)
 	if err != nil {
 		return r.refuse("%v", err)
 	}
-	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
-	emphasis := strings.TrimSpace(string(licence))
-	if emphasis == "" {
-		emphasis = "none"
-	}
-	prompt, err := fill(string(template), map[string]string{
-		"Model": "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch.",
+	prompted, err := dispatch.write(name, map[string]string{
 		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`, tree fingerprint `%s`. Review "+
 			"sent %d block(s) back, and the strip removed them; each facts file carries the review's sentence under "+
 			"`# code review:`. No reusable verdicts.", tree, held["head"], held["base"], fingerprint, n),
-		"Change scope": fmt.Sprintf("the sites review sent back, in `%s`:\n%s\nYou write into those file(s) only. "+
-			verdictSentence+" "+returnSentence(returnFile(runDir, name)), strings.Join(paths, "`, `"), strings.TrimRight(sites.String(), "\n")),
+		"Change scope": fmt.Sprintf("the sites review sent back, in `%s`:\n%s\nYou write into those file(s) only.",
+			strings.Join(paths, "`, `"), strings.TrimRight(sites.String(), "\n")),
 		"Held by a concurrent lane": "",
-		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
-		"Patch queue":               "",
-		"User-stated emphasis":      emphasis,
 		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> --lines=<line> <file>` at each site, each file's last line first, with its sites as the final tree numbers them:\n```\n" + strings.TrimRight(printed.String(), "\n") + "\n```",
-	}, writerContract)
+	})
 	if err != nil {
 		return r.refuse("%v", err)
-	}
-	prompted := filepath.Join(runDir, "spawn-writer-"+name+".md")
-	if err := os.WriteFile(prompted, []byte(rules+"\n"+prompt), 0o644); err != nil {
-		return r.refuse("cannot write %s", shell.Echoable(prompted))
 	}
 	fmt.Fprintln(r.stdout, prompted)
 	return exitClean

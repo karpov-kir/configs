@@ -13,9 +13,6 @@ import (
 // prompts partitions the sites seed printed over the writers and writes each writer's spawn prompt.
 // It decides the number of writers from the sites. Run 18's ten writers read 48.9M tokens from the cache
 // over 412 turns, and run 18b's one writer read 34.9M over 133 turns for the same 162 sites.
-
-// The emphasis slot quotes only the human's words, from `licence.txt` in the run directory. Runs 11
-// and 12 carried an approval sentence the human never wrote.
 func prompts(r *runner, opts options, _ []string) int {
 	runDir := opts.one("run-dir")
 	if opts.one("workers") != "" {
@@ -24,12 +21,10 @@ func prompts(r *runner, opts options, _ []string) int {
 	if runDir == "" {
 		return r.refuse("%s", "prompts takes --run-dir=<dir>")
 	}
-	if !filepath.IsAbs(runDir) {
-		runDir = filepath.Join(r.cwd, runDir)
-	}
-	run, err := readRun(filepath.Join(runDir, "run.txt"))
+	r.absolute(&runDir)
+	run, err := readRun(runDir)
 	if err != nil {
-		return r.refuse("%s holds no run.txt: run seed first", shell.Echoable(runDir))
+		return r.refuse("%v", err)
 	}
 	body, err := os.ReadFile(filepath.Join(runDir, "sites.txt"))
 	if err != nil {
@@ -49,16 +44,10 @@ func prompts(r *runner, opts options, _ []string) int {
 		fmt.Fprintf(r.stderr, "%s: no site to write, so no writer is prompted\n", r.self)
 		return exitClean
 	}
-	home, _ := os.LookupEnv("HOME")
-	template, err := os.ReadFile(filepath.Join(home, spawnTemplate))
-	if err != nil {
-		return r.refuse("cannot read the spawn template at ~/%s", spawnTemplate)
-	}
-	rules, err := writerRules(home)
+	dispatch, err := newWriterDispatch(runDir)
 	if err != nil {
 		return r.refuse("%v", err)
 	}
-	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
 	batches := plan(order, byFile)
 	n := 0
 	for b, groups := range batches {
@@ -72,13 +61,9 @@ func prompts(r *runner, opts options, _ []string) int {
 					others[string(rune('A'+first+g))] = other
 				}
 			}
-			prompt, err := writerPrompt(string(template), rules, run, runDir, name, files, others, byFile, strings.TrimSpace(string(licence)))
+			out, err := dispatch.write(name, writerSlots(run, writerShare{files: files, byFile: byFile, others: others}))
 			if err != nil {
 				return r.refuse("%v", err)
-			}
-			out := filepath.Join(runDir, "spawn-writer-"+name+".md")
-			if err := os.WriteFile(out, []byte(prompt), 0o644); err != nil {
-				return r.refuse("cannot write %s", shell.Echoable(out))
 			}
 			count := 0
 			for _, file := range files {
@@ -94,9 +79,8 @@ func prompts(r *runner, opts options, _ []string) int {
 	return exitClean
 }
 
-// The writer count the reviewer set on 2026-09-29: one writer up to 150 sites, two up to 300, three
-// above, and at most three at a time. Run 18b's one writer grew about 1.7k tokens a site from 147k. A
-// writer's context then holds some 400 sites, and past three writers' reach the batches follow.
+// The reviewer set these counts on 2026-09-29. Run 18b's one writer grew about 1.7k tokens a site from
+// 147k, so a writer's context holds some 400 sites.
 const (
 	oneWriterSites   = 150
 	twoWriterSites   = 300
@@ -186,10 +170,11 @@ func partition(files []string, byFile map[string][]string, n int) [][]string {
 	return groups
 }
 
-func readRun(path string) (map[string]string, error) {
-	body, err := os.ReadFile(path)
+// readRun reads the run.txt seed wrote into runDir, or says to run seed first where it stands no run.txt.
+func readRun(runDir string) (map[string]string, error) {
+	body, err := os.ReadFile(filepath.Join(runDir, "run.txt"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s holds no run.txt: run seed first", shell.Echoable(runDir))
 	}
 	run := map[string]string{}
 	for _, line := range shell.SplitLines(string(body)) {
@@ -206,7 +191,7 @@ const spawnTemplate = ".kk-flavor/templates/spawn-prompt.md"
 // fill fills the spawn template's slots by their labels, and omits a slot left empty, as the template
 // says. A slot the tool does not know refuses the prompt: a copy of the template drifted from the
 // template the rest of the ecosystem dispatches with.
-func fill(template string, slots map[string]string, contract string) (string, error) {
+func fill(template string, slots map[string]string) (string, error) {
 	if _, rest, found := strings.Cut(template, "-->"); found && strings.HasPrefix(strings.TrimSpace(template), "<!--") {
 		template = rest
 	}
@@ -217,7 +202,7 @@ func fill(template string, slots map[string]string, contract string) (string, er
 		case paragraph == "":
 		case strings.HasPrefix(paragraph, "Apply the `<"):
 			_, rest, _ := strings.Cut(paragraph, ">`")
-			out = append(out, "Apply the `"+contract+"`"+rest)
+			out = append(out, "Apply the `"+writerContract+"`"+rest)
 		case strings.HasPrefix(paragraph, "You are spawned"):
 			out = append(out, paragraph)
 		case strings.HasPrefix(paragraph, "Reached by a handoff"):
@@ -294,12 +279,73 @@ func returnSentence(path string) string {
 		"` with the Write tool, and end your message with that path."
 }
 
-func writerPrompt(template, rules string, run map[string]string, runDir, name string, files []string,
-	others map[string][]string, byFile map[string][]string, licence string) (string, error) {
+// writerDispatch is what every writer's prompt shares: the spawn template, the rules the prompt opens
+// on, and the emphasis slot's words.
+type writerDispatch struct {
+	runDir, template, rules, emphasis string
+}
+
+// newWriterDispatch reads the spawn template and the rules under HOME, and the licence in the run
+// directory. The emphasis slot quotes only the human's words, from `licence.txt`. Runs 11 and 12
+// carried an approval sentence the human never wrote.
+func newWriterDispatch(runDir string) (writerDispatch, error) {
+	home, _ := os.LookupEnv("HOME")
+	template, err := os.ReadFile(filepath.Join(home, spawnTemplate))
+	if err != nil {
+		return writerDispatch{}, fmt.Errorf("cannot read the spawn template at ~/%s", spawnTemplate)
+	}
+	rules, err := writerRules(home)
+	if err != nil {
+		return writerDispatch{}, err
+	}
+	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
+	emphasis := strings.TrimSpace(string(licence))
+	if emphasis == "" {
+		emphasis = "none"
+	}
+	return writerDispatch{runDir: runDir, template: string(template), rules: rules, emphasis: emphasis}, nil
+}
+
+// spawnFile is where the prompt of the writer called name is written.
+func spawnFile(runDir, name string) string {
+	return filepath.Join(runDir, "spawn-writer-"+name+".md")
+}
+
+// write writes the prompt of the writer called name, and returns its path. The prompt is the rules, then
+// the template filled with the stage's slots and the slots every writer shares. The change scope ends on
+// the verdict shape and on where the return goes.
+func (d writerDispatch) write(name string, slots map[string]string) (string, error) {
+	slots["Model"] = "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch."
+	slots["Change scope"] += " " + verdictSentence + " " + returnSentence(returnFile(d.runDir, name))
+	slots["Ledger"] = "`" + filepath.Join(d.runDir, "comment-writer-"+name+"-queue.md") + "`"
+	slots["Patch queue"] = ""
+	slots["User-stated emphasis"] = d.emphasis
+	prompt, err := fill(d.template, slots)
+	if err != nil {
+		return "", err
+	}
+	path := spawnFile(d.runDir, name)
+	// The rules come first, so every writer opens on the same text and only the sites differ.
+	if err := os.WriteFile(path, []byte(d.rules+"\n"+prompt), 0o644); err != nil {
+		return "", fmt.Errorf("cannot write %s", shell.Echoable(path))
+	}
+	return path, nil
+}
+
+// writerShare is one writer's part of a batch: its files, each file's site lines, and the files each
+// other writer of the batch holds, by that writer's name.
+type writerShare struct {
+	files          []string
+	byFile, others map[string][]string
+}
+
+// writerSlots fills the slots a writer of the prompts stage takes from its share of the batch.
+func writerSlots(run map[string]string, share writerShare) map[string]string {
+	files, others := share.files, share.others
 	var sites, stdout strings.Builder
 	n := 0
 	for _, file := range files {
-		for _, line := range byFile[file] {
+		for _, line := range share.byFile[file] {
 			n++
 			site, facts, _ := strings.Cut(line, " ")
 			fmt.Fprintf(&sites, "%d. `%s` — facts `%s`\n", n, site, facts)
@@ -315,27 +361,14 @@ func writerPrompt(template, rules string, run map[string]string, runDir, name st
 	for _, other := range names {
 		held = append(held, fmt.Sprintf("`%s` (comment-writer %s)", strings.Join(others[other], "`, `"), other))
 	}
-	emphasis := "none"
-	if licence != "" {
-		emphasis = licence
-	}
-	prompt, err := fill(template, map[string]string{
-		"Model": "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch.",
+	return map[string]string{
 		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`. The tree is HEAD with the strip's "+
 			"removals applied; no block stands at any site you are given. A block the strip kept stands at a site you are "+
 			"not given, and you leave it as it stands. No reusable verdicts.", run["top"], run["head"], run["base"]),
 		"Change scope": fmt.Sprintf("the change set `%s...%s`. Your sites, %d, in `%s`, one facts directory per file, "+
-			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only. "+verdictSentence+" "+returnSentence(returnFile(runDir, name)), run["base"], run["head"], n,
+			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only.", run["base"], run["head"], n,
 			strings.Join(files, "`, `"), strings.TrimRight(sites.String(), "\n")),
 		"Held by a concurrent lane": strings.Join(held, "; "),
-		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
-		"Patch queue":               "",
-		"User-stated emphasis":      emphasis,
 		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> <file>` on your file(s), stdout:\n```\n" + strings.TrimRight(stdout.String(), "\n") + "\n```",
-	}, writerContract)
-	if err != nil {
-		return "", err
 	}
-	// The rules come first, so every writer opens on the same text and only the sites differ.
-	return rules + "\n" + prompt, nil
 }

@@ -18,6 +18,7 @@ package commentrun
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"configs/ai/tools/repo"
@@ -70,6 +71,15 @@ func (r *runner) refuse(format string, a ...any) int {
 	fmt.Fprintf(r.stderr, "%s: %s — the stage did NOT run\n", r.self, fmt.Sprintf(format, a...))
 	fmt.Fprintf(r.stderr, "%s\n", usage)
 	return exitDidNotRun
+}
+
+// absolute makes each path absolute against the directory the stage stands in.
+func (r *runner) absolute(paths ...*string) {
+	for _, p := range paths {
+		if !filepath.IsAbs(*p) {
+			*p = filepath.Join(r.cwd, *p)
+		}
+	}
 }
 
 // Run runs the stage its first argument names.

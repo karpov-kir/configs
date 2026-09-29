@@ -25,11 +25,7 @@ func seed(r *runner, opts options, _ []string) int {
 	if runDir == "" || archive == "" || !found || base == "" || head == "" || strings.HasPrefix(head, ".") {
 		return r.refuse("%s", "seed takes --run-dir=<dir>, --archive=<dir> and --range=<base>..<head>")
 	}
-	for _, p := range []*string{&runDir, &archive} {
-		if !filepath.IsAbs(*p) {
-			*p = filepath.Join(r.cwd, *p)
-		}
-	}
+	r.absolute(&runDir, &archive)
 	top, err := git(r.cwd, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return r.refuse("%s is no git work tree", shell.Echoable(r.cwd))

@@ -1507,16 +1507,32 @@ func splitParts(lines []string) [][]string {
 	return append(parts, part)
 }
 
-// recordPart reads one record against its block and the code under it, with the file bound where a
-// file is named.
-func (s scanner) recordPart(name string, lines, ties []string) []Finding {
-	found := RecordFindings(name, lines)
-	_, under, _ := splitRecord(lines)
-	if ties != nil {
-		block, _ := blockAndBody(under)
-		found = append(found, TieFindings(name, block, ties)...)
+// scanRecords reads each part of a record-mode call against its block and the code under it, with the
+// file bound where a file is named. A writer checks all of a file's blocks in one call. Run 18's writers
+// called the check once per block, and each call was a turn that carried the whole context again.
+func (s scanner) scanRecords(file string, lines []string) []Finding {
+	parts := splitParts(lines)
+	var found []Finding
+	ties := s.tieLines
+	for n, part := range parts {
+		name := file
+		if len(parts) > 1 {
+			name = fmt.Sprintf("%s#%d", file, n+1)
+		}
+		found = append(found, RecordFindings(name, part)...)
+		_, under, _ := splitRecord(part)
+		if ties != nil {
+			block, _ := blockAndBody(under)
+			found = append(found, TieFindings(name, block, ties)...)
+			// A block checked in this call is not in the file yet, and the next part's bound counts it.
+			for _, line := range block {
+				ties = append(ties, "// "+line)
+			}
+			ties = append(ties, "")
+		}
+		found = append(found, s.scanSource(name, under, nil, under)...)
 	}
-	return append(found, s.scanSource(name, under, nil, under)...)
+	return found
 }
 
 // scanDiff is the diff half on its own, for a caller holding the bytes.
@@ -1536,29 +1552,7 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			if !s.record {
 				return s.scanSource(file, lines, nil, lines)
 			}
-			// A writer checks all of a file's blocks in one call, each part a record, `---`, and the
-			// block with its code, the parts apart on a line reading `===`. Run 18's writers called the
-			// check once per block, and each call was a turn that carried the whole context again.
-			parts := splitParts(lines)
-			var found []Finding
-			ties := s.tieLines
-			for n, part := range parts {
-				name := file
-				if len(parts) > 1 {
-					name = fmt.Sprintf("%s#%d", file, n+1)
-				}
-				found = append(found, s.recordPart(name, part, ties)...)
-				// A block checked in this call is not in the file yet, and the next part's bound counts it.
-				if ties != nil {
-					_, under, _ := splitRecord(part)
-					block, _ := blockAndBody(under)
-					for _, line := range block {
-						ties = append(ties, "// "+line)
-					}
-					ties = append(ties, "")
-				}
-			}
-			return found
+			return s.scanRecords(file, lines)
 		}
 		if s.kind == "" {
 			return s.scanProse(file, lines)
@@ -1732,7 +1726,8 @@ func identifierWordsOf(lines []string) map[string]bool {
 // repository or another. The audit calls it a path, and a maintainer needs it whole to find the file.
 // A file stem inside one is part of the path. A run's writers could cite no file of another repository
 // while the check read that stem as a bare name.
-var rePathSpan = regexp.MustCompile("`[^`]*(?:/|\\.[A-Za-z][A-Za-z0-9]{0,4}\\b)[^`]*`")
+// A member access such as `event.type` holds a dot and no extension a file carries, and it is no path.
+var rePathSpan = regexp.MustCompile("`[^`]*(?:/|\\.(?:ts|tsx|js|jsx|mjs|cjs|go|py|rb|rs|java|kt|swift|c|h|cc|cpp|cs|m|php|sh|md|json|ya?ml|toml|xml|html|css|scss|sql|txt)\\b)[^`]*`")
 
 // A hump-cased name, and the comma that would place it.
 var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
