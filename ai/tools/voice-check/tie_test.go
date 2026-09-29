@@ -32,7 +32,7 @@ func TestTieOpeningsCountTheConnectorAndTheSubjectApart(t *testing.T) {
 	}
 }
 
-// "so" with three different subjects is still "so" three times, which is what the reviewer counted.
+// "so" with three different subjects is still "so" three times. The reviewer counted that.
 func TestAConnectorWithVariedSubjectsStillCounts(t *testing.T) {
 	file := shell.SplitLines(`// The ledger rounds late, so this check reads both fields.
 function a() {}
