@@ -74,6 +74,7 @@ func (f *fixture) newCheckout(root string) {
 	for _, name := range publicSkills {
 		f.NewSkill(root, name, "")
 	}
+	f.Write(root+"/kk-flavor/agents/comment-writer.md", "---\nname: comment-writer\n---\n")
 	for _, name := range maintainerSkills {
 		f.NewSkill(root, name, "audience: maintainer\n")
 	}
