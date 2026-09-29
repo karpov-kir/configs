@@ -959,6 +959,16 @@ func TestAConformingNoteIsNotAClauseDepthFinding(t *testing.T) {
 	}
 }
 
+// A term the rules ask to be said in the words of the code's condition takes "in which". That phrase
+// defines the term and opens no clause, so the act-first note it sits in is no finding.
+func TestATermDefinedWithInWhichIsNotAClauseDepthFinding(t *testing.T) {
+	s := scanner{profile: ProfileComment}
+	note := "// Drops a posting book in which no posting declares the currency, because narrowing would empty it."
+	if hasCheck(s.scanSource("f.ts", []string{note}, nil, nil), checkClauseDepth) {
+		t.Errorf("%q is the wording rule t asks for and it produced a clause-depth finding", note)
+	}
+}
+
 // One negation is how a fact is stated. Two is what the reader has to resolve against each other.
 func TestOneNegationIsNotADoubleNegativeFinding(t *testing.T) {
 	s := scanner{profile: ProfileComment}

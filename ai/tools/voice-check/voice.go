@@ -198,6 +198,10 @@ var (
 	// reader holds one clause open while reading another.
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
 
+	// A preposition before `which` defines a term, as in "a book in which no posting declares the
+	// currency". The comment rules ask for that wording, so it opens no clause the reader holds.
+	rePrepositionWhich = regexp.MustCompile(`\b(?:in|of|to|for|on|at|by|under|with|from) which\b`)
+
 	// Negation a reader has to carry. At two in a sentence the reader resolves them against each other
 	// before learning what the sentence says.
 	reNegation = regexp.MustCompile(`\b(?:no|not|never|neither|nor|nothing|nobody|without)\b`)
@@ -955,7 +959,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		if len(strings.Fields(text[span[0]:span[1]])) > voiceLongSentence {
 			add(checkLongSentence, span[0], span[1])
 		}
-		if len(reConnective.FindAllString(read, -1)) >= voiceClauseDepth {
+		if len(reConnective.FindAllString(rePrepositionWhich.ReplaceAllString(read, " "), -1)) >= voiceClauseDepth {
 			add(checkClauseDepth, span[0], span[1])
 		}
 		if len(reNegation.FindAllString(read, -1)) >= voiceNegations {
