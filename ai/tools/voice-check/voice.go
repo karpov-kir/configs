@@ -1725,7 +1725,7 @@ func identifierWordsOf(lines []string) map[string]bool {
 // rePathSpan is a backticked span holding a `/`, or one ending in a listed file extension, optionally
 // followed by `:` or `#` and more. It names a file, and a stem inside it is part of the path. A run's
 // writers could cite no file of another repository while the check read that stem as a bare name. The
-// list leaves out the words a member access ends on, such as lock and type, so their names are read.
+// list leaves out lock, env, ini, cfg and conf, which a member access such as `writeMutex.lock` ends on.
 var rePathSpan = regexp.MustCompile("`[^`]*/[^`]*`|`[^`]*\\.(?:ts|tsx|js|jsx|mjs|cjs|go|py|rb|rs|java|kt|kts|swift|c|h|cc|cpp|cs|m|php|sh|md|json|ya?ml|toml|xml|html|css|scss|sql|txt|gradle|proto|vue|svelte|dart|scala|lua|pl|tf|graphql|gql)(?:[:#][^`]*)?`")
 
 // A hump-cased name, and the comma that would place it.
