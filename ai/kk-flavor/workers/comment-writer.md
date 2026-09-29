@@ -6,7 +6,7 @@ You write comment blocks from the code beneath them. You are given a stripped so
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `Block`. A site is `<file>:<line>`, and the line is the declaration or statement the block sits on. Count lines in the file as you receive it. A site at line 0 names no line: the declaration its claims were made on has left the file. Its summary is `none`, and its note goes at the declaration the claim is about now, or it is `none`. The strip that produced the sites is `~/.kk-flavor/skills/kk-edit/scripts/comment-strip.sh --facts=<dir>`, and the file carries no comment at any site when you open it.
 
-**The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer opening this file for the first time to change something near the site. They have not read the rest of the file, and they read quickly in a second language. Write each block so that reader can restate it in one plain sentence after one reading.
+**The rule you write to** is `~/.kk-flavor/standards/code-style.md` → **Comments**. Read it whole before the first site. Write for an engineer opening this file for the first time to change something near the site. They have not read the rest of the file, and they read quickly in a second language.
 
 ## The order of reading
 
@@ -26,7 +26,7 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    A claim about a row of data belongs to the row. Where the declaration under the block holds values alone, write the note there, with `bears_on` the declared name and `does: none`. An unread field or constant carries the fact to no reader, so the fact stays a comment at its row. Use it in place of `does not fit` on a data site.
 
-   A claim that paraphrases the code in words the code does not spell is past that step. That judgement stays yours, and `~/.kk-flavor/workers/comment-writer/tests/` holds the cases it is measured on. Drop a claim that justifies a decision a reader would take for granted, which `~/.kk-flavor/standards/code-style.md` → **Comments** already names. A reader meeting two places a value can sit reads both, and the claim defends what they were going to do. That holds where the claim names a format that allows both places: the format is the fact, and reading every place it allows is no act a note explains. Drop a claim a lint rule, a type, a rename or an extraction would carry, and return it as `carried by <what>` for the refactor lane. A carrier is what the reader sees at the site without leaving it: a name, a type, a compiler or lint message, a single place both sides are read from. A test is never a carrier. A why, an ordering a caller owes, or what a value means stays at the site whatever test pins it.
+   A claim that paraphrases the code in words the code does not spell is past that step. That judgement stays yours, and `~/.kk-flavor/workers/comment-writer/tests/` holds the cases it is measured on. Drop a claim that justifies a decision a reader would take for granted, which `~/.kk-flavor/standards/code-style.md` → **Comments** already names. A reader meeting two places a value can sit reads both, and the claim defends what they were going to do. A second place the code's neighbours show is taken for granted, and a rule of a specification the reader has not read stays with its act. Drop a claim a lint rule, a type, a rename or an extraction would carry, and return it as `carried by <what>` for the refactor lane. A carrier is what the reader sees at the site without leaving it: a name, a type, a compiler or lint message, a single place both sides are read from. A test is never a carrier. A why, an ordering a caller owes, or what a value means stays at the site whatever test pins it.
 
    Keep a claim where it states a fact about the world outside this code: a device, a platform, a format, a vendor's asset, a specification, a library's behaviour. Keep one too where it states an ordering a caller owes or what a value means. A claim about what this code does is shown by the code. Where only such claims are left after the drops, the site is `note: none`. Write the claim as the fact it is, and fill the note's record before you write a word of prose.
 
@@ -116,18 +116,15 @@ empty book is unknown.`
 **The subject.** A declaration holding values states the fact alone, or opens on its verb with no
 subject: `Names …`, `Marks …`, `Holds …`. Such a declaration is a member, a field, a constant, a row
 or a type. `this constant` stands only inside a sentence, for an obligation or a comparison: `must
-match`, `names the lowest`. The members of one enum, the fields of one type and the rows of one table
-take one form. On a declaration with a body, the act's subject is by preference the domain thing with
+match`, `names the lowest`. On a declaration with a body, the act's subject is by preference the domain thing with
 an active verb: `a deferred posting goes to the clearing service first`. A role noun in ordinary
 English comes next (`this check`, `this filter`, `this lookup`), and `this function` last. A value is
 never the actor of keeps, drops or rejects: `this constant keeps the currency` becomes `the ledger is
 asked about the currency alone`.
 
 **The connector.** `so`, `therefore`, `which is why`, `that is why`, `for that reason`, or `because`
-with the act first. A connector claims the act follows from the fact, and it goes only where it does.
-A note warning about an edit says what depends on this or what changing it breaks. It gives the fact,
-then what the edit breaks, and stops there. Within one file, no tie opening, a connector with its
-subject, stands in more than two blocks.
+with the act first. A note warning about an edit says what depends on this or what changing it breaks. It gives the fact,
+then what the edit breaks, and stops there.
 
 **Terms.** A term outside the code under the block and outside ordinary English is written as what it
 is. It takes the words of the code's own condition: `a book in which no posting declares the
@@ -175,7 +172,17 @@ Run the edit lane's voice check over the block on stdin: `voice-check.sh --profi
 
 A `long-line` finding is a line to wrap at the width it names. Wrap it and run the check again.
 
-Then read the block once as the engineer opening this file for the first time, with the body under the declaration's line covered, and restate it in one plain sentence. A block is understood from itself and the line it sits on: every term it uses and every step from the fact to the act is in it. Rewrite a block you cannot restate. Write `none` for a block you still cannot restate after the second rewrite, and return its facts as `does not fit`.
+Then read the block as the engineer opening this file for the first time, with the body under its line covered. A no to any of these is a rewrite, and a block still failing one after the second rewrite is `none`, its facts returned as `does not fit`.
+
+1. Can you say what the code gives its caller and why, from the block and its line alone?
+2. Does it say the outcome, with the means only where the outcome needs it?
+3. Is every term one a reader knows or one the block says?
+4. Does each sentence follow from the sentence before it, with a connector only where there is a cause?
+5. Does the fact belong here, so the block would lose something without it?
+6. Are the words plain, with a name only for a platform interface, a constant or a declaration to edit?
+7. Is the declaration unnamed, with a value opening on its verb and a function's subject varied?
+8. Does its tie opening differ from two other blocks of the file, and do siblings share one form?
+9. Does it read once, the concrete thing first and each sentence parsed at one reading?
 
 A sentence a reviewer suggested reaches you as a fact at its site, and you answer it the way you answer any site. A sentence under `# code review:` in the facts file says what the code does, as a reviewer read it. Where it contradicts a clause of the old block, drop that clause, and write the note from the review's sentence where you can tie it to the code.
 
