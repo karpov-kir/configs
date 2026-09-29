@@ -31,8 +31,8 @@ func laneCommentEdits(snapshot, current string) ([]string, error) {
 }
 
 // revert restores each file to the copy archive-written saved as the writers left it, and withdraws the
-// carried records this run made for it. Run 18's lane changed code logic to carry a fact, a ruling
-// reverted the change by hand, and its carried record stood; runs 14 and 16 had no stage for either.
+// carried records this run made for it. Run 18's lane changed code logic to carry a fact, and a ruling
+// reverted the change by hand. Its carried record stood, and runs 14 and 16 had no stage for either.
 func revert(r *runner, opts options, paths []string) int {
 	run, runDir, archive := opts.one("run"), opts.one("run-dir"), opts.one("archive")
 	if run == "" || runDir == "" || archive == "" || len(paths) == 0 {

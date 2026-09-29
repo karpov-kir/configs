@@ -11,11 +11,11 @@ import (
 )
 
 // prompts partitions the sites seed printed over the writers and writes each writer's spawn prompt.
-// The stage decides the number of writers from the sites, and its caller passes none. Run 16 used ten
-// writers for 162 sites, and run 18b's one writer wrote the same sites at a quarter of the tokens. A
-// file's sites go to one writer, and a directory's files go to one writer where the sizes allow. The
-// emphasis slot quotes only the human's words, from `licence.txt` in the run directory. Runs 11 and 12
-// carried an approval sentence the human never wrote.
+// It decides the number of writers from the sites. Run 16 used ten writers for 162 sites, and run
+// 18b's one writer wrote the same sites at a quarter of the tokens.
+
+// The emphasis slot quotes only the human's words, from `licence.txt` in the run directory. Runs 11
+// and 12 carried an approval sentence the human never wrote.
 func prompts(r *runner, opts options, _ []string) int {
 	runDir := opts.one("run-dir")
 	if opts.one("workers") != "" {
@@ -94,10 +94,9 @@ func prompts(r *runner, opts options, _ []string) int {
 	return exitClean
 }
 
-// The writer count, ruled on 2026-09-29: one writer up to 150 sites, two up to 300, three above, and
-// never more than three at a time. Run 18b's one writer grew about 1.7k tokens a site from a base of
-// 147k, so a writer's context holds some 400 sites, and more than three writers' reach is written in
-// successive batches of three.
+// The writer count the reviewer set on 2026-09-29: one writer up to 150 sites, two up to 300, three
+// above, and at most three at a time. Run 18b's one writer grew about 1.7k tokens a site from 147k. A
+// writer's context then holds some 400 sites, and past three writers' reach the batches follow.
 const (
 	oneWriterSites   = 150
 	twoWriterSites   = 300
@@ -133,10 +132,9 @@ func plan(order []string, byFile map[string][]string) [][][]string {
 	return append(batches, partition(batch, byFile, writersFor(load)))
 }
 
-// partition gives the files to n writers. A directory's files stay together where the directory fits
-// one writer, its share or one writer's 150 sites, whichever is larger; a larger directory is dealt out
-// file by file. Each unit goes to the
-// writer holding the fewest sites, the largest unit first.
+// partition gives the files to n writers. A directory stays together where it fits one writer: its
+// share, or 150 sites where that is larger. A larger directory is dealt out file by file. Each unit
+// goes to the writer holding the fewest sites, the largest unit first.
 func partition(files []string, byFile map[string][]string, n int) [][]string {
 	n = min(n, len(files))
 	total := 0
@@ -245,12 +243,12 @@ func fill(template string, slots map[string]string, contract string) (string, er
 	return strings.Join(out, "\n\n") + "\n", nil
 }
 
-// writerContract names the contract a writer applies, which reaches it in the prompt and not as a file.
+// writerContract names the contract a writer applies, which reaches it in the prompt.
 const writerContract = "comment-writer brief given in full at the end of this prompt"
 
 // writerRules is the text every writer opens on: the brief, and the standard's Comments section it
 // writes to. Run 16's twenty writers each read both from disk before their first site, and every read
-// cost calls. The files stay the rules; the prompt carries them word for word.
+// cost calls. The files stay the rules, and the prompt carries them word for word.
 func writerRules(home string) (string, error) {
 	brief, err := os.ReadFile(filepath.Join(home, ".kk-flavor", "workers", "comment-writer.md"))
 	if err != nil {
@@ -275,8 +273,8 @@ func writerRules(home string) (string, error) {
 		"=== ~/.kk-flavor/standards/code-style.md → Comments ===\n" + strings.TrimSpace(section) + "\n", nil
 }
 
-// returnFile is where a writer writes its return. Run 18b's one writer held 162 sites, its return did
-// not fit a message, and archive-written could not read the summary it sent instead.
+// returnFile is where a writer writes its return. Run 18b's one writer held 162 sites, and its return
+// outgrew a message. archive-written could read only the summary it sent instead.
 func returnFile(runDir, name string) string {
 	return filepath.Join(runDir, "return-writer-"+name+".md")
 }

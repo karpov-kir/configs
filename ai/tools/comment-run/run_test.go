@@ -243,8 +243,8 @@ func TestTaintReadsWritesFromTheLedger(t *testing.T) {
 	}
 }
 
-// A diff with no range prints HEAD's blocks under a `-`, and run 18 tainted two writers that way with no
-// line from this stage. A write by shell script is reported too, since writes go through the Edit tool.
+// A diff with no range prints HEAD's blocks under a `-`, and run 18 tainted two writers that way while
+// this stage stayed quiet. A write by shell script is reported too, since writes go through the Edit tool.
 func TestTaintReadsARangelessDiffAndAScriptWrite(t *testing.T) {
 	c := newChange(t)
 	ledger := filepath.Join(t.TempDir(), "comment-writer-A-queue.md")
@@ -493,7 +493,7 @@ func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 }
 
 // One round is one writer: loop takes the sites of every file of the round in one call, and names the
-// round, not a file. Run 16 dispatched a loop writer per site.
+// round. Run 16 dispatched a loop writer per site.
 func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 	c := newChange(t)
 	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
@@ -515,8 +515,8 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 	}
 }
 
-// The stage decides the writers from the sites: one up to 150, two up to 300, three above, a file never
-// split, and more than three writers' reach in batches of three.
+// The stage decides the writers from the sites: one up to 150, two up to 300, and three above. A file
+// stays whole, and past three writers' reach the batches follow.
 func TestPlanDecidesTheWritersFromTheSites(t *testing.T) {
 	sites := func(counts map[string]int) ([]string, map[string][]string) {
 		var order []string

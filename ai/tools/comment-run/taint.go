@@ -172,7 +172,7 @@ var (
 	// reScriptEdit is a shell command that edits a file it names in place: sed or perl with -i, tee, or
 	// a script that writes. Writes go through the Edit tool, and run 18b's writer wrote by script once
 	// and one insert slipped. A redirect counts only when its target is the file, since `2>&1` and a
-	// pipe into a check name the file and write nothing.
+	// pipe into a check name the file and leave it as it was.
 	reScriptEdit = regexp.MustCompile(`\bsed\s+(-\w+\s+)*-i|\bperl\s+-\w*i|\btee\b|\b(python3?|node|ruby)\b[^|]*\b(write|writeFile|open\([^)]*['"]w)`)
 	// A log's graph opens lines on `* `, so a log read counts only a line opening a block. Run 13's one
 	// log read flagged every file its writer held.

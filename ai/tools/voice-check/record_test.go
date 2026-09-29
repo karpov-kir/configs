@@ -227,7 +227,7 @@ func TestABlockNamingItsOwnDeclarationIsRefused(t *testing.T) {
 }
 
 // A file stem inside a backticked path is the audit's path class. A run's writers could cite no file
-// of another repository, because the check read a lowerCamelCase stem there as a bare name.
+// of another repository, because the check read a humped stem there as a bare name.
 func TestAStemInsideABacktickedPathIsNoBareName(t *testing.T) {
 	s := voiceScanner()
 	for _, note := range []string{

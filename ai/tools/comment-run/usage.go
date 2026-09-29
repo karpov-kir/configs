@@ -11,8 +11,8 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// usageStage reads each writer's transcript and prints what the run's report carries per writer: its context
-// at the first tool call and at its last turn, the tokens it wrote, its tool calls and its wall time.
+// usageStage reads each writer's transcript and prints the report's figures for it. They are its
+// context at the first tool call and at its last turn, its output, its tool calls and its wall time.
 // Runs 16 and 18 estimated a writer's start-up from totals, and the report had no line to read it from.
 func usageStage(r *runner, _ options, transcripts []string) int {
 	if len(transcripts) == 0 {

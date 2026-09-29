@@ -141,9 +141,9 @@ type loopFinding struct {
 	printed               []string
 }
 
-// loopStrip strips one file's sites from the last line up, moves each earlier site up by the lines a
-// later strip removed, and adds each review sentence to its facts file. Run 16 looped two sites of one
-// file in two calls, and the second prompt named a line the first strip had moved.
+// loopStrip strips one file's sites from the last line up, and adds each review sentence to its facts
+// file. A later strip moves each earlier site up by the lines it removed. Run 16 looped two sites of
+// one file in two calls, and the second prompt named a line the first strip had moved.
 func loopStrip(tree, archive, facts, path string, findings []*loopFinding) ([]*loopFinding, error) {
 	sort.SliceStable(findings, func(i, j int) bool { return findings[i].line > findings[j].line })
 	height := func() int {

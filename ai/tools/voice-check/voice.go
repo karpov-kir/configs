@@ -1684,7 +1684,8 @@ func identifierWordsOf(lines []string) map[string]bool {
 
 // rePathSpan is a backticked phrase holding a `/` or a file extension, which names a file, in this
 // repository or another. The audit calls it a path, and a maintainer needs it whole to find the file.
-// A file stem inside one is no bare name: a run's note could not cite a file in another repository.
+// A file stem inside one is part of the path. A run's writers could cite no file of another repository
+// while the check read that stem as a bare name.
 var rePathSpan = regexp.MustCompile("`[^`]*(?:/|\\.[A-Za-z][A-Za-z0-9]{0,4}\\b)[^`]*`")
 
 // A hump-cased name, and the comma that would place it.
