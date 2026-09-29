@@ -106,15 +106,16 @@ func carrierNames(carrier string) []string {
 	return names
 }
 
-// reTestWord is a test or a spec as a word, and reTitleCall a test's title call.
+// reTestWord is a word that names a test or its evidence: a test, a spec, a suite, a fixture, a
+// snapshot, an assertion, or a claim "pinned" or "covered" by something. reTitleCall is a title call.
 var (
-	reTestWord  = regexp.MustCompile(`(?i)\b(tests?|specs?)\b`)
+	reTestWord  = regexp.MustCompile(`(?i)\b(test\w*|specs?|suites?|fixtures?|e2e|golden|snapshots?|assert\w*)\b|\b(pinned|covered)\s+by\b`)
 	reTitleCall = regexp.MustCompile(`(?i)\b(it|describe|test)\s*\(`)
 )
 
 // reTestVerb is "tests" closing a relative clause, as in "the platform that the branch tests;", with
 // the word before it.
-var reTestVerb = regexp.MustCompile(`(?i)(\b(?:that|which)\s+(?:\S+\s+){0,3}?)(\S+)\s+tests(\s*(?:[;.,)]|$))`)
+var reTestVerb = regexp.MustCompile(`(?i)(\b(?:that|which)\s+(?:(?:the|this|its)\s+)?)(\S+)\s+tests(\s*(?:[;.,)]|$))`)
 
 // verbSubjects are the code that tests something in a message carrier's wording. After any other word
 // "tests" is read as a noun, and a carrier naming one is refused, which only reopens its block.
