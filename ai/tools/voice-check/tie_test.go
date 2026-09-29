@@ -69,9 +69,9 @@ function c() {}
 	}
 }
 
-// The bound reads the file only where the writer names it. The keep criteria run only RecordFindings,
-// so a kept block is never reopened by a neighbour written after it.
-func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
+// writeThirdTieFixture writes a source file and a record, and returns their directory and both paths.
+// The file's two blocks tie with "so this function", and the record's block ties that way a third time.
+func writeThirdTieFixture(t *testing.T) (string, string, string) {
 	dir := t.TempDir()
 	source := filepath.Join(dir, "ledger.ts")
 	if err := os.WriteFile(source, []byte("// A ledger rounds late, so this function reads both.\nfunction a() {}\n"+
@@ -83,6 +83,13 @@ func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 		"// An export predates the field, so this function reads the type.\nfunction readType(row) {\n  return row.type;\n}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	return dir, source, record
+}
+
+// The bound reads the file only where the writer names it. The keep criteria run only RecordFindings,
+// so a kept block is never reopened by a neighbour written after it.
+func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
+	dir, source, record := writeThirdTieFixture(t)
 	run := func(args ...string) (int, string) {
 		var out, errOut strings.Builder
 		code := Run("voice-check.sh", args, dir, repo.Exec{}, baseConfig(), &out, &errOut)
@@ -101,17 +108,7 @@ func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 
 // The summary tally names the file bound and the record checks, which sit outside the corpus list.
 func TestTheTallyNamesAFileBoundFinding(t *testing.T) {
-	dir := t.TempDir()
-	source := filepath.Join(dir, "ledger.ts")
-	if err := os.WriteFile(source, []byte("// A ledger rounds late, so this function reads both.\nfunction a() {}\n"+
-		"// A book drops a period, so this function asks twice.\nfunction b() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	record := filepath.Join(dir, "record.txt")
-	if err := os.WriteFile(record, []byte("fact: an export predates the field\nbears_on: readType\ndoes: reads the type\n---\n"+
-		"// An export predates the field, so this function reads the type.\nfunction readType(row) {\n  return row.type;\n}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	dir, source, record := writeThirdTieFixture(t)
 	var out, errOut strings.Builder
 	Run("voice-check.sh", []string{"--profile=comment", "--source", "--record", "--file=" + source, record}, dir, repo.Exec{}, baseConfig(), &out, &errOut)
 	if !strings.Contains(errOut.String(), checkTieRepeated+" 2") {

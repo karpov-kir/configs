@@ -168,9 +168,6 @@ func hasCheck(found []Finding, check string) bool {
 	return false
 }
 
-// An imperative can end in `ing`, and an imperative with its subject implied is the register these
-// rules are written in. A check that read `Bring` as a dropped subject would report every rule file
-// for obeying the rule.
 func TestAnImperativeEndingInIngIsNotADroppedSubject(t *testing.T) {
 	imperatives := []string{"Bring the choice to the human.", "String the calls together.",
 		"Ring the bell once.", "Swing the branch back."}
@@ -188,8 +185,6 @@ func TestAnImperativeEndingInIngIsNotADroppedSubject(t *testing.T) {
 	}
 }
 
-// A block's length is its words, so the `/**` and `*/` a language demands do not spend the allowance.
-// Without this a four-sentence block reads as six lines and every docstring is a finding.
 func TestABlockIsMeasuredInTheLinesThatCarryWords(t *testing.T) {
 	four := []string{"const a = 1;", "/**", " * One.", " * Two.", " * Three.", " * Four.", " */", "const b = 2;"}
 	five := []string{"const a = 1;", "/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */", "const b = 2;"}
@@ -202,8 +197,6 @@ func TestABlockIsMeasuredInTheLinesThatCarryWords(t *testing.T) {
 	}
 }
 
-// A file header is allowed eight lines, because a published surface states call order, lifecycle and
-// error modes there and nowhere else.
 func TestAFileHeaderIsAllowedMoreThanABlockInTheBody(t *testing.T) {
 	header := []string{"/**"}
 	for i := 1; i <= 6; i++ {
@@ -254,9 +247,6 @@ func TestBoldIsAFindingInACommentAndNotInARuleFile(t *testing.T) {
 	}
 }
 
-// A backticked span is the code's own text quoted into prose, so the register checks read past it.
-// Without this the rule file that states `Next: <the one immediate action>` reports itself, and the
-// only way to a clean tree is to stop quoting the templates the rules require.
 func TestAnInlineCodeSpanIsNotReadAsProse(t *testing.T) {
 	quoted := "Close with one line: `Next: <the one immediate action>`."
 	bare := "Close with one line: Next: the one immediate action."
@@ -269,8 +259,6 @@ func TestAnInlineCodeSpanIsNotReadAsProse(t *testing.T) {
 	}
 }
 
-// Every finding echoes the line as the writer typed it. Reading the blanked line back would hand them
-// a sentence with holes in it and no way to find the words the check objected to.
 func TestAFindingEchoesTheLineAsItWasTyped(t *testing.T) {
 	line := "// Guarded with `hasOwnProperty` rather than indexed directly."
 	found := voiceScanner().scanSource("f.ts", []string{line}, nil, nil)
@@ -287,9 +275,6 @@ func TestAFindingEchoesTheLineAsItWasTyped(t *testing.T) {
 	}
 }
 
-// A block is read as one text, so a sentence that wraps is read whole. Per line, a check sees half a
-// sentence and matches nothing — and a sentence wrapping at the width of a screen is the ordinary
-// case in a comment, not the exception, so this is most of what there is to find.
 func TestASentenceThatWrapsAcrossTwoLinesIsReadWhole(t *testing.T) {
 	wrapped := []string{
 		"/**",
@@ -342,8 +327,6 @@ func TestABlankLineEndsAParagraph(t *testing.T) {
 	}
 }
 
-// A doc tag line is the signature written out, not a sentence. Counted as prose, a function with six
-// parameters is a long block for having documented them, which is the one shape the rule wants.
 func TestADocTagLineIsNotProse(t *testing.T) {
 	tagged := []string{
 		"const a = 1;",
@@ -366,8 +349,6 @@ func TestADocTagLineIsNotProse(t *testing.T) {
 	}
 }
 
-// A usage line is a grammar, and a script with two forms of its call writes one per line. The scan read
-// comment-strip.sh's two as prose, joined them into one long sentence and called its header long.
 func TestAUsageLineIsNotProse(t *testing.T) {
 	// Below a line of code, so the block is no file header, as a branch scan reads a header it changed.
 	header := []string{
@@ -388,8 +369,6 @@ func TestAUsageLineIsNotProse(t *testing.T) {
 	}
 }
 
-// A tag line's words do not join the segment either. Joined, `@param book the book to total` would put
-// the signature in the middle of whatever sentence ran before it.
 func TestADocTagLineDoesNotJoinTheSentenceAroundIt(t *testing.T) {
 	lines := []string{
 		"/**",
@@ -604,10 +583,6 @@ func atMost(t *testing.T, what string, got int, variable string) {
 	}
 }
 
-// Over a diff the scan holds only the added lines, and the rest of the file is a gap. A gap read as a
-// blank line makes every block look like a file header, because nothing but blanks stands above it —
-// and a header is allowed twice a block's length, so five-to-eight-line blocks pass unreported in the
-// one mode the lane actually runs.
 func TestABlockInADiffDoesNotInheritTheFileHeadersAllowance(t *testing.T) {
 	// A five-prose-line block at lines 40-46 and nothing else added. Every line above it is a gap, so
 	// the array holds blanks there and the header test has only `held` to tell it this is not the top
@@ -640,9 +615,6 @@ func TestARealFileHeaderInADiffKeepsItsAllowance(t *testing.T) {
 	}
 }
 
-// A `/*` run ends at a gap. Without that, a diff rewording one `/**` whose `*/` it never touched runs
-// that block to the end of the file, swallowing every later comment into it — which reports one long
-// block that does not exist and lets a register check match across the seam between two of them.
 func TestAStarRunDoesNotSwallowTheCommentsBelowAGap(t *testing.T) {
 	lines := make([]string, 20)
 	lines[9] = "/** Reworded opening."
@@ -660,9 +632,8 @@ func TestAStarRunDoesNotSwallowTheCommentsBelowAGap(t *testing.T) {
 	}
 }
 
-// stripMarker and isComment have to agree about a lone `*`. They disagreed: isComment refuses a `*`
-// with no space after it, stripMarker stripped it anyway, so `**Bold**` opening a starless line inside
-// a `/* */` block became `*Bold**` — the check could not fire and the echo was corrupt.
+// A `**Bold**` opening a starless line inside a `/* */` block once lost its first star to the marker
+// strip. The bold check then read `*Bold**` and could not fire, and the echo was corrupt.
 func TestABoldSpanOpeningAStarlessLineSurvivesTheMarkerStrip(t *testing.T) {
 	if got := stripMarker("**Bold** and the rest."); got != "**Bold** and the rest." {
 		t.Fatalf("stripMarker returned %q, want the line untouched", got)
@@ -682,9 +653,6 @@ func TestABoldSpanOpeningAStarlessLineSurvivesTheMarkerStrip(t *testing.T) {
 	}
 }
 
-// A coined word opening on a multi-byte rune must not be title-cased by the byte. Sliced, it leaves an
-// orphaned continuation byte in the pattern and regexp refuses it, so the tool dies with a Go stack
-// trace where its own refusal belongs.
 func TestACoinedWordOpeningOnAMultiByteRuneCompiles(t *testing.T) {
 	for _, word := range []string{"échelon", "über", "日本語", "rung"} {
 		pattern := coinedInIdentifier(word)
@@ -698,10 +666,6 @@ func TestACoinedWordOpeningOnAMultiByteRuneCompiles(t *testing.T) {
 	}
 }
 
-// This scan echoes file CONTENT, so it takes the guard dup-literals takes: a file whose NAME marks it
-// as secret-bearing is declined unread, and the decline is announced so the report's denominator is
-// honest. Without it a sentence out of a `.env` reaches the orchestrator's transcript and any body
-// drafted from it.
 func TestASecretNamedFileIsDeclinedUnreadAndSaidSo(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")
@@ -744,8 +708,6 @@ func TestASecretNamedFileInADiffIsDeclinedUnread(t *testing.T) {
 	}
 }
 
-// A hunk header's line number is caller-controlled on the `-` arm, and scanChange sizes a slice by it.
-// Unbounded, one added line at `@@ +10000000` measured 166 MB resident.
 func TestAnAbsurdLineNumberInAHunkHeaderIsDropped(t *testing.T) {
 	diff := "diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n" +
 		"@@ -1,0 +2147483000,1 @@\n+// Otherwise the caller pays for it.\n"
@@ -765,10 +727,6 @@ func TestAnAbsurdLineNumberInAHunkHeaderIsDropped(t *testing.T) {
 	}
 }
 
-// A coined word is a codebase's invented vocabulary. A rule file is prose about writing and uses the
-// ordinary English word a codebase may have coined, so the instruction profile does not run the check
-// — otherwise a machine-level conf naming one project's terms reports every repository's rule files
-// for using English, and the baseline stops being reproducible from one machine to another.
 func TestTheInstructionProfileDoesNotRunTheCoinedCheck(t *testing.T) {
 	line := "Cut the hedge frames and the drift in tense."
 	s := scanner{coined: []string{"hedge", "drift"}}
@@ -787,9 +745,6 @@ func TestTheInstructionProfileDoesNotRunTheCoinedCheck(t *testing.T) {
 	}
 }
 
-// In a comment the check reads past the backtick blanking, because a coined word inside backticks is
-// an identifier built on the term, and that identifier is the rename the refactor lane owes. In a
-// body it does not: there the backticks quote a literal.
 func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
 	s := scanner{coined: []string{"sprocket"}}
 	s.profile = ProfileComment
@@ -802,9 +757,6 @@ func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
 	}
 }
 
-// A bound that truncates is worse than no bound: the scan reports clean over the half it never saw,
-// and git orders a diff by path, so padding an early file pushes a hostile one past the cut. The
-// documented entry point pipes `gh pr diff` in, where a diff over any per-file cap is ordinary.
 func TestAStreamOverTheCapIsRefusedRatherThanTruncated(t *testing.T) {
 	under := strings.Repeat("x", 16)
 	if _, err := readAllCapped(strings.NewReader(under), 32); err != nil {
@@ -824,8 +776,6 @@ func TestAStreamOverTheCapIsRefusedRatherThanTruncated(t *testing.T) {
 	}
 }
 
-// A hunk header's line number is walked by a counter that can overflow, so it arrives negative. A
-// negative number passes a ceiling test and then indexes a zero-length slice.
 func TestALineNumberBelowOneIsRefusedLikeOneAboveTheCap(t *testing.T) {
 	for _, at := range []int{-1, 0, maxDiffLine + 1} {
 		added := newAddedLines()
@@ -848,8 +798,6 @@ func TestALineNumberBelowOneIsRefusedLikeOneAboveTheCap(t *testing.T) {
 	}
 }
 
-// A file the scan declines says so once, however many of its lines the diff carried. A notice per line
-// buries the report it belongs to.
 func TestADeclinedFileIsAnnouncedOnceNotPerLine(t *testing.T) {
 	added := newAddedLines()
 	said := 0
@@ -864,8 +812,6 @@ func TestADeclinedFileIsAnnouncedOnceNotPerLine(t *testing.T) {
 	}
 }
 
-// A coined word twice over, parted by one byte, is two findings. Matched rather than asserted
-// boundaries consume the separator, so a scan resuming past the match swallows the second.
 func TestTwoCoinedWordsPartedByOneByteAreTwoFindings(t *testing.T) {
 	s := scanner{profile: ProfileComment, coined: []string{"rung"}}
 	for _, line := range []string{"// rung rung", "// The rung. Rung again."} {
@@ -913,9 +859,6 @@ func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
 	}
 }
 
-// A shell script opens on an interpreter directive, which `#` makes look like a comment. Counted as
-// one it joins the file header below it and spends a line of that header's allowance, so a script
-// whose header sits exactly at the limit reports long for saying which interpreter runs it.
 func TestAShebangIsNotPartOfTheFileHeader(t *testing.T) {
 	header := []string{"#!/usr/bin/env bash"}
 	for i := 1; i <= 8; i++ {
@@ -945,8 +888,7 @@ func TestTheBarDoesNotCountAShebangAsAComment(t *testing.T) {
 	}
 }
 
-// The note pattern spends one connective on `so`, so a conforming note must not be a finding and the
-// check has to start at two. A threshold off by one here would report every note the rule asks for.
+// A threshold off by one here would report every note the rule asks for.
 func TestAConformingNoteIsNotAClauseDepthFinding(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	conforming := "// Some platforms reject a detached call, so the method is called on its object."
@@ -969,7 +911,6 @@ func TestATermDefinedWithInWhichIsNotAClauseDepthFinding(t *testing.T) {
 	}
 }
 
-// One negation is how a fact is stated. Two is what the reader has to resolve against each other.
 func TestOneNegationIsNotADoubleNegativeFinding(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	single := "// The field is not set on an older export."
@@ -996,9 +937,6 @@ func TestACoinedPhraseIsMatchedAcrossAWrappedLine(t *testing.T) {
 	}
 }
 
-// A word ending in `ed` is not always a past participle, and the participial arm read every one as a
-// dropped subject. The instruction tree before the fix had `proceed` firing a finding and `fed`
-// firing a true one. A length floor would have traded a real catch for a false one.
 func TestAStemEndingInEdIsNoParticiple(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	for _, stem := range []string{
@@ -1042,8 +980,6 @@ func TestACommaBeforeAndOpensAClauseAndNotTheSpine(t *testing.T) {
 	}
 }
 
-// A table row is data in columns. A paragraph made of its cells runs them together, so a table of
-// any size reads as one sentence. The finding lands on a layout that is right as it stands.
 func TestATableRowIsDataInBothTextProfiles(t *testing.T) {
 	table := []string{
 		"| Verdict | Action |",
@@ -1154,8 +1090,6 @@ func TestOneSemicolonJoinsTwoClausesWhateverItsTail(t *testing.T) {
 	}
 }
 
-// A table cell is a list by construction. One semicolon in a cell separates two fields, and the same
-// semicolon in prose joins two clauses. Two cells in standards/testing.md found this.
 func TestOneSemicolonInACellSeparatesFields(t *testing.T) {
 	cell := []string{"| Unit | One unit of behaviour | Real in-process collaborators; no real I/O |"}
 	for _, profile := range textProfiles {
@@ -1171,8 +1105,6 @@ func TestOneSemicolonInACellSeparatesFields(t *testing.T) {
 	}
 }
 
-// After a definite determiner the word points at a thing, and all twenty-two uses in the tree do
-// that. The adverb form is what earns a finding.
 func TestEmphasisIsTheAdverbAndNotTheDeterminer(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	for _, padding := range []string{
@@ -1252,8 +1184,6 @@ func TestAPathWithNoFindingsStillGetsACount(t *testing.T) {
 	r.expectStdoutHas("0 quiet.md")
 }
 
-// maxFindings, a const, truncates a report of findings. A count is one line however many findings it
-// counts, so every path after a file that crosses the cap still gets its own.
 func TestCountsRunPastTheDisplayCap(t *testing.T) {
 	r := newRepo(t)
 	r.write("wall.md", housey(maxFindings+5))
@@ -1292,8 +1222,6 @@ func TestCountingWithNoPathRefusesTheRun(t *testing.T) {
 	r.expectNoStdout()
 }
 
-// `no` before a comparative is the ordinary English word. The check reported its own documentation,
-// and a false positive announces itself there.
 func TestTheBooleanCheckPassesOverAComparative(t *testing.T) {
 	lines := []string{
 		"// A bare fact is one sentence saying no more than itself.",
@@ -1323,8 +1251,6 @@ func TestTheBooleanCheckPassesOverAComparative(t *testing.T) {
 	}
 }
 
-// A name the block's own declaration spells needs no placing: the reader has it in front of them. A
-// name from elsewhere is placed by an appositive, or the reader cannot tell what it is.
 func TestABareIdentifierIsOnlyTheOneTheSiteDoesNotDeclare(t *testing.T) {
 	declared := []string{
 		"/** Drops a claim that dropStaleClaims no longer names. */",
@@ -1378,9 +1304,6 @@ func TestABareIdentifierIsOnlyTheOneTheSiteDoesNotDeclare(t *testing.T) {
 	}
 }
 
-// Over a diff the scan holds the added lines alone, so the declaration under an untouched block is a
-// gap. A walk from there loses the exemption a block's own declaration gives it, and a doc comment
-// sitting on the thing it names reports for naming it. `whole` is the file the block's reader opens.
 func TestTheDeclarationIsReadFromTheFileAndNotFromTheDiff(t *testing.T) {
 	whole := []string{
 		"/** Drops a claim that dropStaleClaims no longer names. */",
@@ -1414,8 +1337,6 @@ func TestTheDeclarationIsReadFromTheFileAndNotFromTheDiff(t *testing.T) {
 	}
 }
 
-// A block ends where its added lines end, and the rest of its own comment then stands between it and
-// the declaration. A walk stopping on that prose would read it as the declaration.
 func TestTheDeclarationIsFoundPastTheRestOfTheComment(t *testing.T) {
 	whole := []string{
 		"/** Drops a claim.",
@@ -1448,8 +1369,6 @@ func TestTheDeclarationIsFoundPastTheRestOfTheComment(t *testing.T) {
 	}
 }
 
-// A term of art spelled like an identifier is a name a reader already places. The check reported
-// three of them in its own comment, which is the run that finds this class.
 func TestATermOfArtIsNoBareIdentifier(t *testing.T) {
 	lines := []string{
 		"/** A name in camelCase, on a display narrower than sRGB, on iOS. */",
@@ -1464,10 +1383,6 @@ func TestATermOfArtIsNoBareIdentifier(t *testing.T) {
 	}
 }
 
-// The writer's per-block gate named the prose profile, which reads paragraphs and never comment
-// blocks. The bare identifier, long block and coined identifier checks live in the source scan
-// alone. Run 7 put a block past that gate twice, and the voice step then read 17 bare identifiers
-// over 8 files, at the cost of a re-pass over 56 sites.
 func TestABlockReadAsSourceReachesTheChecksProseDoesNot(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "block.ts")
@@ -1505,8 +1420,6 @@ func findingsNamed(found []Finding, check string) []Finding {
 	return out
 }
 
-// Comment prose moved into a string value leaves every comment check behind. Run 10 moved six blocks
-// into catalogue strings and wrote its own doubt into each.
 func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
 	doubt := "'Unverified: carried over from an earlier comment and was not checked against a ledger.'"
 	source := []string{
@@ -1524,7 +1437,6 @@ func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
 	if len(got) == 0 || got[0] != 1 || slices.ContainsFunc(got, func(at int) bool { return at != 1 }) {
 		t.Fatalf("findings on lines %v, want line 1 alone: a pattern and a key read as no sentence", got)
 	}
-	// A unit test's strings are fixtures, and they quote whatever the case needs.
 	for _, f := range voiceScanner().scanSource("src/Catalogue.test.ts", source, nil, nil) {
 		if f.Check == checkToolingDoubt {
 			t.Errorf("reported %q in a test file's fixture string", f.Text)
@@ -1538,9 +1450,6 @@ func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
 	}
 }
 
-// A name the body under the block spells sits in front of the reader, so it needs no placing. The
-// brief asks a note on a function to name what the body does, and k19 and k21 had every first draft
-// sent back for such names. A name past the body's first blank line is still placed.
 func TestANameTheBodyUnderTheBlockSpellsIsPlaced(t *testing.T) {
 	lines := []string{
 		"// The book took a format before the probe, so getFormatClaim keeps bookClaim where probeClaim is unknown.",

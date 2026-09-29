@@ -3,6 +3,7 @@ package commentstrip
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -313,15 +314,15 @@ func TestACarriedBlockReopensOnAContradictionOrAGoneCarrier(t *testing.T) {
 	}
 }
 
-// A test is never a carrier. Carry refuses one, and an entry an earlier run archived naming a test no
-// longer holds its site, so the claim is offered again. Run 16 carried an ordering every caller owes
-// into a test's name.
+// Carry refuses a test, and an entry an earlier run archived naming a test no longer holds its site, so
+// the claim is offered again.
 func TestATestIsNeverACarrier(t *testing.T) {
 	rulesHome(t, "rules one ")
 	f := newFixture(t, "f.ts", keptSource)
 	archive := filepath.Join(f.dir, "archive")
 	lines := shell.SplitLines(keptSource)
-	for _, test := range []string{"the test 'asks once per scheme'", "fx.spec.ts", "the spec `asks once`", "src/claims.test.ts"} {
+	for _, test := range []string{"the test 'asks once per scheme'", "fx.spec.ts", "the spec `asks once`", "src/claims.test.ts",
+		"a unit test pinning the order", "carried by claims_test.go, which pins it"} {
 		if err := Carry(archive, "run16", f.path, lines, 4, test); err == nil {
 			t.Fatalf("%q was taken as a carrier", test)
 		}
@@ -338,5 +339,45 @@ func TestATestIsNeverACarrier(t *testing.T) {
 	f.write(strings.Replace(keptSource, "  return keys.canPost(scheme);", "  return ASKS_ONCE && keys.canPost(scheme);", 1))
 	if got := carriedDecls(archive, f.path, f.dir, f.path, nil); len(got) != 0 {
 		t.Fatalf("an archived test carrier still holds its site: %v", got)
+	}
+}
+
+// The verb "tests" names no test. A message carrier ending "that the branch tests" stays a carrier.
+func TestAVerbNamedTestsIsNoTest(t *testing.T) {
+	if namesATest("`SkipException` message naming the platform that the branch tests; block deleted") {
+		t.Fatal("a message carrier was read as a test")
+	}
+}
+
+// A carrier name spelled only inside a unit test's file does not stand.
+func TestACarrierSpelledOnlyInATestDoesNotStand(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"src/claims.ts":      "export function claimFor() {}\n",
+		"src/claims.test.ts": "const ASKS_ONCE = true;\n",
+	} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if carrierStands(dir, filepath.Join(dir, "src/claims.ts"), "`ASKS_ONCE`") {
+		t.Fatal("a name only a test spells held a carried block")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "src/claims.ts"), []byte("export const ASKS_ONCE = true;\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("git", "-C", dir, "add", "-A").CombinedOutput(); err != nil {
+		t.Fatalf("git add: %v\n%s", err, out)
+	}
+	if !carrierStands(dir, filepath.Join(dir, "src/claims.ts"), "`ASKS_ONCE`") {
+		t.Fatal("a name the source spells did not hold its carried block")
 	}
 }

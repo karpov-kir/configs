@@ -60,7 +60,6 @@ does: none
   AccrualProfile5 = 'accrual-5',`,
 		},
 		{
-			// The reviewer of 2026-09-29 cut "This member" and read the rest as the block.
 			name: "a value declaration opening on this member is refused",
 			text: `fact: Settlement profile 5 posts in the accrual scheme.
 bears_on: AccrualProfile5
@@ -136,8 +135,6 @@ const HEDGED = 'maybe';`,
 			want: []string{checkRecordSlot, checkRecordSlot},
 		},
 		{
-			// Run 10's shape is a block on an object member, and the writer piped the member's enclosing
-			// `return {` first. The check read an empty block and refused the name the block spelled.
 			name: "code piped above the block is context, and the block still names its declaration",
 			text: `fact: how a ledger treats a book left with no posting is unknown
 bears_on: keepsBook
@@ -165,8 +162,6 @@ const HEDGED = 'maybe';`,
 	}
 }
 
-// A tie names the branch by one of its identifiers and writes ordinary English around it. Every word
-// shared would refuse that, so the test is one segment.
 func TestDoesSharesOneSegment(t *testing.T) {
 	body := recordSegments("if (probe.WebKitPostingKeys && requirement.scheme === PostingScheme.Deferred) {")
 	if !namesSomethingIn("takes the Deferred path", body) {
@@ -177,8 +172,6 @@ func TestDoesSharesOneSegment(t *testing.T) {
 	}
 }
 
-// `MediaSource` meets mediaSourceClaim, an identifier holding it, as a segment. It never meets a word
-// holding it as letters.
 func TestSegmentsAreNotSubstrings(t *testing.T) {
 	set := recordSegments("const mediaSourceClaim = 1; const sourced = 2;")
 	if !set["source"] || !set["media"] {
@@ -192,9 +185,6 @@ func TestSegmentsAreNotSubstrings(t *testing.T) {
 	}
 }
 
-// A data declaration takes `does: none` whatever its length, because the value beneath is the tie.
-// Run 9's writers filled `does` on an enum, an interface and an object constant to get past a check.
-// The check read the opening brace as a body, and the writers invented the tie the rule removes.
 func TestADataDeclarationOfAnyLengthTakesDoesNone(t *testing.T) {
 	record := "fact: The vendor names these in its own export.\nbears_on: %s\ndoes: none\n---\n// The vendor names these in its own export, and the spelling here is the vendor's.%.0s\n"
 	for _, tc := range []struct{ kind, name, code string }{
@@ -203,7 +193,6 @@ func TestADataDeclarationOfAnyLengthTakesDoesNone(t *testing.T) {
 		{"type", "PostingShape", "export type PostingShape = {\n  format: string;\n};"},
 		{"object constant", "schemeIdentifiers", "export const schemeIdentifiers: Record<Scheme, string[]> = {\n  accrual: ['a'],\n};"},
 		{"array constant", "LEDGER_SOURCES", "export const LEDGER_SOURCES: LedgerSource[] = [\n  { id: 'accrual-eu' },\n];"},
-		// A catalogue row under a computed key. Run 13 read nine of them as declarations with a body.
 		{"computed key", "EscrowDeferred", "  [Clearing.EscrowDeferred]: undefined,"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
@@ -220,9 +209,7 @@ func TestADataDeclarationOfAnyLengthTakesDoesNone(t *testing.T) {
 	}
 }
 
-// The note calls the declaration it sits on this function or this row, and the record keeps the name.
-// Run 13's reviewer read each note naming its own declaration and looked back to check which one it was.
-func TestABlockCallsItsDeclarationThisFunction(t *testing.T) {
+func TestABlockNamingItsOwnDeclarationIsRefused(t *testing.T) {
 	record := "fact: The book took a posting format long before the probe reported the same format.\n" +
 		"bears_on: getFormatClaim\ndoes: returns LedgerClaim.Accepted where either answers it\n---\n"
 	code := "\nexport function getFormatClaim(formatName: string): LedgerClaim {\n  return LedgerClaim.Accepted;\n}"

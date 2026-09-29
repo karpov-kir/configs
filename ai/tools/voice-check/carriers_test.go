@@ -48,8 +48,6 @@ func carrierChecks(t *testing.T, blocks []string, added *addedLines, tree treeRe
 	return out
 }
 
-// Run 10's shape: the archived block moved into a string constant named as a sentence, on a
-// catalogue field no code reads.
 func TestAStringCarrierOnAFieldNobodyReadsIsThreeFindings(t *testing.T) {
 	block := "// The accrual export has no base ledger to fall back on, so a book without the closing\n" +
 		"// profile cannot post it."
@@ -101,8 +99,6 @@ func TestAConstantNobodyReadsIsUnread(t *testing.T) {
 	}
 }
 
-// An object literal's entry passes a value to whatever reads it, often a library outside the tree.
-// The check reads only a type's members as fields.
 func TestAnObjectEntryIsNoUnreadField(t *testing.T) {
 	added := addedFrom("jest.config.js", "  testTimeout: 5000,")
 	if got := carrierChecks(t, []string{"// a block"}, added, treeOf("  testTimeout: 5000,")); len(got) != 0 {
@@ -124,9 +120,6 @@ func TestANameCountsItsWords(t *testing.T) {
 	}
 }
 
-// Run 11's eight false findings pass. A lint message and a skip message opened on the line before
-// their text. Enum token values hold no space, and one function is named at length. None is a landing
-// the refactor rules bar.
 func TestRunElevensFalseCarriersPass(t *testing.T) {
 	block := "// The accrual export was refused by the ledger before any posting reached the measurement stage."
 	added := addedFrom("src/Ledger.ts",
@@ -185,8 +178,6 @@ func TestTheCarrierCheckReadsATestHelper(t *testing.T) {
 	}
 }
 
-// A test is never a carrier. Run 16 routed an ordering every caller owes to a test's name, and the
-// interface then lost the order.
 func TestATestNamedForTheFactIsNoCarrier(t *testing.T) {
 	block := "// A posting is retried three times, and the poster gives up on it after the third."
 	added := addedFrom("src/postings/Retry.test.ts",
@@ -198,7 +189,6 @@ func TestATestNamedForTheFactIsNoCarrier(t *testing.T) {
 	}
 }
 
-// A value read only inside a unit test is unread: the reader of the site never sees that read.
 func TestAReadInsideATestIsNoRead(t *testing.T) {
 	dir := t.TempDir()
 	for name, body := range map[string]string{

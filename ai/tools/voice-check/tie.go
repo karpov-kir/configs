@@ -7,14 +7,12 @@ import (
 	"strings"
 )
 
-// Within one file a connector, or a "this <noun>" subject, stands in at most two blocks. A reviewer
-// read 72 blocks on 2026-09-29, 27 tied with "so" and 25 with "this function". He counted each apart.
+// A reviewer read 72 blocks on 2026-09-29, 27 tied with "so" and 25 with "this function", and counted
+// the connector and the subject apart.
 
-// The bound reads the file the writer holds at write time, and the keep criteria leave it out.
 const checkTieRepeated = "tie-opening-repeated"
 
-// tieBound is how many other blocks of one file may already use a connector or a subject.
-const tieBound = 2
+const maxBlocksPerTieOpening = 2
 
 // reConnector is a connector that claims the act follows from the fact.
 var reConnector = regexp.MustCompile(`\b(which is why|that is why|for that reason|therefore|because|so)\b`)
@@ -38,16 +36,8 @@ func tieOpenings(text string) map[string]bool {
 // fileBlocks is each run of comment lines in a file, with the comment leads stripped.
 func fileBlocks(lines []string) []string {
 	var out []string
-	var held []string
-	for _, line := range append(lines, "") {
-		if commentLead.MatchString(line) {
-			held = append(held, commentLead.ReplaceAllString(line, ""))
-			continue
-		}
-		if len(held) > 0 {
-			out = append(out, strings.Join(held, "\n"))
-			held = nil
-		}
+	for block, rest := blockAndBody(lines); block != nil; block, rest = blockAndBody(rest) {
+		out = append(out, strings.Join(block, "\n"))
 	}
 	return out
 }
@@ -67,7 +57,7 @@ func TieFindings(file string, block []string, fileLines []string) []Finding {
 	}
 	var repeated []string
 	for opening := range tieOpenings(own) {
-		if counts[opening] >= tieBound {
+		if counts[opening] >= maxBlocksPerTieOpening {
 			repeated = append(repeated, opening)
 		}
 	}

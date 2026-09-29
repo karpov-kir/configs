@@ -27,29 +27,28 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// A block over this many text lines is a wall. A file header gets more, because a header carries the
-// call order and error modes a published surface owes. Text lines, not raw lines: a `/**` opening and
+// A file header gets more text lines than a block, because a header carries the call order and error
+// modes a published surface owes. Text lines, not raw lines: a `/**` opening and
 // a `*/` closing carry no words, and counting them would make every four-sentence block a finding.
 const (
-	voiceLongBlock  = 4
-	voiceLongHeader = 8
+	maxBlockTextLines  = 4
+	maxHeaderTextLines = 8
 
 	// writing.md puts one idea in a sentence and keeps it under about 25 words. The check fires at 30
 	// so a sentence at the rule's own edge is not a finding, and only a sentence carrying a second
 	// idea is.
-	voiceLongSentence = 30
+	maxSentenceWords = 30
 
-	// Two subordinating connectives in one sentence. The note pattern spends one on `so`, which puts a
-	// conforming note at one. The check fires above that.
-	voiceClauseDepth = 2
+	// The note pattern spends one subordinating connective on `so`, which puts a conforming note at one.
+	// The check fires above that.
+	flaggedConnectivesPerSentence = 2
 
-	// Two negations in one sentence.
-	voiceNegations = 2
+	flaggedNegationsPerSentence = 2
 
 	// Words after a semicolon before its tail reads as a clause, where the sentence carries several and
 	// is therefore a list. One semicolon joins two clauses whatever its tail is: the tree holds eleven
 	// with a tail of one to three words, and every one of them joins two sentences.
-	voiceClauseTail = 4
+	minClauseTailWords = 4
 )
 
 // Findings and echoed text are bounded the same way the default mode's are: under kk-pr this text
@@ -137,8 +136,8 @@ var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(cons
 // ordinary one.
 var reAlone = regexp.MustCompile(`(?i)\balone\b`)
 
-// aloneLookBack is how many words back the governing verb is looked for: `leave the actor alone`.
-const aloneLookBack = 3
+// The governing verb of `leave the actor alone` stands three words back.
+const aloneLookBackWords = 3
 
 // aloneStandsAfter is the pronouns the word follows in its ordinary sense. aloneStandsUnder, the
 // table beside it, is the verbs that take it: `leave it alone`, `the header stands alone`.
@@ -153,7 +152,7 @@ var aloneStandsUnder = map[string]bool{"leave": true, "leaves": true, "left": tr
 // finding. `before` is the text up to the word.
 func aloneIsIdiom(before string) bool {
 	words := strings.Fields(before)
-	for at := len(words) - 1; at >= 0 && at > len(words)-1-aloneLookBack; at-- {
+	for at := len(words) - 1; at >= 0 && at > len(words)-1-aloneLookBackWords; at-- {
 		word := strings.ToLower(strings.Trim(words[at], "`*_,.;:()\"'"))
 		if aloneStandsUnder[word] {
 			return true
@@ -309,17 +308,17 @@ func stripMarker(raw string) string {
 			return strings.TrimSpace(line[len(marker):])
 		}
 	}
-	// A lone `*` is a continuation marker only where a space or the end of the line follows, which is
-	// the rule isComment applies. Stripped unconditionally, the `**Bold**` opening a starless line
-	// inside a `/* */` block becomes `*Bold**`: the bold check cannot fire and the echoed text is
-	// corrupt. The two have to agree, or a line counts as a comment and is then read as something else.
+	// Stripped unconditionally, the `**Bold**` opening a starless line inside a `/* */` block becomes
+	// `*Bold**`: the bold check cannot fire and the echoed text is corrupt.
 	if rest, marked := continuation(line); marked {
 		return strings.TrimSpace(rest)
 	}
 	return line
 }
 
-// continuation reads a `*` or `*/` continuation marker, returning what follows it.
+// continuation reads a `*` or `*/` continuation marker, returning what follows it. A space or the end
+// of the line has to follow the marker. `*ptr = 1` and `*/2` are code, and dense arithmetic read as a
+// comment would count as dense prose.
 func continuation(line string) (string, bool) {
 	rest := ""
 	switch {
@@ -597,7 +596,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
 		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
 		found = append(found, s.longLines(file, b, lines)...)
-		limit := voiceLongBlock
+		limit := maxBlockTextLines
 		header := b.isFileHeader(lines, held)
 		// A file header stands apart from the code under it. The strip takes the blank line under a
 		// header with the header, and three rewritten headers of run 8 then sat directly on an import.
@@ -607,7 +606,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 				Text: strings.TrimSpace(whole[b.end])})
 		}
 		if header {
-			limit = voiceLongHeader
+			limit = maxHeaderTextLines
 		}
 		if n := b.textLines(lines); n > limit {
 			text := fmt.Sprintf("%d text lines, over %d", n, limit)
@@ -622,7 +621,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf))...)
 		found = append(found, doubtIn(file, b.start, b.end, lines, proseOf)...)
 	}
-	if !isTestFile(file) {
+	if !IsTestFile(file) {
 		found = append(found, doubtInStrings(file, lines, held)...)
 	}
 	return found
@@ -673,11 +672,9 @@ func doubtInStrings(file string, lines []string, held present) []Finding {
 	return found
 }
 
-// IsTestFile says the file is a unit test's own. The carried stage reads no carrier there.
-func IsTestFile(file string) bool { return isTestFile(file) }
-
-// isTestFile is a unit test's own file, whose strings are fixtures and quote whatever the case needs.
-func isTestFile(file string) bool {
+// IsTestFile says the file is a unit test's own, whose strings are fixtures and quote whatever the case
+// needs.
+func IsTestFile(file string) bool {
 	base := path.Base(file)
 	return strings.HasSuffix(base, "_test.go") || strings.Contains(base, ".test.") ||
 		strings.Contains(base, ".spec.")
@@ -779,8 +776,6 @@ func participialPhrase(read string) []int {
 	return nil
 }
 
-// scanSegment is every check over one segment, and the only place a check runs. One function, so the
-// three profiles cannot drift into reading the same sentence differently.
 // Three shapes a reviewer read as confusing, each counted on sixty files of reviewed code before it
 // became a check. comment-census holds the counts and the samples behind them.
 //
@@ -804,7 +799,6 @@ var (
 	// A verb the sentence borrows from a clause before it, which the reader supplies again. 1 of 711.
 	reElidedVerb = regexp.MustCompile(`(?i)\b(as|than|like|so)\s+(the|a|an|its|their)\s+\w+\s+(does|do|did)\b`)
 
-	// `no` before a comparative is the ordinary word, as in "saying no more than itself".
 	reComparativeTail = regexp.MustCompile(`(?i)^\s+(more|longer|further|fewer|less|worse|better)\b`)
 )
 
@@ -818,6 +812,8 @@ func SentenceShapes() map[string][]*regexp.Regexp {
 	}
 }
 
+// scanSegment is every check over one segment, and the only place a check runs. One function, so the
+// three profiles cannot drift into reading the same sentence differently.
 func (s scanner) scanSegment(file string, seg segment) []Finding {
 	if seg.text == "" {
 		return nil
@@ -894,11 +890,8 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		coinedIn = ""
 	}
 	for _, word := range s.coinedTerms() {
-		// Group 1 is the word itself; the pattern matches the characters either side of it so the
-		// boundary holds outside ASCII, and those are not part of what a reader is shown.
-		// Advanced to the end of the WORD rather than the end of the match. The pattern matches the
-		// characters either side of the word so the boundary holds outside ASCII, and a scan that
-		// resumed past them would swallow the separator — `rung rung` reporting once.
+		// Group 1 is only the word, and the scan resumes at its end. A scan resuming past the boundary
+		// characters the pattern matched would swallow the separator — `rung rung` reporting once.
 		for from := 0; from < len(coinedIn); {
 			at := coinedPattern(word).FindStringSubmatchIndex(coinedIn[from:])
 			if at == nil {
@@ -956,13 +949,13 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 		// The count reads `text`, because blanking an inline code span leaves spaces behind. A backticked
 		// identifier is a word on the page, and the blanked form drops it.
-		if len(strings.Fields(text[span[0]:span[1]])) > voiceLongSentence {
+		if len(strings.Fields(text[span[0]:span[1]])) > maxSentenceWords {
 			add(checkLongSentence, span[0], span[1])
 		}
-		if len(reConnective.FindAllString(rePrepositionWhich.ReplaceAllString(read, " "), -1)) >= voiceClauseDepth {
+		if len(reConnective.FindAllString(rePrepositionWhich.ReplaceAllString(read, " "), -1)) >= flaggedConnectivesPerSentence {
 			add(checkClauseDepth, span[0], span[1])
 		}
-		if len(reNegation.FindAllString(read, -1)) >= voiceNegations {
+		if len(reNegation.FindAllString(read, -1)) >= flaggedNegationsPerSentence {
 			add(checkDoubleNeg, span[0], span[1])
 		}
 		// A sentence carrying one semicolon joins two clauses, whatever the tail's length. Several
@@ -970,7 +963,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		// book` is three fields where three sentences would each run longer.
 		if all := reSemicolon.FindAllStringIndex(read, -1); len(all) > 0 {
 			tail := len(strings.Fields(read[all[0][1]:]))
-			if (len(all) == 1 && !s.inCell) || tail >= voiceClauseTail {
+			if (len(all) == 1 && !s.inCell) || tail >= minClauseTailWords {
 				add(checkSemicolon, span[0], span[1])
 			}
 		}
@@ -1074,7 +1067,7 @@ func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int
 	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
 	// stopped, and the register checks passed every one, because their prose was sound.
 	record := false
-	// `--file` names the file the block goes into. The tie bound reads its other blocks.
+	// `--file` names the file the block goes into.
 	tieFile := ""
 	// A PR body and a ticket each have a width, and `--kind` reads the prose as one of them.
 	kind := ""
@@ -1140,16 +1133,11 @@ flags:
 
 	s := scanner{profile: profile, record: record, kind: kind, notice: func(line string) { out.note("%s", line) }}
 	if tieFile != "" {
-		path := tieFile
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(cwd, path)
-		}
-		body, err := os.ReadFile(path)
+		lines, err := readTieFile(cwd, tieFile)
 		if err != nil {
-			return out.refuseArguments(fmt.Errorf("--file names %s, which cannot be read — the scan did NOT run",
-				shell.Echoable(tieFile)))
+			return out.refuseArguments(err)
 		}
-		s.tieLines = shell.SplitLines(string(body))
+		s.tieLines = lines
 	}
 	if kind != "" || profile == ProfileComment {
 		root := cwd
@@ -1186,6 +1174,19 @@ flags:
 		return out.refuse(err)
 	}
 	return reportVoice(out, profile, found, over)
+}
+
+// readTieFile reads the file `--file` names, relative to cwd, or refuses where it cannot be read.
+func readTieFile(cwd, named string) ([]string, error) {
+	path := named
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(cwd, path)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("--file names %s, which cannot be read — the scan did NOT run", shell.Echoable(named))
+	}
+	return shell.SplitLines(string(body)), nil
 }
 
 // namesRevisions says the first argument is a revision. Writer I of run 10 asked `--source` for a
@@ -1558,8 +1559,6 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 	return found, nil
 }
 
-// reportVoice prints the findings sorted, then a denominator on stderr. Sorted rather than in scan
-// order so two runs over one tree print one report and a diff of two runs is the change.
 // scanned is what a run covered, so an empty report can be told from an empty scan. diffscan's own
 // header states the rule: the denominator is contract, not decoration.
 type scanned struct {
@@ -1567,6 +1566,8 @@ type scanned struct {
 	declined int
 }
 
+// reportVoice prints the findings sorted, then a denominator on stderr. The sort makes two runs over one
+// tree print one report, so a diff of two runs is the change.
 func reportVoice(out console, profile Profile, found []Finding, over scanned) int {
 	sort.SliceStable(found, func(i, j int) bool {
 		if found[i].File != found[j].File {
@@ -1663,7 +1664,6 @@ func tally(parts []string) string {
 // A hyphenated pair in prose, and the identifier words a file spells outside its comments.
 var reHyphenPair = regexp.MustCompile(`\b([a-z]+)-([a-z]+)\b`)
 var reIdentifierWord = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
-var reCamelBreak = regexp.MustCompile(`([a-z0-9])([A-Z])`)
 
 // identifierWordsOf collects what a file's identifiers spell, lowercased: each whole identifier, and
 // each adjacent pair of its camel humps joined. A compound in prose is matched against the pairs,
@@ -1673,7 +1673,7 @@ func identifierWordsOf(lines []string) map[string]bool {
 	for _, line := range lines {
 		for _, word := range reIdentifierWord.FindAllString(line, -1) {
 			out[strings.ToLower(word)] = true
-			humps := strings.Fields(reCamelBreak.ReplaceAllString(word, "$1 $2"))
+			humps := strings.Fields(camelHump.ReplaceAllString(word, "$1 $2"))
 			for i := 0; i+1 < len(humps); i++ {
 				out[strings.ToLower(humps[i]+humps[i+1])] = true
 			}
@@ -1740,21 +1740,21 @@ func declaredAt(lines []string, b block) map[string]bool {
 	// lines end, and the rest of that same comment then stands between the block and the declaration.
 	// A walk stopping there would read the prose as the declaration and exempt every word of it.
 	at := b.end + 1
-	for at <= len(lines) && at <= b.end+declarationSearch {
+	for at <= len(lines) && at <= b.end+maxLinesToDeclaration {
 		line := strings.TrimLeft(lines[at-1], shell.SpaceBytes)
 		if line != "" && !isComment(line) && !isShebang(at, line) {
 			break
 		}
 		at++
 	}
-	if at > len(lines) || at > b.end+declarationSearch {
+	if at > len(lines) || at > b.end+maxLinesToDeclaration {
 		return out
 	}
 	// The declaration's first run of lines counts with it, up to a blank line or another comment. A note
 	// on a function names what the body under it does, and a name that body spells sits in front of the
 	// reader. k19 and k21 had every first draft sent back for local names declared three lines under the
 	// block.
-	for end := at; end <= len(lines) && end < at+bodySearch; end++ {
+	for end := at; end <= len(lines) && end < at+bodyLinesInView; end++ {
 		line := strings.TrimLeft(lines[end-1], shell.SpaceBytes)
 		if end > at && (line == "" || isComment(line)) {
 			break
@@ -1766,10 +1766,8 @@ func declaredAt(lines []string, b block) map[string]bool {
 	return out
 }
 
-// bodySearch bounds how much of the body under a block counts as in front of its reader.
-const bodySearch = 30
+const bodyLinesInView = 30
 
-// How far under a block the declaration may sit before the line found is no longer the block's own.
-// The gap holds a comment's remaining lines and the blanks around them. A bound well over the
-// longest block stops a runaway walk from exempting a name off unrelated code.
-const declarationSearch = 60
+// The gap between a block and its declaration holds a comment's remaining lines and the blanks around
+// them. A bound well over the longest block stops a runaway walk from exempting a name off unrelated code.
+const maxLinesToDeclaration = 60

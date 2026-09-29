@@ -162,9 +162,8 @@ var reDataKeyword = regexp.MustCompile(`^\s*(export\s+)?(declare\s+)?(default\s+
 var reValueLine = regexp.MustCompile(`^\s*(export\s+)?((const|let|var|readonly|static|private|public|protected|declare)\s+)*([A-Za-z_$][\w$]*|\[[\w$.]+\])\??\s*[:=]`)
 
 // dataDeclaration says the declaration under the block holds values and performs no act. That is an
-// enum, an interface, a type, or a constant or field whose value is data, at any length. `does` may be
-// `none` there, because the value beneath is the tie. Run 9 read an opening brace as a body, and five
-// writers filled `does` on data to get past it.
+// enum, an interface, a type, or a constant or field whose value is data, at any length. Run 9 read an
+// opening brace as a body, and five writers filled `does` on data to get past it.
 func dataDeclaration(body []string) bool {
 	for _, line := range body {
 		if strings.TrimSpace(line) == "" {
@@ -209,11 +208,9 @@ func RecordFindings(file string, lines []string) []Finding {
 		out = append(out, Finding{file, at, checkRecordElsewhere,
 			fmt.Sprintf("%s is declared nowhere under this block", bearsOn)})
 	}
-	// The note never names the declaration it sits on, and the record keeps the name. A reviewer's eye
-	// jumped to each such name in run 13 to check it was the current one. A name another interface
-	// qualifies, such as `LedgerBook.SETTLED` over `SETTLED`, is that interface's.
-	//
-	// A check that the block said this function put the phrase in 50 of 72 blocks, and it went.
+	// A reviewer's eye jumped to each name of the declaration under a block in run 13 to check it was
+	// the current one. A name another interface qualifies, such as `LedgerBook.SETTLED` over `SETTLED`,
+	// is that interface's.
 	blockText := strings.Join(block, "\n")
 	own := declaredName(body) == bearsOn
 	switch {
@@ -225,9 +222,8 @@ func RecordFindings(file string, lines []string) []Finding {
 			fmt.Sprintf("the block never says %s", bearsOn)})
 	}
 
-	// A declaration holding values opens on its verb, as "Names settlement profile 5", and a value
-	// performs no act. The reviewer of 2026-09-29 cut "This member" from a block and read "this constant
-	// keeps the media type" as the value acting.
+	// The reviewer of 2026-09-29 cut "This member" from a block, and read a constant said to keep part of
+	// a type as the value acting.
 	if dataDeclaration(body) && reValueThisOpens.MatchString(blockText) {
 		out = append(out, Finding{file, at, checkValueThisOpens,
 			"the block opens on this member, this row or this constant; open on the verb, as Names or Marks"})
@@ -254,7 +250,7 @@ func RecordFindings(file string, lines []string) []Finding {
 }
 
 // namesSomethingIn says the phrase shares one segment with the set. One segment is enough: a tie
-// reading `takes the FairPlay path` names the branch by `Fairplay`, and `path` is the English around
+// reading `takes the Deferred path` names the branch by `Deferred`, and `path` is the English around
 // it.
 func namesSomethingIn(phrase string, set map[string]bool) bool {
 	for segment := range recordSegments(phrase) {

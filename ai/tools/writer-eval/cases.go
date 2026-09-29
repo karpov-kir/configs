@@ -12,7 +12,7 @@ import (
 
 // Case is one labelled site: the code as the writer sees it, the facts file the strip left beside
 // it, and the class the label expects. The code carries no comment block, because the strip removes
-// every block before the writer reads a file.
+// every block before the writer reads a file, unless Kept says the case holds blocks a keep left.
 type Case struct {
 	Name   string
 	Expect Expected
@@ -25,9 +25,8 @@ type Case struct {
 	// a caller does to the site's result. A writer shown no callers reads every caller as hypothetical
 	// and leaves the consequence out, which is what a run did on 2026-09-21 at a site with two.
 	Callers string
-	// Tests is what the change set's tests hold about this site. Question 3 greps them for a fact
-	// before it keeps a claim. A `carried by <test>` label needs them. Without them the writer greps
-	// an empty set and keeps the claim, which the text in front of it asks for.
+	// Tests is what the change set's tests hold about this site. A test is never a carrier, and a case
+	// shows one where a writer could route a claim to it, which the case then withholds.
 	Tests string
 	// WantSummary and WantNote are what a case expects of each part, where it cares. An empty field
 	// leaves the case scored on the site alone.
@@ -62,13 +61,13 @@ type Case struct {
 	Returns   []string
 	Withholds []string
 	// Kept says the code holds blocks a keep left standing, which the strip leaves in the file. The
-	// writer reads them, and a return copying them is scored without them. A tie opening a file already
+	// keeps and bars checks read a return without their lines, and the other checks read it whole. A tie opening a file already
 	// uses twice is the third block's to vary, and only a file with blocks in it can show that.
 	Kept bool
 }
 
 // ExpectCarried is a site whose claim belongs somewhere else in the tree: a field on the data row it
-// describes, a test, a lint rule. The writer returns where it goes and writes no block.
+// describes, a type, a lint rule. The writer returns where it goes and writes no block.
 const ExpectCarried Expected = "carried"
 
 // ExpectRename is a site whose own identifier carries a coined compound. The writer returns the
@@ -286,18 +285,12 @@ func JudgeCase(c Case, r Return) Verdict {
 	}
 	want(c.WantSummary, "summary", r.Summary)
 	want(c.WantNote, "note", r.Note)
-	// A block the writer never wrote fails on its part already, and reporting the wording too would
-	// count one miss twice.
 	text := strings.ToLower(r.Text())
 	if c.Kept {
-		for _, line := range strings.Split(c.Code, "\n") {
-			if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "//") {
-				if kept := strings.TrimSpace(strings.TrimPrefix(trimmed, "//")); kept != "" {
-					text = strings.ReplaceAll(text, strings.ToLower(kept), "")
-				}
-			}
-		}
+		text = withoutKeptLines(text, c.Code)
 	}
+	// A block the writer never wrote fails on its part already, and reporting the wording too would
+	// count one miss twice.
 	if r.Block != "" {
 		for _, group := range c.Keeps {
 			kept := false
@@ -310,7 +303,6 @@ func JudgeCase(c Case, r Return) Verdict {
 			}
 		}
 	}
-	// A block the writer never wrote fails on its part already.
 	if c.Lands != "" && r.Block != "" {
 		if at := DeclaredAt(c.Code, c.Lands); at == 0 {
 			v.Failures = append(v.Failures, Failure{"case-names-no-such-declaration", c.Lands})
@@ -343,6 +335,21 @@ func JudgeCase(c Case, r Return) Verdict {
 		}
 	}
 	return v
+}
+
+// withoutKeptLines removes from the lower-cased text each `//` line the case's code already holds, so
+// what is left is the writer's own words.
+func withoutKeptLines(text, code string) string {
+	for _, line := range strings.Split(code, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		if kept := strings.TrimSpace(strings.TrimPrefix(trimmed, "//")); kept != "" {
+			text = strings.ReplaceAll(text, strings.ToLower(kept), "")
+		}
+	}
+	return text
 }
 
 // DeclaredAt is the line of the first declaration holding `what`, or zero where the code holds none.
