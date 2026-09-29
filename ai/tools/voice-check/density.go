@@ -144,8 +144,7 @@ func (s *stats) add(other stats) {
 	s.longBlocks += other.longBlocks
 }
 
-// Three modes, one question each. Bare is the register check and exits 1 on findings. `--carriers`
-// reads a change set's landings against the archived blocks. `--density`
+// Each mode answers one question. Bare is the register check and exits 1 on findings. `--density`
 // reports a change set's comment lines beside the host repository's rate, and always exits 0,
 // because no edit turns on that figure. `--density` selects the mode only as the first argument.
 // Later in the arguments it is an option like any other, and refused as one.

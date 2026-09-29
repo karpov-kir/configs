@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 	"configs/ai/tools/shell"
 )
 
@@ -86,13 +86,13 @@ func writeThirdTieFixture(t *testing.T) (string, string, string) {
 	return dir, source, record
 }
 
-// The bound reads the file only where the writer names it. The keep criteria run only RecordFindings,
+// The bound reads the file only where the writer names it. A kept block is read only by RecordFindings,
 // so a kept block is never reopened by a neighbour written after it.
 func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 	dir, source, record := writeThirdTieFixture(t)
 	run := func(args ...string) (int, string) {
 		var out, errOut strings.Builder
-		code := Run("voice-check.sh", args, dir, repo.Exec{}, baseConfig(), &out, &errOut)
+		code := Run("voice-check.sh", args, dir, repotest.New(dir), baseConfig(), &out, &errOut)
 		return code, out.String() + errOut.String()
 	}
 	if code, text := run("--profile=comment", "--source", "--record", "--file="+source, record); code != 1 || !strings.Contains(text, checkTieRepeated) {
@@ -110,7 +110,7 @@ func TestTheFileBoundRunsOnlyWithFile(t *testing.T) {
 func TestTheTallyNamesAFileBoundFinding(t *testing.T) {
 	dir, source, record := writeThirdTieFixture(t)
 	var out, errOut strings.Builder
-	Run("voice-check.sh", []string{"--profile=comment", "--source", "--record", "--file=" + source, record}, dir, repo.Exec{}, baseConfig(), &out, &errOut)
+	Run("voice-check.sh", []string{"--profile=comment", "--source", "--record", "--file=" + source, record}, dir, repotest.New(dir), baseConfig(), &out, &errOut)
 	if !strings.Contains(errOut.String(), checkTieRepeated+" 2") {
 		t.Fatalf("the tally leaves the file bound out:\n%s", errOut.String())
 	}

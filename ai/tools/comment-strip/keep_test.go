@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"configs/ai/tools/repo/repotest"
 	"configs/ai/tools/shell"
 )
 
@@ -65,7 +66,6 @@ func TestABlockWhoseRecordHoldsStandsAsWritten(t *testing.T) {
 	}
 }
 
-// A changed rule, a changed body, a contradiction and a review sending the block back each reopen it.
 func TestAKeptBlockReopensOnARuleABodyAContradictionOrAReview(t *testing.T) {
 	cases := map[string]func(t *testing.T, f *fixture, archive string) []string{
 		"a changed rule": func(t *testing.T, f *fixture, archive string) []string {
@@ -258,7 +258,6 @@ func TestARenameReachesTheArchivedBlock(t *testing.T) {
 	}
 }
 
-// A rename blesses no other change to the code under a block.
 func TestARenameLeavesAnotherCodeChangeReopening(t *testing.T) {
 	rulesHome(t, "rules one ")
 	f := newFixture(t, "f.ts", hostSource)
@@ -344,32 +343,17 @@ func TestATestIsNeverACarrier(t *testing.T) {
 	}
 }
 
-// The verb "tests" is a verb. A message carrier ending "that the branch tests" stays a carrier.
 func TestAVerbNamedTestsIsNoTest(t *testing.T) {
 	if namesATest("`SkipException` message naming the platform that the branch tests; block deleted") {
 		t.Fatal("a message carrier was read as a test")
 	}
 }
 
-// A carrier name spelled only inside a unit test's file does not stand.
 func TestACarrierSpelledOnlyInATestDoesNotStand(t *testing.T) {
-	dir := t.TempDir()
-	for name, body := range map[string]string{
+	dir := repotest.Staged(t, map[string]string{
 		"src/claims.ts":      "export function claimFor() {}\n",
 		"src/claims.test.ts": "const ASKS_ONCE = true;\n",
-	} {
-		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}} {
-		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	})
 	if carrierStands(dir, filepath.Join(dir, "src/claims.ts"), "`ASKS_ONCE`") {
 		t.Fatal("a name only a test spells held a carried block")
 	}

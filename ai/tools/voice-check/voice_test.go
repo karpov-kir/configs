@@ -300,8 +300,8 @@ func TestASentenceThatWrapsAcrossTwoLinesIsReadWhole(t *testing.T) {
 	}
 }
 
-// The same for a paragraph in a rule file, which wraps in a repository file and does not in a field
-// you type into. Both shapes reach the prose and instruction profiles.
+// A paragraph in a rule file wraps in a repository file and does not in a field you type into. Both
+// shapes reach the prose and instruction profiles whole.
 func TestAWrappedParagraphInAProseFileIsReadWhole(t *testing.T) {
 	wrapped := []string{"State the fact rather", "than the alternative.", "", "A second paragraph."}
 	found := scanner{profile: ProfileInstruction}.scanProse("x.md", wrapped)
@@ -602,8 +602,8 @@ func TestABlockInADiffDoesNotInheritTheFileHeadersAllowance(t *testing.T) {
 	}
 }
 
-// The same block at the top of a new file is a header and keeps the header's allowance, so the fix
-// above does not simply delete the allowance.
+// A five-line block at the top of a new file is a header and keeps the header's allowance, so the
+// long-block check still leaves a header its own bound.
 func TestARealFileHeaderInADiffKeepsItsAllowance(t *testing.T) {
 	lines := []string{"/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */", "const a = 1;"}
 	within := map[int]bool{}
@@ -677,8 +677,8 @@ func TestASecretNamedFileIsDeclinedUnreadAndSaidSo(t *testing.T) {
 	r.expectStderrHas("secret")
 }
 
-// The same sentence in a file with an ordinary name is reported, so the case above measures the guard
-// and not the check going quiet.
+// A sentence the guard spares in a named file is reported in a file with an ordinary name, so the guard
+// is what spares it and the check never goes quiet.
 func TestTheSameSentenceInAnOrdinaryFileIsStillReported(t *testing.T) {
 	r := newRepo(t)
 	r.write("keep.go", "package fixture\n")
@@ -907,7 +907,7 @@ func TestATermDefinedWithInWhichIsNotAClauseDepthFinding(t *testing.T) {
 	s := scanner{profile: ProfileComment}
 	note := "// Drops a posting book in which no posting declares the currency, because narrowing would empty it."
 	if hasCheck(s.scanSource("f.ts", []string{note}, nil, nil), checkClauseDepth) {
-		t.Errorf("%q is the wording rule t asks for and it produced a clause-depth finding", note)
+		t.Errorf("%q is the wording the Terms rule asks for and it produced a clause-depth finding", note)
 	}
 }
 

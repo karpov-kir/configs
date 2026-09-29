@@ -27,22 +27,22 @@ const (
 // to a test's name, and eight were a why or an ordering the reader of the site then lacked.
 var reTestTitle = regexp.MustCompile(`\b(?:it|test|describe)(?:\.\w+)?\s*\(\s*(['"\x60])(.*?)['"\x60]`)
 
-// carrierRunWords is how many words in a row a string shares with a block before it is the block's
+// minQuotedRunWords is how many words in a row a string shares with a block before it is the block's
 // prose moved into a value.
-const carrierRunWords = 6
+const minQuotedRunWords = 6
 
 // A declared name longer than this is a sentence.
 const maxCarrierNameWords = 5
 
 var reCarrierWord = regexp.MustCompile(`[a-z0-9]+`)
 
-// wordRuns lists the text's word runs, lower-cased and in order, each as long as carrierRunWords, the
+// wordRuns lists the text's word runs, lower-cased and in order, each as long as minQuotedRunWords, the
 // run length.
 func wordRuns(text string) []string {
 	words := reCarrierWord.FindAllString(strings.ToLower(text), -1)
 	var out []string
-	for i := 0; i+carrierRunWords <= len(words); i++ {
-		out = append(out, strings.Join(words[i:i+carrierRunWords], " "))
+	for i := 0; i+minQuotedRunWords <= len(words); i++ {
+		out = append(out, strings.Join(words[i:i+minQuotedRunWords], " "))
 	}
 	return out
 }
@@ -110,23 +110,11 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 			if !message {
 				found = append(found, quotedBlockFindings(file, line, archived)...)
 			}
-			// A sentence-named carrier holds a value. A function or a type named at length carries no
-			// fact moved out of a block, and run 11 flagged a six-word function name.
-			var names []string
-			for _, m := range reValueName.FindAllStringSubmatch(line.text, -1) {
-				names = append(names, m[1])
-			}
-			for _, name := range names {
-				if nameWords(name) > maxCarrierNameWords {
-					found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierSentence, Text: name})
-				}
-			}
-			for _, re := range []*regexp.Regexp{reValueName, reTypeMember} {
-				for _, m := range re.FindAllStringSubmatch(line.text, -1) {
-					if _, seen := declaredAt[m[1]]; !seen {
-						declaredAt[m[1]] = Finding{File: file, Line: line.at, Check: checkCarrierUnread, Text: m[1]}
-						unreadCandidates = append(unreadCandidates, m[1])
-					}
+			found = append(found, sentenceNameFindings(file, line)...)
+			for _, name := range lineDeclarations(line.text) {
+				if _, seen := declaredAt[name]; !seen {
+					declaredAt[name] = Finding{File: file, Line: line.at, Check: checkCarrierUnread, Text: name}
+					unreadCandidates = append(unreadCandidates, name)
 				}
 			}
 		}
@@ -179,6 +167,30 @@ func testTitleFindings(file string, lines []addedLine, archived map[string]bool)
 		}
 	}
 	return found
+}
+
+// sentenceNameFindings reports each value the line declares under a name of more words than a carrier
+// name holds. A function or a type named at length carries no fact moved out of a block, and run 11
+// flagged a six-word function name.
+func sentenceNameFindings(file string, line addedLine) []Finding {
+	var out []Finding
+	for _, m := range reValueName.FindAllStringSubmatch(line.text, -1) {
+		if nameWords(m[1]) > maxCarrierNameWords {
+			out = append(out, Finding{File: file, Line: line.at, Check: checkCarrierSentence, Text: m[1]})
+		}
+	}
+	return out
+}
+
+// lineDeclarations is each constant, variable or type member the line declares.
+func lineDeclarations(text string) []string {
+	var out []string
+	for _, re := range []*regexp.Regexp{reValueName, reTypeMember} {
+		for _, m := range re.FindAllStringSubmatch(text, -1) {
+			out = append(out, m[1])
+		}
+	}
+	return out
 }
 
 // readsAnywhere says one of the lines reads the name, and does more than declare or assign it.

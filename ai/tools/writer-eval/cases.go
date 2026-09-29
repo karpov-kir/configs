@@ -61,8 +61,9 @@ type Case struct {
 	Returns   []string
 	Withholds []string
 	// Kept says the code holds blocks a keep left standing, which the strip leaves in the file. The
-	// keeps and bars checks read a return without their lines, and the other checks read it whole. A tie opening a file already
-	// uses twice is the third block's to vary, and only a file with blocks in it can show that.
+	// keeps and bars checks read a return without their lines, and the other checks read it whole.
+	// A tie opening a file already uses twice is the third block's to vary, and only a file with
+	// blocks in it can show that.
 	Kept bool
 }
 

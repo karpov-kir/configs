@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"configs/ai/tools/repo"
+	"configs/ai/tools/repo/repotest"
 )
 
 // addedFrom builds the added lines of one file, and the first is line 1.
@@ -89,7 +90,6 @@ func TestARealCarrierPasses(t *testing.T) {
 	}
 }
 
-// A constant whose only line is its own declaration has no reader.
 func TestAConstantNobodyReadsIsUnread(t *testing.T) {
 	added := addedFrom("src/Ledger.ts", "export const CLOSING_NOTE = 'closing';")
 	got := carrierChecks(t, []string{"// unrelated block of six or more words here"}, added,
@@ -190,23 +190,10 @@ func TestATestNamedForTheFactIsNoCarrier(t *testing.T) {
 }
 
 func TestAReadInsideATestIsNoRead(t *testing.T) {
-	dir := t.TempDir()
-	for name, body := range map[string]string{
+	dir := repotest.Staged(t, map[string]string{
 		"src/Retry.ts":      "export const POSTING_RETRIES = 3;\n",
 		"src/Retry.test.ts": "expect(retry(POSTING_RETRIES)).toBe(3);\n",
-	} {
-		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}} {
-		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
+	})
 	held, err := gitTree(dir)([]string{"POSTING_RETRIES"})
 	if err != nil {
 		t.Fatal(err)
