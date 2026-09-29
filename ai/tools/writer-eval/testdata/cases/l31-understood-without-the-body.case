@@ -1,18 +1,18 @@
 expect: written
 note: written
 keeps: whether
-bars: returns true | returns false | \bhasrateatall\b
-why: run 16 wrote that a function asks without a mode and returns true where the platform ignores the mode; what the function tells its caller, and why asking that way gives it, was reached only by reading the body and the caller; Kirill: the reader should not have to open the implementation to understand the comment, so a reader holding the block and the signature alone says what the result tells the caller, and the caller's need as its reason. Re-cut 2026-09-29 under §97 to another fact of the class, since the brief's exemplar now carries the original; its earlier figures no longer compare.
+bars: returns true | returns false | \bproberateservice\b
+why: run 16 wrote that a function asks without a mode and returns true where the platform ignores the mode; what the function tells its caller, and why asking that way gives it, was reached only by reading the body and the caller; Kirill: the reader should not have to open the implementation to understand the comment, so a reader holding the block and the signature alone says what the result tells the caller, and the caller's need as its reason. Re-cut 2026-09-29 under §97 to another fact of the class, and under §98 to a name that leaves the outcome unsaid; its earlier figures no longer compare.
 labelled: 2026-09-29
 --- code
-export async function hasRateAtAll(currency: string): Promise<boolean> {
+export async function probeRateService(currency: string): Promise<boolean> {
   const quotes = await rateService.quotes({ currency });
   return quotes.length > 0;
 }
 --- callers
 // revaluation/Revaluation.ts
 export async function revalue(book: LedgerBook): Promise<void> {
-  if (!(await hasRateAtAll(book.currency))) {
+  if (!(await probeRateService(book.currency))) {
     return;
   }
 
