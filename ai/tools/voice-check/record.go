@@ -225,7 +225,7 @@ func RecordFindings(file string, lines []string) []Finding {
 			fmt.Sprintf("the block never says %s", bearsOn)})
 	}
 
-	// A declaration holding values opens on its verb, as "Names Dolby Vision profile 5", and a value
+	// A declaration holding values opens on its verb, as "Names settlement profile 5", and a value
 	// performs no act. The reviewer of 2026-09-29 cut "This member" from a block and read "this constant
 	// keeps the media type" as the value acting.
 	if dataDeclaration(body) && reValueThisOpens.MatchString(blockText) {

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Within one file a connector, or a "this <noun>" subject, stands in at most three blocks. A reviewer
+// Within one file a connector, or a "this <noun>" subject, stands in at most two blocks. A reviewer
 // read 72 blocks on 2026-09-29, 27 tied with "so" and 25 with "this function". He counted each apart.
 
 // The bound reads the file the writer holds at write time, and the keep criteria leave it out.

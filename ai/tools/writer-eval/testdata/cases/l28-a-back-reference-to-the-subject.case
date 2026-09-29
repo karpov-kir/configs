@@ -3,7 +3,7 @@ note: written
 site: 2
 keeps: 2024
 bars: ledgers from 2024 and 2025[\s\S]*ledgers from 2024 and 2025
-why: rule l's ban on every back-reference wrote "LG televisions from 2024 and 2025" twice in two sentences; a pronoun may stand for the subject of the sentence before it, and repeating a long subject makes the reader compare the two
+why: rule l's ban on every back-reference wrote one long subject, a vendor's devices of two model years, twice in two sentences; a pronoun may stand for the subject of the sentence before it, and repeating a long subject makes the reader compare the two
 labelled: 2026-09-29
 --- code
 export const clearingCatalogue: Record<Clearing, ClearingRow> = {

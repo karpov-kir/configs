@@ -88,7 +88,7 @@ export function snapshotPostings(list: LivePostingList): Posting[] {
 export function formatPostingCellName(format: PostingFormat, scheme: SettlementScheme): string {
 ```
 
-The first is a file header, and it leaves the file's own name unsaid. The sixth explains a number no consequence explains: a specification permits
+The sixth explains a number no consequence explains: a specification permits
 anything and a person chose forty. The eleventh reads its fact from the callers you found, and the
 copy is the act their removal explains.
 
@@ -171,14 +171,14 @@ A `long-line` finding is a line to wrap at the width it names. Wrap it and run t
 Then read the block as the engineer opening this file for the first time, with the body under its line covered. A no to any of these is a rewrite, and a block still failing one after the second rewrite is `none`, its facts returned as `does not fit`.
 
 1. Can you say what the code gives its caller and why, from the block and its line alone?
-2. Does it say the outcome, with the means only where the outcome needs it?
+2. Does it say the outcome, with the means only where the outcome needs it, and no return value or string operation as the point?
 3. Is every term one a reader knows or one the block says?
 4. Does each sentence follow from the sentence before it, with a connector only where there is a cause?
 5. Does the fact belong here, so the block would lose something without it?
 6. Are the words plain, with a name only for a platform interface, a constant or a declaration to edit?
 7. Is the declaration unnamed, with a value opening on its verb and a function's subject varied?
-8. Do its connector and its `this <noun>` subject each stand in at most two other blocks of the file, and do siblings share one form?
-9. Does it read once, the concrete thing first and each sentence parsed at one reading?
+8. Do its connector and its `this <noun>` subject each stand in at most two blocks of the file, and do siblings share one form?
+9. Does it read once, the concrete thing first, each sentence parsed at one reading, and a pronoun where a long subject would repeat?
 
 A sentence a reviewer suggested reaches you as a fact at its site, and you answer it the way you answer any site. A sentence under `# code review:` in the facts file says what the code does, as a reviewer read it. Where it contradicts a clause of the old block, drop that clause, and write the note from the review's sentence where you can tie it to the code.
 

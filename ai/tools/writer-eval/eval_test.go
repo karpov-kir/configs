@@ -282,7 +282,8 @@ func TestNoCaseCarriesTheReviewedCodebasesWords(t *testing.T) {
 		t.Fatal(err)
 	}
 	barred := []string{"codec", "fairplay", "widevine", "playready", "drm", "dash",
-		"player", "manifest", "adaptationset", "representation", "mimetype", "cenc", "cbcs"}
+		"player", "manifest", "adaptationset", "representation", "mimetype", "cenc", "cbcs",
+		"dolby", "hevc", "lg televisions"}
 	remote, _ := exec.Command("git", "remote", "get-url", "origin").Output()
 	status, _ := exec.Command("claude", "auth", "status", "--json").Output()
 	names := ownNames(string(remote), string(status))
