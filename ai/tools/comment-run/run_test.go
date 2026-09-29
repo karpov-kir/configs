@@ -254,10 +254,13 @@ func TestTaintReadsARangelessDiffAndAScriptWrite(t *testing.T) {
 	path := transcript(t,
 		[3]string{"Bash", `{"command":"git diff -- ledger.ts"}`, `"@@ -2,3 +2,2 @@\n-// canPost throws for another scheme\n export function claimFor"`},
 		[3]string{"Bash", `{"command":"sed -i '' '3i\\\\// a note' ledger.ts"}`, `""`},
+		[3]string{"Bash", `{"command":"printf 'fact: x' | voice-check.sh --source --record --file=ledger.ts - 2>&1 | tail -3"}`, `"clean"`},
+		[3]string{"Bash", `{"command":"cat new.ts > ledger.ts"}`, `""`},
 		[3]string{"Edit", `{"file_path":"/tree/ledger.ts","old_string":"a","new_string":"b"}`, `"ok"`},
 	)
 	said := c.run("taint", "--ledger="+ledger, path)
-	if said.code != exitFindings || !strings.Contains(said.stdout, "tainted: call 1 ") || !strings.Contains(said.stdout, "script write: call 2 ") {
+	if said.code != exitFindings || !strings.Contains(said.stdout, "tainted: call 1 ") || !strings.Contains(said.stdout, "script write: call 2 ") ||
+		strings.Contains(said.stdout, "script write: call 3 ") || !strings.Contains(said.stdout, "script write: call 4 ") {
 		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }
