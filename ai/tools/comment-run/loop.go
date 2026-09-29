@@ -14,22 +14,15 @@ import (
 	treefingerprint "configs/ai/tools/tree-fingerprint"
 )
 
-// loop sends code-review findings back to a writer at their sites in one file. It records each
-// contradiction first, strips only those sites, adds each review sentence to its facts file and fills
-// one prompt. The fingerprint is the run's own tree: run 14's runner computed it in the wrong one.
+// loop sends a round's review findings back to one writer, at their sites in every file of the round.
+// It records each contradiction first, strips only those sites, adds each review sentence to its facts
+// file and fills one prompt. Run 16 dispatched one loop writer per site, and each paid a writer's
+// start-up. The fingerprint is the run's own tree: run 14's runner computed it in the wrong one.
 
-// Sites are stripped from the last line up, and each strip moves the sites stripped before it up by the
-// lines it removed. Run 16 looped two sites of one file in two calls, and the second prompt named a
-// line the first strip had moved.
 func loop(r *runner, opts options, _ []string) int {
 	runDir, archive, run := opts.one("run-dir"), opts.one("archive"), opts.one("run")
-	type finding struct {
-		line                  int
-		sentence, contradicts string
-		printed               []string
-	}
-	var findings []*finding
-	path, contradicts, site := "", "", ""
+	var findings []*loopFinding
+	contradicts, site := "", ""
 	for _, arg := range opts.order {
 		switch {
 		case strings.HasPrefix(arg, "--contradict="):
@@ -43,11 +36,7 @@ func loop(r *runner, opts options, _ []string) int {
 			if colon <= 0 || err != nil || line < 1 {
 				return r.refuse("%s names no <path>:<line>", shell.Echoable(site))
 			}
-			if path != "" && site[:colon] != path {
-				return r.refuse("%s is another file than %s: loop takes the sites of one file", shell.Echoable(site), shell.Echoable(path))
-			}
-			path = site[:colon]
-			findings = append(findings, &finding{line: line, sentence: arg, contradicts: contradicts})
+			findings = append(findings, &loopFinding{path: site[:colon], line: line, sentence: arg, contradicts: contradicts})
 			contradicts, site = "", ""
 		}
 	}
@@ -69,23 +58,100 @@ func loop(r *runner, opts options, _ []string) int {
 		if f.contradicts == "" {
 			continue
 		}
-		if code := commentstrip.Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=" + run, path,
+		if code := commentstrip.Strip("comment-strip.sh", []string{"--archive=" + archive, "--contradict=" + run, f.path,
 			"line:" + strconv.Itoa(f.line), f.contradicts}, tree, repo.Exec{}, &out, &errOut); code != exitClean {
-			return r.refuse("the strip refused the contradiction at line %d: %s", f.line, shell.Oneline(errOut.String()))
+			return r.refuse("the strip refused the contradiction at %s:%d: %s", shell.Echoable(f.path), f.line, shell.Oneline(errOut.String()))
 		}
 	}
-	var lines []string
-	for _, f := range findings {
-		lines = append(lines, strconv.Itoa(f.line))
-	}
-	name := "loop-" + strings.ReplaceAll(path, "/", "_") + "-" + strings.Join(lines, "-")
+	// One round is one writer, and its name counts the rounds already prompted.
+	previous, _ := filepath.Glob(filepath.Join(runDir, "spawn-writer-loop-round-*.md"))
+	name := fmt.Sprintf("loop-round-%d", len(previous)+1)
 	facts := filepath.Join(runDir, "review-loop", name)
+	var paths []string
+	byPath := map[string][]*loopFinding{}
+	for _, f := range findings {
+		if _, seen := byPath[f.path]; !seen {
+			paths = append(paths, f.path)
+		}
+		byPath[f.path] = append(byPath[f.path], f)
+	}
+	var sites, printed strings.Builder
+	n := 0
+	for _, path := range paths {
+		stripped, err := loopStrip(tree, archive, filepath.Join(facts, strings.ReplaceAll(path, "/", "_")), path, byPath[path])
+		if err != nil {
+			return r.refuse("%v", err)
+		}
+		for i := len(stripped) - 1; i >= 0; i-- {
+			for _, line := range stripped[i].printed {
+				n++
+				at, file, _ := strings.Cut(line, " ")
+				fmt.Fprintf(&sites, "%d. `%s` — facts `%s`\n", n, at, file)
+				fmt.Fprintf(&printed, "%s %s\n", at, filepath.Base(file))
+			}
+		}
+	}
+	fingerprint, err := treefingerprint.Fingerprint(tree)
+	if err != nil {
+		return r.refuse("cannot fingerprint %s: %v", shell.Echoable(tree), err)
+	}
+	home, _ := os.LookupEnv("HOME")
+	template, err := os.ReadFile(filepath.Join(home, spawnTemplate))
+	if err != nil {
+		return r.refuse("cannot read the spawn template at ~/%s", spawnTemplate)
+	}
+	rules, err := writerRules(home)
+	if err != nil {
+		return r.refuse("%v", err)
+	}
+	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
+	emphasis := strings.TrimSpace(string(licence))
+	if emphasis == "" {
+		emphasis = "none"
+	}
+	prompt, err := fill(string(template), map[string]string{
+		"Model": "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch.",
+		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`, tree fingerprint `%s`. Review "+
+			"sent %d block(s) back, and the strip removed them; each facts file carries the review's sentence under "+
+			"`# code review:`. No reusable verdicts.", tree, held["head"], held["base"], fingerprint, n),
+		"Change scope": fmt.Sprintf("the sites review sent back, in `%s`:\n%s\nYou write into those file(s) only. "+
+			verdictSentence+" "+returnSentence(returnFile(runDir, name)), strings.Join(paths, "`, `"), strings.TrimRight(sites.String(), "\n")),
+		"Held by a concurrent lane": "",
+		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
+		"Patch queue":               "",
+		"User-stated emphasis":      emphasis,
+		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> --lines=<line> <file>` at each site, each file's last line first, with its sites as the final tree numbers them:\n```\n" + strings.TrimRight(printed.String(), "\n") + "\n```",
+	}, writerContract)
+	if err != nil {
+		return r.refuse("%v", err)
+	}
+	prompted := filepath.Join(runDir, "spawn-writer-"+name+".md")
+	if err := os.WriteFile(prompted, []byte(prompt+"\n"+rules), 0o644); err != nil {
+		return r.refuse("cannot write %s", shell.Echoable(prompted))
+	}
+	fmt.Fprintln(r.stdout, prompted)
+	return exitClean
+}
+
+// loopFinding is one review sentence at one site, and the sites its strip printed.
+type loopFinding struct {
+	path                  string
+	line                  int
+	sentence, contradicts string
+	printed               []string
+}
+
+// loopStrip strips one file's sites from the last line up, moves each earlier site up by the lines a
+// later strip removed, and adds each review sentence to its facts file. Run 16 looped two sites of one
+// file in two calls, and the second prompt named a line the first strip had moved.
+func loopStrip(tree, archive, facts, path string, findings []*loopFinding) ([]*loopFinding, error) {
 	sort.SliceStable(findings, func(i, j int) bool { return findings[i].line > findings[j].line })
 	height := func() int {
 		body, _ := os.ReadFile(filepath.Join(tree, path))
 		return len(shell.SplitLines(string(body)))
 	}
-	var stripped []*finding
+	var out, errOut strings.Builder
+	var stripped []*loopFinding
 	for _, f := range findings {
 		before := height()
 		out.Reset()
@@ -93,7 +159,7 @@ func loop(r *runner, opts options, _ []string) int {
 		dir := filepath.Join(facts, strconv.Itoa(f.line))
 		if code := commentstrip.Strip("comment-strip.sh", []string{"--facts=" + dir, "--archive=" + archive,
 			"--lines=" + strconv.Itoa(f.line), path}, tree, repo.Exec{}, &out, &errOut); code != 1 {
-			return r.refuse("the strip took no block at %s:%d: %s", shell.Echoable(path), f.line, shell.Oneline(errOut.String()))
+			return nil, fmt.Errorf("the strip took no block at %s:%d: %s", shell.Echoable(path), f.line, shell.Oneline(errOut.String()))
 		}
 		removed := before - height()
 		for _, earlier := range stripped {
@@ -108,59 +174,14 @@ func loop(r *runner, opts options, _ []string) int {
 			name := filepath.Join(dir, file)
 			body, err := os.ReadFile(name)
 			if err != nil {
-				return r.refuse("cannot read %s", shell.Echoable(name))
+				return nil, fmt.Errorf("cannot read %s", shell.Echoable(name))
 			}
 			if err := os.WriteFile(name, append(body, []byte("\n# code review:\n"+f.sentence+"\n")...), 0o644); err != nil {
-				return r.refuse("cannot write %s", shell.Echoable(name))
+				return nil, fmt.Errorf("cannot write %s", shell.Echoable(name))
 			}
 			f.printed = append(f.printed, at+" "+name)
 		}
 		stripped = append(stripped, f)
 	}
-	fingerprint, err := treefingerprint.Fingerprint(tree)
-	if err != nil {
-		return r.refuse("cannot fingerprint %s: %v", shell.Echoable(tree), err)
-	}
-	home, _ := os.LookupEnv("HOME")
-	template, err := os.ReadFile(filepath.Join(home, spawnTemplate))
-	if err != nil {
-		return r.refuse("cannot read the spawn template at ~/%s", spawnTemplate)
-	}
-	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
-	var sites, printed strings.Builder
-	n := 0
-	for i := len(stripped) - 1; i >= 0; i-- {
-		for _, line := range stripped[i].printed {
-			n++
-			at, file, _ := strings.Cut(line, " ")
-			fmt.Fprintf(&sites, "%d. `%s` — facts `%s`\n", n, at, file)
-			fmt.Fprintf(&printed, "%s %s\n", at, filepath.Base(file))
-		}
-	}
-	emphasis := strings.TrimSpace(string(licence))
-	if emphasis == "" {
-		emphasis = "none"
-	}
-	prompt, err := fill(string(template), map[string]string{
-		"Model": "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch.",
-		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`, tree fingerprint `%s`. Code review "+
-			"sent %d block(s) back, and the strip removed them; each facts file carries the review's sentence under "+
-			"`# code review:`. No reusable verdicts.", tree, held["head"], held["base"], fingerprint, len(stripped)),
-		"Change scope": fmt.Sprintf("the sites code review sent back, in `%s`:\n%s\nYou write into that file only. "+verdictSentence,
-			path, strings.TrimRight(sites.String(), "\n")),
-		"Held by a concurrent lane": "",
-		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
-		"Patch queue":               "",
-		"User-stated emphasis":      emphasis,
-		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> --lines=<line> " + path + "` at each site, the last line first, with its sites as the final tree numbers them:\n```\n" + strings.TrimRight(printed.String(), "\n") + "\n```",
-	}, "~/.kk-flavor/workers/comment-writer.md")
-	if err != nil {
-		return r.refuse("%v", err)
-	}
-	prompted := filepath.Join(runDir, "spawn-writer-"+name+".md")
-	if err := os.WriteFile(prompted, []byte(prompt), 0o644); err != nil {
-		return r.refuse("cannot write %s", shell.Echoable(prompted))
-	}
-	fmt.Fprintln(r.stdout, prompted)
-	return exitClean
+	return stripped, nil
 }

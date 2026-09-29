@@ -30,8 +30,12 @@ var (
 // with an empty record. The runner rebuilt this from the skill's prose in runs 12 and 13.
 func archiveWritten(r *runner, opts options, returns []string) int {
 	run, archive := opts.one("run"), opts.one("archive")
+	// A writer writes its return to the run directory, and a run of 162 sites fits no message.
+	if len(returns) == 0 && opts.one("run-dir") != "" {
+		returns, _ = filepath.Glob(filepath.Join(opts.one("run-dir"), "return-writer-*.md"))
+	}
 	if run == "" || archive == "" || len(returns) == 0 {
-		return r.refuse("%s", "archive-written takes --run=<run>, --archive=<dir> and the writers' returns")
+		return r.refuse("%s", "archive-written takes --run=<run>, --archive=<dir> and the writers' returns, or --run-dir holding them")
 	}
 	records, err := os.MkdirTemp("", "comment-run-records-")
 	if err != nil {

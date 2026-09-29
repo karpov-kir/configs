@@ -1682,6 +1682,11 @@ func identifierWordsOf(lines []string) map[string]bool {
 	return out
 }
 
+// rePathSpan is a backticked phrase holding a `/` or a file extension, which names a file, in this
+// repository or another. The audit calls it a path, and a maintainer needs it whole to find the file.
+// A file stem inside one is no bare name: a run's note could not cite a file in another repository.
+var rePathSpan = regexp.MustCompile("`[^`]*(?:/|\\.[A-Za-z][A-Za-z0-9]{0,4}\\b)[^`]*`")
+
 // A hump-cased name, and the comma that would place it.
 var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
 var reAppositiveTail = regexp.MustCompile("^`?\\s*,")
@@ -1698,7 +1703,9 @@ var placeableNames = map[string]bool{"camelcase": true, "srgb": true, "ios": tru
 func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
 	var found []Finding
 	for at := b.start; at <= b.end && at <= len(lines); at++ {
-		text := proseOf(lines[at-1])
+		text := rePathSpan.ReplaceAllStringFunc(proseOf(lines[at-1]), func(span string) string {
+			return strings.Repeat(" ", len(span))
+		})
 		for _, span := range reCamelToken.FindAllStringIndex(text, -1) {
 			token := text[span[0]:span[1]]
 			if declared[strings.ToLower(token)] || placeableNames[strings.ToLower(token)] ||

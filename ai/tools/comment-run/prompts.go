@@ -5,21 +5,24 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"configs/ai/tools/shell"
 )
 
 // prompts partitions the sites seed printed over the writers and writes each writer's spawn prompt.
-// A file's sites go to one writer, and the files go to the writer holding the fewest sites so far. The
-// emphasis slot quotes only the human's words, from `licence.txt` in the run directory. Runs 11 and
-// 12 carried an approval sentence the human never wrote.
+// The stage decides the number of writers from the sites, and its caller passes none. Run 16 used ten
+// writers for 162 sites, and run 18b's one writer wrote the same sites at a quarter of the tokens. A
+// file's sites go to one writer, and a directory's files go to one writer where the sizes allow. The
+// emphasis slot quotes only the human's words, from `licence.txt` in the run directory. Runs 11 and 12
+// carried an approval sentence the human never wrote.
 func prompts(r *runner, opts options, _ []string) int {
 	runDir := opts.one("run-dir")
-	workers, err := strconv.Atoi(opts.one("workers"))
-	if runDir == "" || err != nil || workers < 1 || workers > 26 {
-		return r.refuse("%s", "prompts takes --run-dir=<dir> and --workers=<n>, from 1 to 26")
+	if opts.one("workers") != "" {
+		return r.refuse("%s", "prompts decides the number of writers from the sites and takes no --workers")
+	}
+	if runDir == "" {
+		return r.refuse("%s", "prompts takes --run-dir=<dir>")
 	}
 	if !filepath.IsAbs(runDir) {
 		runDir = filepath.Join(r.cwd, runDir)
@@ -46,47 +49,139 @@ func prompts(r *runner, opts options, _ []string) int {
 		fmt.Fprintf(r.stderr, "%s: no site to write, so no writer is prompted\n", r.self)
 		return exitClean
 	}
-	groups := partition(order, byFile, min(workers, len(order)))
 	home, _ := os.LookupEnv("HOME")
 	template, err := os.ReadFile(filepath.Join(home, spawnTemplate))
 	if err != nil {
 		return r.refuse("cannot read the spawn template at ~/%s", spawnTemplate)
 	}
+	rules, err := writerRules(home)
+	if err != nil {
+		return r.refuse("%v", err)
+	}
 	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
-	for n, files := range groups {
-		name := string(rune('A' + n))
-		prompt, err := writerPrompt(string(template), run, runDir, name, files, groups, byFile, strings.TrimSpace(string(licence)))
-		if err != nil {
-			return r.refuse("%v", err)
+	batches := plan(order, byFile)
+	n := 0
+	for b, groups := range batches {
+		first := n
+		for _, files := range groups {
+			name := string(rune('A' + n))
+			n++
+			others := map[string][]string{}
+			for g, other := range groups {
+				if first+g != n-1 {
+					others[string(rune('A'+first+g))] = other
+				}
+			}
+			prompt, err := writerPrompt(string(template), rules, run, runDir, name, files, others, byFile, strings.TrimSpace(string(licence)))
+			if err != nil {
+				return r.refuse("%v", err)
+			}
+			out := filepath.Join(runDir, "spawn-writer-"+name+".md")
+			if err := os.WriteFile(out, []byte(prompt), 0o644); err != nil {
+				return r.refuse("cannot write %s", shell.Echoable(out))
+			}
+			count := 0
+			for _, file := range files {
+				count += len(byFile[file])
+			}
+			fmt.Fprintf(r.stdout, "%s batch %d, %d site(s) in %d file(s) %s\n", name, b+1, count, len(files), out)
 		}
-		out := filepath.Join(runDir, "spawn-writer-"+name+".md")
-		if err := os.WriteFile(out, []byte(prompt), 0o644); err != nil {
-			return r.refuse("cannot write %s", shell.Echoable(out))
-		}
-		count := 0
-		for _, file := range files {
-			count += len(byFile[file])
-		}
-		fmt.Fprintf(r.stdout, "%s %d site(s) in %d file(s) %s\n", name, count, len(files), out)
+	}
+	if len(batches) > 1 {
+		fmt.Fprintf(r.stderr, "%s: %d batches: dispatch each batch's writers together, and the next batch after it returns\n",
+			r.self, len(batches))
 	}
 	return exitClean
 }
 
-// partition gives each file to the group holding the fewest sites, the largest file first.
+// The writer count, ruled on 2026-09-29: one writer up to 150 sites, two up to 300, three above, and
+// never more than three at a time. Run 18b's one writer grew about 1.7k tokens a site from a base of
+// 147k, so a writer's context holds some 400 sites, and more than three writers' reach is written in
+// successive batches of three.
+const (
+	oneWriterSites   = 150
+	twoWriterSites   = 300
+	maxWriters       = 3
+	writerReachSites = 400
+)
+
+// writersFor is how many writers a number of sites takes, up to the three one batch holds.
+func writersFor(sites int) int {
+	switch {
+	case sites <= oneWriterSites:
+		return 1
+	case sites <= twoWriterSites:
+		return 2
+	}
+	return maxWriters
+}
+
+// plan cuts the files into batches of at most three writers' reach, then gives each batch's files to
+// its writers. A file is never split.
+func plan(order []string, byFile map[string][]string) [][][]string {
+	var batches [][][]string
+	var batch []string
+	load := 0
+	for _, file := range order {
+		if load > 0 && load+len(byFile[file]) > maxWriters*writerReachSites {
+			batches = append(batches, partition(batch, byFile, writersFor(load)))
+			batch, load = nil, 0
+		}
+		batch = append(batch, file)
+		load += len(byFile[file])
+	}
+	return append(batches, partition(batch, byFile, writersFor(load)))
+}
+
+// partition gives the files to n writers. A directory's files stay together where the directory fits
+// one writer, its share or one writer's 150 sites, whichever is larger; a larger directory is dealt out
+// file by file. Each unit goes to the
+// writer holding the fewest sites, the largest unit first.
 func partition(files []string, byFile map[string][]string, n int) [][]string {
-	sorted := append([]string(nil), files...)
-	sort.SliceStable(sorted, func(i, j int) bool { return len(byFile[sorted[i]]) > len(byFile[sorted[j]]) })
+	n = min(n, len(files))
+	total := 0
+	for _, file := range files {
+		total += len(byFile[file])
+	}
+	share := max((total+n-1)/n, oneWriterSites)
+	byDir := map[string][]string{}
+	var dirs []string
+	for _, file := range files {
+		dir := filepath.Dir(file)
+		if _, seen := byDir[dir]; !seen {
+			dirs = append(dirs, dir)
+		}
+		byDir[dir] = append(byDir[dir], file)
+	}
+	var units [][]string
+	sizeOf := func(unit []string) int {
+		size := 0
+		for _, file := range unit {
+			size += len(byFile[file])
+		}
+		return size
+	}
+	for _, dir := range dirs {
+		if sizeOf(byDir[dir]) <= share {
+			units = append(units, byDir[dir])
+			continue
+		}
+		for _, file := range byDir[dir] {
+			units = append(units, []string{file})
+		}
+	}
+	sort.SliceStable(units, func(i, j int) bool { return sizeOf(units[i]) > sizeOf(units[j]) })
 	groups := make([][]string, n)
 	load := make([]int, n)
-	for _, file := range sorted {
+	for _, unit := range units {
 		least := 0
 		for g := range groups {
 			if load[g] < load[least] {
 				least = g
 			}
 		}
-		groups[least] = append(groups[least], file)
-		load[least] += len(byFile[file])
+		groups[least] = append(groups[least], unit...)
+		load[least] += sizeOf(unit)
 	}
 	return groups
 }
@@ -150,9 +245,52 @@ func fill(template string, slots map[string]string, contract string) (string, er
 	return strings.Join(out, "\n\n") + "\n", nil
 }
 
-func writerPrompt(template string, run map[string]string, runDir, name string, files []string, groups [][]string,
-	byFile map[string][]string, licence string) (string, error) {
-	var sites, held, stdout strings.Builder
+// writerContract names the contract a writer applies, which reaches it in the prompt and not as a file.
+const writerContract = "comment-writer brief given in full at the end of this prompt"
+
+// writerRules is the text every writer opens on: the brief, and the standard's Comments section it
+// writes to. Run 16's twenty writers each read both from disk before their first site, and every read
+// cost calls. The files stay the rules; the prompt carries them word for word.
+func writerRules(home string) (string, error) {
+	brief, err := os.ReadFile(filepath.Join(home, ".kk-flavor", "workers", "comment-writer.md"))
+	if err != nil {
+		return "", fmt.Errorf("cannot read the brief at ~/.kk-flavor/workers/comment-writer.md")
+	}
+	style, err := os.ReadFile(filepath.Join(home, ".kk-flavor", "standards", "code-style.md"))
+	if err != nil {
+		return "", fmt.Errorf("cannot read the standard at ~/.kk-flavor/standards/code-style.md")
+	}
+	text := string(style)
+	start := strings.Index(text, "## Comments")
+	if start < 0 {
+		return "", fmt.Errorf("the standard holds no Comments section")
+	}
+	end := strings.Index(text[start+1:], "\n## ")
+	section := text[start:]
+	if end >= 0 {
+		section = text[start : start+1+end]
+	}
+	return "The rules, word for word. Read no rule file: the text below is what the files hold.\n\n" +
+		"=== ~/.kk-flavor/workers/comment-writer.md ===\n" + strings.TrimSpace(string(brief)) + "\n\n" +
+		"=== ~/.kk-flavor/standards/code-style.md → Comments ===\n" + strings.TrimSpace(section) + "\n", nil
+}
+
+// returnFile is where a writer writes its return. Run 18b's one writer held 162 sites, its return did
+// not fit a message, and archive-written could not read the summary it sent instead.
+func returnFile(runDir, name string) string {
+	return filepath.Join(runDir, "return-writer-"+name+".md")
+}
+
+// returnSentence tells a writer to write its return to a file and to write each block with the Edit
+// tool. Run 18b's writer wrote by shell script, and one insert slipped.
+func returnSentence(path string) string {
+	return "Write each block with the Edit tool; no shell command writes a source file. Write your whole return, " +
+		"in the brief's Verdict shape, to `" + path + "` with the Write tool, and end your message with that path."
+}
+
+func writerPrompt(template, rules string, run map[string]string, runDir, name string, files []string,
+	others map[string][]string, byFile map[string][]string, licence string) (string, error) {
+	var sites, stdout strings.Builder
 	n := 0
 	for _, file := range files {
 		for _, line := range byFile[file] {
@@ -162,30 +300,36 @@ func writerPrompt(template string, run map[string]string, runDir, name string, f
 			fmt.Fprintf(&stdout, "%s %s\n", site, filepath.Base(facts))
 		}
 	}
-	for g, other := range groups {
-		if string(rune('A'+g)) == name {
-			continue
-		}
-		fmt.Fprintf(&held, "`%s` (comment-writer %c); ", strings.Join(other, "`, `"), 'A'+g)
+	var names []string
+	for other := range others {
+		names = append(names, other)
 	}
-	others := strings.TrimSuffix(held.String(), "; ")
+	sort.Strings(names)
+	var held []string
+	for _, other := range names {
+		held = append(held, fmt.Sprintf("`%s` (comment-writer %s)", strings.Join(others[other], "`, `"), other))
+	}
 	emphasis := "none"
 	if licence != "" {
 		emphasis = licence
 	}
-	return fill(template, map[string]string{
+	prompt, err := fill(template, map[string]string{
 		"Model": "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch.",
 		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`. The tree is HEAD with the strip's "+
 			"removals applied; no block stands at any site you are given. A block the strip kept stands at a site you are "+
 			"not given, and you leave it as it stands. No reusable verdicts.", run["top"], run["head"], run["base"]),
 		"Change scope": fmt.Sprintf("the change set `%s...%s`. Your sites, %d, in `%s`, one facts directory per file, "+
 			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only. Write each block into its file "+
-			"as soon as it passes its gate. "+verdictSentence, run["base"], run["head"], n, strings.Join(files, "`, `"),
-			strings.TrimRight(sites.String(), "\n")),
-		"Held by a concurrent lane": others,
+			"as soon as it passes its gate. "+verdictSentence+" "+returnSentence(returnFile(runDir, name)), run["base"], run["head"], n,
+			strings.Join(files, "`, `"), strings.TrimRight(sites.String(), "\n")),
+		"Held by a concurrent lane": strings.Join(held, "; "),
 		"Ledger":                    "`" + filepath.Join(runDir, "comment-writer-"+name+"-queue.md") + "`",
 		"Patch queue":               "",
 		"User-stated emphasis":      emphasis,
 		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> <file>` on your file(s), stdout:\n```\n" + strings.TrimRight(stdout.String(), "\n") + "\n```",
-	}, "~/.kk-flavor/workers/comment-writer.md")
+	}, writerContract)
+	if err != nil {
+		return "", err
+	}
+	return prompt + "\n" + rules, nil
 }

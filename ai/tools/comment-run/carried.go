@@ -31,7 +31,12 @@ func carriedStage(r *runner, opts options, returns []string) int {
 			*p = filepath.Join(r.cwd, *p)
 		}
 	}
+	held, err := readRun(filepath.Join(runDir, "run.txt"))
+	if err != nil {
+		return r.refuse("%s holds no run.txt: run seed first", shell.Echoable(runDir))
+	}
 	recorded, refused, stays := 0, 0, 0
+	edited := map[string]bool{}
 	for _, path := range returns {
 		body, err := os.ReadFile(path)
 		if err != nil {
@@ -45,6 +50,20 @@ func carriedStage(r *runner, opts options, returns []string) int {
 			if err != nil {
 				refused++
 				fmt.Fprintf(r.stdout, "%s:%d refused: no copy of the file as the writers left it; run archive-written with --run-dir\n", file, at)
+				continue
+			}
+			edits, err := laneCommentEdits(filepath.Join(runDir, "written", file), filepath.Join(held["top"], file))
+			if err != nil {
+				return r.refuse("%v", err)
+			}
+			if len(edits) > 0 {
+				refused++
+				if !edited[file] {
+					edited[file] = true
+					fmt.Fprintf(r.stdout, "%s refused: the lane wrote comment text, and a lane never edits a comment line; "+
+						"run revert on the file and return `carried by` with the block deleted or `stays:`: %s\n", file,
+						shell.CutBytesMarked(strings.Join(edits, " / "), 200))
+				}
 				continue
 			}
 			if err := commentstrip.Carry(archive, run, file, shell.SplitLines(string(snapshot)), at, carrier); err != nil {

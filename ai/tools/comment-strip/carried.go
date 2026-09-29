@@ -218,3 +218,25 @@ func CarriedVerdicts(archive, path, root, file string, lines []string) []Carried
 	sort.Slice(out, func(i, j int) bool { return out[i].Decl < out[j].Decl })
 	return out
 }
+
+// Withdraw removes the carried records one run made for one file, and says how many it removed. A
+// ruling that reverts the refactor lane's landing reverts its record too, or the strip would offer the
+// site no more while the reverted carrier's names still stand.
+func Withdraw(archive, run, path string) (int, error) {
+	held := readCarried(archive, path)
+	var kept []carried
+	for _, c := range held {
+		if c.Run != run {
+			kept = append(kept, c)
+		}
+	}
+	removed := len(held) - len(kept)
+	if removed == 0 {
+		return 0, nil
+	}
+	body, err := json.MarshalIndent(kept, "", " ")
+	if err != nil {
+		return 0, err
+	}
+	return removed, os.WriteFile(carriedName(archive, path), append(body, '\n'), 0o644)
+}
