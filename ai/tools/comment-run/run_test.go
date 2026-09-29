@@ -524,6 +524,11 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 	}
 }
 
+// refusedRound says the loop refused its round and stripped none of it.
+func refusedRound(said outcome) bool {
+	return said.code == exitDidNotRun && strings.Contains(said.stderr, "no file of the round was stripped")
+}
+
 // everySchemeLedger is the ledger file with one block, which the loop cases send back to a writer.
 const everySchemeLedger = "// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
 
@@ -538,7 +543,7 @@ func TestALoopRoundThatRefusesStripsNothing(t *testing.T) {
 	c.write("book.ts", "export const CLOSE_HOUR = 0;\n")
 	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19",
 		"ledger.ts:2", "claimFor asks each scheme once", "book.ts:1", "the book closes at the ledger's midnight")
-	if said.code != exitDidNotRun || !strings.Contains(said.stderr, "no file of the round was stripped") {
+	if !refusedRound(said) {
 		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
 	}
 	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != ledger {
@@ -604,7 +609,7 @@ func TestALoopRoundRefusedAtItsWriteRestoresItsFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19", "ledger.ts:2", "claimFor asks each scheme once")
-	if said.code != exitDidNotRun || !strings.Contains(said.stderr, "no file of the round was stripped") {
+	if !refusedRound(said) {
 		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
 	}
 	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != ledger {
