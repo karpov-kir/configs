@@ -497,7 +497,7 @@ type scanner struct {
 	// and the source under it. The register checks read the prose either way.
 	record bool
 	// tieLines is the file the writer is writing the block into. The tie bound reads its other blocks.
-	// It is nil where the caller named no file, which is how the keep criteria call.
+	// The keep criteria name no file, and it stays nil there.
 	tieLines []string
 	// kind is the body a prose text is read as, empty for none. template is its template's lines,
 	// which the checks leave unread.
