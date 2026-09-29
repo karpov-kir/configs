@@ -132,9 +132,9 @@ func plan(order []string, byFile map[string][]string) [][][]string {
 	return append(batches, partition(batch, byFile, writersFor(load)))
 }
 
-// partition gives the files to n writers. A directory stays together where it fits one writer: its
-// share, or 150 sites where that is larger. A larger directory is dealt out file by file. Each unit
-// goes to the writer holding the fewest sites, the largest unit first.
+// partition gives the files to n writers. A directory stays together up to one writer's room, the
+// larger of its share and 150 sites. A larger directory is dealt out file by file. Each unit goes to
+// the writer holding the fewest sites, the largest unit first.
 func partition(files []string, byFile map[string][]string, n int) [][]string {
 	n = min(n, len(files))
 	total := 0
