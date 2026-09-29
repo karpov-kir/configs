@@ -22,10 +22,10 @@ import (
 // a block while its bytes, its declaration and the code under it hold, code review has left its record
 // standing, and the checks standing now pass it. The strip decides this itself, so a kept block
 // costs no call.
-//
+
 // A change of rules reopens only the blocks that fail. Every rule change once rolled all 72 blocks
 // again, the ones a reviewer had read and left included, and each round brought new faults.
-//
+
 // The archive records the check version each block last passed. A tool whose checks are unchanged
 // reads each block once, and a run over an unchanged tree starts no writer.
 
