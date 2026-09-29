@@ -1,0 +1,15 @@
+expect: written
+note: written
+keeps: currency
+bars: this constant keeps | this constant drops | constant keeps | constant drops
+why: run 16 wrote that a constant keeps one part of a type and drops another, which made a value the actor; a value never keeps, drops or rejects, and the note says who is asked about what
+labelled: 2026-09-29
+--- code
+const POSTING_TYPE = 'entry';
+
+export function acceptsEscrow(ledger: Ledger): boolean {
+  return ledger.canPost(POSTING_TYPE, 'escrow');
+}
+--- facts
+On the oldest ledgers, `canPost` with a scheme refuses a posting type that carries a currency.
+So this constant keeps the posting type and drops the currency.

@@ -229,7 +229,7 @@ func TestEveryCaseParsesAndNamesAClassAndAReason(t *testing.T) {
 		if c.Label == "" {
 			t.Errorf("%s says no date, and a case with no provenance cannot be re-read against its review", c.Name)
 		}
-		if strings.Contains(c.Code, "/*") || strings.Contains(c.Code, "//") {
+		if !c.Kept && (strings.Contains(c.Code, "/*") || strings.Contains(c.Code, "//")) {
 			t.Errorf("%s shows the writer a comment, and the strip removes every block before the writer reads", c.Name)
 		}
 	}

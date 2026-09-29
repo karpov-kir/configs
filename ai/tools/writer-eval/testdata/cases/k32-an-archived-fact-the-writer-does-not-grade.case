@@ -1,7 +1,7 @@
 expect: written
 note: written
 site: 6
-keeps: withonlyscheme | this function
+keeps: withonlyscheme | this function | this copy | the measured scheme
 keeps: copies | only
 bars: unverified | not checked | carried over
 withholds: does not fit

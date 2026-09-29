@@ -61,6 +61,10 @@ type Case struct {
 	// routed 704 words of facts about the world into a PR body, where the change is described.
 	Returns   []string
 	Withholds []string
+	// Kept says the code holds blocks a keep left standing, which the strip leaves in the file. The
+	// writer reads them, and a return copying them is scored without them. A tie opening a file already
+	// uses twice is the third block's to vary, and only a file with blocks in it can show that.
+	Kept bool
 }
 
 // ExpectCarried is a site whose claim belongs somewhere else in the tree: a field on the data row it
@@ -191,6 +195,8 @@ func ParseCase(name, raw string) (Case, error) {
 			} else {
 				c.Withholds = append(c.Withholds, fates...)
 			}
+		case "kept":
+			c.Kept = strings.EqualFold(value, "yes")
 		case "floor":
 			share, err := strconv.Atoi(strings.TrimSuffix(value, "%"))
 			if err != nil || share < 1 || share > 100 {
@@ -282,8 +288,17 @@ func JudgeCase(c Case, r Return) Verdict {
 	want(c.WantNote, "note", r.Note)
 	// A block the writer never wrote fails on its part already, and reporting the wording too would
 	// count one miss twice.
+	text := strings.ToLower(r.Text())
+	if c.Kept {
+		for _, line := range strings.Split(c.Code, "\n") {
+			if trimmed := strings.TrimSpace(line); strings.HasPrefix(trimmed, "//") {
+				if kept := strings.TrimSpace(strings.TrimPrefix(trimmed, "//")); kept != "" {
+					text = strings.ReplaceAll(text, strings.ToLower(kept), "")
+				}
+			}
+		}
+	}
 	if r.Block != "" {
-		text := strings.ToLower(r.Text())
 		for _, group := range c.Keeps {
 			kept := false
 			for _, wording := range group {
@@ -305,7 +320,7 @@ func JudgeCase(c Case, r Return) Verdict {
 		}
 	}
 	for _, wording := range c.Bars {
-		if r.Block != "" && regexp.MustCompile(wording).MatchString(strings.ToLower(r.Text())) {
+		if r.Block != "" && regexp.MustCompile(wording).MatchString(text) {
 			v.Failures = append(v.Failures, Failure{"wrote-the-barred-shape", "the block carries " + wording})
 		}
 	}

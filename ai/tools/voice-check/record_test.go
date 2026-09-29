@@ -37,18 +37,48 @@ export function getFormatClaim(formatName: string): LedgerClaim {
 }`,
 		},
 		{
-			// The shape a reviewer read on 2026-09-22 and answered "And what?". Its prose is sound, so the
-			// register checks pass it, and this check reports it.
-			name: "a fact that stops leaves the block naming nothing",
+			// The act's subject is the domain thing. The check that a block said this function put the
+			// phrase in 50 of 72 blocks by 2026-09-29, and it went.
+			name: "a tie whose subject is the domain thing needs no this function",
 			text: `fact: The book took a posting format long before the probe reported the same format.
 bears_on: getFormatClaim
 does: returns LedgerClaim.Accepted where either answers it
 ---
-// The book took a posting format long before the probe reported the same format.
+// The book took a posting format long before the probe reported it,
+// so either answer is ` + "`Accepted`" + `.
 export function getFormatClaim(formatName: string): LedgerClaim {
   return LedgerClaim.Accepted;
 }`,
-			want: []string{checkRecordUnnamed},
+		},
+		{
+			name: "a value declaration opens on its verb",
+			text: `fact: Settlement profile 5 posts in the accrual scheme.
+bears_on: AccrualProfile5
+does: none
+---
+  // Names settlement profile 5, whose postings are accrual.
+  AccrualProfile5 = 'accrual-5',`,
+		},
+		{
+			// The reviewer of 2026-09-29 cut "This member" and read the rest as the block.
+			name: "a value declaration opening on this member is refused",
+			text: `fact: Settlement profile 5 posts in the accrual scheme.
+bears_on: AccrualProfile5
+does: none
+---
+  // This member names settlement profile 5, whose postings are accrual.
+  AccrualProfile5 = 'accrual-5',`,
+			want: []string{checkValueThisOpens},
+		},
+		{
+			name: "a value is never the actor of keeps",
+			text: `fact: The oldest ledgers refuse a posting type that carries a currency.
+bears_on: POSTING_TYPE
+does: none
+---
+// The oldest ledgers refuse a posting type that carries a currency. So this constant keeps the type and drops the currency.
+const POSTING_TYPE = 'entry';`,
+			want: []string{checkValueActor},
 		},
 		{
 			// A fact whose bearing is what a caller does with the result belongs at the caller. The writer

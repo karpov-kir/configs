@@ -1,8 +1,8 @@
 expect: written
 note: written
 floor: 60
-keeps: this function | this method | this member | this property | this call | this branch
-keeps: so | because | which means
+keeps: this function | this method | this member | this property | this call | this branch | this check | this lookup | this filter | this probe | this guard | this helper | this match | known only | is known | only when exactly one | unknown
+keeps: so | because | which means | therefore | which is why | that is why | for that reason
 bars: \bsoleentrytype\b
 why: run 7 read a block whose first fact carried a consequence and whose second left one to the reader, and a reviewer read the result as still confusing; the block has to say what this function does about the fact and not leave the reader to infer it; the reviewed set puts a consequence on every sentence in 7 of its 170 multi-sentence blocks, so this is the writer's rule and no check, and the case is what holds it
 labelled: 2026-09-21

@@ -1,0 +1,13 @@
+expect: written
+note: written
+keeps: both
+bars: and the supplemental currencies attribute name\b | \bdeclarescurrency\b
+why: run 16 wrote a sentence of the same shape as the facts here, and it had to be read twice to parse, because its second verb was elided; each clause names its verb
+labelled: 2026-09-29
+--- code
+export function declaresCurrency(posting: Posting, currency: string): boolean {
+  return [posting.currency, posting.supplementalCurrencies].some((value) => value?.split(',').includes(currency));
+}
+--- facts
+The posting format lets `currency` name only a base currency and the supplemental currencies attribute name the currency extending it.
+This function therefore matches the currency against both attributes.

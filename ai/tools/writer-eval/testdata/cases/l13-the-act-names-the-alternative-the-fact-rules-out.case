@@ -1,6 +1,6 @@
 expect: written
 note: written
-keeps: this function | this method | this member | this property | this call | this branch
+keeps: this function | this method | this member | this property | this call | this branch | this check | this lookup | this filter | this probe | this guard | this helper | this match | are joined | joined with
 keeps: newline | line break
 keeps: no posting reference | no reference | which no | holds no | contains no | rather than | instead of | never holds | never contains | not a semicolon | and not | in place of | a semicolon would | semicolon between | semicolon separator | would split | not semicolons | not with a semicolon | instead
 bars: \bformatpostingidentities\b

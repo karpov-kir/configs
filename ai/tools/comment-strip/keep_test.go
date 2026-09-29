@@ -174,7 +174,7 @@ func TestASummaryAloneIsKeptWithoutARecord(t *testing.T) {
 	}
 }
 
-const literalSource = "// A ledger export names each scheme in its own casing, so this constant keeps the casing.\n" +
+const literalSource = "// Holds each scheme's tag in the casing a ledger export names it in.\n" +
 	"export const schemeTags = {\n" +
 	"  // An accrual row predates the casing rule.\n" +
 	"  accrual: 'Accrual',\n" +

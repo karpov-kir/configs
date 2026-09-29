@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -495,6 +496,9 @@ type scanner struct {
 	// record says the text opens with the note's record, which RecordFindings reads against the block
 	// and the source under it. The register checks read the prose either way.
 	record bool
+	// tieLines is the file the writer is writing the block into, read for the tie openings its other
+	// blocks already use. Nil where the caller named no file, as the keep criteria never do.
+	tieLines []string
 	// kind is the body a prose text is read as, empty for none. template is its template's lines,
 	// which the checks leave unread.
 	kind     string
@@ -1063,6 +1067,8 @@ func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int
 	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
 	// stopped, and the register checks passed every one, because their prose was sound.
 	record := false
+	// `--file` names the file the block goes into, read for the tie openings of its other blocks.
+	tieFile := ""
 	// A PR body and a ticket each have a width, and `--kind` reads the prose as one of them.
 	kind := ""
 flags:
@@ -1072,6 +1078,8 @@ flags:
 			source = true
 		case args[0] == "--record":
 			record = true
+		case strings.HasPrefix(args[0], "--file="):
+			tieFile = strings.TrimPrefix(args[0], "--file=")
 		case strings.HasPrefix(args[0], "--kind="):
 			kind = strings.TrimPrefix(args[0], "--kind=")
 			if !kinds[kind] {
@@ -1102,6 +1110,10 @@ flags:
 		return out.refuseArguments(errors.New("--record reads a record against the block and the source " +
 			"under it, which is what --source pipes — the scan did NOT run"))
 	}
+	if tieFile != "" && !record {
+		return out.refuseArguments(errors.New("--file reads the other blocks of the file a recorded block " +
+			"goes into, and needs --record — the scan did NOT run"))
+	}
 	if source && profile != ProfileComment {
 		return out.refuseArguments(fmt.Errorf("--source reads a block with the comment profile's checks, "+
 			"and the %s profile has no blocks — the scan did NOT run", profile))
@@ -1120,6 +1132,18 @@ flags:
 	}
 
 	s := scanner{profile: profile, record: record, kind: kind, notice: func(line string) { out.note("%s", line) }}
+	if tieFile != "" {
+		path := tieFile
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(cwd, path)
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return out.refuseArguments(fmt.Errorf("--file names %s, which cannot be read — the scan did NOT run",
+				shell.Echoable(tieFile)))
+		}
+		s.tieLines = shell.SplitLines(string(body))
+	}
 	if kind != "" || profile == ProfileComment {
 		root := cwd
 		if top, err := git.TopLevel(cwd); err == nil && top != "" {
@@ -1476,6 +1500,10 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			}
 			found := RecordFindings(file, lines)
 			_, under, _ := splitRecord(lines)
+			if s.tieLines != nil {
+				block, _ := blockAndBody(under)
+				found = append(found, TieFindings(file, block, s.tieLines)...)
+			}
 			return append(found, s.scanSource(file, under, nil, under)...)
 		}
 		if s.kind == "" {

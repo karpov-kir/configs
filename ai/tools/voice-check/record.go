@@ -17,6 +17,8 @@ const (
 	checkRecordUnnamed   = "block-omits-bears-on"
 	checkRecordUntied    = "does-untied"
 	checkRecordSelfNamed = "block-names-its-declaration"
+	checkValueThisOpens  = "value-block-opens-on-this"
+	checkValueActor      = "value-as-actor"
 )
 
 // recordMarker ends the record and opens the block. Everything above it is slots, everything under
@@ -108,8 +110,11 @@ func blockAndBody(lines []string) (block, body []string) {
 	return block, lines[at:]
 }
 
-// reThisDeclaration is how a note names the declaration it sits on.
-var reThisDeclaration = regexp.MustCompile(`(?i)\bthis (function|method|constructor|class|interface|type|enum|member|row|constant|field|property|getter|setter|call|branch|test|hook|table|list|map|object|value|variable|module|guard|check|helper|loop|statement)\b`)
+// reValueThisOpens is a block on a value declaration opening with the declaration as its subject.
+var reValueThisOpens = regexp.MustCompile(`^\s*This (member|row|constant|field|enum|type)\b`)
+
+// reValueActor is a value said to keep, drop or reject, which only code does.
+var reValueActor = regexp.MustCompile(`(?i)\bthis (member|row|constant|field|enum|type|value)\s+(keeps|drops|rejects)\b`)
 
 // declarationKeywords open a declaration before its name. statementKeywords open a line that declares
 // no name.
@@ -204,21 +209,32 @@ func RecordFindings(file string, lines []string) []Finding {
 		out = append(out, Finding{file, at, checkRecordElsewhere,
 			fmt.Sprintf("%s is declared nowhere under this block", bearsOn)})
 	}
-	// The note calls the declaration it sits on this function, this row or this constant, and the record
-	// keeps the name. A reviewer's eye jumped to each such name in run 13 to check it was the current one.
-	// A name another interface qualifies, such as `LedgerBook.SETTLED` over `SETTLED`, is that interface's.
+	// The note never names the declaration it sits on, and the record keeps the name. A reviewer's eye
+	// jumped to each such name in run 13 to check it was the current one. A name another interface
+	// qualifies, such as `LedgerBook.SETTLED` over `SETTLED`, is that interface's. The check that a block
+	// said this function went on 2026-09-29: it put the phrase in 50 of 72 blocks, and the reviewer read
+	// the repetition as the fault.
 	blockText := strings.Join(block, "\n")
 	own := declaredName(body) == bearsOn
 	switch {
 	case own && regexp.MustCompile(`(^|[^\w$.])`+regexp.QuoteMeta(bearsOn)+`($|[^\w$])`).MatchString(blockText):
 		out = append(out, Finding{file, at, checkRecordSelfNamed,
-			fmt.Sprintf("the block names %s, the declaration it sits on; write this function, this row or this constant", bearsOn)})
-	case own && !strings.EqualFold(held["does"], noDoes) && !reThisDeclaration.MatchString(blockText):
-		out = append(out, Finding{file, at, checkRecordUnnamed,
-			fmt.Sprintf("the block never says this function, this method or this call for %s", bearsOn)})
+			fmt.Sprintf("the block names %s, the declaration it sits on; say the domain thing or a role noun, or open on the verb", bearsOn)})
 	case !own && !spellsTheName(bearsOn, blockText):
 		out = append(out, Finding{file, at, checkRecordUnnamed,
 			fmt.Sprintf("the block never says %s", bearsOn)})
+	}
+
+	// A declaration holding values opens on its verb, as "Names Dolby Vision profile 5", and a value
+	// performs no act. The reviewer of 2026-09-29 cut "This member" from a block and read "this constant
+	// keeps the media type" as the value acting.
+	if dataDeclaration(body) && reValueThisOpens.MatchString(blockText) {
+		out = append(out, Finding{file, at, checkValueThisOpens,
+			"the block opens on this member, this row or this constant; open on the verb, as Names or Marks"})
+	}
+	if m := reValueActor.FindString(blockText); m != "" {
+		out = append(out, Finding{file, at, checkValueActor,
+			fmt.Sprintf("%q makes a value the actor; say what the code does to the thing, or who is asked", m)})
 	}
 
 	does := held["does"]

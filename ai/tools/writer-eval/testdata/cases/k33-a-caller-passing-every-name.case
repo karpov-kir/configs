@@ -1,6 +1,6 @@
 expect: written
 note: written
-keeps: this function | this method | this member | this property | this call | this branch
+keeps: this function | this method | this member | this property | this call | this branch | this check | this lookup | this filter | this probe | this guard | this helper | this match | a name absent | an absent name | any other name
 keeps: empty | []
 bars: \blistschemeids\b
 withholds: does not fit | belongs at

@@ -1,0 +1,16 @@
+expect: written
+note: written
+site: 3
+lands: Profile5
+keeps: profile 5
+keeps: deferred
+bars: this member | this row | this enum | this constant
+why: Kirill read "This member names Dolby Vision profile 5, whose video is HEVC" and said it could be just "Names …"; a value declaration states the fact alone or opens on its verb with no subject, and the members of one enum take one form
+labelled: 2026-09-29
+--- code
+export enum SettlementProfile {
+  Profile4 = 'p4',
+  Profile5 = 'p5',
+}
+--- facts
+This member names settlement profile 5 of the clearing specification, whose postings are deferred.

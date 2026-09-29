@@ -1,0 +1,19 @@
+expect: written
+note: written
+site: 4
+lands: clearingHost
+keeps: posting key
+keeps: identity
+bars: this field keeps | this field | so this
+why: "So this field keeps only the host" left unsaid what keeping the query would do; the note says it, read from the code and the claim: the query carries the posting key, which would then enter the identity
+labelled: 2026-09-29
+--- code
+export function clearingIdentity(source: SourceConfig): ClearingIdentity {
+  return {
+    book: source.book,
+    clearingHost: new URL(source.clearingUrl).host,
+  };
+}
+--- facts
+The test clearing server reads the posting key from the query of its clearing URL.
+So this field keeps only the host of the clearing URL.
