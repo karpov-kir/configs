@@ -384,7 +384,7 @@ func TestACarrierSpelledOnlyInATestDoesNotStand(t *testing.T) {
 	}
 }
 
-// Outside a git work tree the carrier stands on the file alone, and a unit test's file holds none.
+// Outside a git work tree the carrier stands only on the file, and a unit test's file holds none.
 func TestACarrierOutsideGitStandsOnTheSourceFileAlone(t *testing.T) {
 	dir := t.TempDir()
 	source, test := filepath.Join(dir, "claims.ts"), filepath.Join(dir, "claims.test.ts")

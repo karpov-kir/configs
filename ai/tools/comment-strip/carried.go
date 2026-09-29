@@ -110,7 +110,7 @@ func carrierNames(carrier string) []string {
 var reTestCarrier = regexp.MustCompile(`(?i)\b(tests?|specs?)\b|\b(it|describe|test)\s*\(`)
 
 // reTestVerb is "tests" as a verb closing a relative clause, as in "the platform that the branch tests;".
-// A message carrier ending that way names no test, and the match leaves it out.
+// A message carrier ending that way is still a carrier, and the match leaves the verb out.
 var reTestVerb = regexp.MustCompile(`(?i)\b(that|which)\s+(\S+\s+){0,3}?tests\s*([;.,)]|$)`)
 
 // namesATest says the carrier verdict names a test, in words or by a unit test's file.
