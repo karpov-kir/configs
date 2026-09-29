@@ -549,6 +549,50 @@ func TestALoopRoundThatRefusesStripsNothing(t *testing.T) {
 	}
 }
 
+// A round whose prompt cannot be written strips nothing, and a round run again records each
+// contradiction once. The first cut restored files only for a strip's own refusal.
+func TestALoopRoundRefusedAtItsPromptStripsNothingAndRerunsClean(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
+		t.Fatalf("seed: %s", said.stderr)
+	}
+	ledger := "// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+	c.write("ledger.ts", ledger)
+	home, _ := os.LookupEnv("HOME")
+	template, _ := os.ReadFile(filepath.Join(home, spawnTemplate))
+	if err := os.Remove(filepath.Join(home, spawnTemplate)); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"loop", "--run-dir=" + runDir, "--archive=" + archive, "--run=run19",
+		"--contradict=canPost answers for its own scheme only", "ledger.ts:2", "canPost answers for its own scheme only"}
+	if said := c.run(args...); said.code != exitDidNotRun {
+		t.Fatalf("a round with no template ran: exit %d %s", said.code, said.stderr)
+	}
+	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != ledger {
+		t.Fatalf("a round refused at its prompt stripped the file:\n%s", body)
+	}
+	if recorded, _ := filepath.Glob(filepath.Join(archive, "*.contradicted")); len(recorded) != 0 {
+		t.Fatalf("a round refused at its prompt recorded a contradiction: %v", recorded)
+	}
+	if err := os.WriteFile(filepath.Join(home, spawnTemplate), template, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run(args...); said.code != exitClean {
+		t.Fatalf("the rerun: exit %d %s", said.code, said.stderr)
+	}
+	if said := c.run(args...); said.code == exitClean {
+		t.Log("a third run found its site stripped, as expected")
+	}
+	contradicted, _ := filepath.Glob(filepath.Join(archive, "*.contradicted"))
+	for _, path := range contradicted {
+		body, _ := os.ReadFile(path)
+		if strings.Count(string(body), "canPost answers for its own scheme only") > 1 {
+			t.Fatalf("a rerun recorded its contradiction twice:\n%s", body)
+		}
+	}
+}
+
 // carried refuses a lane's verdict naming a path outside the tree.
 func TestCarriedRefusesAPathOutsideTheTree(t *testing.T) {
 	c := newChange(t)

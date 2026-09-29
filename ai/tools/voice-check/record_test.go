@@ -242,6 +242,15 @@ func TestAStemInsideABacktickedPathIsNoBareName(t *testing.T) {
 	if !hasCheck(s.scanSource("f.ts", []string{"// The pool in connectionPool closes idle links, and this row must match it.", "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
 		t.Error("a bare stem outside a path passes")
 	}
+	// A call holds a dot and names no file, and neither does a member access. Prose after a path is read.
+	for _, note := range []string{
+		"// The pool in `apiResponse.json()` closes idle links, and this row must match it.",
+		"// The pool in `pool.ts` holds connectionPool open, and this row must match it.",
+	} {
+		if !hasCheck(s.scanSource("f.ts", []string{note, "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
+			t.Errorf("%q reports no bare name", note)
+		}
+	}
 	// A member access holds a dot and names a field, and its humped name is still a bare name.
 	if !hasCheck(s.scanSource("f.ts", []string{"// The pool in `retryPolicy.value` closes idle links, and this row must match it.", "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
 		t.Error("a humped name inside a member access passes as a path")

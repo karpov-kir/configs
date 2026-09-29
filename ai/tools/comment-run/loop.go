@@ -47,6 +47,12 @@ func loop(r *runner, opts options, _ []string) int {
 	if err != nil {
 		return r.refuse("%v", err)
 	}
+	// The dispatch reads the template and the rules before any file is stripped, so a missing one refuses a
+	// round that has changed nothing, contradictions included.
+	dispatch, err := newWriterDispatch(runDir)
+	if err != nil {
+		return r.refuse("%v", err)
+	}
 	tree := held["top"]
 	var out, errOut strings.Builder
 	for _, f := range findings {
@@ -105,11 +111,8 @@ func loop(r *runner, opts options, _ []string) int {
 	}
 	fingerprint, err := treefingerprint.Fingerprint(tree)
 	if err != nil {
-		return r.refuse("cannot fingerprint %s: %v", shell.Echoable(tree), err)
-	}
-	dispatch, err := newWriterDispatch(runDir)
-	if err != nil {
-		return r.refuse("%v", err)
+		undo()
+		return r.refuse("cannot fingerprint %s: %v; no file of the round was stripped", shell.Echoable(tree), err)
 	}
 	prompted, err := dispatch.write(name, map[string]string{
 		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`, tree fingerprint `%s`. Review "+
@@ -121,7 +124,8 @@ func loop(r *runner, opts options, _ []string) int {
 		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> --lines=<line> <file>` at each site, each file's last line first, with its sites as the final tree numbers them:\n```\n" + strings.TrimRight(printed.String(), "\n") + "\n```",
 	})
 	if err != nil {
-		return r.refuse("%v", err)
+		undo()
+		return r.refuse("%v; no file of the round was stripped", err)
 	}
 	fmt.Fprintln(r.stdout, prompted)
 	return exitClean
