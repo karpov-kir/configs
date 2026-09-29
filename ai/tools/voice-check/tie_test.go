@@ -116,7 +116,7 @@ func TestTheTallyNamesAFileBoundFinding(t *testing.T) {
 	}
 }
 
-// A writer checks a file's blocks in one call, parted by `===`. Each part is read on its own and named
+// A writer checks a file's blocks in one call, with a line reading `===` between parts. Each part is read and named
 // by its place, and the file bound counts the parts before it. Run 18's writers made a call per block.
 func TestOneCallChecksEveryBlockOfAFile(t *testing.T) {
 	dir := t.TempDir()
