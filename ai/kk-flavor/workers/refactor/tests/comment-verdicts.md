@@ -108,7 +108,7 @@ export function toEntryArray(list: LivePostingList): Posting[] {
 Scope: this file and its callers, in the change set.
 
 Expected: `stays: A live posting list stops listing an entry as soon as the book removes it, and the
-closing helpers remove entries while they walk the result.`. toEntryArray is renamed to
+closing helpers remove entries while they walk the result`. toEntryArray is renamed to
 snapshotForRemoval, and the purpose is cut from the block. The name said the mechanism, a copy into an
 array, and the note said the purpose. After the rename the name carries the purpose, and the fact
 still needs the note.
