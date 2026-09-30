@@ -175,6 +175,10 @@ Full tables run seldom, so a rule change measured by a targeted read keeps no co
 landed that way, and runs read `bb34e7de7f18` in their place until a change that needs a full table
 keeps one.
 
+k10 reads 0 in `4cc6a9eb8cae`, `6e36ff2ae7df` and `bb34e7de7f18`, and that 0 is no reading. No return
+is a `needed` summary, and the case wanted one. Every roll failed on its part until item 33 made
+the parser refuse the value. A move on k10 from any of those columns comes from that fix.
+
 ## The record check runs inside a roll
 
 The pipeline's writer runs the record check on each block before it writes it. It rewrites for each
