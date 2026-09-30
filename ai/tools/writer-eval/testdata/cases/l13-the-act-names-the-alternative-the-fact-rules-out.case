@@ -1,9 +1,9 @@
 expect: written
 note: written
-keeps: newline | line break
+keeps: newline | line break | one line | own line | separate line | to a line | line each
 keeps: no posting reference | no reference | which no | holds no | contains no | rather than | instead of | never holds | never contains | not a semicolon | and not | in place of | a semicolon would | semicolon between | semicolon separator | would split | not semicolons | not with a semicolon | instead | no qualifier
 bars: \bformatpostingidentities\b
-why: the fact that a posting reference puts a semicolon before each qualifier is why the cells are joined with a newline, and run 13's writer said so in its own restatement but wrote the fact and the join as two sentences with no tie; where the fact rules out an alternative the act avoids, the act names it Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares.
+why: the fact that a posting reference puts a semicolon before each qualifier is why the cells are joined with a newline, and run 13's writer said so in its own restatement but wrote the fact and the join as two sentences with no tie; where the fact rules out an alternative the act avoids, the act names it Rescored 2026-09-29 under §94: subject and phrasing keeps dropped, so its column no longer compares. Rescored 2026-09-30: a line of its own is the newline said as its outcome, so it keeps too, and its column no longer compares.
 labelled: 2026-09-28
 --- code
 export function formatPostingIdentities(identity: PostingIdentity): string {
