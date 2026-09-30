@@ -305,3 +305,12 @@ notes a reviewer left standing. Most were ordinary lower-case words the dictiona
 product's or a vendor's name, and 9 were acronyms. It measured the dictionary's age, and a dictionary is
 a kept list, which no source of these checks may be. A coined compound the tree does not spell stays the
 finding. Ordinary words are the register scan's ground.
+
+## A rename check, measured and left unbuilt
+
+Item 33 gave the refactor lane a rule: a name that says only the mechanism, where the note's act states
+the purpose, is renamed to the purpose. A `rename:` check was measured for it on 2026-09-30, over run
+18's archive. It read a function record as a mechanism name where its `does:` slot named no purpose. It
+fired on 131 of 142 function records, because `does:` holds the body's literal verbs by design:
+returns, calls, appends. So the rule stays prose in the refactor lane, with its probe in that lane's
+tests.
