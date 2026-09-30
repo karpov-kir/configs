@@ -1,0 +1,14 @@
+expect: written
+note: written
+keeps: before
+bars: \bno longer counts\b | \bremoverejected\b
+why: Kirill found a note that said a section "no longer counts" once its entries are gone hard to follow; the fact is told as the steps a reader can watch, where the currency sits only on the entries and removing them all leaves nothing that marks the section, and the order of removal follows from those steps
+labelled: 2026-09-30
+--- code
+export function removeRejected(book: Book, rejected: Set<string>): void {
+  book.sections.filter((section) => rejected.has(section.id)).forEach((section) => book.removeSection(section));
+  book.entries.filter((entry) => rejected.has(entry.id)).forEach((entry) => book.removeEntry(entry));
+}
+--- facts
+A ledger section may state its currency only on its entries.
+Once every entry of a section is removed, nothing marks the section as settled in that currency, so a rejected section is found only while its entries remain.

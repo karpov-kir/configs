@@ -1,0 +1,17 @@
+expect: written
+note: written
+keeps: undefined | nothing | no reason
+bars: \bwhich\b[^.]*\bwhich\b | \bthat\b[^.]*\bthat\b | \bits catalog entry\b | \bmismatchof\b
+why: Kirill found a summary with a relative clause inside a relative clause hard to read; a summary holds one relative clause at most, so what the function returns and when it returns nothing each stay in one clause
+labelled: 2026-09-30
+--- code
+export function mismatchOf(statement: Statement, catalog: Catalog): string | undefined {
+  const listed = catalog.closingBalance(statement.account);
+  if (listed === statement.closingBalance) {
+    return undefined;
+  }
+  return `closing balance ${statement.closingBalance} is not the listed ${listed}`;
+}
+--- facts
+The catalog lists a closing balance for each account.
+A statement whose closing balance is not that listed balance is reported with the reason, and a statement that matches it gives no reason.

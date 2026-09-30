@@ -1,0 +1,17 @@
+expect: written
+note: written
+keeps: semicolon
+keeps: read | pars | restor | back | audit
+bars: \bformatsettlementcells\b | \bwhich no\b
+why: Kirill asked why a join was worth a note at all and what "which no reference holds" meant; the note says who reads the text back and what a semicolon between cells would do to it, since a posting reference holds semicolons and one as the separator would split a reference in two
+labelled: 2026-09-30
+--- code
+export function formatSettlementCells(cells: SettlementCell[]): string {
+  return cells.map((cell) => cell.reference).join('\n');
+}
+--- callers
+// tests/helpers/AuditTrailHelper.ts
+const cells = restoreSettlementCells(trail.split('\n'));
+--- facts
+A posting reference puts a semicolon before each of its qualifiers, such as the clearing list.
+The audit trail reads the text back by splitting it into references.
