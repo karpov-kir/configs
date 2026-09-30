@@ -38,7 +38,7 @@ func treeOf(lines ...string) treeReader {
 
 func carrierChecks(t *testing.T, blocks []string, added *addedLines, tree treeReader) []string {
 	t.Helper()
-	found, err := CarrierFindings(blocks, added, tree)
+	found, err := CarrierFindings(blocks, added, tree, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,5 +200,39 @@ func TestAReadInsideATestIsNoRead(t *testing.T) {
 	}
 	if readsAnywhere("POSTING_RETRIES", held["POSTING_RETRIES"]) {
 		t.Fatalf("a read inside a test counted: %v", held["POSTING_RETRIES"])
+	}
+}
+
+// A test title that quotes an archived block is a fault only where the block was dropped for it. Run 18
+// reported 14 titles whose blocks the change still carried.
+func TestATestTitleIsAFaultOnlyWhereItsBlockWasDropped(t *testing.T) {
+	block := "// A posting is retried three times, and the poster gives up on it after the third."
+	added := addedFrom("src/postings/Retry.test.ts",
+		"it('gives up on a posting after it is retried three times, and the poster gives up', () => {")
+	standing := map[string]bool{}
+	for _, run := range wordRuns(block) {
+		standing[run] = true
+	}
+	if found, err := CarrierFindings([]string{block}, added, treeOf(), standing); err != nil || len(found) != 0 {
+		t.Fatalf("a title beside its standing block reports %v (%v)", found, err)
+	}
+	if found, err := CarrierFindings([]string{block}, added, treeOf(), map[string]bool{}); err != nil || len(found) != 1 ||
+		found[0].Check != checkCarrierTest {
+		t.Fatalf("a title whose block was dropped reports %v (%v)", found, err)
+	}
+}
+
+// standingRuns reads each comment block of the tree as its consecutive lines, so a run across two lines
+// of one block stands.
+func TestStandingRunsReadABlockAcrossItsLines(t *testing.T) {
+	dir := repotest.Staged(t, map[string]string{
+		"src/Retry.ts": "// A posting is retried three times,\n// and the poster gives up on it after the third.\nexport const RETRIES = 3;\n",
+	})
+	runs, err := standingRuns(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !runs["three times and the poster gives"] {
+		t.Fatalf("a run across a block's two lines is missing: %v", runs)
 	}
 }

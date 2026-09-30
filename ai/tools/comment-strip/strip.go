@@ -759,12 +759,17 @@ func contradict(archive, run string, args []string, cwd string, refuse func(stri
 	}
 	clean := func(text string) string { return strings.Join(strings.Fields(text), " ") }
 	name := contradictedName(archive, args[0])
+	entry := fmt.Sprintf("%s\t%s\t%s\n", clean(claim), clean(run), clean(args[2]))
+	// A round run again records its contradictions again, and a line held already stays one line.
+	if held, err := os.ReadFile(name); err == nil && strings.Contains("\n"+string(held), "\n"+entry) {
+		return exitClean
+	}
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return refuse("cannot write %s", shell.Echoable(name))
 	}
 	defer file.Close()
-	if _, err := fmt.Fprintf(file, "%s\t%s\t%s\n", clean(claim), clean(run), clean(args[2])); err != nil {
+	if _, err := file.WriteString(entry); err != nil {
 		return refuse("cannot write %s", shell.Echoable(name))
 	}
 	return exitClean

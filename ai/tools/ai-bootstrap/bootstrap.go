@@ -198,6 +198,7 @@ func (run *invocation) do() int {
 		return run.mounting.Report()
 	}
 	run.declareBucket()
+	run.declareAgents()
 	found := run.declareSkills()
 
 	if run.isUninstall {

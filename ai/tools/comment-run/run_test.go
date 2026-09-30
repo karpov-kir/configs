@@ -1,10 +1,12 @@
 package commentrun
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -21,7 +23,7 @@ func rulesHome(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(full, []byte("rules "+path), 0o644); err != nil {
+		if err := os.WriteFile(full, []byte("## Comments\n\nrules "+path+"\n\n## Next\n\nout of the section\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -38,6 +40,12 @@ func rulesHome(t *testing.T) {
 	t.Setenv("HOME", home)
 }
 
+const claimForDecl = "export function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+
+const headLedger = "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n" + claimForDecl
+
+const carriedClaimFor = "export function claimFor(scheme: string): boolean {\n  return ASKS_ONCE_PER_SCHEME && keys.canPost(scheme);\n}\n"
+
 // change is a repository holding a base commit, an earlier head and the head, with the tree at the head.
 type change struct {
 	t                   *testing.T
@@ -52,9 +60,9 @@ func newChange(t *testing.T) *change {
 	c.git("init", "-q", "-b", "main")
 	c.write("ledger.ts", "export function other() {}\n")
 	c.base = c.commit("base")
-	c.write("ledger.ts", "export function other() {}\n\n// canPost throws when its this binding is not the object that owns it.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "export function other() {}\n\n// canPost throws when its this binding is not the object that owns it.\n"+claimForDecl)
 	c.earlier = c.commit("earlier head")
-	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", headLedger)
 	c.head = c.commit("head")
 	return c
 }
@@ -88,6 +96,14 @@ func (c *change) commit(message string) string {
 type outcome struct {
 	code           int
 	stdout, stderr string
+}
+
+// seeded seeds a run over the change from its base to its head, and fails the case where seed refuses.
+func (c *change) seeded(runDir, archive string, extra ...string) {
+	c.t.Helper()
+	if said := c.run(append([]string{"seed", "--run-dir=" + runDir, "--archive=" + archive, "--range=" + c.base + ".." + c.head}, extra...)...); said.code != exitClean {
+		c.t.Fatalf("seed: %s", said.stderr)
+	}
 }
 
 func (c *change) run(args ...string) outcome {
@@ -150,14 +166,16 @@ func TestSeedRefusesATreeThatIsNotTheHead(t *testing.T) {
 func TestPromptsQuoteTheHumansWordsAndNoApproval(t *testing.T) {
 	c := newChange(t)
 	runDir := filepath.Join(t.TempDir(), "run")
-	if said := c.run("seed", "--run-dir="+runDir, "--archive="+t.TempDir(), "--range="+c.base+".."+c.head); said.code != exitClean {
-		t.Fatalf("seed: %s", said.stderr)
-	}
+	c.seeded(runDir, t.TempDir())
 	if err := os.WriteFile(filepath.Join(runDir, "licence.txt"), []byte(`"The tooling decides every comment."`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	said := c.run("prompts", "--run-dir="+runDir, "--workers=3")
-	if said.code != exitClean || !strings.HasPrefix(said.stdout, "A 1 site(s) in 1 file(s)") {
+	said := c.run("prompts", "--run-dir="+runDir)
+	// The test home mounts no comment-writer agent, and the stage says so.
+	if !strings.Contains(said.stderr, "no comment-writer agent at ~/.claude/agents/comment-writer.md") {
+		t.Errorf("a home with no writer agent went unsaid:\n%s", said.stderr)
+	}
+	if said.code != exitClean || !strings.HasPrefix(said.stdout, "A batch 1, 1 site(s) in 1 file(s)") {
 		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
 	}
 	body, _ := os.ReadFile(filepath.Join(runDir, "spawn-writer-A.md"))
@@ -241,6 +259,51 @@ func TestTaintReadsWritesFromTheLedger(t *testing.T) {
 	}
 }
 
+// A diff with no range prints HEAD's blocks under a `-`, and run 18 tainted two writers that way while
+// this stage stayed quiet. A write by shell script is reported too, since writes go through the Edit tool.
+func TestTaintReadsARangelessDiffAndAScriptWrite(t *testing.T) {
+	c := newChange(t)
+	ledger := filepath.Join(t.TempDir(), "comment-writer-A-queue.md")
+	if err := os.WriteFile(ledger, []byte("Block 1/1 ledger.ts:3 | OK\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := transcript(t,
+		[3]string{"Bash", `{"command":"git diff -- ledger.ts"}`, `"@@ -2,3 +2,2 @@\n-// canPost throws for another scheme\n export function claimFor"`},
+		[3]string{"Bash", `{"command":"sed -i '' '3i\\\\// a note' ledger.ts"}`, `""`},
+		[3]string{"Bash", `{"command":"printf 'fact: x' | voice-check.sh --source --record --file=ledger.ts - 2>&1 | tail -3"}`, `"clean"`},
+		[3]string{"Bash", `{"command":"cat new.ts > ledger.ts"}`, `""`},
+		[3]string{"Edit", `{"file_path":"/tree/ledger.ts","old_string":"a","new_string":"b"}`, `"ok"`},
+	)
+	said := c.run("taint", "--ledger="+ledger, path)
+	if said.code != exitFindings || !strings.Contains(said.stdout, "tainted: call 1 ") || !strings.Contains(said.stdout, "script write: call 2 ") ||
+		strings.Contains(said.stdout, "script write: call 3 ") || !strings.Contains(said.stdout, "script write: call 4 ") {
+		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
+	}
+}
+
+// usage prints a writer's context at its first tool call and at its end, the tokens it wrote, its calls
+// and its wall time. Run 18's report estimated a writer's start-up from totals.
+func TestUsageReadsATranscriptsFigures(t *testing.T) {
+	c := newChange(t)
+	path := filepath.Join(t.TempDir(), "writer-A.jsonl")
+	lines := []string{
+		`{"timestamp":"2026-09-29T10:00:00Z","message":{"id":"m1","content":[{"type":"text"}],"usage":{"input_tokens":2,"cache_read_input_tokens":100,"cache_creation_input_tokens":40000,"output_tokens":10}}}`,
+		`{"timestamp":"2026-09-29T10:00:05Z","message":{"id":"m2","content":[{"type":"text"}],"usage":{"input_tokens":2,"cache_read_input_tokens":40100,"cache_creation_input_tokens":900,"output_tokens":20}}}`,
+		`{"timestamp":"2026-09-29T10:00:05Z","message":{"id":"m2","content":[{"type":"tool_use","id":"a","name":"Read","input":{}}],"usage":{"input_tokens":2,"cache_read_input_tokens":40100,"cache_creation_input_tokens":900,"output_tokens":20}}}`,
+		`{"timestamp":"2026-09-29T10:00:09Z","message":{"content":[{"type":"tool_result","tool_use_id":"a","content":"x"}]}}`,
+		`{"timestamp":"2026-09-29T10:01:40Z","message":{"id":"m3","content":[{"type":"tool_use","id":"b","name":"Edit","input":{}}],"usage":{"input_tokens":2,"cache_read_input_tokens":41000,"cache_creation_input_tokens":3000,"output_tokens":30}}}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said := c.run("usage", path, path)
+	// Turns count a message once, though the transcript writes it on two lines.
+	if said.code != exitClean || !strings.Contains(said.stdout, "writer-A.jsonl | 3 | 40102 | 41002 | 44002 | 81200 | 43900 | 60 | 2 | 100 s") ||
+		!strings.Contains(said.stdout, "total | 6 | | | | 162400 | 87800 | 120 | 4 | 200 s") {
+		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
+	}
+}
+
 // Every stage refuses what it cannot read, and says so on stderr.
 func TestAStageRefusesWhatItCannotRun(t *testing.T) {
 	c := newChange(t)
@@ -248,10 +311,14 @@ func TestAStageRefusesWhatItCannotRun(t *testing.T) {
 		{},
 		{"stitch"},
 		{"seed", "--range=" + c.base},
+		{"prompts", "--run-dir=" + t.TempDir()},
 		{"prompts", "--run-dir=" + t.TempDir(), "--workers=2"},
 		{"archive-written", "--run=run14"},
 		{"taint", filepath.Join(t.TempDir(), "writer.jsonl")},
 		{"keep-test", "--archive=" + t.TempDir()},
+		{"usage"},
+		{"revert", "--run=run18"},
+		{"revert", "--run=run18", "--run-dir=" + t.TempDir(), "--archive=" + t.TempDir(), "../outside.ts"},
 	} {
 		if said := c.run(args...); said.code != exitDidNotRun || !strings.Contains(said.stderr, "did NOT run") {
 			t.Errorf("%v: exit %d: %s", args, said.code, said.stderr)
@@ -264,10 +331,8 @@ func TestAStageRefusesWhatItCannotRun(t *testing.T) {
 func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 	c := newChange(t)
 	runDir := filepath.Join(t.TempDir(), "run")
-	if said := c.run("seed", "--run-dir="+runDir, "--archive="+t.TempDir(), "--range="+c.base+".."+c.head); said.code != exitClean {
-		t.Fatalf("seed: %s", said.stderr)
-	}
-	if said := c.run("prompts", "--run-dir="+runDir, "--workers=1"); said.code != exitClean {
+	c.seeded(runDir, t.TempDir())
+	if said := c.run("prompts", "--run-dir="+runDir); said.code != exitClean {
 		t.Fatalf("exit %d: %s", said.code, said.stderr)
 	}
 	body, _ := os.ReadFile(filepath.Join(runDir, "spawn-writer-A.md"))
@@ -280,7 +345,8 @@ func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 			t.Errorf("a slot is left as its placeholder: %s", paragraph[at+2:])
 		}
 	}
-	for _, want := range []string{"Apply the `~/.kk-flavor/workers/comment-writer.md` contract", "User-stated emphasis", "none", "ledger.ts:3 1.facts", verdictSentence} {
+	for _, want := range []string{"Apply the `" + writerContract + "` contract", "User-stated emphasis", "none", "ledger.ts:3 1.facts",
+		verdictSentence, "return-writer-A.md", "Edit calls issued together", "Work a file at a time", "rules standards/code-style.md", "rules workers/comment-writer.md"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("the prompt lacks %q:\n%s", want, body)
 		}
@@ -294,7 +360,7 @@ func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(home, spawnTemplate), []byte(grown), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if said := c.run("prompts", "--run-dir="+runDir, "--workers=1"); said.code != exitDidNotRun ||
+	if said := c.run("prompts", "--run-dir="+runDir); said.code != exitDidNotRun ||
 		!strings.Contains(said.stderr, "a slot this tool does not fill: Budget") {
 		t.Fatalf("a grown template ran: exit %d: %s", said.code, said.stderr)
 	}
@@ -334,11 +400,9 @@ func TestArchiveWrittenReadsTheVerdictShapesWritersReturn(t *testing.T) {
 func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
 	c := newChange(t)
 	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
-	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
-		t.Fatalf("seed: %s", said.stderr)
-	}
+	c.seeded(runDir, archive)
 	// The writer wrote a block back at the site, and review found its claim false.
-	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for every scheme, so this function asks it once.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for every scheme, so this function asks it once.\n"+claimForDecl)
 	var out, errOut strings.Builder
 	code := Run("comment-run.sh", []string{"loop", "--run-dir=" + runDir, "--archive=" + archive, "--run=run15",
 		"--contradict=canPost answers for its own scheme only", "ledger.ts:4", "canPost answers for its own scheme only"},
@@ -360,7 +424,7 @@ func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
 	if !strings.Contains(string(prompt), fingerprint) {
 		t.Errorf("the prompt names no fingerprint of the run's tree %s:\n%s", fingerprint, prompt)
 	}
-	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*.facts"))
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*", "*.facts"))
 	if len(facts) != 1 {
 		t.Fatalf("want one facts file, got %v", facts)
 	}
@@ -380,16 +444,13 @@ func TestLoopSendsOneSiteBackWithTheRunTreesFingerprint(t *testing.T) {
 func TestLoopAtASiteWithNoBlockOffersTheArchivedRecord(t *testing.T) {
 	c := newChange(t)
 	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
-	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head,
-		"--heads="+c.earlier); said.code != exitClean {
-		t.Fatalf("seed: %s", said.stderr)
-	}
+	c.seeded(runDir, archive, "--heads="+c.earlier)
 	// The writers wrote no block at claimFor, whose declaration is line 3 of the stripped file.
 	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run15", "ledger.ts:3", "claimFor asks each scheme once")
 	if said.code != exitClean {
 		t.Fatalf("exit %d: %s", said.code, said.stderr)
 	}
-	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*.facts"))
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*", "*.facts"))
 	if len(facts) != 1 {
 		t.Fatalf("want one facts file, got %v", facts)
 	}
@@ -407,11 +468,9 @@ func TestLoopAtASiteWithNoBlockOffersTheArchivedRecord(t *testing.T) {
 func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 	c := newChange(t)
 	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
-	if said := c.run("seed", "--run-dir="+runDir, "--archive="+archive, "--range="+c.base+".."+c.head); said.code != exitClean {
-		t.Fatalf("seed: %s", said.stderr)
-	}
+	c.seeded(runDir, archive)
 	c.write("ledger.ts", "// A ledger lists other postings first.\nexport function other() {}\n\n"+
-		"// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+		"// A ledger build answers for every scheme.\n"+claimForDecl)
 	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run17",
 		"ledger.ts:2", "other lists nothing first",
 		"--contradict=canPost answers for its own scheme only", "ledger.ts:5", "canPost answers for its own scheme only")
@@ -431,7 +490,7 @@ func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 		!strings.HasPrefix(lines[2], "export function claimFor") {
 		t.Fatalf("the file does not stand as the prompt numbers it:\n%s", stripped)
 	}
-	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*.facts"))
+	facts, _ := filepath.Glob(filepath.Join(runDir, "review-loop", "*", "*", "*", "*.facts"))
 	var all string
 	for _, f := range facts {
 		body, _ := os.ReadFile(f)
@@ -444,6 +503,248 @@ func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 	}
 }
 
+// One round is one writer: loop takes the sites of every file of the round in one call, and names the
+// round. Run 16 dispatched a loop writer per site.
+func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	c.write("ledger.ts", "// A ledger build answers for every scheme.\n"+claimForDecl)
+	c.write("book.ts", "// A book closes at midnight.\nexport const CLOSE_HOUR = 0;\n")
+	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19",
+		"ledger.ts:2", "claimFor asks each scheme once", "book.ts:2", "the book closes at the ledger's midnight")
+	if said.code != exitClean || !strings.HasSuffix(strings.TrimSpace(said.stdout), "spawn-writer-loop-round-1.md") {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+	prompt, _ := os.ReadFile(strings.TrimSpace(said.stdout))
+	for _, want := range []string{"`ledger.ts:1`", "`book.ts:1`", "return-writer-loop-round-1.md", "rules workers/comment-writer.md"} {
+		if !strings.Contains(string(prompt), want) {
+			t.Errorf("the round's prompt lacks %q:\n%s", want, prompt)
+		}
+	}
+}
+
+// refusedRound says the loop refused its round and stripped none of it.
+func refusedRound(said outcome) bool {
+	return said.code == exitDidNotRun && strings.Contains(said.stderr, "no file of the round was stripped")
+}
+
+// everySchemeLedger is the ledger file with one block, which the loop cases send back to a writer.
+const everySchemeLedger = "// A ledger build answers for every scheme.\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+
+// A round strips its files together or none of them. A site the strip refuses leaves every file of the
+// round as it stood, so the round can run again as it was given.
+func TestALoopRoundThatRefusesStripsNothing(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	ledger := "// A ledger build answers for every scheme.\n" + claimForDecl
+	c.write("ledger.ts", ledger)
+	c.write("book.ts", "export const CLOSE_HOUR = 0;\n")
+	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19",
+		"ledger.ts:2", "claimFor asks each scheme once", "book.ts:1", "the book closes at the ledger's midnight")
+	if !refusedRound(said) {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != ledger {
+		t.Fatalf("a file of the refused round was stripped:\n%s", body)
+	}
+	if _, err := os.Stat(filepath.Join(runDir, "review-loop", "loop-round-1")); err == nil {
+		t.Fatal("the refused round left its facts behind")
+	}
+}
+
+// A round whose prompt cannot be written leaves its files as they stood, and a round run again records
+// each contradiction once. The first cut restored files only for a strip's own refusal.
+func TestALoopRoundRefusedAtItsPromptStripsNothingAndRerunsClean(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	ledger := everySchemeLedger
+	c.write("ledger.ts", ledger)
+	home, _ := os.LookupEnv("HOME")
+	template, _ := os.ReadFile(filepath.Join(home, spawnTemplate))
+	if err := os.Remove(filepath.Join(home, spawnTemplate)); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"loop", "--run-dir=" + runDir, "--archive=" + archive, "--run=run19",
+		"--contradict=canPost answers for its own scheme only", "ledger.ts:2", "canPost answers for its own scheme only"}
+	if said := c.run(args...); said.code != exitDidNotRun {
+		t.Fatalf("a round with no template ran: exit %d %s", said.code, said.stderr)
+	}
+	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != ledger {
+		t.Fatalf("a round refused at its prompt stripped the file:\n%s", body)
+	}
+	if recorded, _ := filepath.Glob(filepath.Join(archive, "*.contradicted")); len(recorded) != 0 {
+		t.Fatalf("a round refused at its prompt recorded a contradiction: %v", recorded)
+	}
+	if err := os.WriteFile(filepath.Join(home, spawnTemplate), template, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run(args...); said.code != exitClean {
+		t.Fatalf("the rerun: exit %d %s", said.code, said.stderr)
+	}
+	if said := c.run(args...); said.code == exitClean {
+		t.Log("a third run found its site stripped, as expected")
+	}
+	contradicted, _ := filepath.Glob(filepath.Join(archive, "*.contradicted"))
+	for _, path := range contradicted {
+		body, _ := os.ReadFile(path)
+		if strings.Count(string(body), "canPost answers for its own scheme only") > 1 {
+			t.Fatalf("a rerun recorded its contradiction twice:\n%s", body)
+		}
+	}
+}
+
+// A round refused where its prompt is written restores its files and removes its facts. The spawn file's
+// place holds a directory here, so the write fails after every strip.
+func TestALoopRoundRefusedAtItsWriteRestoresItsFiles(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	ledger := everySchemeLedger
+	c.write("ledger.ts", ledger)
+	// The glob counts this directory as one earlier round, so the round is named after it and its write fails.
+	if err := os.MkdirAll(spawnFile(runDir, "loop-round-2"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	said := c.run("loop", "--run-dir="+runDir, "--archive="+archive, "--run=run19", "ledger.ts:2", "claimFor asks each scheme once")
+	if !refusedRound(said) {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != ledger {
+		t.Fatalf("a round refused at its write left the file stripped:\n%s", body)
+	}
+}
+
+// carried refuses a lane's verdict naming a path outside the tree.
+func TestCarriedRefusesAPathOutsideTheTree(t *testing.T) {
+	c := newChange(t)
+	runDir := filepath.Join(t.TempDir(), "run")
+	c.seeded(runDir, t.TempDir())
+	lane := filepath.Join(t.TempDir(), "refactor.md")
+	if err := os.WriteFile(lane, []byte("Comment 1/1 ../outside.ts:3 | carried by `X`\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run("carried", "--run=run18", "--run-dir="+runDir, "--archive="+t.TempDir(), lane); said.code != exitFindings ||
+		!strings.Contains(said.stdout, "no path inside the tree") {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+}
+
+// The stage decides the writers from the sites: one up to 150, two up to 300, and three above. A file
+// stays whole, and past three writers' reach the batches follow.
+func TestPlanDecidesTheWritersFromTheSites(t *testing.T) {
+	sites := func(counts map[string]int) ([]string, map[string][]string) {
+		var order []string
+		byFile := map[string][]string{}
+		for file, n := range counts {
+			order = append(order, file)
+			for i := 0; i < n; i++ {
+				byFile[file] = append(byFile[file], file+":1")
+			}
+		}
+		sort.Strings(order)
+		return order, byFile
+	}
+	for _, tc := range []struct {
+		counts  map[string]int
+		writers []int
+	}{
+		{map[string]int{"a/x.ts": 90, "a/y.ts": 60}, []int{1}},
+		{map[string]int{"a/x.ts": 100, "b/y.ts": 100, "b/z.ts": 50}, []int{2}},
+		{map[string]int{"a/x.ts": 120, "b/y.ts": 120, "c/z.ts": 120}, []int{3}},
+		{map[string]int{"a/x.ts": 400, "b/y.ts": 400, "c/z.ts": 400, "d/w.ts": 100}, []int{3, 1}},
+	} {
+		order, byFile := sites(tc.counts)
+		batches := plan(order, byFile)
+		var got []int
+		for _, b := range batches {
+			got = append(got, len(b))
+			for _, group := range b {
+				seen := map[string]bool{}
+				for _, file := range group {
+					if seen[file] {
+						t.Errorf("%v: a file split within a writer", tc.counts)
+					}
+					seen[file] = true
+				}
+			}
+		}
+		if fmt.Sprint(got) != fmt.Sprint(tc.writers) {
+			t.Errorf("%v: writers per batch %v, want %v", tc.counts, got, tc.writers)
+		}
+	}
+	// No writer comes back empty where one file holds most of the sites.
+	order, byFile := sites(map[string]int{"a/x.ts": 300, "b/y.ts": 20, "b/z.ts": 20})
+	for _, group := range plan(order, byFile)[0] {
+		if len(group) == 0 {
+			t.Error("a writer holds no file")
+		}
+	}
+	// A directory's files stay with one writer where its size allows.
+	order, byFile = sites(map[string]int{"a/x.ts": 80, "a/y.ts": 70, "b/z.ts": 100, "b/w.ts": 60})
+	for _, group := range plan(order, byFile)[0] {
+		dirs := map[string]bool{}
+		for _, file := range group {
+			dirs[filepath.Dir(file)] = true
+		}
+		if len(dirs) != 1 {
+			t.Errorf("a writer holds files of %d directories: %v", len(dirs), group)
+		}
+	}
+}
+
+// A lane never edits a comment line, and carried refuses a file where it did. revert restores a file
+// as the writers left it and withdraws the run's carried record for it. Run 18's lane shortened a note
+// and changed code logic to carry a fact, and neither had a stage.
+func TestCarriedRefusesALaneCommentEditAndRevertWithdraws(t *testing.T) {
+	c := newChange(t)
+	archive := filepath.Join(t.TempDir(), "archive")
+	runDir := filepath.Join(t.TempDir(), "run18")
+	c.seeded(runDir, archive, "--heads="+c.earlier)
+	written := headLedger
+	c.write("ledger.ts", written)
+	ret := filepath.Join(t.TempDir(), "return-writer-A.md")
+	if err := os.WriteFile(ret, []byte("Block 1/1 ledger.ts:3 | OK\n```ts\n"+
+		"// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n```\n"+
+		"fact: a ledger build answers for its own scheme only\nbears_on: claimFor\ndoes: returns keys.canPost(scheme)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(ret, filepath.Join(runDir, "return-writer-A.md")); err != nil {
+		t.Fatal(err)
+	}
+	// With no return named, archive-written reads the writers' return files in the run directory.
+	if said := c.run("archive-written", "--run=run18", "--archive="+archive, "--run-dir="+runDir); said.code != exitClean ||
+		!strings.Contains(said.stderr+said.stdout, "1 block(s) archived") {
+		t.Fatalf("archive-written: %s%s", said.stdout, said.stderr)
+	}
+	lane := filepath.Join(t.TempDir(), "refactor.md")
+	if err := os.WriteFile(lane, []byte("Comment 1/1 ledger.ts:3 | carried by `ASKS_ONCE_PER_SCHEME`\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The lane shortens the note while it carries the fact.
+	c.write("ledger.ts", "const ASKS_ONCE_PER_SCHEME = true;\n\nexport function other() {}\n\n// A ledger build asks once.\n"+
+		carriedClaimFor)
+	if said := c.run("carried", "--run=run18", "--run-dir="+runDir, "--archive="+archive, lane); said.code != exitFindings ||
+		!strings.Contains(said.stdout, "a lane never edits a comment line") {
+		t.Fatalf("a lane's comment edit was taken: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	// Carried cleanly, then reverted by a ruling: the file stands as the writers left it, and the record goes.
+	c.write("ledger.ts", "const ASKS_ONCE_PER_SCHEME = true;\n\nexport function other() {}\n\n"+
+		carriedClaimFor)
+	if said := c.run("carried", "--run=run18", "--run-dir="+runDir, "--archive="+archive, lane); said.code != exitClean {
+		t.Fatalf("carried: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	said := c.run("revert", "--run=run18", "--run-dir="+runDir, "--archive="+archive, "./sub/../ledger.ts")
+	if said.code != exitClean || !strings.Contains(said.stdout, "ledger.ts restored as the writers left it, 1 carried record(s) withdrawn") {
+		t.Fatalf("revert: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	if body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts")); string(body) != written {
+		t.Fatalf("the file does not stand as the writers left it:\n%s", body)
+	}
+}
+
 // A block the refactor lane carried into code stays carried. The next seed offers no site for it while
 // the carrier stands, keep-test counts it kept, and removing the carrier reopens it. Runs 14 and 16
 // carried one block away twice, and the writers wrote it back from the archive each time.
@@ -451,11 +752,8 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 	c := newChange(t)
 	archive := filepath.Join(t.TempDir(), "archive")
 	first := filepath.Join(t.TempDir(), "run16")
-	if said := c.run("seed", "--run-dir="+first, "--archive="+archive, "--range="+c.base+".."+c.head, "--heads="+c.earlier); said.code != exitClean {
-		t.Fatalf("seed: %s", said.stderr)
-	}
-	written := "export function other() {}\n\n// A ledger build answers for its own scheme only, so this function asks it once per scheme.\n" +
-		"export function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n"
+	c.seeded(first, archive, "--heads="+c.earlier)
+	written := headLedger
 	c.write("ledger.ts", written)
 	ret := filepath.Join(t.TempDir(), "writer-A.md")
 	if err := os.WriteFile(ret, []byte("Block 1/1 ledger.ts:3 | OK\n```ts\n"+
@@ -468,7 +766,7 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 	}
 	// The lane carries the block into a constant the function reads, and removes it.
 	carriedTree := "const ASKS_ONCE_PER_SCHEME = true;\n\nexport function other() {}\n\n" +
-		"export function claimFor(scheme: string): boolean {\n  return ASKS_ONCE_PER_SCHEME && keys.canPost(scheme);\n}\n"
+		carriedClaimFor
 	c.write("ledger.ts", carriedTree)
 	lane := filepath.Join(t.TempDir(), "refactor.md")
 	if err := os.WriteFile(lane, []byte("Comment 1/1 ledger.ts:3 | carried by `ASKS_ONCE_PER_SCHEME`\n"), 0o644); err != nil {
@@ -490,7 +788,7 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 	}
 	// With the carrier gone, the site is offered again.
 	c.git("checkout", "--", "ledger.ts")
-	c.write("ledger.ts", "export function other() {}\n\nexport function claimFor(scheme: string): boolean {\n  return keys.canPost(scheme);\n}\n")
+	c.write("ledger.ts", "export function other() {}\n\n"+claimForDecl)
 	head = c.commit("carrier removed")
 	again := filepath.Join(t.TempDir(), "run18")
 	if said := c.run("seed", "--run-dir="+again, "--archive="+archive, "--range="+c.base+".."+head); !strings.Contains(said.stdout, "ledger.ts:3 ") {

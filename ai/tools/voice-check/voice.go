@@ -1489,6 +1489,52 @@ func withoutSharedRegions(lines []string, within map[int]bool) map[int]bool {
 	return kept
 }
 
+// partMarker parts the blocks of one file piped in a single call.
+const partMarker = "==="
+
+// splitParts cuts the piped lines at each line reading `===`. Text with no such line is one part.
+func splitParts(lines []string) [][]string {
+	var parts [][]string
+	var part []string
+	for _, line := range lines {
+		if strings.TrimSpace(line) == partMarker {
+			parts = append(parts, part)
+			part = nil
+			continue
+		}
+		part = append(part, line)
+	}
+	return append(parts, part)
+}
+
+// scanRecords reads each part of a record-mode call against its block and the code under it, with the
+// file bound where a file is named. A writer checks all of a file's blocks in one call. Run 18's writers
+// called the check once per block, and each call was a turn that carried the whole context again.
+func (s scanner) scanRecords(file string, lines []string) []Finding {
+	parts := splitParts(lines)
+	var found []Finding
+	ties := s.tieLines
+	for n, part := range parts {
+		name := file
+		if len(parts) > 1 {
+			name = fmt.Sprintf("%s#%d", file, n+1)
+		}
+		found = append(found, RecordFindings(name, part)...)
+		_, under, _ := splitRecord(part)
+		if ties != nil {
+			block, _ := blockAndBody(under)
+			found = append(found, TieFindings(name, block, ties)...)
+			// A block checked in this call is not in the file yet, and the next part's bound counts it.
+			for _, line := range block {
+				ties = append(ties, "// "+line)
+			}
+			ties = append(ties, "")
+		}
+		found = append(found, s.scanSource(name, under, nil, under)...)
+	}
+	return found
+}
+
 // scanDiff is the diff half on its own, for a caller holding the bytes.
 func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
 	added := newAddedLines()
@@ -1506,13 +1552,7 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			if !s.record {
 				return s.scanSource(file, lines, nil, lines)
 			}
-			found := RecordFindings(file, lines)
-			_, under, _ := splitRecord(lines)
-			if s.tieLines != nil {
-				block, _ := blockAndBody(under)
-				found = append(found, TieFindings(file, block, s.tieLines)...)
-			}
-			return append(found, s.scanSource(file, under, nil, under)...)
+			return s.scanRecords(file, lines)
 		}
 		if s.kind == "" {
 			return s.scanProse(file, lines)
@@ -1682,6 +1722,12 @@ func identifierWordsOf(lines []string) map[string]bool {
 	return out
 }
 
+// rePathSpan is a backticked span holding a `/`, or one ending in a listed file extension, optionally
+// followed by `:` or `#` and more. It names a file, and a stem inside it is part of the path. A run's
+// writers could cite no file of another repository while the check read that stem as a bare name. The
+// list leaves out lock, env, ini, cfg and conf, because a member access often ends on one of them.
+var rePathSpan = regexp.MustCompile("`[^`]*/[^`]*`|`[^`]*\\.(?:ts|tsx|js|jsx|mjs|cjs|go|py|rb|rs|java|kt|kts|swift|c|h|cc|cpp|cs|m|php|sh|md|json|ya?ml|toml|xml|html|css|scss|sql|txt|gradle|proto|vue|svelte|dart|scala|lua|pl|tf|graphql|gql)(?:[:#][^`]*)?`")
+
 // A hump-cased name, and the comma that would place it.
 var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
 var reAppositiveTail = regexp.MustCompile("^`?\\s*,")
@@ -1698,7 +1744,9 @@ var placeableNames = map[string]bool{"camelcase": true, "srgb": true, "ios": tru
 func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
 	var found []Finding
 	for at := b.start; at <= b.end && at <= len(lines); at++ {
-		text := proseOf(lines[at-1])
+		text := rePathSpan.ReplaceAllStringFunc(proseOf(lines[at-1]), func(span string) string {
+			return strings.Repeat(" ", len(span))
+		})
 		for _, span := range reCamelToken.FindAllStringIndex(text, -1) {
 			token := text[span[0]:span[1]]
 			if declared[strings.ToLower(token)] || placeableNames[strings.ToLower(token)] ||

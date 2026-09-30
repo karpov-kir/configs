@@ -225,3 +225,35 @@ func TestABlockNamingItsOwnDeclarationIsRefused(t *testing.T) {
 		t.Fatalf("a branch naming the value it reads reports %v", got)
 	}
 }
+
+// A file stem inside a backticked path is the audit's path class. A run's writers could cite no file
+// of another repository, because the check read a humped stem there as a bare name.
+func TestAStemInsideABacktickedPathIsNoBareName(t *testing.T) {
+	s := voiceScanner()
+	for _, note := range []string{
+		"// The pool in `packages/server/src/connections/connectionPool.ts` closes idle links, and this row must match it.",
+		"// The pool in `acme/ledger/packages/server/src/connections/connectionPool.ts` closes idle links, and this row must match it.",
+		"// The pool in `connectionPool.ts` closes idle links, and this row must match it.",
+	} {
+		if hasCheck(s.scanSource("f.ts", []string{note, "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
+			t.Errorf("%q reports its path's stem as a bare name", note)
+		}
+	}
+	if !hasCheck(s.scanSource("f.ts", []string{"// The pool in connectionPool closes idle links, and this row must match it.", "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
+		t.Error("a bare stem outside a path passes")
+	}
+	// A call and a member access each hold a dot and name code, and prose after a path is read too.
+	for _, note := range []string{
+		"// The pool in `apiResponse.json()` closes idle links, and this row must match it.",
+		"// The pool in `writeMutex.lock` closes idle links, and this row must match it.",
+		"// The pool in `pool.ts` holds connectionPool open, and this row must match it.",
+	} {
+		if !hasCheck(s.scanSource("f.ts", []string{note, "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
+			t.Errorf("%q reports no bare name", note)
+		}
+	}
+	// A member access holds a dot and names a field, and its humped name is still a bare name.
+	if !hasCheck(s.scanSource("f.ts", []string{"// The pool in `retryPolicy.value` closes idle links, and this row must match it.", "export const LINKS = 3;"}, nil, nil), checkBareIdent) {
+		t.Error("a humped name inside a member access passes as a path")
+	}
+}

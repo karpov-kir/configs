@@ -115,3 +115,28 @@ func TestTheTallyNamesAFileBoundFinding(t *testing.T) {
 		t.Fatalf("the tally leaves the file bound out:\n%s", errOut.String())
 	}
 }
+
+// A writer checks a file's blocks in one call, with a line reading `===` between parts. Each part is read and named
+// by its place, and the file bound counts the parts before it. Run 18's writers made a call per block.
+func TestOneCallChecksEveryBlockOfAFile(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "ledger.ts")
+	if err := os.WriteFile(source, []byte("export function a() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	part := func(name string) string {
+		return "fact: a ledger answers late\nbears_on: " + name + "\ndoes: reads the rate\n---\n" +
+			"// A ledger of kind " + strings.ToLower(name[4:]) + " answers late, so this function reads the rate.\nfunction " + name + "(row) {\n  return row.rate;\n}\n"
+	}
+	input := filepath.Join(dir, "blocks.txt")
+	if err := os.WriteFile(input, []byte(part("readA")+"===\n"+part("readB")+"===\n"+part("readC")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	Run("voice-check.sh", []string{"--profile=comment", "--source", "--record", "--file=" + source, input}, dir,
+		repotest.New(dir), baseConfig(), &out, &errOut)
+	text := out.String()
+	if strings.Contains(text, "#1:") || strings.Contains(text, "#2:") || !strings.Contains(text, "#3:1: "+checkTieRepeated) {
+		t.Fatalf("the third part alone should repeat the tie:\n%s%s", text, errOut.String())
+	}
+}

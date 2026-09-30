@@ -3,7 +3,6 @@ package commentrun
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	commentstrip "configs/ai/tools/comment-strip"
 	"configs/ai/tools/shell"
@@ -17,9 +16,7 @@ func keepTest(r *runner, opts options, paths []string) int {
 	if archive == "" || len(paths) == 0 {
 		return r.refuse("%s", "keep-test takes --archive=<dir> and the paths to read")
 	}
-	if !filepath.IsAbs(archive) {
-		archive = filepath.Join(r.cwd, archive)
-	}
+	r.absolute(&archive)
 	root := r.cwd
 	if top, err := git(r.cwd, "rev-parse", "--show-toplevel"); err == nil {
 		root = top
@@ -27,9 +24,7 @@ func keepTest(r *runner, opts options, paths []string) int {
 	kept, total := 0, 0
 	for _, path := range paths {
 		read := path
-		if !filepath.IsAbs(read) {
-			read = filepath.Join(r.cwd, read)
-		}
+		r.absolute(&read)
 		raw, err := os.ReadFile(read)
 		if err != nil {
 			return r.refuse("cannot read %s", shell.Echoable(path))

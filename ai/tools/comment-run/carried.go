@@ -3,6 +3,7 @@ package commentrun
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -26,12 +27,13 @@ func carriedStage(r *runner, opts options, returns []string) int {
 	if run == "" || runDir == "" || archive == "" || len(returns) == 0 {
 		return r.refuse("%s", "carried takes --run=<run>, --run-dir=<dir>, --archive=<dir> and the refactor lane's returns")
 	}
-	for _, p := range []*string{&runDir, &archive} {
-		if !filepath.IsAbs(*p) {
-			*p = filepath.Join(r.cwd, *p)
-		}
+	r.absolute(&runDir, &archive)
+	held, err := readRun(runDir)
+	if err != nil {
+		return r.refuse("%v", err)
 	}
 	recorded, refused, stays := 0, 0, 0
+	laneEdits := map[string][]string{}
 	for _, path := range returns {
 		body, err := os.ReadFile(path)
 		if err != nil {
@@ -39,12 +41,34 @@ func carriedStage(r *runner, opts options, returns []string) int {
 		}
 		stays += len(reStaysVerdict.FindAllString(string(body), -1))
 		for _, m := range reCarriedVerdict.FindAllStringSubmatch(string(body), -1) {
-			file, carrier := m[1], strings.TrimSpace(m[3])
+			file, carrier := filepath.Clean(m[1]), strings.TrimSpace(m[3])
 			at, _ := strconv.Atoi(m[2])
-			snapshot, err := os.ReadFile(filepath.Join(runDir, "written", file))
+			if !filepath.IsLocal(file) {
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%d refused: no path inside the tree\n", shell.Echoable(file), at)
+				continue
+			}
+			written := filepath.Join(writtenDir(runDir), file)
+			snapshot, err := os.ReadFile(written)
 			if err != nil {
 				refused++
 				fmt.Fprintf(r.stdout, "%s:%d refused: no copy of the file as the writers left it; run archive-written with --run-dir\n", file, at)
+				continue
+			}
+			edits, diffed := laneEdits[file]
+			if !diffed {
+				if edits, err = laneCommentEdits(written, filepath.Join(held["top"], file)); err != nil {
+					return r.refuse("%v", err)
+				}
+				laneEdits[file] = edits
+				if len(edits) > 0 {
+					fmt.Fprintf(r.stdout, "%s refused: the lane wrote comment text, and a lane never edits a comment line; "+
+						"run revert on the file and return `carried by` with the block deleted or `stays:`: %s\n", file,
+						shell.CutBytesMarked(strings.Join(edits, " / "), 200))
+				}
+			}
+			if len(edits) > 0 {
+				refused++
 				continue
 			}
 			if err := commentstrip.Carry(archive, run, file, shell.SplitLines(string(snapshot)), at, carrier); err != nil {
@@ -61,4 +85,23 @@ func carriedStage(r *runner, opts options, returns []string) int {
 		return exitFindings
 	}
 	return exitClean
+}
+
+// laneCommentEdits is each comment line the refactor lane added or changed in a file, against the copy
+// archive-written saved as the writers left it. A lane never edits a comment line: run 18's lane
+// shortened a note under a `carried by` verdict, and the note failed voice and the keep test.
+func laneCommentEdits(snapshot, current string) ([]string, error) {
+	out, err := exec.Command("git", "diff", "--no-index", "--unified=0", "--", snapshot, current).Output()
+	if err != nil {
+		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+			return nil, fmt.Errorf("cannot compare %s with the writers' copy: %v", shell.Echoable(current), err)
+		}
+	}
+	var edits []string
+	for _, line := range shell.SplitLines(string(out)) {
+		if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") && reCommentLine.MatchString(line[1:]) {
+			edits = append(edits, strings.TrimSpace(line[1:]))
+		}
+	}
+	return edits, nil
 }

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"configs/ai/tools/diffscan"
@@ -84,7 +85,7 @@ type treeReader func(names []string) (map[string][]string, error)
 // CarrierFindings reads the added lines of one change set against the archived blocks. A unit test's
 // strings are fixtures, and only its titles are read: a test named for an archived fact took the
 // fact from the site.
-func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Finding, error) {
+func CarrierFindings(blocks []string, added *addedLines, tree treeReader, standing map[string]bool) ([]Finding, error) {
 	archived := map[string]bool{}
 	for _, text := range blocks {
 		for _, run := range wordRuns(text) {
@@ -96,7 +97,7 @@ func CarrierFindings(blocks []string, added *addedLines, tree treeReader) ([]Fin
 	var unreadCandidates []string
 	for _, file := range added.order {
 		if IsTestFile(file) {
-			found = append(found, testTitleFindings(file, added.byFile[file], archived)...)
+			found = append(found, testTitleFindings(file, added.byFile[file], archived, standing)...)
 			continue
 		}
 		inMessage := false
@@ -155,13 +156,14 @@ func quotedBlockFindings(file string, line addedLine, archived map[string]bool) 
 	return found
 }
 
-// testTitleFindings reports each test title among a unit test's added lines that shares a word run with
-// an archived block.
-func testTitleFindings(file string, lines []addedLine, archived map[string]bool) []Finding {
+// testTitleFindings reports a test title that quotes an archived block no comment in the tree holds any
+// more. The fault is the block dropped in favour of the test. A title that repeats a block still
+// standing is no fault: run 18 reported 14 titles whose blocks the change still carried.
+func testTitleFindings(file string, lines []addedLine, archived, standing map[string]bool) []Finding {
 	var found []Finding
 	for _, line := range lines {
 		for _, m := range reTestTitle.FindAllStringSubmatch(line.text, -1) {
-			if run := archivedRun(m[2], archived); run != "" {
+			if run := archivedRun(m[2], archived); run != "" && !standing[run] {
 				found = append(found, Finding{File: file, Line: line.at, Check: checkCarrierTest, Text: run})
 			}
 		}
@@ -296,7 +298,11 @@ func carriers(out console, dir string, args []string, cwd string, git repo.Git, 
 	if top, err := git.TopLevel(cwd); err == nil && top != "" {
 		root = top
 	}
-	found, err := CarrierFindings(blocks, added, gitTree(root))
+	standing, err := standingRuns(root)
+	if err != nil {
+		return out.refuse(err)
+	}
+	found, err := CarrierFindings(blocks, added, gitTree(root), standing)
 	if err != nil {
 		return out.refuse(err)
 	}
@@ -316,4 +322,42 @@ func carriers(out console, dir string, args []string, cwd string, git repo.Git, 
 		return exitFound
 	}
 	return exitClean
+}
+
+// reTreeComment is a tracked line that opens on a comment marker, as git grep prints it with its path.
+var reTreeComment = regexp.MustCompile(`^([^:]+):(\d+):\s*(//+|/\*+|\*+/?|#)\s?(.*)$`)
+
+// standingRuns is every word run of the comment blocks the tree at root holds now. A block is the
+// consecutive comment lines of one file.
+func standingRuns(root string) (map[string]bool, error) {
+	out, err := exec.Command("git", "-C", root, "grep", "-n", "-I", "--full-name", "-E", `^\s*(//|/\*|\*|#)`).Output()
+	if err != nil {
+		if exit, ok := err.(*exec.ExitError); ok && exit.ExitCode() == 1 {
+			return map[string]bool{}, nil
+		}
+		return nil, fmt.Errorf("git grep over the tree's comments failed (%v) — the check did NOT run", err)
+	}
+	runs := map[string]bool{}
+	var block []string
+	lastFile, lastLine := "", 0
+	flush := func() {
+		for _, run := range wordRuns(strings.Join(block, " ")) {
+			runs[run] = true
+		}
+		block = nil
+	}
+	for _, grepped := range strings.Split(string(out), "\n") {
+		m := reTreeComment.FindStringSubmatch(grepped)
+		if m == nil {
+			continue
+		}
+		at, _ := strconv.Atoi(m[2])
+		if m[1] != lastFile || at != lastLine+1 {
+			flush()
+		}
+		block = append(block, m[4])
+		lastFile, lastLine = m[1], at
+	}
+	flush()
+	return runs, nil
 }

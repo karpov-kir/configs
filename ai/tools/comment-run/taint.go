@@ -17,7 +17,7 @@ import (
 // command's output mixes its parts, so it goes to a hand read and never counts.
 func taint(r *runner, opts options, _ []string) int {
 	ledger := ""
-	counted, byHand, read := 0, 0, 0
+	counted, byHand, scripted, read := 0, 0, 0, 0
 	for _, arg := range opts.order {
 		if value, found := strings.CutPrefix(arg, "--ledger="); found {
 			ledger = value
@@ -39,7 +39,13 @@ func taint(r *runner, opts options, _ []string) int {
 		}
 		read++
 		for _, hit := range hits(calls, files, ledger) {
-			if hit.chained {
+			if hit.isScriptWrite {
+				scripted++
+				fmt.Fprintf(r.stdout, "%s: script write: call %d wrote %s by shell, where writes go through the Edit tool: %s\n",
+					arg, hit.at, hit.file, shell.CutBytesMarked(hit.command, 200))
+				continue
+			}
+			if hit.isChained {
 				byHand++
 				fmt.Fprintf(r.stdout, "%s: read by hand: call %d, %s\n", arg, hit.at, shell.CutBytesMarked(hit.command, 200))
 				continue
@@ -52,8 +58,9 @@ func taint(r *runner, opts options, _ []string) int {
 	if read == 0 {
 		return r.refuse("%s", "taint takes --ledger=<file> and the transcripts it covers")
 	}
-	fmt.Fprintf(r.stderr, "%s: %d transcript(s), %d tainted read(s), %d to read by hand\n", r.self, read, counted, byHand)
-	if counted > 0 || byHand > 0 {
+	fmt.Fprintf(r.stderr, "%s: %d transcript(s), %d tainted read(s), %d to read by hand, %d script write(s)\n", r.self, read,
+		counted, byHand, scripted)
+	if counted > 0 || byHand > 0 || scripted > 0 {
 		return exitFindings
 	}
 	return exitClean
@@ -159,19 +166,30 @@ func ledgerFiles(path string) ([]string, error) {
 var (
 	reHistoryRead = regexp.MustCompile(`\bgit\s+(diff|show|log)\b`)
 	reChained     = regexp.MustCompile(`;|&&|\|\||\n`)
-	reCommentOut  = regexp.MustCompile(`(?m)^\s*(\d+[:\t]\s*)?(//|/\*|\*\s|\*/|#\s)`)
+	// A diff prints a removed line under `-`: run 18's writers ran `git diff -- <file>` with no range, and
+	// it printed HEAD's blocks against the stripped tree.
+	reCommentOut = regexp.MustCompile(`(?m)^[+-]?\s*(\d+[:\t]\s*)?(//|/\*|\*\s|\*/|#\s)`)
+	// reScriptEdit is a shell command that edits a file it names in place: sed or perl with -i, tee, or
+	// a script that writes. Writes go through the Edit tool, and run 18b's writer wrote by script once
+	// and one insert slipped.
+	reScriptEdit = regexp.MustCompile(`\bsed\s+(-\w+\s+)*-i|\bperl\s+-\w*i|\btee\b|\b(python3?|node|ruby)\b[^|]*\b(write|writeFile|open\([^)]*['"]w)`)
 	// A log's graph opens lines on `* `, so a log read counts only a line opening a block. Run 13's one
 	// log read flagged every file its writer held.
 	reBlockOpener = regexp.MustCompile(`(?m)^[+-]?\s*(\d+[:\t]\s*)?(//|/\*)`)
 	reLogRead     = regexp.MustCompile(`\bgit\s+log\b`)
+	// reRedirectTarget is a redirect with its target in the first group. A redirect counts only when its
+	// target is the file, since `2>&1` and a pipe into a check name the file and leave it as it was.
+	reRedirectTarget = regexp.MustCompile(`>>?\s*['"]?(\S+)`)
 )
 
-// hit is one history read that showed the writer a comment line of a file it still wrote to after.
+// hit is one history read that showed the writer a comment line of a file it still wrote to after, or
+// a write to such a file by shell script.
 type hit struct {
-	at      int
-	file    string
-	command string
-	chained bool
+	at            int
+	file          string
+	command       string
+	isChained     bool
+	isScriptWrite bool
 }
 
 // hits reads the calls against the ledger's files. The last write to a file is the ledger's entry for
@@ -189,6 +207,8 @@ func hits(calls []call, files []string, ledger string) []hit {
 				byLedger[file] = c.at
 			case (c.tool == "Edit" || c.tool == "Write" || c.tool == "MultiEdit") && strings.HasSuffix(target, file):
 				byEdit[file] = c.at
+			case c.tool == "Bash" && !writesLedger && scriptWrites(command, file):
+				byEdit[file] = c.at
 			}
 		}
 	}
@@ -201,6 +221,13 @@ func hits(calls []call, files []string, ledger string) []hit {
 	var out []hit
 	for _, c := range calls {
 		command := c.text("command")
+		if c.tool == "Bash" && !strings.Contains(command, ledger) {
+			for _, file := range named(command, files) {
+				if scriptWrites(command, file) {
+					out = append(out, hit{at: c.at, file: file, command: shell.Oneline(command), isScriptWrite: true})
+				}
+			}
+		}
 		if c.tool != "Bash" || !reHistoryRead.MatchString(command) || !reCommentOut.MatchString(c.result) {
 			continue
 		}
@@ -215,7 +242,7 @@ func hits(calls []call, files []string, ledger string) []hit {
 		for _, file := range targets {
 			if c.at < last(file) {
 				out = append(out, hit{at: c.at, file: file, command: shell.Oneline(command),
-					chained: reChained.MatchString(strings.TrimSpace(command))})
+					isChained: reChained.MatchString(strings.TrimSpace(command))})
 				break
 			}
 		}
@@ -232,4 +259,20 @@ func named(command string, files []string) []string {
 		}
 	}
 	return out
+}
+
+// scriptWrites says the shell command writes the file: an in-place edit naming it, or a redirect into it.
+func scriptWrites(command, file string) bool {
+	if !strings.Contains(command, file) {
+		return false
+	}
+	if reScriptEdit.MatchString(command) {
+		return true
+	}
+	for _, m := range reRedirectTarget.FindAllStringSubmatch(command, -1) {
+		if strings.Contains(m[1], file) {
+			return true
+		}
+	}
+	return false
 }

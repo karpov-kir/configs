@@ -29,9 +29,16 @@ var (
 // now, and archives it with the record the writer returned. A block holding only a summary archives
 // with an empty record. The runner rebuilt this from the skill's prose in runs 12 and 13.
 func archiveWritten(r *runner, opts options, returns []string) int {
-	run, archive := opts.one("run"), opts.one("archive")
+	run, archive, runDir := opts.one("run"), opts.one("archive"), opts.one("run-dir")
+	if runDir != "" {
+		r.absolute(&runDir)
+	}
+	// A writer writes its return to the run directory, and a run of 162 sites fits no message.
+	if len(returns) == 0 && runDir != "" {
+		returns, _ = filepath.Glob(returnFile(runDir, "*"))
+	}
 	if run == "" || archive == "" || len(returns) == 0 {
-		return r.refuse("%s", "archive-written takes --run=<run>, --archive=<dir> and the writers' returns")
+		return r.refuse("%s", "archive-written takes --run=<run>, --archive=<dir> and the writers' returns, or --run-dir holding them")
 	}
 	records, err := os.MkdirTemp("", "comment-run-records-")
 	if err != nil {
@@ -106,15 +113,12 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 	}
 	// The file as the writers left it, which the carried stage reads the refactor lane's lines against.
 	// The lane's verdict names a line of this tree, and its edit then moves or removes the block.
-	if runDir := opts.one("run-dir"); runDir != "" {
-		if !filepath.IsAbs(runDir) {
-			runDir = filepath.Join(r.cwd, runDir)
-		}
+	if runDir != "" {
 		var files []string
 		for file := range snapshot {
 			files = append(files, file)
 		}
-		if err := copyFiles(r.cwd, files, filepath.Join(runDir, "written")); err != nil {
+		if err := copyFiles(r.cwd, files, writtenDir(runDir)); err != nil {
 			return r.refuse("%v", err)
 		}
 	}
@@ -123,6 +127,11 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 		return exitFindings
 	}
 	return exitClean
+}
+
+// writtenDir is where archive-written saves each file as the writers left it.
+func writtenDir(runDir string) string {
+	return filepath.Join(runDir, "written")
 }
 
 // verdictShape is the verdict line this stage reads, with its example.
@@ -167,9 +176,7 @@ func (r *runner) locate(file, site, segment string) (int, string) {
 		return 0, "the fenced block holds no comment line"
 	}
 	read := file
-	if !filepath.IsAbs(read) {
-		read = filepath.Join(r.cwd, read)
-	}
+	r.absolute(&read)
 	raw, err := os.ReadFile(read)
 	if err != nil {
 		return 0, "cannot read " + shell.Echoable(file)

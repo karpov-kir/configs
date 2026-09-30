@@ -118,7 +118,7 @@ func TestASecondCheckoutIsRefusedWithTheSkillsInTheCount(t *testing.T) {
 
 	f.ExpectCode(f.install("--agent=claude"), 1)
 
-	f.ExpectSaid("3 mounts (1 configs and 2 skills)")
+	f.ExpectSaid("4 mounts (2 configs and 2 skills)")
 	f.ExpectSaid(stranger)
 	// The half that matters. A guard that refuses after repointing has still moved the machine, so the
 	// mounts are read back and the message alone is never trusted.
@@ -134,7 +134,7 @@ func TestRelocateMovesTheWholeSetToThisCheckout(t *testing.T) {
 
 	f.ExpectCode(f.install("--agent=claude", "--relocate"), 0)
 
-	f.ExpectSaid("moving 3 mount(s)")
+	f.ExpectSaid("moving 4 mount(s)")
 	f.ExpectLinkTo(f.skillsMount("claude")+"/kk-build", f.repo+"/kk-flavor/skills/kk-build")
 }
 
@@ -164,4 +164,16 @@ func TestASecondRunOverAFinishedMachineRelinksNothing(t *testing.T) {
 	if mounted := f.Mounted(f.skillsMount("claude")); !slices.Equal(mounted, publicSkills) {
 		t.Errorf("the second run left %v mounted, wanted %v", mounted, publicSkills)
 	}
+}
+
+// Claude reads defined agents from ~/.claude/agents, and the flavor's comment writer is one. Codex has
+// no such directory, and a Codex run mounts none.
+func TestClaudeGetsTheFlavorsAgentsAndCodexNone(t *testing.T) {
+	f := newFixture(t)
+	f.ExpectCode(f.install("--agent=claude"), 0)
+	f.ExpectLinkTo(f.home+"/.claude/agents/comment-writer.md", f.repo+"/kk-flavor/agents/comment-writer.md")
+
+	g := newFixture(t)
+	g.ExpectCode(g.install("--agent=codex"), 0)
+	g.ExpectAbsent(g.home + "/.claude/agents/comment-writer.md")
 }
