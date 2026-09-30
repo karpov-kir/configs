@@ -167,7 +167,7 @@ func TestABlockCarryingTheBarredShapeFails(t *testing.T) {
 	}
 }
 
-// k10 and l34 once wanted their summary "needed", which no return is, so both failed every roll.
+// k10 once wanted its summary "needed", which no return is, so it failed every roll.
 func TestACaseRefusesAPartNoReturnCanBe(t *testing.T) {
 	for _, part := range []string{"summary: needed", "note: required"} {
 		raw := "expect: written\n" + part + "\nwhy: a part\n--- code\nexport function f() {}\n--- facts\nA fact.\n"
