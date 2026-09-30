@@ -170,6 +170,16 @@ func TestABlockCarryingTheBarredShapeFails(t *testing.T) {
 // Question 1 reads an exported symbol's callers, and question 3's consequence names what one does to
 // the result. The writer here has no repository to grep. The callers reach it through the case and
 // the prompt alone.
+// k10 and l34 once wanted their summary "needed", which no return is, so both failed every roll.
+func TestACaseRefusesAPartNoReturnCanBe(t *testing.T) {
+	for _, part := range []string{"summary: needed", "note: required"} {
+		raw := "expect: written\n" + part + "\nwhy: a part\n--- code\nexport function f() {}\n--- facts\nA fact.\n"
+		if _, err := ParseCase("k-part", raw); err == nil {
+			t.Errorf("%q parsed, and the case would fail every roll on its part", part)
+		}
+	}
+}
+
 func TestACaseCarriesItsCallersSeparatelyFromItsCode(t *testing.T) {
 	raw := "expect: written\nwhy: a site with callers\n--- code\nexport function f() {}\n" +
 		"--- callers\n// helpers/Closing.ts\nf();\n--- facts\nA library drops an entry.\n"

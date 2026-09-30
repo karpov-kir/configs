@@ -2,12 +2,12 @@ expect: written
 note: written
 keeps: together | at once | both | alongside | with a scheme | with the scheme
 bars: \brefuses\b | \bschemequerykind\b
-why: Kirill could not follow a note that said an old platform call refuses a type naming its parts; a platform fact is the event a reader can watch, so the note says what the call answers when the two are asked about together, and the act follows from that event
+why: Kirill could not follow a note that said an old platform call refuses a type naming its parts; a platform fact is the event a reader can watch, so the note says what the call returns when the two are passed together, and the act follows from that event
 labelled: 2026-09-30
 --- code
 export function schemeQueryKind(entryType: string): string {
   return entryType.split(';')[0];
 }
 --- facts
-On the oldest clearing hosts, `canPost` answers no for a posting when an entry type that names its currencies and a settlement scheme are asked about together.
+On the oldest clearing hosts, `canPost` returns false when an entry type that names its currencies and a settlement scheme are passed together.
 The scheme is asked about the posting kind alone, without the currencies.
