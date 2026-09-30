@@ -107,7 +107,7 @@ export function toEntryArray(list: LivePostingList): Posting[] {
 
 Scope: this file and its callers, in the change set.
 
-Expected: `carried by a rename of toEntryArray to snapshotForRemoval`. The block keeps its first sentence, the fact,
-alone. The name said the mechanism, a copy into an array, and the note said the purpose. After the
-rename the name and the note say one thing, and the note keeps what the name cannot carry.
-
+Expected: `stays: A live posting list stops listing an entry as soon as the book removes it.`, with
+toEntryArray renamed to snapshotForRemoval and the block cut to that fact. The name said the
+mechanism, a copy into an array, and the note said the purpose. After the rename the name carries the
+purpose, and the fact still needs the note.

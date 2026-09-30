@@ -9,5 +9,5 @@ export function schemeQueryKind(entryType: string): string {
   return entryType.split(';')[0];
 }
 --- facts
-On the oldest clearing hosts, `canPost` answers that a posting cannot settle when an entry type that names its currencies and a settlement scheme are asked about together.
+On the oldest clearing hosts, `canPost` answers no for a posting when an entry type that names its currencies and a settlement scheme are asked about together.
 The scheme is asked about the posting kind alone, without the currencies.
