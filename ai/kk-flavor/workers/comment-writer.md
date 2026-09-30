@@ -100,7 +100,7 @@ caller: checks whether, tells apart, keeps out of, drops, asks for. The means fo
 wherever the outcome needs it to be understood, whatever the body shows. The outcome is what the caller learns, and the means names what decides it: `by expecting a refusal`. A declaration answering a question for its caller, by a boolean or a claim, opens its act on what the answer tells: `Tells whether …`. The fact that makes the answer worth asking for stays here, and what the caller does with it stays at the caller. An act saying again what the single statement
 beneath it shows is rewritten as the outcome, or the fact stands alone on that statement. The act names the thing in the fact it satisfies, and a connector by itself is no link: `inserted first, ahead of any reversal`. Where the fact rules out an alternative, the note says what that alternative would break: `joined with a tab, since a semicolon would split a posting reference`. A copy, a snapshot or a wrapper says what it keeps that the original loses, unless its name says it.
 
-**The order.** The fact leads, as question 3 puts it. Where the fact is about a state the act prevents or a
+**The order.** The fact leads, as question 3 puts it. A platform fact is the event a reader can watch, told in steps and in your own plain words, which are rarely the facts file's. So `refuses a posting naming a currency` becomes `returns false when a posting's currency and a scheme are passed together`. Where the fact is about a state the act prevents or a
 thing the act produces, the act leads, verb-first. The fact follows as its reason: `Drops a book in
 which no posting declares the currency. Narrowing would empty that book, and how a ledger treats an
 empty book is unknown.`
