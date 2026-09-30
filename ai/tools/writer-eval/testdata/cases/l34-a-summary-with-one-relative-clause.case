@@ -1,17 +1,19 @@
 expect: written
 summary: needed
-note: none
-keeps: undefined | nothing | no reason
+keeps: undefined | nothing | no reason | none | accept
 bars: \bwhich\b[^.]*\bwhich\b | \bwhose\b[^.]*\bwhich\b | \bits catalog entry\b | \bmismatchof\b
-why: Kirill found a summary with a relative clause inside a relative clause hard to read; a summary holds one relative clause at most, so what the function returns and when it returns nothing each stay in one clause, and the body shows the comparison, so no note is owed
+why: Kirill found a summary with a relative clause inside a relative clause hard to read; a summary holds one relative clause at most, so what the function returns and when it returns nothing each stay in one clause
 labelled: 2026-09-30
 --- code
 export function mismatchOf(statement: Statement, catalog: Catalog): string | undefined {
-  const listed = catalog.closingBalance(statement.account);
-  if (listed === statement.closingBalance) {
-    return undefined;
+  for (const line of statement.lines) {
+    const listed = catalog.closingBalance(line.account);
+    if (listed !== line.closingBalance) {
+      return `${line.account}: closing balance ${line.closingBalance} is not the listed ${listed}`;
+    }
   }
-  return `closing balance ${statement.closingBalance} is not the listed ${listed}`;
+  return undefined;
 }
 --- facts
-Returns why a statement's closing balance differs from the balance the catalog lists for its account, or undefined when the two match.
+The import refuses a statement for the first line whose closing balance is not the balance the catalog lists for that line's account, and shows the operator this reason.
+A statement with no such line is accepted.
