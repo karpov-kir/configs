@@ -1,7 +1,7 @@
 expect: written
 summary: needed
 keeps: undefined | nothing | no reason | none | accept
-bars: \bwhich\b[^.]*\bwhich\b | \bwhose\b[^.]*\bwhich\b | \bits catalog entry\b | \bmismatchof\b
+bars: \bwhich\b[^.]*\bwhich\b | \bwhose\b[^.]*\bwhich\b | \bwhose\b[^.,]*\bthe catalog lists\b | \bits catalog entry\b | \bmismatchof\b
 why: Kirill found a summary with a relative clause inside a relative clause hard to read; a summary holds one relative clause at most, so what the function returns and when it returns nothing each stay in one clause
 labelled: 2026-09-30
 --- code
