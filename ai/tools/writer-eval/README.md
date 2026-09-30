@@ -179,6 +179,9 @@ k10 reads 0 in `4cc6a9eb8cae`, `6e36ff2ae7df` and `bb34e7de7f18`, and that 0 is 
 is a `needed` summary, and the case wanted one. Every roll failed on its part until item 33 made
 the parser refuse the value. A move on k10 from any of those columns comes from that fix.
 
+l15 has no stable column. Main read it 6 to 13 over five reads at `1f70f1f7d443`. Item 33 barred the
+abstraction Kirill flagged in place of a phrasing keep, and at `1562bee4f02f` l15 reads 11 to 13.
+
 ## The record check runs inside a roll
 
 The pipeline's writer runs the record check on each block before it writes it. It rewrites for each
