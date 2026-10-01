@@ -1,0 +1,14 @@
+expect: written
+note: written
+keeps: before | first | while its entries | while the entries | while entries
+bars: \bno longer counts\b | \bremoverejected\b
+why: Kirill found a note that said a section "no longer counts" once its entries are gone hard to follow; the fact is told as the steps a reader can watch, where the currency sits only on the entries and removing them all leaves nothing that marks the section, so the sections go before the entries
+labelled: 2026-09-30
+--- code
+export function removeRejected(book: Book, currency: string): void {
+  book.sections.filter((section) => currencyOf(section) === currency).forEach((section) => book.removeSection(section));
+  book.entries.filter((entry) => entry.currency === currency).forEach((entry) => book.removeEntry(entry));
+}
+--- facts
+A ledger section may state its currency only on its entries, and `currencyOf` reads it from them.
+Once every entry of a section is removed, nothing marks the section as held in that currency.

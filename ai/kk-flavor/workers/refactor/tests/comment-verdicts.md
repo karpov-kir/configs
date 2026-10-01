@@ -96,3 +96,19 @@ outside the scope.
 Expected: `stays: <the fact>`. A test is never a carrier, inside the scope or outside it: the
 reader of the cutoff reads the function and its block, and the test stays unread. A PR body is no place for a fact about code with a
 declaration.
+
+## A name saying the mechanism where the note says the purpose
+
+```ts
+// A live posting list stops listing an entry as soon as the book removes it. The closing helpers
+// remove entries while they walk the result, so the walk runs over a copy that keeps every entry.
+export function toEntryArray(list: LivePostingList): Posting[] {
+```
+
+Scope: this file and its callers, in the change set.
+
+Expected: `stays: A live posting list stops listing an entry as soon as the book removes it, and the
+closing helpers remove entries while they walk the result`. toEntryArray is renamed to
+snapshotForRemoval, and the purpose is cut from the block. The name said the mechanism, a copy into an
+array, and the note said the purpose. After the rename the name carries the purpose, and the fact
+still needs the note.

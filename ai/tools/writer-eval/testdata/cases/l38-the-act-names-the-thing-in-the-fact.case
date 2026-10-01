@@ -1,0 +1,12 @@
+expect: written
+note: written
+keeps: ahead of | before any | before every | before the | before those | before all | first line | first child
+bars: \bthat is why\b | \binsertadjustmentnote\b
+why: Kirill could not link "that is why" to the fact before it; the act names the thing in the fact it satisfies, so the note is inserted first, ahead of the posting and reversal lines the format orders after it
+labelled: 2026-09-30
+--- code
+export function insertAdjustmentNote(section: Section, note: AdjustmentNote): void {
+  section.insertBefore(note, section.firstLine);
+}
+--- facts
+The clearing format orders adjustment notes before any posting line or reversal line in a section.

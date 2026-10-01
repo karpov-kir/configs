@@ -145,10 +145,16 @@ func ParseCase(name, raw string) (Case, error) {
 			c.Why = value
 		case "labelled":
 			c.Label = value
-		case "summary":
-			c.WantSummary = strings.ToLower(value)
-		case "note":
-			c.WantNote = strings.ToLower(value)
+		case "summary", "note":
+			part := strings.ToLower(value)
+			if part != PartName(PartWritten) && part != PartName(PartNone) {
+				return c, fmt.Errorf("%s wants its %s %q, and a part is written or none", name, key, value)
+			}
+			if strings.EqualFold(strings.TrimSpace(key), "summary") {
+				c.WantSummary = part
+			} else {
+				c.WantNote = part
+			}
 		case "keeps":
 			var group []string
 			for _, wording := range strings.Split(value, "|") {
