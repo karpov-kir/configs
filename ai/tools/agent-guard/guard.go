@@ -69,18 +69,14 @@ func Run(args []string, stdin io.Reader, stderr io.Writer) int {
 		return exitAllow
 	}
 	input := event.ToolInput
-	switch event.ToolName {
-	case "Agent", "Task":
-		if input.SubagentType != "" && input.SubagentType != generalAgent {
-			return exitAllow
-		}
-	case "spawn_agent":
-		// A Codex spawn naming a role took the light worker or another the owner declared.
-		if input.AgentType != "" || input.Role != "" {
-			return exitAllow
-		}
-	default:
+	// Codex reports spawn_agent under the tool name Agent, with its role in agent_type or role.
+	if event.ToolName != "Agent" && event.ToolName != "Task" && event.ToolName != "spawn_agent" {
 		return exitAllow
+	}
+	for _, kind := range []string{input.SubagentType, input.AgentType, input.Role} {
+		if kind != "" && kind != generalAgent {
+			return exitAllow
+		}
 	}
 	if reNeeds.MatchString(input.Prompt + "\n" + input.Message) {
 		return exitAllow

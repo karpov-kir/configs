@@ -72,13 +72,19 @@ func TestCodexGetsTheLightWorkerAndTheGuardAndUninstallRestoresTheConfig(t *test
 
 // A config however it ends comes back with the same bytes, and one bootstrap created goes again.
 func TestCodexConfigComesBackAsItEnded(t *testing.T) {
-	for _, owners := range []string{`model = "gpt"`, "model = \"gpt\"\n\n\n", "[features]\nhooks = true\n", ""} {
+	for _, owners := range []string{`model = "gpt"`, "model = \"gpt\"\n\n\n", "[features]\nhooks = true\n", "model = \"gpt\"\n[features]\n",
+		"model = \"gpt\"\n[features]", ""} {
 		f := newFixture(t)
 		config := f.codexHome + "/config.toml"
 		if owners != "" {
 			f.Write(config, owners)
 		}
 		f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
+		first, _ := os.ReadFile(config)
+		f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
+		if again, _ := os.ReadFile(config); string(again) != string(first) {
+			t.Errorf("%q: a second run rewrote the config", owners)
+		}
 		f.ExpectCode(f.install("--agent=codex", "--owner", "--uninstall"), 0)
 		restored, err := os.ReadFile(config)
 		if owners == "" {
@@ -99,6 +105,10 @@ func TestCodexConfigComesBackAsItEnded(t *testing.T) {
 func TestCodexConfigsOfAnotherShapeAreRefusedAndLeftAlone(t *testing.T) {
 	for _, owners := range []string{
 		"[features]\nhooks = false\n",
+		"\"features\".hooks = false\n",
+		"[ \"features\" ]\nhooks = false\n",
+		"\"agents\" = { max_threads = 3 }\n",
+		"[features]\nx = [\n  [1],\n]\nhooks = false\n",
 		"features.hooks = false\n",
 		"features = { js_repl = true }\n",
 		"[features]\n[features]\n",
@@ -114,6 +124,17 @@ func TestCodexConfigsOfAnotherShapeAreRefusedAndLeftAlone(t *testing.T) {
 		if body, _ := os.ReadFile(config); string(body) != owners {
 			t.Errorf("%q was changed to %q", owners, body)
 		}
+	}
+	// A key added above the region of a file bootstrap created is the owner's, and it survives both a
+	// second run and the uninstall.
+	g := newFixture(t)
+	created := g.codexHome + "/config.toml"
+	g.ExpectCode(g.install("--agent=codex", "--owner"), 0)
+	g.Write(created, "model = \"gpt\"\n"+g.Read(created))
+	g.ExpectCode(g.install("--agent=codex", "--owner"), 0)
+	g.ExpectCode(g.install("--agent=codex", "--owner", "--uninstall"), 0)
+	if body, _ := os.ReadFile(created); string(body) != "model = \"gpt\"\n" {
+		t.Errorf("the owner's key above a created region came back as %q", body)
 	}
 	// A line Codex appended inside the region is the owner's, and the uninstall leaves the region.
 	f := newFixture(t)

@@ -25,15 +25,16 @@ const (
 )
 
 var (
-	reFeaturesHeader = regexp.MustCompile(`^\s*\[\s*features\s*\]\s*(#.*)?$`)
-	reFeaturesOther  = regexp.MustCompile(`^\s*features\s*[.=]`)
-	reAgentsOwned    = regexp.MustCompile(`light-worker|^\s*agents\s*=`)
-	reTableHeader    = regexp.MustCompile(`^\s*\[`)
-	reHooksKey       = regexp.MustCompile(`^\s*(hooks|"hooks"|'hooks')\s*=\s*([^\s#]+)`)
-	rePluginTable    = regexp.MustCompile(`^\s*\[\s*plugins\.("[^"]+"|'[^']+')\s*\]\s*(#.*)?$`)
-	reServerTable    = regexp.MustCompile(`^\s*\[\s*mcp_servers\.([A-Za-z0-9_-]+|"[^"]+"|'[^']+')\s*\]\s*(#.*)?$`)
-	reServersTable   = regexp.MustCompile(`^\s*\[\s*mcp_servers\s*\]\s*(#.*)?$`)
-	reInlineServer   = regexp.MustCompile(`^\s*([A-Za-z0-9_-]+|"[^"]+"|'[^']+')\s*=\s*\{`)
+	reFeaturesHeader = regexp.MustCompile(`^\s*\[\s*(features|"features"|'features')\s*\]\s*(#.*)?$`)
+	reFeaturesOther  = regexp.MustCompile(`^\s*(features|"features"|'features')\s*[.=]`)
+	reAgentsOwned    = regexp.MustCompile(`light-worker|^\s*(agents|"agents"|'agents')\s*=`)
+	// A table header, and not a line of a multi-line array that opens on a bracket.
+	reTableHeader  = regexp.MustCompile(`^\s*\[\[?\s*[A-Za-z0-9_."' @-]+\s*\]\]?\s*(#.*)?$`)
+	reHooksKey     = regexp.MustCompile(`^\s*(hooks|"hooks"|'hooks')\s*=\s*([^\s#]+)`)
+	rePluginTable  = regexp.MustCompile(`^\s*\[\s*plugins\.([A-Za-z0-9_-]+|"[^"]+"|'[^']+')\s*\]\s*(#.*)?$`)
+	reServerTable  = regexp.MustCompile(`^\s*\[\s*mcp_servers\.([A-Za-z0-9_-]+|"[^"]+"|'[^']+')\s*\]\s*(#.*)?$`)
+	reServersTable = regexp.MustCompile(`^\s*\[\s*mcp_servers\s*\]\s*(#.*)?$`)
+	reInlineServer = regexp.MustCompile(`^\s*([A-Za-z0-9_-]+|"[^"]+"|'[^']+')\s*=\s*\{`)
 )
 
 func (run *invocation) codexConfig() string { return run.CodexHome + "/config.toml" }
@@ -119,7 +120,7 @@ func (run *invocation) removeCodexLightWorker() {
 		run.mounting.Say("  ok       " + path + " declares no light worker")
 	case run.isDryRun:
 		run.mounting.Say("  would remove the light worker from " + path)
-	case strings.Contains(body, codexRegionOpenCreated) && owners == "":
+	case owners == "":
 		_ = os.Remove(path)
 		_ = os.Remove(run.CodexHome + "/" + codexRoleLayer)
 		run.mounting.Say("  removed  " + path + ", which bootstrap created")
@@ -191,12 +192,19 @@ func withoutCodexRegion(text string) (string, string) {
 	if strings.Join(lines[open:], "\n") != strings.Join(region, "\n") {
 		return "", "the kk-flavor region holds a line bootstrap did not write, or one follows it"
 	}
-	owners := strings.Replace(strings.Join(lines[:open], "\n"), codexHooksLine+"\n", "", 1)
-	switch lines[open] {
-	case codexRegionOpenCreated:
-		return "", ""
-	case codexRegionOpenNewline:
+	var owned []string
+	for _, line := range lines[:open] {
+		if line != codexHooksLine {
+			owned = append(owned, line)
+		}
+	}
+	owners := strings.Join(owned, "\n")
+	switch {
+	case lines[open] == codexRegionOpenNewline:
 		return owners, ""
+	case len(owned) == 0:
+		// A file bootstrap created, with nothing of the owner's above the region.
+		return "", ""
 	}
 	return owners + "\n", ""
 }
@@ -240,7 +248,7 @@ func withCodexRole(owners string, existed bool) (string, string) {
 	text := strings.Join(lines, "\n")
 	open := codexRegionOpen
 	switch {
-	case !existed:
+	case !existed || owners == "":
 		open, text = codexRegionOpenCreated, ""
 	case !strings.HasSuffix(text, "\n"):
 		open, text = codexRegionOpenNewline, text+"\n"
