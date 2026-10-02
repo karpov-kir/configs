@@ -193,8 +193,8 @@ func (run *invocation) writeHookSettings(path string, settings map[string]any) b
 	return true
 }
 
-// sayCodexTakesNoGuard says on every Codex install why the dispatch guard is not there. Codex's
-// spawn_agent takes no role, so no lighter worker exists to send a spawn to, and a bare spawn ran
+// sayCodexTakesNoGuard says on every Codex install why the dispatch guard is left out. Codex's
+// spawn_agent takes task_name, message, fork_turns, model and reasoning_effort, and a bare spawn ran
 // past the guard when a Codex session verified it (ai/tools/agent-guard/README.md).
 func (run *invocation) sayCodexTakesNoGuard() {
 	if run.agent != codexAgent || !run.isOwner {
