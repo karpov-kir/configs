@@ -12,7 +12,7 @@ import (
 )
 
 // The region bootstrap owns in Codex's config.toml, and the mark on the one line it adds to the owner's
-// own [features] table. Both come out on uninstall, and the rest of the file is never rewritten.
+// own [features] table. Both come out on uninstall, and every other line stays as the owner wrote it.
 const (
 	codexRegionOpen  = "# >>> kk-flavor: the light worker and the dispatch guard; bootstrap writes this region >>>"
 	codexRegionClose = "# <<< kk-flavor <<<"
@@ -32,7 +32,7 @@ func (run *invocation) codexConfig() string { return run.CodexHome + "/config.to
 // registerCodexLightWorker gives Codex a light-worker role and the dispatch guard. A Codex worker
 // inherits every plugin and MCP server and opened at a median 29.8k tokens over 18 spawns, where a
 // Claude worker holding six tools opens near 5k. The role's layer switches off each plugin and server
-// the config declares, and the guard refuses a spawn naming no role and no need.
+// the config declares. The guard holds a spawn with no role to a Needs: line.
 func (run *invocation) registerCodexLightWorker() {
 	if run.agent != codexAgent || !run.isOwner {
 		return
@@ -127,7 +127,7 @@ func withoutCodexRegion(text string) string {
 }
 
 // withCodexGuard adds the [features] switch and the region to the owner's config. A hooks switch the
-// owner set off is the owner's, and the run refuses it rather than turning hooks on.
+// owner set off is the owner's, and the run refuses and leaves hooks off.
 func (run *invocation) withCodexGuard(owners string) (string, string) {
 	lines := strings.Split(strings.TrimRight(owners, "\n"), "\n")
 	features := -1

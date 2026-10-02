@@ -1,6 +1,6 @@
-// Package agentguard refuses a dispatch to the general agent whose prompt has no `Needs:` line: a Claude
-// Agent call to general-purpose or to no type, or a Codex spawn_agent call naming no role. It is the
-// PreToolUse hook bootstrap registers in each client.
+// Package agentguard holds a dispatch to the general agent to a `Needs:` line in its prompt. That covers
+// a Claude Agent call to general-purpose or to no type, and a Codex spawn_agent call with no role. It is
+// the PreToolUse hook bootstrap registers in each client.
 //
 //	usage: agent-guard.sh < <the hook's JSON>
 //

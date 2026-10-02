@@ -22,9 +22,9 @@ command = "npx"
 KEY = "v"
 `
 
-// An owner Codex install declares the light worker with a layer switching off each plugin and MCP
-// server the config declares, turns hooks on in the owner's [features] table and adds the guard. A
-// second run changes nothing, and an uninstall leaves the file as the owner wrote it.
+// An owner Codex install declares the light worker and its layer, which switches off each plugin and MCP
+// server the config declares. It turns hooks on in the owner's [features] table and adds the guard. A
+// second run leaves the file as it stands, and an uninstall restores the owner's text.
 func TestCodexGetsTheLightWorkerAndTheGuardAndUninstallRestoresTheConfig(t *testing.T) {
 	f := newFixture(t)
 	config := f.codexHome + "/config.toml"
