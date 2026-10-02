@@ -109,6 +109,7 @@ func TestCodexConfigsOfAnotherShapeAreRefusedAndLeftAlone(t *testing.T) {
 		"[ \"features\" ]\nhooks = false\n",
 		"\"agents\" = { max_threads = 3 }\n",
 		"[features]\nx = [\n  [1],\n]\nhooks = false\n",
+		"[features]\nx = [\n  [1]\n]\nhooks = false\n",
 		"features.hooks = false\n",
 		"features = { js_repl = true }\n",
 		"[features]\n[features]\n",
@@ -124,6 +125,22 @@ func TestCodexConfigsOfAnotherShapeAreRefusedAndLeftAlone(t *testing.T) {
 		if body, _ := os.ReadFile(config); string(body) != owners {
 			t.Errorf("%q was changed to %q", owners, body)
 		}
+	}
+	// An empty config the owner keeps comes back empty, and is not removed.
+	e := newFixture(t)
+	empty := e.codexHome + "/config.toml"
+	e.Write(empty, "")
+	e.ExpectCode(e.install("--agent=codex", "--owner"), 0)
+	e.ExpectCode(e.install("--agent=codex", "--owner", "--uninstall"), 0)
+	if body, err := os.ReadFile(empty); err != nil || len(body) != 0 {
+		t.Errorf("an empty config came back as %q, %v", body, err)
+	}
+	// A server table under [mcp_servers] ends at a projects table, which Codex names by path.
+	p := newFixture(t)
+	p.Write(p.codexHome+"/config.toml", "[mcp_servers]\nz = { command = \"c\" }\n\n[projects.\"/Users/k/p\"]\nopts = { a = 1 }\n")
+	p.ExpectCode(p.install("--agent=codex", "--owner"), 0)
+	if layer := p.Read(p.codexHome + "/kk-flavor-light-worker.toml"); strings.Contains(layer, "opts") || !strings.Contains(layer, "[mcp_servers.z]") {
+		t.Errorf("the layer read a projects key as a server:\n%s", layer)
 	}
 	// A key added above the region of a file bootstrap created is the owner's, and it survives both a
 	// second run and the uninstall.

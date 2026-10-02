@@ -29,7 +29,7 @@ var (
 	reFeaturesOther  = regexp.MustCompile(`^\s*(features|"features"|'features')\s*[.=]`)
 	reAgentsOwned    = regexp.MustCompile(`light-worker|^\s*(agents|"agents"|'agents')\s*=`)
 	// A table header, and not a line of a multi-line array that opens on a bracket.
-	reTableHeader  = regexp.MustCompile(`^\s*\[\[?\s*[A-Za-z0-9_."' @-]+\s*\]\]?\s*(#.*)?$`)
+	reTableHeader  = regexp.MustCompile(`^\s*\[\[?\s*[A-Za-z_"'][^\]]*\]\]?\s*(#.*)?$`)
 	reHooksKey     = regexp.MustCompile(`^\s*(hooks|"hooks"|'hooks')\s*=\s*([^\s#]+)`)
 	rePluginTable  = regexp.MustCompile(`^\s*\[\s*plugins\.([A-Za-z0-9_-]+|"[^"]+"|'[^']+')\s*\]\s*(#.*)?$`)
 	reServerTable  = regexp.MustCompile(`^\s*\[\s*mcp_servers\.([A-Za-z0-9_-]+|"[^"]+"|'[^']+')\s*\]\s*(#.*)?$`)
@@ -73,7 +73,8 @@ func (run *invocation) registerCodexLightWorker() {
 		run.mounting.Refuse(path + ": " + refusal + ", so the light worker was left as it stands")
 		return
 	}
-	next, refusal := withCodexRole(owners, body != "" || shell.PathExists(path))
+	created := !shell.PathExists(path) || strings.Contains(body, codexRegionOpenCreated)
+	next, refusal := withCodexRole(owners, created)
 	if refusal != "" {
 		run.mounting.Refuse(path + ": " + refusal + ", so the light worker was not declared — add it by hand")
 		return
@@ -120,7 +121,7 @@ func (run *invocation) removeCodexLightWorker() {
 		run.mounting.Say("  ok       " + path + " declares no light worker")
 	case run.isDryRun:
 		run.mounting.Say("  would remove the light worker from " + path)
-	case owners == "":
+	case owners == "" && strings.Contains(body, codexRegionOpenCreated):
 		_ = os.Remove(path)
 		_ = os.Remove(run.CodexHome + "/" + codexRoleLayer)
 		run.mounting.Say("  removed  " + path + ", which bootstrap created")
@@ -212,7 +213,7 @@ func withoutCodexRegion(text string) (string, string) {
 // withCodexRole adds the marked hooks line to the owner's [features] table and appends the region. The
 // config it edits holds one [features] header and sets features only in that table. It declares the light
 // worker nowhere else and holds a multi-line string nowhere, since a header could hide in one.
-func withCodexRole(owners string, existed bool) (string, string) {
+func withCodexRole(owners string, created bool) (string, string) {
 	if strings.Contains(owners, `"""`) || strings.Contains(owners, `'''`) {
 		return "", "it holds a multi-line string"
 	}
@@ -248,7 +249,7 @@ func withCodexRole(owners string, existed bool) (string, string) {
 	text := strings.Join(lines, "\n")
 	open := codexRegionOpen
 	switch {
-	case !existed || owners == "":
+	case created && owners == "":
 		open, text = codexRegionOpenCreated, ""
 	case !strings.HasSuffix(text, "\n"):
 		open, text = codexRegionOpenNewline, text+"\n"
