@@ -43,6 +43,7 @@ import (
 	"testing"
 	"time"
 
+	agentguard "configs/ai/tools/agent-guard"
 	aibootstrap "configs/ai/tools/ai-bootstrap"
 	buildgate "configs/ai/tools/build-gate"
 	"configs/ai/tools/cadence"
@@ -191,6 +192,10 @@ var refusals = []refusal{
 	// is valid and ends processes.
 	{stub: "ai/kk-flavor/scripts/wait-reap.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return waitreap.Run(i.args, i.out, i.out)
+	}},
+	// An argument, which a hook never passes. The tool refuses before it reads stdin.
+	{stub: "ai/kk-flavor/scripts/agent-guard.sh", args: []string{"--nope"}, call: func(i invocation) int {
+		return agentguard.Run(i.args, strings.NewReader(""), i.out)
 	}},
 	// The tool refuses an unknown verb before it asks git anything.
 	{stub: "ai/kk-flavor/scripts/build-gate.sh", args: []string{"nope"}, call: func(i invocation) int {
