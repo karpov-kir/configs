@@ -203,7 +203,7 @@ func withoutCodexRegion(text string) (string, string) {
 	case lines[open] == codexRegionOpenNewline:
 		return owners, ""
 	case len(owned) == 0:
-		// A file bootstrap created, with nothing of the owner's above the region.
+		// A file bootstrap created, holding the region alone.
 		return "", ""
 	}
 	return owners + "\n", ""
