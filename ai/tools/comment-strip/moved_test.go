@@ -4,8 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"configs/ai/tools/shell"
 )
 
 // The movedRules entry holds only while the move changed no word. The test rebuilds the rules as
@@ -42,6 +45,34 @@ func TestMovedRulesRebuildTheRulesBeforeTheMove(t *testing.T) {
 		}
 		if !sameRules(old, now) || sameRules(old, "") || sameRules("", now) {
 			t.Error("sameRules does not read the entry")
+		}
+	}
+}
+
+// A block archived under rules that only moved stands under the rules after the move, and reopens once
+// the entry is gone. Run 21's 85 blocks read 85 kept with it and 0 without.
+func TestABlockUnderMovedRulesStandsOnlyThroughTheEntry(t *testing.T) {
+	rulesHome(t, "rules before the move ")
+	f := newFixture(t, "f.ts", keptSource)
+	archive := filepath.Join(f.dir, "archive")
+	archiveWritten(t, f, archive)
+	before := rulesSum()
+	rulesHome(t, "rules after the move ")
+	lines := shell.SplitLines(keptSource)
+	for _, tc := range []struct {
+		moved map[string]string
+		kept  bool
+	}{
+		{map[string]string{before: rulesSum()}, true},
+		{map[string]string{}, false},
+		{map[string]string{"000000000000": rulesSum()}, false},
+	} {
+		saved := movedRules
+		movedRules = tc.moved
+		got := KeepVerdicts(archive, f.path, lines)
+		movedRules = saved
+		if len(got) != 1 || (got[0].Run == "run11") != tc.kept || !tc.kept && got[0].Reopened != "the rules changed since run11" {
+			t.Errorf("entries %v: got %+v, want kept %v", tc.moved, got, tc.kept)
 		}
 	}
 }
