@@ -202,7 +202,7 @@ func withoutCodexRegion(text string) (string, string) {
 }
 
 // withCodexRole adds the marked hooks line to the owner's [features] table and appends the region. The
-// config it edits holds one [features] header and features in that table alone. It declares the light
+// config it edits holds one [features] header and sets features only in that table. It declares the light
 // worker nowhere else and holds a multi-line string nowhere, since a header could hide in one.
 func withCodexRole(owners string, existed bool) (string, string) {
 	if strings.Contains(owners, `"""`) || strings.Contains(owners, `'''`) {
