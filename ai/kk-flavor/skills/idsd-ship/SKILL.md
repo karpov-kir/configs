@@ -26,17 +26,17 @@ Once the intent is resolved, rename this session to `[<repo abbrev>] IDSD ship <
 | `idsd-ship qualify` | `idsd-qualify` over the working tree; trim only on an explicit caller request for turnaround. No build or merge. |
 | `idsd-ship continue` | Run the next step for wherever the change set stands. |
 | `idsd-ship promote` | Move an external `.idsd/` into the repo, so it travels in the history. |
-| `idsd-ship discard [<intent>]` | Tear down a ship's records, and the external `.idsd/` when nothing else is left. |
+| `idsd-ship discard <intent>` | Tear down a ship's records, and the external `.idsd/` when nothing else is left. |
 
 With no `<arg>` and no subcommand, list the not-yet-built intents and ask which. Where more than one has every `depends-on` already shipped, offer `idsd-reactor` instead.
 
 ## Report & .idsd lifecycle
 
-The report contract — the **committed vs external** repo modes included — plus `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` belong to `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. Ship adds **promote** and its counterpart **discard**.
+The report contract — the **committed vs external** repo modes included — plus `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` belong to `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. Every `.idsd/` path here hangs off the resolved idsd root, which `report.sh root` prints. Read it before you conclude a repo has no intent set. Ship adds **promote** and its counterpart **discard**.
 
 **Both run on an explicit human request and nowhere else.** Neither is a step in a lifecycle, so no phase below reaches one. **An external `.idsd/` is never offered for deletion** — it is where that project is kept, not scratch a ship cleans up after itself.
 
-**Discard** — `report.sh discard <intent>` removes that ship's intent, records, report and stage markers, and takes the whole `.idsd/` only when nothing else remains in it. It refuses in committed mode, where `.idsd/` is the repo's own. Name the intent whenever more than one ship is open.
+**Discard** — `report.sh discard <intent>` removes that ship's intent, records, report and stage markers, and takes the whole `.idsd/` only when nothing else remains in it. It refuses in committed mode, where `.idsd/` is the repo's own, and it refuses with no intent named, listing the open ones.
 
 **Promote** — `report.sh promote` moves `.idsd/` into the tree and stages it. The human commits. A standalone qualify with no intents has nothing to promote — say so rather than promoting an empty `.idsd/`. Promotion makes the repo committed, so add the project-instruction pointer at `.idsd/` per `~/.kk-flavor/skills/idsd-build/SKILL.md` → **Phase 2 — Assemble Context (progressive)**.
 

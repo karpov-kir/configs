@@ -92,6 +92,7 @@ A handoff carries **only the files that opened the lane** — the ones you chang
 - Echo the queue, print progress summaries, or write transition filler; never merge files into one verdict. The run's own closing reply is [writing.md](writing.md) → **Replying to a human**.
 - Manufacture findings — `OK` with no edits is correct when nothing earns action.
 - Change anything your lens doesn't flag (no rewording for taste).
+- Route around a refusal from the permission system or its classifier. It is the human's to clear: report the refused command and wait for a fresh human turn, or return `blocked` naming it where you were spawned. Never rephrase it, split it, or hand it to a peer.
 
 ## Waiting for work you dispatched
 
@@ -100,7 +101,7 @@ Take the runtime's own completion event where there is one. A task that notifies
 Where you have to poll, **poll in the foreground**, and re-issue the call until the subject arrives. **A foreground call that hits its timeout does not end.** The runtime moves it to the background and returns a handle for it, so end that handle before you re-issue. A wait left running is parented to a daemon that outlives the session, its archive and its worktree. `~/.kk-flavor/scripts/wait-reap.sh` lists what earlier runs left running, and ends the ones it can prove abandoned.
 
 - **Never detach a loop whose only job is to wait**, and never park a turn on a condition you do not intend to satisfy. A sentinel no session will write keeps a process alive until the machine reboots. A stage that cannot yield ends its turn and returns instead.
-- **Never wait on a process name.** `pgrep -f <pattern>` excludes itself and its own ancestors, and matches a sibling waiter carrying the same pattern. Two waiters on one pattern hold each other open for good. Wait on a pid, on a file, or on the runtime's own status.
+- **Never wait on a process name.** `pgrep -f <pattern>` excludes itself and its own ancestors, and matches a sibling waiter carrying the same pattern. Two waiters on one pattern hold each other open for good. Wait on a pid through `kill -0 <pid>`, on a file's growth, or on the runtime's completion event. A peer listed as `idle` may be waiting, not finished.
 - **Every wait carries a deadline and a failure signal.** A loop watching only for the success marker stays silent when the job dies. Silence reads exactly like still running.
 - **Keep the job's log**, and report what moved in it since your last read.
 

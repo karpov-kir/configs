@@ -165,6 +165,7 @@ func (r *run) cmdStageResult() {
 	if r.arg(1) == "" || len(r.args) > 3 {
 		r.refuse(stageResultUsage)
 	}
+	r.requireNamed(r.arg(2), "stage-result")
 	r.requireReport(r.arg(2))
 	content, err := readResultFile(r.absPath(r.arg(1)))
 	if err != nil {

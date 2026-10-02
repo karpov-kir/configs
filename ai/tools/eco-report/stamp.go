@@ -30,18 +30,21 @@ const stampUsage = `usage: report.sh stamp "<all four stages, comma-separated>"
 const decisionsMarker = "decisions-reviewed"
 
 func (r *run) cmdDecisionsReviewed() {
+	r.requireNamed(r.arg(1), "decisions-reviewed")
 	r.requireReport(r.arg(1))
 	r.writeStageMarker(decisionsMarker, "accounted")
 	r.line("recorded this pass's account of the decision log")
 }
 
 func (r *run) cmdStamp() {
-	r.requireReport(r.arg(2))
+	// Bare, the usage is the grammar's authority, and it comes before the name the stamp needs.
 	entries := r.arg(1)
 	if entries == "" {
 		writeAll(r.errOut, stampUsage)
 		r.exit(2)
 	}
+	r.requireNamed(r.arg(2), "stamp")
+	r.requireReport(r.arg(2))
 	entries = removeWhitespace(entries)
 	if problems := validateStampEntries(entries); len(problems) > 0 {
 		r.refuse("error: invalid stage record", strings.Join(problems, "\n"))
@@ -72,7 +75,7 @@ func (r *run) cmdStamp() {
 		r.refuse("error: this pass has not accounted for the decision log — NOT stamped.",
 			"  Re-evaluate every entry against the tree: bump what this pass reached and found still true,",
 			"  evict what its subject has left, and leave what this pass never went near.",
-			"  Then: report.sh decisions-reviewed")
+			"  Then: report.sh decisions-reviewed <intent>")
 	}
 	tree, ok := r.currentTree(r.errOut)
 	if !ok {
@@ -95,6 +98,7 @@ func (r *run) cmdStamp() {
 }
 
 func (r *run) cmdInvalidate() {
+	r.requireNamed(r.arg(1), "invalidate")
 	r.requireReport(r.arg(1))
 	if manifest := r.readResultManifest(); manifest != nil {
 		r.assertResultProjection(*manifest)

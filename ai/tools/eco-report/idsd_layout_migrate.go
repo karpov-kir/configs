@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -163,6 +164,9 @@ func (r *run) planProjectMoves(moves *[]layoutMove) error {
 	return nil
 }
 
+// reFlatIntent is an intent kept as one file named by its number, the layout before ship folders.
+var reFlatIntent = regexp.MustCompile(`^[0-9]{3}([-_.][^/]*)?\.md$`)
+
 func (r *run) planShips(group string, moves *[]layoutMove) error {
 	entries, err := os.ReadDir(group)
 	if err != nil {
@@ -170,6 +174,11 @@ func (r *run) planShips(group string, moves *[]layoutMove) error {
 	}
 	for _, entry := range entries {
 		source := filepath.Join(group, entry.Name())
+		// A flat intent file would land in supporting/ as unclassified material, and the ship it was
+		// would vanish from every listing. The owner restructures it first.
+		if !entry.IsDir() && reFlatIntent.MatchString(entry.Name()) {
+			return fmt.Errorf("%s is a flat intent file — move it to %s/<NNN-slug>/%s before migrating, so it stays a ship", source, filepath.Base(group), intentName)
+		}
 		if !entry.IsDir() || reportNameFor(entry.Name()) != entry.Name() {
 			*moves = append(*moves, layoutMove{source: source, destination: filepath.Join(r.projectAgentsDir(), "supporting", filepath.Base(group), entry.Name())})
 			continue

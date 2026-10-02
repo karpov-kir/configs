@@ -180,6 +180,21 @@ func (r *run) assertReportIsReadable(consequence string) {
 	}
 }
 
+// requireNamed refuses a subcommand that changes a ship's records when no intent is named. An open
+// report used to stand in for the name. A bare `discard` tore down an intent the caller had not meant,
+// since an empty name guesses as surely as two open reports do.
+func (r *run) requireNamed(name, verb string) {
+	if name != "" {
+		return
+	}
+	open := r.reportNames()
+	listed := "  none is open"
+	if len(open) > 0 {
+		listed = indentLines(strings.Join(open, "\n"), "  ")
+	}
+	r.refuse("error: report.sh "+verb+" changes a ship's records, so it takes the intent by name as its last argument — open reports:", listed)
+}
+
 // Resolve, or refuse naming what the caller must pass. Every subcommand that reads an existing report
 // opens with this, and the optional stem is always its last argument.
 func (r *run) requireReport(name string) {
