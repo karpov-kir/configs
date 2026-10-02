@@ -93,7 +93,7 @@ func loop(r *runner, opts options, _ []string) int {
 		}
 		_ = os.RemoveAll(facts)
 	}
-	var sites, printed strings.Builder
+	var printed strings.Builder
 	n := 0
 	for _, path := range paths {
 		stripped, err := loopStrip(tree, archive, factsDir(facts, path), path, byPath[path])
@@ -105,8 +105,8 @@ func loop(r *runner, opts options, _ []string) int {
 			for _, line := range stripped[i].printed {
 				n++
 				at, file, _ := strings.Cut(line, " ")
-				fmt.Fprintf(&sites, "%d. `%s` — facts `%s`\n", n, at, file)
-				fmt.Fprintf(&printed, "%s %s\n", at, filepath.Base(file))
+				rel, _ := filepath.Rel(facts, file)
+				fmt.Fprintf(&printed, "%s %s\n", at, rel)
 			}
 		}
 	}
@@ -119,10 +119,10 @@ func loop(r *runner, opts options, _ []string) int {
 		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`, tree fingerprint `%s`. Review "+
 			"sent %d block(s) back, and the strip removed them; each facts file carries the review's sentence under "+
 			"`# code review:`. No reusable verdicts.", tree, held["head"], held["base"], fingerprint, n),
-		"Change scope": fmt.Sprintf("the sites review sent back, in `%s`:\n%s\nYou write into those file(s) only.",
-			strings.Join(paths, "`, `"), strings.TrimRight(sites.String(), "\n")),
+		"Change scope": fmt.Sprintf("the sites review sent back, %d, are the lines below, one `<file>:<line> <facts path>` "+
+			"line each. %s You write into the files those lines name only.", n, factsSentence(facts, "`<root>/<facts path>`")),
 		"Held by a concurrent lane": "",
-		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> --lines=<line> <file>` at each site, each file's last line first, with its sites as the final tree numbers them:\n```\n" + strings.TrimRight(printed.String(), "\n") + "\n```",
+		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> --lines=<line> <file>` at each site, each file's last line first, with its sites as the final tree numbers them, and each facts path under the round's root:\n```\n" + strings.TrimRight(printed.String(), "\n") + "\n```",
 	})
 	if err != nil {
 		undo()

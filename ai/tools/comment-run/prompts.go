@@ -30,9 +30,14 @@ func prompts(r *runner, opts options, _ []string) int {
 	if err != nil {
 		return r.refuse("%s holds no sites.txt: run seed first", shell.Echoable(runDir))
 	}
+	lines := shell.SplitLines(string(body))
+	facts, err := factsRoot(lines)
+	if err != nil {
+		return r.refuse("%v", err)
+	}
 	byFile := map[string][]string{}
 	var order []string
-	for _, line := range shell.SplitLines(string(body)) {
+	for _, line := range lines {
 		site, _, _ := strings.Cut(line, " ")
 		file := site[:strings.LastIndex(site, ":")]
 		if _, seen := byFile[file]; !seen {
@@ -62,7 +67,7 @@ func prompts(r *runner, opts options, _ []string) int {
 					others[string(rune('A'+first+g))] = other
 				}
 			}
-			out, err := dispatch.write(name, writerSlots(run, writerShare{files: files, byFile: byFile, others: others}))
+			out, err := dispatch.write(name, writerSlots(run, writerShare{files: files, byFile: byFile, others: others}, facts))
 			if err != nil {
 				return r.refuse("%v", err)
 			}
@@ -73,12 +78,17 @@ func prompts(r *runner, opts options, _ []string) int {
 			fmt.Fprintf(r.stdout, "%s batch %d, %d site(s) in %d file(s) %s\n", name, b+1, count, len(files), out)
 		}
 	}
+	fmt.Fprintln(r.stdout, dispatchLine)
 	if len(batches) > 1 {
 		fmt.Fprintf(r.stderr, "%s: %d batches: dispatch each batch's writers together, and the next batch after it returns\n",
 			r.self, len(batches))
 	}
 	return exitClean
 }
+
+// dispatchLine tells the dispatcher how a prompt reaches its writer. A writer handed a prompt's path
+// read it in four Read calls, and every call reads the whole context again.
+const dispatchLine = "Dispatch each writer with its prompt file's text as the task message, never its path for the writer to Read."
 
 // The reviewer set these counts on 2026-09-29. Run 18b's one writer grew about 1.7k tokens a site from
 // 147k, so a writer's context holds some 400 sites.
@@ -340,17 +350,17 @@ type writerShare struct {
 	byFile, others map[string][]string
 }
 
-// writerSlots fills the slots a writer of the prompts stage takes from its share of the batch.
-func writerSlots(run map[string]string, share writerShare) map[string]string {
+// writerSlots fills the slots a writer of the prompts stage takes from its share of the batch. The strip's
+// stdout names each site once. A 135-site prompt said every site three times, and its sites outgrew its rules.
+func writerSlots(run map[string]string, share writerShare, facts string) map[string]string {
 	files, others := share.files, share.others
-	var sites, stdout strings.Builder
+	var stdout strings.Builder
 	n := 0
 	for _, file := range files {
 		for _, line := range share.byFile[file] {
 			n++
-			site, facts, _ := strings.Cut(line, " ")
-			fmt.Fprintf(&sites, "%d. `%s` — facts `%s`\n", n, site, facts)
-			fmt.Fprintf(&stdout, "%s %s\n", site, filepath.Base(facts))
+			site, path, _ := strings.Cut(line, " ")
+			fmt.Fprintf(&stdout, "%s %s\n", site, filepath.Base(path))
 		}
 	}
 	var names []string
@@ -366,12 +376,34 @@ func writerSlots(run map[string]string, share writerShare) map[string]string {
 		"Candidate and evidence": fmt.Sprintf("the tree at `%s`, at HEAD `%s`, base `%s`. The tree is HEAD with the strip's "+
 			"removals applied; no block stands at any site you are given. A block the strip kept stands at a site you are "+
 			"not given, and you leave it as it stands. No reusable verdicts.", run["top"], run["head"], run["base"]),
-		"Change scope": fmt.Sprintf("the change set `%s...%s`. Your sites, %d, in `%s`, one facts directory per file, "+
-			"`identifiers.txt` beside each facts file:\n%s\nYou write into those file(s) only.", run["base"], run["head"], n,
-			strings.Join(files, "`, `"), strings.TrimRight(sites.String(), "\n")),
+		"Change scope": fmt.Sprintf("the change set `%s...%s`. Your sites, %d, are the strip's stdout below, one "+
+			"`<file>:<line> <facts file>` line each. %s You write into the files those lines name only.",
+			run["base"], run["head"], n, factsSentence(facts, "`<root>/<file with / as _>/<facts file>`")),
 		"Held by a concurrent lane": strings.Join(held, "; "),
 		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> <file>` on your file(s), stdout:\n```\n" + strings.TrimRight(stdout.String(), "\n") + "\n```",
 	}
+}
+
+// factsSentence says where a site's facts file stands, from the root and how a path is built under it.
+func factsSentence(root, built string) string {
+	return "A site's facts file is " + built + ", the root being `" + root + "`, with `identifiers.txt` beside it."
+}
+
+// factsRoot is the one directory every site line's facts file stands under, by way of its file's facts
+// directory. A site line built any other way refuses the prompt, which could not name its facts file.
+func factsRoot(lines []string) (string, error) {
+	root := ""
+	for _, line := range lines {
+		site, path, _ := strings.Cut(line, " ")
+		file := site[:strings.LastIndex(site, ":")]
+		dir := filepath.Dir(path)
+		at := filepath.Dir(dir)
+		if filepath.Join(factsDir(at, file), filepath.Base(path)) != path || root != "" && at != root {
+			return "", fmt.Errorf("the site line %s names no facts file under the run's facts root", shell.Echoable(site))
+		}
+		root = at
+	}
+	return root, nil
 }
 
 // writerAgent is where the installer mounts the thin writer for Claude. Codex has no directory for a
