@@ -240,7 +240,7 @@ func (f *fixture) named(dir string, args []string) []string {
 		return args
 	}
 	name, _, _ := strings.Cut(lines[0], "\t")
-	// An empty argument a case passed for the name takes it. Otherwise it goes last.
+	// The name fills an empty argument a case passed for it, or goes last.
 	named := append([]string{}, args...)
 	for at, arg := range named {
 		if at > 0 && arg == "" {
