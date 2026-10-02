@@ -165,8 +165,8 @@ func (run *invocation) backUp(path, body string) bool {
 }
 
 // withoutCodexRegion is the config with bootstrap's region and marked line taken out, ending as the
-// owner's file ended. A line inside the region that bootstrap did not write is the owner's, or a line
-// Codex appended there, and the run refuses rather than delete it.
+// owner's file ended. A line inside the region that bootstrap did not write is the owner's, or one Codex
+// appended there, and the run refuses and keeps it.
 func withoutCodexRegion(text string) (string, string) {
 	lines := strings.Split(text, "\n")
 	open := -1
@@ -201,9 +201,9 @@ func withoutCodexRegion(text string) (string, string) {
 	return owners + "\n", ""
 }
 
-// withCodexRole adds the marked hooks line to the owner's [features] table and appends the region. It
-// edits only a config it can read: one [features] header with no other form of the table, no light
-// worker the owner declared, and no multi-line string a header could hide in.
+// withCodexRole adds the marked hooks line to the owner's [features] table and appends the region. The
+// config it edits holds one [features] header and features in that table alone. It declares the light
+// worker nowhere else and holds a multi-line string nowhere, since a header could hide in one.
 func withCodexRole(owners string, existed bool) (string, string) {
 	if strings.Contains(owners, `"""`) || strings.Contains(owners, `'''`) {
 		return "", "it holds a multi-line string"

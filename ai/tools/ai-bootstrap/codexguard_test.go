@@ -93,9 +93,9 @@ func TestCodexConfigComesBackAsItEnded(t *testing.T) {
 	}
 }
 
-// A config whose shape the run cannot edit safely is refused and left as it was: hooks the owner
-// switched off, features set outside a table, two [features] headers, a light worker the owner
-// declared, a multi-line string, Windows line endings.
+// A config of a shape the run does not edit is refused and left as it was. The shapes are hooks the
+// owner switched off, features set outside a table, two [features] headers, a light worker the owner
+// declared, a multi-line string and Windows line endings.
 func TestCodexConfigsOfAnotherShapeAreRefusedAndLeftAlone(t *testing.T) {
 	for _, owners := range []string{
 		"[features]\nhooks = false\n",
