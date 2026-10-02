@@ -18,7 +18,7 @@ Write so the reader understands the text on the first read, without backtracking
 ## Density
 
 * Stay at the artifact's own altitude and one abstraction level.
-* In a change description, a report or a reply, lead with the why, because the diff is the source of truth for the implementation trace. A code comment leads with what the symbol does; its form is [code-style.md](code-style.md) → **Comments**.
+* In a change description, a report or a reply, lead with the why, because the diff is the source of truth for the implementation trace. A code comment leads with what the symbol does; its form is [comments.md](comments.md).
 * Group by purpose, not by file.
 * Give each line a fact the reader cannot reach from its surrounding context — the code, the types, the siblings, the diff. Cut or link the rest.
 * Re-cut what an edit lands beside. Cut your new sentence together with the ones either side of it, because a clause appended next to one already carrying half of it leaves both. Rework the claim a correction corrects, and do not trail the correction after it.

@@ -317,3 +317,12 @@ the purpose, is renamed to the purpose. A `rename:` check was measured for it on
 fired on 131 of 142 function records, because `does:` holds the body's literal verbs by design:
 returns, calls, appends. So the rule stays prose in the refactor lane, with its probe in that lane's
 tests.
+
+## The writer's rules, after the Comments section moved
+
+Until 2026-10-02 the eval gave the writer all of `code-style.md`, Naming and Logging included, where the
+pipeline's writer read only its Comments section. The section now stands alone in `comments.md`, and
+the eval gives the writer that file and the brief, which is what the pipeline's writer reads. The rules
+sum moved from `1562bee4f02f` to `8add386518c3` with no word of either rule changed. The context did
+change, so a column under the old sum is no reading of the new one: the first full run under
+`8add386518c3` is the floor's no-change pair, and not a rule's effect.

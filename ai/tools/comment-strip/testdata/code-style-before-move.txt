@@ -16,7 +16,7 @@
 
 ## Comments
 
-The rules for code comments are [comments.md](comments.md).
+<<comments.md>>
 
 ## Type Safety
 

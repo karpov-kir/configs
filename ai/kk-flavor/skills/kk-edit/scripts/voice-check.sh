@@ -32,7 +32,7 @@
 # The default mode prints one finding per line as `<file>:<line>: <check>: <matched text>`, exit 1 with
 # findings, 0 clean, 2 when the scan did not run. It counts nothing: each check names a shape a reader
 # stumbles on, so a finding is an edit to make and never a number to drive down. The rule it enforces
-# is `~/.kk-flavor/standards/code-style.md` -> Comments, and the tells are
+# is `~/.kk-flavor/standards/comments.md`, and the tells are
 # `~/.kk-flavor/standards/human-writing.md` -> AI tells -> House voice.
 #
 # `tooling-doubt` is the comment profile's, over a block and over a string of three words or more that

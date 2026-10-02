@@ -1,7 +1,7 @@
 # Comment verdict regression cases
 
 Run when changing the per-block verdict in `~/.kk-flavor/workers/refactor.md` or the rule it reads,
-`~/.kk-flavor/standards/code-style.md` → **Comments**. These probes test which verdict a block draws.
+`~/.kk-flavor/standards/comments.md`. These probes test which verdict a block draws.
 They do not prove the edit the verdict asks for is made.
 
 ## Procedure

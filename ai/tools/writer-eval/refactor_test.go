@@ -23,7 +23,7 @@ var refactorBriefPaths = []string{
 	"../../kk-flavor/workers/refactor.md",
 }
 
-const refactorCodeStyle = "../../kk-flavor/standards/code-style.md"
+const refactorComments = "../../kk-flavor/standards/comments.md"
 
 // refactorCase is one block the lane gives a verdict on: the verdict it has to open with, a shape it
 // may not, and the context a real run would hold.
@@ -95,13 +95,11 @@ func refactorPrompt(t *testing.T, c refactorCase) string {
 		}
 		parts = append(parts, string(body))
 	}
-	style, err := os.ReadFile(refactorCodeStyle)
+	comments, err := os.ReadFile(refactorComments)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if comments := regexp.MustCompile(`(?ms)^## Comments\n.*?(^## |\z)`).Find(style); comments != nil {
-		parts = append(parts, string(comments))
-	}
+	parts = append(parts, string(comments))
 	parts = append(parts, "You are running as a spawned stage with no interactive user. You have no tools here: "+
 		"everything a run would read is below. Return the verdict line for the one comment block below, "+
 		"exactly as the Verdict section shapes it, and nothing else.\n\n"+c.context+"\n\n```ts\n"+c.code+"\n```")

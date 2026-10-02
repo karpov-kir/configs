@@ -46,7 +46,23 @@ func writtenName(archive, path string) string {
 
 // rulePaths are the rules a block is written under, below the flavor root. A block written under
 // other rules is written again.
-var rulePaths = []string{"standards/code-style.md", "workers/comment-writer.md"}
+var rulePaths = []string{"standards/comments.md", "workers/comment-writer.md"}
+
+// movedRules maps the sum of rules that moved without a word changing to the sum they stand under now.
+// The Comments section left code-style.md for comments.md byte for byte, and the brief changed only in
+// its two citations of it. The old sum held all of code-style.md, so an edit to Naming reopened every
+// block.
+var movedRules = map[string]string{"1562bee4f02f": "8add386518c3"}
+
+// RulesSum is the sum of the rules standing now, or "" where they cannot be read. The prompts stage
+// records it, so a run's writers and its archive hold one set of rules.
+func RulesSum() string { return rulesSum() }
+
+// sameRules says whether a block written under the rules summed as written stands under the rules
+// summed as now.
+func sameRules(written, now string) bool {
+	return now != "" && (written == now || movedRules[written] == now)
+}
 
 // rulesSum is a hash of the rules standing now, or "" where they cannot be read. `~/.kk-flavor` is
 // where the brief itself names them.
@@ -202,7 +218,7 @@ func (k keeper) verdict(file string, lines []string, u readerjudge.Unit) (run, r
 		switch {
 		case w.Block != block:
 			continue
-		case w.Rules != k.rules:
+		case !sameRules(w.Rules, k.rules):
 			why = "the rules changed since " + w.Run
 		case w.Decl != strings.TrimSpace(lines[at-1]):
 			why = "the declaration under it changed"

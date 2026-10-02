@@ -189,7 +189,7 @@ func carriedDecls(archive, path, root, file string, contradiction map[string]boo
 	out := map[string]carried{}
 	rules := rulesSum()
 	for _, c := range readCarried(archive, path) {
-		if c.Rules == rules && rules != "" && !contradiction[c.ID] && carrierStands(root, file, c.Carrier) {
+		if sameRules(c.Rules, rules) && !contradiction[c.ID] && carrierStands(root, file, c.Carrier) {
 			out[c.Decl] = c
 		}
 	}

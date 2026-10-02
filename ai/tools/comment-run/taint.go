@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"configs/ai/tools/shell"
 )
@@ -17,7 +19,8 @@ import (
 // command's output mixes its parts, so it goes to a hand read and never counts.
 func taint(r *runner, opts options, _ []string) int {
 	ledger := ""
-	counted, byHand, scripted, read := 0, 0, 0, 0
+	home, _ := os.LookupEnv("HOME")
+	counted, byHand, scripted, read, rules := 0, 0, 0, 0, 0
 	for _, arg := range opts.order {
 		if value, found := strings.CutPrefix(arg, "--ledger="); found {
 			ledger = value
@@ -38,6 +41,13 @@ func taint(r *runner, opts options, _ []string) int {
 			return r.refuse("cannot read %s", shell.Echoable(arg))
 		}
 		read++
+		// A run prompted with the rules by name holds their sum, and its writers are held to the reads.
+		if runDir := filepath.Dir(ledger); rulesHeld(runDir) != "" {
+			for _, finding := range ruleReads(calls, files, home, promptedAt(ledger)) {
+				rules++
+				fmt.Fprintf(r.stdout, "%s: rules: %s\n", arg, finding)
+			}
+		}
 		for _, hit := range hits(calls, files, ledger) {
 			if hit.isScriptWrite {
 				scripted++
@@ -58,20 +68,34 @@ func taint(r *runner, opts options, _ []string) int {
 	if read == 0 {
 		return r.refuse("%s", "taint takes --ledger=<file> and the transcripts it covers")
 	}
-	fmt.Fprintf(r.stderr, "%s: %d transcript(s), %d tainted read(s), %d to read by hand, %d script write(s)\n", r.self, read,
-		counted, byHand, scripted)
-	if counted > 0 || byHand > 0 || scripted > 0 {
+	fmt.Fprintf(r.stderr, "%s: %d transcript(s), %d tainted read(s), %d to read by hand, %d script write(s), %d rule-read finding(s)\n",
+		r.self, read, counted, byHand, scripted, rules)
+	if counted > 0 || byHand > 0 || scripted > 0 || rules > 0 {
 		return exitFindings
 	}
 	return exitClean
 }
 
-// call is one tool call of a transcript, in order, with what it returned.
+// promptedAt is when the prompt of the writer keeping ledger was written, or zero where none stands
+// beside it. The ledger is `comment-writer-<name>-queue.md`, and the prompt `spawn-writer-<name>.md`.
+func promptedAt(ledger string) time.Time {
+	name := strings.TrimSuffix(strings.TrimPrefix(filepath.Base(ledger), "comment-writer-"), "-queue.md")
+	info, err := os.Stat(spawnFile(filepath.Dir(ledger), name))
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
+}
+
+// call is one tool call of a transcript, in order, with what it returned, the model message that made
+// it and when.
 type call struct {
-	at     int
-	tool   string
-	input  map[string]any
-	result string
+	at      int
+	tool    string
+	input   map[string]any
+	result  string
+	message string
+	time    time.Time
 }
 
 func (c call) text(key string) string {
@@ -92,7 +116,9 @@ func transcriptCalls(path string) ([]call, error) {
 	scan.Buffer(make([]byte, 0, 1<<20), 64<<20)
 	for scan.Scan() {
 		var record struct {
-			Message struct {
+			Timestamp time.Time `json:"timestamp"`
+			Message   struct {
+				ID      string          `json:"id"`
 				Content json.RawMessage `json:"content"`
 			} `json:"message"`
 		}
@@ -114,7 +140,8 @@ func transcriptCalls(path string) ([]call, error) {
 			switch part.Type {
 			case "tool_use":
 				byID[part.ID] = len(calls)
-				calls = append(calls, call{at: len(calls) + 1, tool: part.Name, input: part.Input})
+				calls = append(calls, call{at: len(calls) + 1, tool: part.Name, input: part.Input,
+					message: record.Message.ID, time: record.Timestamp})
 			case "tool_result":
 				if at, found := byID[part.ToolUseID]; found {
 					calls[at].result = resultText(part.Content)

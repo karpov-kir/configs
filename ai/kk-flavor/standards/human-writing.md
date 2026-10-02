@@ -2,7 +2,7 @@
 
 # Human Writing (outward text)
 
-Anything a person reads as communication: a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments too** — everything here binds them. What a comment must first clear is [code-style.md](code-style.md) → **Comments**.
+Anything a person reads as communication: a PR body, a review comment or reply, a commit message, a ticket, chat, a doc. **Code comments too** — everything here binds them. What a comment must first clear is [comments.md](comments.md).
 
 Write **each prose paragraph on one line**. A field you type into — a PR or ticket body, a comment, a chat message — turns your newline into a line break, so the paragraph arrives ragged. Repository files and commit messages are not fields, so wrap those as usual.
 
@@ -22,7 +22,7 @@ Name this artifact's reader and the single action they will take. For a comment,
 
 Then, sentence by sentence, name the edit the sentence causes or the answer only this reader can give, in those words, before it stays. "It's true", "they might want it" and "it shows the work was done" are not consequences. Cut a sentence with no consequence only where the meaning rule in the next paragraph permits it. Keep an uncertain case for judgment.
 
-Preserve the artifact's required meaning: facts, negation, exceptions, numbers, tense, conditionality, commitments, severity and open questions. Where a sentence carries one of these in a PR body, a ticket or a message, shorten its expression and keep its substance. This does not hold for a code comment. A comment pays the bar by deleting whole notes ([code-style.md](code-style.md) → **Comments**), because a note compressed to fit a bar stops being readable. Keep quoted text unchanged.
+Preserve the artifact's required meaning: facts, negation, exceptions, numbers, tense, conditionality, commitments, severity and open questions. Where a sentence carries one of these in a PR body, a ticket or a message, shorten its expression and keep its substance. This does not hold for a code comment. A comment pays the bar by deleting whole notes ([comments.md](comments.md)), because a note compressed to fit a bar stops being readable. Keep quoted text unchanged.
 
 Apply this check within the current editing pass. External voting is an explicit tool for a disputed durable deletion. No lane requires it for each reply, review return or artifact.
 
