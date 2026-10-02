@@ -214,13 +214,7 @@ func (r *run) movePromotedScratch(target string) {
 // composes: reversed, `close` has no report left to read and refuses.
 func (r *run) cmdDiscard() {
 	r.requireNamed(r.arg(1), "discard")
-	switch r.resolveReport(r.arg(1)) {
-	case reportNoneOpen:
-		r.refuse("error: nothing to discard — no qualify report under "+r.intentsDir+", and no intent named",
-			"  Name the intent to discard a ship whose report is already closed.")
-	case reportAmbiguous:
-		r.refuseAmbiguous("name which as the last argument")
-	}
+	r.resolveReport(r.arg(1))
 	r.assertRepoModeReadable()
 	if r.repoMode() == "committed" {
 		r.refuse("committed idsd repo — .idsd/ is the durable record; nothing to discard")
@@ -228,9 +222,9 @@ func (r *run) cmdDiscard() {
 	// Without this, a symlinked `.idsd` lets every deletion below reach through to a target outside the
 	// repo. `init` carries the same guard, for the same reason: a link there can steer a write out.
 	r.assertWritePathsAreReal("nothing was discarded")
-	// The folder name is the ship's name here — it came from the caller, or from being the only report
-	// open. The frontmatter is read only to cross-check it, and only when there is a report left to
-	// read: a closed ship has none, and nothing about the deletion below needed it.
+	// The folder name is the ship's name here, as the caller gave it. The frontmatter is read only to
+	// cross-check it, and only when there is a report left to read: a closed ship has none, and nothing
+	// about the deletion below needed it.
 	stem := stemOfReportPath(r.report)
 	r.assertShipExists(stem)
 	slug := stem

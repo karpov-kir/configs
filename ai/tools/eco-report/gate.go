@@ -203,7 +203,6 @@ func (r *run) intentFilePath() string {
 }
 
 func (r *run) cmdCarry() {
-	r.requireNamed(r.arg(1), "carry")
 	r.requireReport(r.arg(1))
 	r.readOpenTodos("prior open items are unknown.")
 	if r.openTodos != "" {

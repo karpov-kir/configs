@@ -30,6 +30,7 @@ const stampUsage = `usage: report.sh stamp "<all four stages, comma-separated>"
 const decisionsMarker = "decisions-reviewed"
 
 func (r *run) cmdDecisionsReviewed() {
+	r.requireNamed(r.arg(1), "decisions-reviewed")
 	r.requireReport(r.arg(1))
 	r.writeStageMarker(decisionsMarker, "accounted")
 	r.line("recorded this pass's account of the decision log")
@@ -74,7 +75,7 @@ func (r *run) cmdStamp() {
 		r.refuse("error: this pass has not accounted for the decision log — NOT stamped.",
 			"  Re-evaluate every entry against the tree: bump what this pass reached and found still true,",
 			"  evict what its subject has left, and leave what this pass never went near.",
-			"  Then: report.sh decisions-reviewed")
+			"  Then: report.sh decisions-reviewed <intent>")
 	}
 	tree, ok := r.currentTree(r.errOut)
 	if !ok {

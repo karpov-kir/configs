@@ -781,7 +781,7 @@ func decisionSectionsError(lines []string) error {
 		case line == "## Decisions" && candidate >= 0 && decisions == -1:
 			decisions = index
 		case strings.HasPrefix(strings.TrimSpace(line), "##"):
-			return errors.New("decision headings out of shape: the file holds `## Promotion candidates` then `## Decisions`, once each, and no other `##` heading — only the headings are checked")
+			return errors.New("decision headings out of shape: the file holds `## Promotion candidates` then `## Decisions`, once each, and no other heading of any level")
 		default:
 			if _, isEntry := parseRecordEntry(index, line); isEntry && candidate == -1 {
 				return errors.New("decision entry outside its sections")

@@ -216,7 +216,7 @@ func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
 // named adds the open report's name to a subcommand that changes a ship's records and was given none,
 // where a single report is open. Where no report or several are open it leaves the arguments alone, and the tool refuses.
 func (f *fixture) named(dir string, args []string) []string {
-	at := map[string]int{"discard": 1, "invalidate": 1, "carry": 1, "close": 1, "finalize": 1, "stamp": 2, "stage-result": 2}
+	at := map[string]int{"discard": 1, "invalidate": 1, "close": 1, "finalize": 1, "stamp": 2, "stage-result": 2, "decisions-reviewed": 1}
 	if len(args) == 0 {
 		return args
 	}

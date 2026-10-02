@@ -307,13 +307,18 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 func TestABareMutatingSubcommandRefusesAndNamesTheOpenIntents(t *testing.T) {
 	f := newShip(t, "001-only")
 	f.leavesIntentUnnamed = true
-	for _, verb := range []string{"discard", "invalidate", "carry", "close", "finalize"} {
-		f.runReport(verb)
+	for _, args := range [][]string{{"discard"}, {"invalidate"}, {"close"}, {"finalize"}, {"decisions-reviewed"},
+		{"stamp", "code-review,security-review,edit,refactor"}, {"stage-result", f.base + "/result.json"}} {
+		verb := args[0]
+		f.runReport(args...)
 		f.assertRefused(verb + " refuses with no intent named")
 		f.assertReports("takes the intent by name", "and says it takes the intent by name, for "+verb)
 		f.assertReports("001-only", "and names the open intent, for "+verb)
 	}
 	f.record("and the bare discard deleted nothing", f.isFile(f.reportPath("001-only")), "")
+	// carry only reads, and with one report open it may still go unnamed.
+	f.runReport("carry")
+	f.record("carry reads the one open report unnamed", f.status == 0, f.evidence())
 	f.runReport("discard", "001-only")
 	f.record("while discard with the intent named still discards", !f.isFile(f.reportPath("001-only")), f.out)
 }
