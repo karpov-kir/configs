@@ -395,7 +395,11 @@ func factsRoot(lines []string) (string, error) {
 	root := ""
 	for _, line := range lines {
 		site, path, _ := strings.Cut(line, " ")
-		file := site[:strings.LastIndex(site, ":")]
+		colon := strings.LastIndex(site, ":")
+		if colon <= 0 {
+			return "", fmt.Errorf("the site line %s names no <file>:<line>", shell.Echoable(line))
+		}
+		file := site[:colon]
 		dir := filepath.Dir(path)
 		at := filepath.Dir(dir)
 		if filepath.Join(factsDir(at, file), filepath.Base(path)) != path || root != "" && at != root {

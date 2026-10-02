@@ -814,6 +814,7 @@ func TestFactsRootRebuildsEverySiteLinesFactsFile(t *testing.T) {
 	for _, lines := range [][]string{
 		{"src/a/ledger.ts:3 /run/facts/ledger.ts/1.facts"},
 		{"book.ts:9 /run/facts/book.ts/2.facts", "ledger.ts:3 /other/facts/ledger.ts/1.facts"},
+		{"book.ts /run/facts/book.ts/2.facts"},
 	} {
 		if _, err := factsRoot(lines); err == nil {
 			t.Errorf("%v was taken", lines)
