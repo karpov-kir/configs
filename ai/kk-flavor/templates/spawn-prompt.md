@@ -2,6 +2,8 @@
      applies. That includes a lead you inferred, however useful it looks. Omit an empty slot
      entirely. -->
 
+Needs: <the tool, or the agent type this session never loaded, that sends this dispatch to the general agent>
+
 Apply the `<the skill or the worker prompt this spawn runs>` contract for the requested scope. Read its common procedure and only the branch references this task needs. Work as a leaf; return further-work requests to the caller.
 
 Model: <the task name from `~/.kk-flavor/configs/models.json` and the settings it resolved to; name it, since a dispatch that omits it inherits mine>
