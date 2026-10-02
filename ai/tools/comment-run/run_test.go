@@ -180,10 +180,18 @@ func TestPromptsQuoteTheHumansWordsAndNoApproval(t *testing.T) {
 	}
 	body, _ := os.ReadFile(filepath.Join(runDir, "spawn-writer-A.md"))
 	prompt := string(body)
-	for _, want := range []string{"`ledger.ts:3`", `"The tooling decides every comment."`, "comment-writer-A-queue.md"} {
+	for _, want := range []string{"ledger.ts:3 1.facts", "the root being `" + filepath.Join(runDir, "facts") + "`",
+		`"The tooling decides every comment."`, "comment-writer-A-queue.md"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("the prompt lacks %q:\n%s", want, prompt)
 		}
+	}
+	// A 135-site prompt named each site three times. The strip's stdout names it once.
+	if strings.Count(prompt, "ledger.ts:3") != 1 {
+		t.Errorf("the prompt names its site other than once:\n%s", prompt)
+	}
+	if !strings.HasSuffix(said.stdout, dispatchLine+"\n") {
+		t.Errorf("the stage does not say how a prompt reaches its writer:\n%s", said.stdout)
 	}
 	if regexp.MustCompile(`(?i)\bapprov`).MatchString(prompt) {
 		t.Errorf("the prompt carries an approval:\n%s", prompt)
@@ -481,7 +489,7 @@ func TestLoopTakesTwoSitesOfOneFileAtTheirFinalLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(prompt), "`ledger.ts:1`") || !strings.Contains(string(prompt), "`ledger.ts:3`") ||
+	if strings.Count(string(prompt), "ledger.ts:1 ledger.ts/") != 1 || strings.Count(string(prompt), "ledger.ts:3 ledger.ts/") != 1 ||
 		strings.Contains(string(prompt), "ledger.ts:4") {
 		t.Fatalf("the prompt names the wrong lines:\n%s", prompt)
 	}
@@ -517,7 +525,7 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
 	}
 	prompt, _ := os.ReadFile(strings.TrimSpace(said.stdout))
-	for _, want := range []string{"`ledger.ts:1`", "`book.ts:1`", "return-writer-loop-round-1.md", "rules workers/comment-writer.md"} {
+	for _, want := range []string{"ledger.ts:1 ledger.ts/2/1.facts", "book.ts:1 book.ts/2/1.facts", "return-writer-loop-round-1.md", "rules workers/comment-writer.md"} {
 		if !strings.Contains(string(prompt), want) {
 			t.Errorf("the round's prompt lacks %q:\n%s", want, prompt)
 		}
@@ -793,5 +801,23 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 	again := filepath.Join(t.TempDir(), "run18")
 	if said := c.run("seed", "--run-dir="+again, "--archive="+archive, "--range="+c.base+".."+head); !strings.Contains(said.stdout, "ledger.ts:3 ") {
 		t.Fatalf("the site stayed closed with its carrier gone: exit %d\n%s%s", said.code, said.stdout, said.stderr)
+	}
+}
+
+// A prompt names the facts root once. A site line with its facts file anywhere else refuses the prompt.
+// That prompt would name a file the writer cannot find.
+func TestFactsRootRebuildsEverySiteLinesFactsFile(t *testing.T) {
+	root, err := factsRoot([]string{"src/a/ledger.ts:3 /run/facts/src_a_ledger.ts/1.facts", "book.ts:9 /run/facts/book.ts/2.facts"})
+	if err != nil || root != "/run/facts" {
+		t.Fatalf("root %q, err %v", root, err)
+	}
+	for _, lines := range [][]string{
+		{"src/a/ledger.ts:3 /run/facts/ledger.ts/1.facts"},
+		{"book.ts:9 /run/facts/book.ts/2.facts", "ledger.ts:3 /other/facts/ledger.ts/1.facts"},
+		{"book.ts /run/facts/book.ts/2.facts"},
+	} {
+		if _, err := factsRoot(lines); err == nil {
+			t.Errorf("%v was taken", lines)
+		}
 	}
 }
