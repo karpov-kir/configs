@@ -302,8 +302,8 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 		!strings.Contains(linked.out, "other intent(s)"), linked.out)
 }
 
-// A subcommand that changes a ship's records takes the intent by name, even with one report open. The
-// one open report used to stand in for it, and a bare discard tore down an intent nobody had named.
+// A subcommand that changes a ship's records takes the intent by name, even with one report open. An
+// open report used to stand in for the name, and a bare discard tore down an intent no caller named.
 func TestABareMutatingSubcommandRefusesAndNamesTheOpenIntents(t *testing.T) {
 	f := newShip(t, "001-only")
 	f.leavesIntentUnnamed = true

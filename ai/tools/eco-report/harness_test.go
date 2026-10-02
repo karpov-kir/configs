@@ -70,7 +70,7 @@ type fixture struct {
 
 	t *testing.T
 	// Set by a case that tests the refusal of a subcommand left without its intent. Every other case
-	// tests what a subcommand does, and the harness names the one open report for it, as a caller must.
+	// tests what a subcommand does, and the harness names the open report for it, as a caller must.
 	leavesIntentUnnamed bool
 	base                string // scratch the case may write outside the repo into
 	repo                string // the fixture repository, and the directory every run acts from
@@ -213,8 +213,8 @@ func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
 	return f.invokeAsGiven(dir, out, errOut, args)
 }
 
-// named adds the one open report's name to a subcommand that changes a ship's records and was given
-// none. Where no report or several are open it leaves the arguments alone, and the tool refuses.
+// named adds the open report's name to a subcommand that changes a ship's records and was given none,
+// where a single report is open. Where no report or several are open it leaves the arguments alone, and the tool refuses.
 func (f *fixture) named(dir string, args []string) []string {
 	at := map[string]int{"discard": 1, "invalidate": 1, "carry": 1, "close": 1, "finalize": 1, "stamp": 2, "stage-result": 2}
 	if len(args) == 0 {
@@ -240,7 +240,7 @@ func (f *fixture) named(dir string, args []string) []string {
 		return args
 	}
 	name, _, _ := strings.Cut(lines[0], "\t")
-	// An empty argument a case passed for the name takes it; otherwise it goes last.
+	// An empty argument a case passed for the name takes it. Otherwise it goes last.
 	named := append([]string{}, args...)
 	for at, arg := range named {
 		if at > 0 && arg == "" {

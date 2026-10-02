@@ -229,8 +229,8 @@ func TestLayoutMigrationKeepsScratchIgnoredAfterANegation(t *testing.T) {
 	f.record("init can open a protected report after migration", f.status == 0, f.evidence())
 }
 
-// A flat intent file is a ship in the layout before folders. Migration refuses it, names where it goes,
-// and moves nothing, where it used to bury the ship in supporting/ as unclassified material.
+// A flat intent file is a ship in the layout before folders. Migration refuses it and names where it
+// goes. It used to bury the ship in supporting/ as unclassified material.
 func TestLayoutMigrationRefusesAFlatIntentFile(t *testing.T) {
 	f := newRepo(t)
 	root := f.scratch()

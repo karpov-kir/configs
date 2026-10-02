@@ -180,9 +180,9 @@ func (r *run) assertReportIsReadable(consequence string) {
 	}
 }
 
-// requireNamed refuses a subcommand that changes a ship's records when no intent is named. The single
-// open report used to stand in for the name, and a bare `discard` tore down the intent the caller had
-// not meant: an empty name guesses as surely as two open reports do.
+// requireNamed refuses a subcommand that changes a ship's records when no intent is named. An open
+// report used to stand in for the name. A bare `discard` tore down an intent the caller had not meant,
+// since an empty name guesses as surely as two open reports do.
 func (r *run) requireNamed(name, verb string) {
 	if name != "" {
 		return
