@@ -325,7 +325,7 @@ func writerSettings(t *testing.T) modelpolicy.Settings {
 // rulePaths are the two files the writer writes to. A run measures the text they held when it
 // started.
 var rulePaths = []string{
-	"../../kk-flavor/standards/code-style.md",
+	"../../kk-flavor/standards/comments.md",
 	"../../kk-flavor/workers/comment-writer.md",
 }
 

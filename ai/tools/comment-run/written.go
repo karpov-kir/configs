@@ -40,6 +40,18 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 	if run == "" || archive == "" || len(returns) == 0 {
 		return r.refuse("%s", "archive-written takes --run=<run>, --archive=<dir> and the writers' returns, or --run-dir holding them")
 	}
+	// A writer read its rules from the mount, so a merge after the prompts would archive its blocks under
+	// rules it never read. The run's prompts recorded the sum, beside the returns.
+	dirs := map[string]bool{runDir: runDir != ""}
+	for _, ret := range returns {
+		dirs[filepath.Dir(ret)] = true
+	}
+	for dir, isRunDir := range dirs {
+		if held := rulesHeld(dir); isRunDir && held != "" && held != commentstrip.RulesSum() {
+			return r.refuse("the rules changed since this run's prompts: %s then, %s now; the writers wrote under the earlier rules",
+				held, commentstrip.RulesSum())
+		}
+	}
 	records, err := os.MkdirTemp("", "comment-run-records-")
 	if err != nil {
 		return r.refuse("cannot make a directory for the records: %v", err)

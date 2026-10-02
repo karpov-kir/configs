@@ -49,7 +49,7 @@ func statsOf(content string) stats {
 		counted.blocks++
 		// A file header is allowed what the rule allows it, here as in the voice check. Held to a
 		// block's limit, this package's own eight-line headers count as long blocks while the voice
-		// check and code-style.md both allow them — one rule, two verdicts, which is the thing a
+		// check and comments.md both allow them — one rule, two verdicts, which is the thing a
 		// single instrument may not do.
 		limit := longBlockLines
 		if !seen {
@@ -202,7 +202,7 @@ type changeSet struct {
 	over []fileOverCeiling
 	// mass is every changed file's comment count, so the report can say where the overage sits. A file
 	// the change did not create is marked carried: its comments are counted here because the file lands
-	// with them, but they are the repo's and `code-style.md` reports them rather than charging them.
+	// with them, but they are the repo's and `comments.md` reports them rather than charging them.
 	mass []fileMass
 	read int
 }

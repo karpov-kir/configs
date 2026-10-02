@@ -1,7 +1,7 @@
 # Summary verdict regression cases
 
 Run when changing question 1 in `~/.kk-flavor/workers/comment-writer.md`, or the summary paragraph in
-`~/.kk-flavor/standards/code-style.md` → **Comments**. These probes test whether a site draws a
+`~/.kk-flavor/standards/comments.md`. These probes test whether a site draws a
 summary. They do not test the sentence a site that earns one gets.
 
 Two rules decide these cases, and each case names which. A summary that only restates the identifier

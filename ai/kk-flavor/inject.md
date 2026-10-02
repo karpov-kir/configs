@@ -16,6 +16,7 @@ Read a doc only when its trigger below matches what you're doing. **`project.md`
 | When you are… | Read |
 | --- | --- |
 | writing or refactoring code | [standards/code-style.md](standards/code-style.md) |
+| writing or editing a code comment | [standards/comments.md](standards/comments.md) |
 | designing modules, layers or boundaries; wiring dependencies | [standards/architecture/core.md](standards/architecture/core.md) |
 | tracing what calls what, or what a change reaches, past the first grep | [standards/code-navigation.md](standards/code-navigation.md) |
 | writing, running or reviewing tests, **or changing behaviour that should have one** | [standards/testing.md](standards/testing.md) |

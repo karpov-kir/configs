@@ -18,7 +18,7 @@ import (
 func rulesHome(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
-	for _, path := range []string{"standards/code-style.md", "workers/comment-writer.md"} {
+	for _, path := range writerRuleFiles {
 		full := filepath.Join(home, ".kk-flavor", path)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			t.Fatal(err)
@@ -354,10 +354,14 @@ func TestPromptsFillEverySlotTheTemplateNames(t *testing.T) {
 		}
 	}
 	for _, want := range []string{"Apply the `" + writerContract + "` contract", "User-stated emphasis", "none", "ledger.ts:3 1.facts",
-		verdictSentence, "return-writer-A.md", "Edit calls issued together", "Work a file at a time", "rules standards/code-style.md", "rules workers/comment-writer.md"} {
+		verdictSentence, "return-writer-A.md", "Edit calls issued together", "Work a file at a time", readSentence} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("the prompt lacks %q:\n%s", want, body)
 		}
+	}
+	// The prompt names the rules and quotes neither file.
+	if strings.Contains(string(body), "rules standards/comments.md") || strings.Contains(string(body), "rules workers/comment-writer.md") {
+		t.Errorf("the prompt quotes a rule file:\n%s", body)
 	}
 	if strings.Contains(string(body), "Patch queue") || strings.Contains(string(body), "Reached by a handoff") {
 		t.Errorf("an empty slot stayed:\n%s", body)
@@ -525,7 +529,7 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
 	}
 	prompt, _ := os.ReadFile(strings.TrimSpace(said.stdout))
-	for _, want := range []string{"ledger.ts:1 ledger.ts/2/1.facts", "book.ts:1 book.ts/2/1.facts", "return-writer-loop-round-1.md", "rules workers/comment-writer.md"} {
+	for _, want := range []string{"ledger.ts:1 ledger.ts/2/1.facts", "book.ts:1 book.ts/2/1.facts", "return-writer-loop-round-1.md", readSentence} {
 		if !strings.Contains(string(prompt), want) {
 			t.Errorf("the round's prompt lacks %q:\n%s", want, prompt)
 		}

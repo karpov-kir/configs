@@ -243,36 +243,15 @@ func fill(template string, slots map[string]string) (string, error) {
 	return strings.Join(out, "\n\n") + "\n", nil
 }
 
-// writerContract names the contract a writer applies, which reaches it in the prompt.
-const writerContract = "comment-writer brief given in full at the end of this prompt"
+// writerContract names the contract a writer applies, by the path it reads it at.
+const writerContract = "~/.kk-flavor/workers/comment-writer.md"
 
-// writerRules is the text every writer opens on: the brief, and the standard's Comments section it
-// writes to. Run 16's twenty writers each read both from disk before their first site, and every read
-// cost calls. The files stay the rules, and the prompt carries them word for word.
-func writerRules(home string) (string, error) {
-	brief, err := os.ReadFile(filepath.Join(home, ".kk-flavor", "workers", "comment-writer.md"))
-	if err != nil {
-		return "", fmt.Errorf("cannot read the brief at ~/.kk-flavor/workers/comment-writer.md")
-	}
-	style, err := os.ReadFile(filepath.Join(home, ".kk-flavor", "standards", "code-style.md"))
-	if err != nil {
-		return "", fmt.Errorf("cannot read the standard at ~/.kk-flavor/standards/code-style.md")
-	}
-	text := string(style)
-	start := strings.Index(text, "## Comments")
-	if start < 0 {
-		return "", fmt.Errorf("the standard holds no Comments section")
-	}
-	end := strings.Index(text[start+1:], "\n## ")
-	section := text[start:]
-	if end >= 0 {
-		section = text[start : start+1+end]
-	}
-	return "The rules, word for word. Read no rule file: the text below is what the files hold, and your task " +
-		"follows it.\n\n" +
-		"=== ~/.kk-flavor/workers/comment-writer.md ===\n" + strings.TrimSpace(string(brief)) + "\n\n" +
-		"=== ~/.kk-flavor/standards/code-style.md → Comments ===\n" + strings.TrimSpace(section) + "\n", nil
-}
+// readSentence opens every writer's prompt. The prompt names the rules and quotes neither, so a rule has
+// one copy, and taint holds the writer to the reads. The brief says the writer runs under the skill
+// protocol, and a writer that read it would carry 19k bytes it was dispatched without.
+const readSentence = "Your first turn reads `~/.kk-flavor/workers/comment-writer.md` and `~/.kk-flavor/standards/comments.md` " +
+	"whole, in one message, and makes no other call. Read no other file under `~/.kk-flavor/standards` or " +
+	"`~/.kk-flavor/workers`; running a script there is not a read.\n"
 
 // returnFile is where a writer writes its return. Run 18b's one writer held 162 sites, and its return
 // outgrew a message. archive-written could read only the summary it sent instead.
@@ -292,14 +271,13 @@ func returnSentence(path string) string {
 		"` with the Write tool, and end your message with that path."
 }
 
-// writerDispatch is what every writer's prompt shares: the spawn template, the rules the prompt opens
-// on, and the emphasis slot's words.
+// writerDispatch is what every writer's prompt shares: the spawn template and the emphasis slot's words.
 type writerDispatch struct {
-	runDir, template, rules, emphasis string
+	runDir, template, emphasis string
 }
 
-// newWriterDispatch reads the spawn template and the rules under HOME, and the licence in the run
-// directory. The emphasis slot quotes only the human's words, from `licence.txt`. Runs 11 and 12
+// newWriterDispatch reads the spawn template under HOME and the licence in the run directory, and
+// records the rules' sum there. The emphasis slot quotes only the human's words, from `licence.txt`. Runs 11 and 12
 // carried an approval sentence the human never wrote.
 func newWriterDispatch(runDir string) (writerDispatch, error) {
 	home, _ := os.LookupEnv("HOME")
@@ -307,8 +285,7 @@ func newWriterDispatch(runDir string) (writerDispatch, error) {
 	if err != nil {
 		return writerDispatch{}, fmt.Errorf("cannot read the spawn template at ~/%s", spawnTemplate)
 	}
-	rules, err := writerRules(home)
-	if err != nil {
+	if err := recordRules(runDir); err != nil {
 		return writerDispatch{}, err
 	}
 	licence, _ := os.ReadFile(filepath.Join(runDir, "licence.txt"))
@@ -316,7 +293,7 @@ func newWriterDispatch(runDir string) (writerDispatch, error) {
 	if emphasis == "" {
 		emphasis = "none"
 	}
-	return writerDispatch{runDir: runDir, template: string(template), rules: rules, emphasis: emphasis}, nil
+	return writerDispatch{runDir: runDir, template: string(template), emphasis: emphasis}, nil
 }
 
 // spawnFile is where the prompt of the writer called name is written.
@@ -324,8 +301,8 @@ func spawnFile(runDir, name string) string {
 	return filepath.Join(runDir, "spawn-writer-"+name+".md")
 }
 
-// write writes the prompt of the writer called name, and returns its path. The prompt is the rules, then
-// the template filled with the stage's slots and the slots every writer shares. The change scope ends on
+// write writes the prompt of the writer called name, and returns its path. The prompt is the read
+// sentence, then the template filled with the stage's slots and the slots every writer shares. The change scope ends on
 // the verdict shape and on where the return goes.
 func (d writerDispatch) write(name string, slots map[string]string) (string, error) {
 	slots["Model"] = "`comment-writer`, the `workers` row in `~/.kk-flavor/configs/models.json`, as the runner resolved it for this dispatch."
@@ -338,8 +315,7 @@ func (d writerDispatch) write(name string, slots map[string]string) (string, err
 		return "", err
 	}
 	path := spawnFile(d.runDir, name)
-	// The rules come first, so every writer opens on the same text and only the sites differ.
-	if err := os.WriteFile(path, []byte(d.rules+"\n"+prompt), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(readSentence+"\n"+prompt), 0o644); err != nil {
 		return "", fmt.Errorf("cannot write %s", shell.Echoable(path))
 	}
 	return path, nil
