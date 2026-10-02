@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// The one movedRules entry holds only while the move changed no word. The test rebuilds the rules as
+// The movedRules entry holds only while the move changed no word. The test rebuilds the rules as
 // they stood before it: code-style.md as it was, with comments.md's text back under its heading, and
 // the brief citing the old file. Those sum to the old key, and the files now sum to the new one.
 func TestMovedRulesRebuildTheRulesBeforeTheMove(t *testing.T) {

@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// A writer's first turn reads the brief and the comments standard whole, after its prompt, and nothing
-// else; no later call reads under the rule directories, and running a script there is no read. The
-// prompt quotes neither file, so a writer that skipped them wrote without its rules.
+// A writer's first turn reads the brief and the comments standard whole, after its prompt. Its later
+// calls keep out of the rule directories, and a script run there passes. The prompt names the files
+// and quotes them nowhere, so a writer that skipped them wrote without its rules.
 func TestRuleReadsHoldTheWriterToItsTwoFiles(t *testing.T) {
 	home := t.TempDir()
 	prompted := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
@@ -83,8 +83,8 @@ func TestArchiveWrittenRefusesRulesChangedSinceThePrompts(t *testing.T) {
 	}
 }
 
-// taint holds a writer to the reads only in a run whose prompts named the rules, which recorded their sum
-// beside the ledger.
+// taint holds a writer to the reads in a run whose prompts named the rules. Those prompts recorded the
+// rules' sum beside the ledger.
 func TestTaintHoldsAPromptedRunsWriterToTheRuleReads(t *testing.T) {
 	c := newChange(t)
 	runDir := filepath.Join(t.TempDir(), "run")

@@ -202,7 +202,7 @@ type changeSet struct {
 	over []fileOverCeiling
 	// mass is every changed file's comment count, so the report can say where the overage sits. A file
 	// the change did not create is marked carried: its comments are counted here because the file lands
-	// with them, but they are the repo's and `comments.md` reports them rather than charging them.
+	// with them, but they are the repo's, and `comments.md` reports them without charging them.
 	mass []fileMass
 	read int
 }

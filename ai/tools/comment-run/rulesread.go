@@ -21,8 +21,8 @@ var writerRuleFiles = []string{"workers/comment-writer.md", "standards/comments.
 // never records.
 const rulesFile = "rules.sum"
 
-// recordRules writes the sum of the rules standing now into runDir, or refuses where a sum written
-// earlier in the run differs: the run's writers would hold two sets of rules.
+// recordRules writes the sum of the rules standing now into runDir. A sum the run wrote earlier that
+// differs refuses it, since the run's writers would hold two sets of rules.
 func recordRules(runDir string) error {
 	now := commentstrip.RulesSum()
 	if now == "" {
@@ -41,13 +41,12 @@ func rulesHeld(runDir string) string {
 	return strings.TrimSpace(string(held))
 }
 
-// reRuleTree is a path into the two rule directories a writer reads nothing else from, by the mount or
-// by the checkout it points at.
+// reRuleTree is a path into the two rule directories, by the mount or by the checkout it points at.
 var reRuleTree = regexp.MustCompile(`kk-flavor/(standards|workers)\b[^\s'"|;&)]*`)
 
-// ruleReads checks a writer's calls against its prompt: the first turn reads the two rule files whole
-// and does nothing else, no other call reads a file under the rule directories, and the reads come
-// after the prompt was written. Running a script there is no read: the voice check is one.
+// ruleReads checks a writer's calls against its prompt. The first turn holds two calls, each reading a
+// rule file whole after the prompt was written. Every later call keeps out of the rule directories,
+// except one that runs a script there, such as the voice check.
 func ruleReads(calls []call, home string, prompted time.Time) []string {
 	if len(calls) == 0 {
 		return []string{"the transcript holds no call, so the writer read no rule"}

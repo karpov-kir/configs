@@ -40,8 +40,8 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 	if run == "" || archive == "" || len(returns) == 0 {
 		return r.refuse("%s", "archive-written takes --run=<run>, --archive=<dir> and the writers' returns, or --run-dir holding them")
 	}
-	// A writer read its rules from the mount, so a merge after the prompts would archive its blocks under
-	// rules it never read. The run's prompts recorded the sum, beside the returns.
+	// A writer read its rules from the mount. After a merge between the prompts and this stage, its blocks
+	// carry a sum for rules it never read. The run's prompts recorded the sum beside the returns.
 	dirs := map[string]bool{runDir: runDir != ""}
 	for _, ret := range returns {
 		dirs[filepath.Dir(ret)] = true
