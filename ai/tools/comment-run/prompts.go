@@ -87,12 +87,17 @@ func prompts(r *runner, opts options, _ []string) int {
 }
 
 // dispatchLine tells the dispatcher how a prompt reaches its writer. A writer handed a prompt's path
-// read it in four Read calls, and every call reads the whole context again.
-const dispatchLine = "Dispatch each writer with its prompt file's text as the task message, never its path for the writer to Read."
+// read it in four Read calls, and every call reads the whole context again. A session keeps the agent
+// definition it loaded when it started: on 2026-10-02 one started before a pull dispatched the writer
+// with its old body, and the writer returned blocked.
+const dispatchLine = "Dispatch each writer with its prompt file's text as the task message, never its path for the writer to Read. " +
+	"A session started before the flavor checkout was last pulled dispatches the writer's old definition: restart it first."
 
 // The reviewer set these counts on 2026-10-02. A thin writer opens near 5k tokens, and every request
 // reads its whole context again, so a writer costs the square of its sites. One thin writer over 135
-// sites grew to 254k and read 13.7M tokens from the cache. The reach is from run 18b: its writer grew
+// sites grew to 254k and read 13.7M tokens from the cache. Three writers of 45 should re-read a third of
+// that, and the bill fall 30 to 40%, since writes and output stay: an estimate from that one run until
+// the next full pass of like size reports its usage. The reach is from run 18b: its writer grew
 // about 1.7k tokens a site from 147k, so a writer's context holds some 400 sites.
 const (
 	oneWriterSites   = 50
