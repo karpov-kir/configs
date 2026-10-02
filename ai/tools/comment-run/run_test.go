@@ -804,8 +804,8 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 	}
 }
 
-// A prompt names the facts root once. A site line whose facts file stands anywhere else refuses the
-// prompt, which would name a file the writer cannot find.
+// A prompt names the facts root once. A site line with its facts file anywhere else refuses the prompt.
+// That prompt would name a file the writer cannot find.
 func TestFactsRootRebuildsEverySiteLinesFactsFile(t *testing.T) {
 	root, err := factsRoot([]string{"src/a/ledger.ts:3 /run/facts/src_a_ledger.ts/1.facts", "book.ts:9 /run/facts/book.ts/2.facts"})
 	if err != nil || root != "/run/facts" {
