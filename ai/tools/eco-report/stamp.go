@@ -36,12 +36,14 @@ func (r *run) cmdDecisionsReviewed() {
 }
 
 func (r *run) cmdStamp() {
-	r.requireReport(r.arg(2))
+	// Bare, the usage is the grammar's authority, and it comes before the name the stamp needs.
 	entries := r.arg(1)
 	if entries == "" {
 		writeAll(r.errOut, stampUsage)
 		r.exit(2)
 	}
+	r.requireNamed(r.arg(2), "stamp")
+	r.requireReport(r.arg(2))
 	entries = removeWhitespace(entries)
 	if problems := validateStampEntries(entries); len(problems) > 0 {
 		r.refuse("error: invalid stage record", strings.Join(problems, "\n"))
@@ -95,6 +97,7 @@ func (r *run) cmdStamp() {
 }
 
 func (r *run) cmdInvalidate() {
+	r.requireNamed(r.arg(1), "invalidate")
 	r.requireReport(r.arg(1))
 	if manifest := r.readResultManifest(); manifest != nil {
 		r.assertResultProjection(*manifest)

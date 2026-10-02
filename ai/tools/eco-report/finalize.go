@@ -206,6 +206,7 @@ func (r *run) cmdMergeSlot(args []string) {
 
 func (r *run) cmdFinalize(args []string) {
 	name, isForced := nameAndForceFlag(args)
+	r.requireNamed(name, "finalize")
 	r.requireReport(name)
 	stem := stemOfReportPath(r.report)
 	r.assertWritePathsAreReal("nothing was finalized")

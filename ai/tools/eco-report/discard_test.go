@@ -131,7 +131,7 @@ func TestDiscardDestructivePath(t *testing.T) {
 	unnamed.runReport("close", "001-unnamed")
 	unnamed.runReport("discard")
 	unnamed.assertRefused("discard refuses when no report is left and no intent is named")
-	unnamed.assertReports("Name the intent", "and says naming the intent is what gets past it")
+	unnamed.assertReports("takes the intent by name", "and says naming the intent is what gets past it")
 }
 
 func TestDiscardDeletesNothingForAShipThatIsNotHere(t *testing.T) {
@@ -300,4 +300,20 @@ func TestEveryDurableFileKeepsIdsdStanding(t *testing.T) {
 	linked.assertReports("unrecognised content under intents/", "and a symlink is not counted as an intent file")
 	linked.record("and no number of intents is claimed for a link",
 		!strings.Contains(linked.out, "other intent(s)"), linked.out)
+}
+
+// A subcommand that changes a ship's records takes the intent by name, even with one report open. The
+// one open report used to stand in for it, and a bare discard tore down an intent nobody had named.
+func TestABareMutatingSubcommandRefusesAndNamesTheOpenIntents(t *testing.T) {
+	f := newShip(t, "001-only")
+	f.leavesIntentUnnamed = true
+	for _, verb := range []string{"discard", "invalidate", "carry", "close", "finalize"} {
+		f.runReport(verb)
+		f.assertRefused(verb + " refuses with no intent named")
+		f.assertReports("takes the intent by name", "and says it takes the intent by name, for "+verb)
+		f.assertReports("001-only", "and names the open intent, for "+verb)
+	}
+	f.record("and the bare discard deleted nothing", f.isFile(f.reportPath("001-only")), "")
+	f.runReport("discard", "001-only")
+	f.record("while discard with the intent named still discards", !f.isFile(f.reportPath("001-only")), f.out)
 }

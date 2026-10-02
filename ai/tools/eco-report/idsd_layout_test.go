@@ -228,3 +228,16 @@ func TestLayoutMigrationKeepsScratchIgnoredAfterANegation(t *testing.T) {
 	f.runReport("init", "001-after-negation")
 	f.record("init can open a protected report after migration", f.status == 0, f.evidence())
 }
+
+// A flat intent file is a ship in the layout before folders. Migration refuses it, names where it goes,
+// and moves nothing, where it used to bury the ship in supporting/ as unclassified material.
+func TestLayoutMigrationRefusesAFlatIntentFile(t *testing.T) {
+	f := newRepo(t)
+	root := f.scratch()
+	f.write(root+"/intents/009-flat.md", "intent bytes\n")
+	f.write(root+"/charter.md", "# Charter\n")
+	f.runReport("layout", "migrate", "--apply")
+	f.record("migration refuses a flat intent", f.status != 0 && strings.Contains(f.out, "flat intent file") &&
+		strings.Contains(f.out, "intents/<NNN-slug>/intent.md"), f.evidence())
+	f.record("and moves nothing", f.read(root+"/intents/009-flat.md") == "intent bytes\n" && !f.exists(root+"/for-agents"), f.evidence())
+}

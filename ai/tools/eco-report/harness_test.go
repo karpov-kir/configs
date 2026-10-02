@@ -68,9 +68,12 @@ type fixture struct {
 	// answers are the same whichever suite asks: Lstat for what is there, Stat for what is a file.
 	tree *installertest.Tree
 
-	t    *testing.T
-	base string // scratch the case may write outside the repo into
-	repo string // the fixture repository, and the directory every run acts from
+	t *testing.T
+	// Set by a case that tests the refusal of a subcommand left without its intent. Every other case
+	// tests what a subcommand does, and the harness names the one open report for it, as a caller must.
+	leavesIntentUnnamed bool
+	base                string // scratch the case may write outside the repo into
+	repo                string // the fixture repository, and the directory every run acts from
 	// A per-case copy of the skill directory: scripts beside templates, the layout the tool derives
 	// its template path from. A case can break it and leave this checkout's own copy alone, and one
 	// copy per case keeps a mutation inside the case that made it. It holds no report.sh, since only
@@ -203,6 +206,52 @@ func (f *fixture) runReport(args ...string) {
 // One invocation, and the one place this suite says which skill directory and which HOME the tool runs
 // against — the two fields a case never varies and would otherwise restate at each call.
 func (f *fixture) invoke(dir string, out, errOut io.Writer, args []string) int {
+	f.t.Helper()
+	if !f.leavesIntentUnnamed {
+		args = f.named(dir, args)
+	}
+	return f.invokeAsGiven(dir, out, errOut, args)
+}
+
+// named adds the one open report's name to a subcommand that changes a ship's records and was given
+// none. Where no report or several are open it leaves the arguments alone, and the tool refuses.
+func (f *fixture) named(dir string, args []string) []string {
+	at := map[string]int{"discard": 1, "invalidate": 1, "carry": 1, "close": 1, "finalize": 1, "stamp": 2, "stage-result": 2}
+	if len(args) == 0 {
+		return args
+	}
+	position, mutates := at[args[0]]
+	if !mutates {
+		return args
+	}
+	var given []string
+	for _, arg := range args[1:] {
+		if arg != "--force" && arg != "" {
+			given = append(given, arg)
+		}
+	}
+	if len(given) != position-1 {
+		return args
+	}
+	var listing bytes.Buffer
+	f.invokeAsGiven(dir, &listing, io.Discard, []string{"list"})
+	lines := strings.Split(strings.TrimSpace(listing.String()), "\n")
+	if len(lines) != 1 || lines[0] == "" || lines[0] == "no reports" {
+		return args
+	}
+	name, _, _ := strings.Cut(lines[0], "\t")
+	// An empty argument a case passed for the name takes it; otherwise it goes last.
+	named := append([]string{}, args...)
+	for at, arg := range named {
+		if at > 0 && arg == "" {
+			named[at] = name
+			return named
+		}
+	}
+	return append(named, name)
+}
+
+func (f *fixture) invokeAsGiven(dir string, out, errOut io.Writer, args []string) int {
 	f.t.Helper()
 	return ecoreport.Invocation{
 		Args: args,

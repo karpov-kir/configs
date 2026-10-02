@@ -3,8 +3,8 @@
 # it too. What the gates do, and what each subcommand means, is `ai/tools/eco-report/`.
 #   usage: report.sh {init <intent>|root|layout check|layout migrate --dry-run|layout migrate --apply|repo-mode|invalidate|stage-result <json-file>|result-context|decisions-reviewed|scope <base-ref>|stamp "<stages>"|gate|intent-ready <NNN-slug>|carry|check-ignore|promote|discard|finalize|merge-slot|close|state|list|record [--intent <NNN-slug>] <op> <record> "<text>"} [<intent>]
 # One line because the tool refuses with this one, byte for byte, and ai/tools/stub_usage_test.go holds
-# the two against each other. Every subcommand that reads a report takes the intent last; omit it when
-# only one is open.
+# the two against each other. Every subcommand that reads a report takes the intent last. One that only
+# reads may omit it when one report is open; one that changes a ship's records never may.
 #
 # The report template is found from argv[0], so this must stay in the skill's scripts/ directory:
 # ../templates/qualify-report-template.md. `~/.kk-flavor/scripts/tree-fingerprint.sh` is found from

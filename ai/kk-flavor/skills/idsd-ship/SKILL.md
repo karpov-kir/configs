@@ -32,7 +32,7 @@ With no `<arg>` and no subcommand, list the not-yet-built intents and ask which.
 
 ## Report & .idsd lifecycle
 
-The report contract — the **committed vs external** repo modes included — plus `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` belong to `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. Ship adds **promote** and its counterpart **discard**.
+The report contract — the **committed vs external** repo modes included — plus `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh` belong to `~/.kk-flavor/skills/idsd-qualify/SKILL.md` → **Report**. Every `.idsd/` path here hangs off the resolved idsd root, which `report.sh root` prints. Read it before you conclude a repo has no intent set. Ship adds **promote** and its counterpart **discard**.
 
 **Both run on an explicit human request and nowhere else.** Neither is a step in a lifecycle, so no phase below reaches one. **An external `.idsd/` is never offered for deletion** — it is where that project is kept, not scratch a ship cleans up after itself.
 

@@ -213,6 +213,7 @@ func (r *run) movePromotedScratch(target string) {
 // Named, this runs with no report at all, so a `close` may precede it. That is the one order that
 // composes: reversed, `close` has no report left to read and refuses.
 func (r *run) cmdDiscard() {
+	r.requireNamed(r.arg(1), "discard")
 	switch r.resolveReport(r.arg(1)) {
 	case reportNoneOpen:
 		r.refuse("error: nothing to discard — no qualify report under "+r.intentsDir+", and no intent named",
@@ -277,6 +278,7 @@ func (r *run) cmdDiscard() {
 // `- [ ]` refusal is what stops a hand-run from dropping a decision nobody routed.
 func (r *run) cmdClose(args []string) {
 	name, isForced := nameAndForceFlag(args)
+	r.requireNamed(name, "close")
 	r.requireReport(name)
 	if !isForced {
 		if manifest := r.readResultManifest(); manifest != nil {

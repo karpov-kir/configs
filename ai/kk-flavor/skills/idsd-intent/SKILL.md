@@ -17,6 +17,8 @@ Capture **what** to build and **why** as an **ICE** — Intent · Context · Exp
 
 Pick scope from the request, not repo state: one ticket or one outcome → a **feature**, one ICE; "plan the project" / "map the MVP" / several features → a **project**, a map of linked ICEs each tagged by `milestone`.
 
+Every `.idsd/` path here hangs off the resolved idsd root, which `~/.kk-flavor/skills/idsd-qualify/scripts/report.sh root` prints. Read it before you conclude a repo has no intent set.
+
 At project scope, read `.idsd/charter.md` to ground decomposition; if it is missing, offer once to seed one through `~/.kk-flavor/skills/idsd-charter/SKILL.md` — never force it.
 
 If refining, read the named intent file, grill only the gaps, and preserve its `## Follow-ups` checklist.
