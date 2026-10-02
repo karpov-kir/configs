@@ -5,7 +5,7 @@
 #   usage: agent-guard.sh < <the hook's JSON>
 #
 # Exits 0 to let the dispatch run and 2 to refuse it, with the reason on stderr for the model. Input it
-# cannot read runs the dispatch unchecked. The rule is `skill-protocol.md` → **Caller**.
+# cannot read runs the dispatch unchecked. The rule is `skill-protocol.md` → `Caller`.
 #
 # tested by: the Go suite in ai/tools/agent-guard/. The shared stub region and the resolver it calls
 # have their own cases in the Go suite in ai/tools/reach/.

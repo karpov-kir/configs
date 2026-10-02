@@ -23,8 +23,7 @@ func (run *invocation) claudeSettings() string {
 
 // registerAgentGuard adds the dispatch guard to Claude's settings as a PreToolUse hook on the Agent
 // tool, and keeps every other setting and hook. The guard holds a dispatch to the narrowest agent type
-// with its tools. Codex runs every worker with the same tools, so a guard there would hold it to
-// nothing.
+// with its tools. Codex runs every worker with the same tools, and it takes no guard.
 func (run *invocation) registerAgentGuard() {
 	if run.agent != claudeAgent || !run.isOwner {
 		return
