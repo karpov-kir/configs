@@ -1,5 +1,6 @@
-// Package agentguard refuses a Claude dispatch to the general agent whose prompt has no `Needs:` line.
-// It is the PreToolUse hook bootstrap registers on the Agent tool.
+// Package agentguard holds a dispatch to the general agent to a `Needs:` line in its prompt. That covers
+// a Claude Agent call to general-purpose or with the type left out, and a Codex spawn_agent call left
+// without a role. It is the PreToolUse hook bootstrap registers in each client.
 //
 //	usage: agent-guard.sh < <the hook's JSON>
 //
@@ -36,10 +37,10 @@ var reNeeds = regexp.MustCompile(`(?m)^[ \t]*Needs:[ \t]*\S`)
 const RefusalPrefix = "agent-guard refused this dispatch:"
 
 // refusal names the two narrow types, so the model can dispatch again without reading the rule.
-const refusal = RefusalPrefix + " a general-purpose dispatch names no tool it needs. Dispatch to read-worker " +
-	"(Read, Grep, Glob, Bash) or edit-worker (adds Edit, Write); where the task needs another tool, or this " +
-	"session predates those types, add a line `Needs: <the tool or the type>` to the prompt " +
-	"(~/.kk-flavor/standards/skill-protocol.md → Caller).\n"
+const refusal = RefusalPrefix + " a general-purpose dispatch names no tool it needs. In Claude, dispatch to " +
+	"read-worker (Read, Grep, Glob, Bash) or edit-worker (adds Edit, Write); in Codex, spawn the light-worker role. " +
+	"Where the task needs another tool, or this session predates those types, add a line " +
+	"`Needs: <the tool or the type>` to the prompt (~/.kk-flavor/standards/skill-protocol.md → Caller).\n"
 
 // usage is the line the stub states. A hook passes no argument, so an argument is a caller's mistake.
 const usage = "usage: agent-guard.sh < <the hook's JSON>"
@@ -57,20 +58,27 @@ func Run(args []string, stdin io.Reader, stderr io.Writer) int {
 		ToolInput struct {
 			SubagentType string `json:"subagent_type"`
 			Prompt       string `json:"prompt"`
+			// Codex's spawn_agent names its role and carries its task under these keys.
+			AgentType string `json:"agent_type"`
+			Role      string `json:"role"`
+			Message   string `json:"message"`
 		} `json:"tool_input"`
 	}
 	if err := json.NewDecoder(stdin).Decode(&event); err != nil {
 		fmt.Fprintf(stderr, "agent-guard: could not read the hook input, so the dispatch runs unchecked: %v\n", err)
 		return exitAllow
 	}
-	if event.ToolName != "Agent" && event.ToolName != "Task" {
+	input := event.ToolInput
+	// Codex reports spawn_agent under the tool name Agent, with its role in agent_type or role.
+	if event.ToolName != "Agent" && event.ToolName != "Task" && event.ToolName != "spawn_agent" {
 		return exitAllow
 	}
-	kind := event.ToolInput.SubagentType
-	if kind != "" && kind != generalAgent {
-		return exitAllow
+	for _, kind := range []string{input.SubagentType, input.AgentType, input.Role} {
+		if kind != "" && kind != generalAgent {
+			return exitAllow
+		}
 	}
-	if reNeeds.MatchString(event.ToolInput.Prompt) {
+	if reNeeds.MatchString(input.Prompt + "\n" + input.Message) {
 		return exitAllow
 	}
 	fmt.Fprint(stderr, refusal)

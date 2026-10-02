@@ -30,53 +30,68 @@ func (run *invocation) registerAgentGuard() {
 		return
 	}
 	run.mounting.Say("dispatch guard")
-	settings, ok := run.readClaudeSettings()
+	run.addGuardHook(run.claudeSettings(), guardMatcher)
+}
+
+// addGuardHook adds the guard as a PreToolUse group to the hooks file at path, beside what it holds.
+func (run *invocation) addGuardHook(path, matcher string) bool {
+	settings, ok := run.readHookSettings(path)
 	if !ok {
-		return
+		return false
 	}
-	hooks, groups, ok := run.preToolUse(settings)
+	hooks, groups, ok := run.preToolUse(path, settings)
 	if !ok {
-		return
+		return false
 	}
 	if slices.ContainsFunc(groups, run.isGuardGroup) {
-		run.mounting.Say("  ok       " + run.claudeSettings() + " runs the dispatch guard")
-		return
+		run.mounting.Say("  ok       " + path + " runs the dispatch guard")
+		return true
 	}
 	if run.isDryRun {
-		run.mounting.Say("  would add the dispatch guard hook to " + run.claudeSettings())
-		return
+		run.mounting.Say("  would add the dispatch guard hook to " + path)
+		return true
 	}
 	hooks["PreToolUse"] = append(groups, map[string]any{
-		"matcher": guardMatcher,
+		"matcher": matcher,
 		"hooks":   []any{map[string]any{"type": "command", "command": run.guardCommand()}},
 	})
 	settings["hooks"] = hooks
-	if run.writeClaudeSettings(settings) {
-		run.mounting.Say("  added    the dispatch guard hook to " + run.claudeSettings())
+	if !run.writeHookSettings(path, settings) {
+		return false
 	}
+	run.mounting.Say("  added    the dispatch guard hook to " + path)
+	return true
 }
 
 // removeAgentGuard takes the dispatch guard's hook out of Claude's settings and leaves the rest.
 func (run *invocation) removeAgentGuard() {
-	if run.agent != claudeAgent || !run.isOwner || !shell.PathExists(run.claudeSettings()) {
+	if run.agent != claudeAgent || !run.isOwner {
 		return
 	}
 	run.mounting.Say("dispatch guard")
-	settings, ok := run.readClaudeSettings()
+	run.removeGuardHook(run.claudeSettings())
+}
+
+// removeGuardHook takes the guard's group out of the hooks file at path and leaves the rest.
+func (run *invocation) removeGuardHook(path string) {
+	if !shell.PathExists(path) {
+		return
+	}
+	settings, ok := run.readHookSettings(path)
 	if !ok {
 		return
 	}
-	hooks, groups, ok := run.preToolUse(settings)
+	hooks, groups, ok := run.preToolUse(path, settings)
 	if !ok {
 		return
 	}
 	kept := slices.DeleteFunc(slices.Clone(groups), run.isGuardGroup)
 	if len(kept) == len(groups) {
-		run.mounting.Say("  ok       " + run.claudeSettings() + " holds no dispatch guard")
+		run.mounting.Say("  ok       " + path + " holds no dispatch guard")
 		return
 	}
 	if run.isDryRun {
-		run.mounting.Say("  would remove the dispatch guard hook from " + run.claudeSettings())
+		run.mounting.Say("  would remove the dispatch guard hook from " + path)
 		return
 	}
 	if len(kept) == 0 {
@@ -87,19 +102,19 @@ func (run *invocation) removeAgentGuard() {
 	if len(hooks) == 0 {
 		delete(settings, "hooks")
 	}
-	if run.writeClaudeSettings(settings) {
-		run.mounting.Say("  removed  the dispatch guard hook from " + run.claudeSettings())
+	if run.writeHookSettings(path, settings) {
+		run.mounting.Say("  removed  the dispatch guard hook from " + path)
 	}
 }
 
 // preToolUse is the settings' hooks and their PreToolUse groups, each made where absent. A value of
 // another shape is the owner's, and the run refuses it and leaves it as it stands.
-func (run *invocation) preToolUse(settings map[string]any) (map[string]any, []any, bool) {
+func (run *invocation) preToolUse(path string, settings map[string]any) (map[string]any, []any, bool) {
 	hooks := map[string]any{}
 	if value, found := settings["hooks"]; found {
 		object, isObject := value.(map[string]any)
 		if !isObject {
-			run.mounting.Refuse(run.claudeSettings() + " holds hooks that are not an object, so the dispatch guard was left out")
+			run.mounting.Refuse(path + " holds hooks that are not an object, so the dispatch guard was left out")
 			return nil, nil, false
 		}
 		hooks = object
@@ -108,7 +123,7 @@ func (run *invocation) preToolUse(settings map[string]any) (map[string]any, []an
 	if value, found := hooks["PreToolUse"]; found {
 		list, isList := value.([]any)
 		if !isList {
-			run.mounting.Refuse(run.claudeSettings() + " holds PreToolUse hooks that are not a list, so the dispatch guard was left out")
+			run.mounting.Refuse(path + " holds PreToolUse hooks that are not a list, so the dispatch guard was left out")
 			return nil, nil, false
 		}
 		groups = list
@@ -126,11 +141,10 @@ func (run *invocation) isGuardGroup(group any) bool {
 	})
 }
 
-// readClaudeSettings reads the settings, or an empty set where the file is not there. A symlink or a
+// readHookSettings reads a hooks file, or an empty set where the file is not there. A symlink or a
 // file that is not a JSON object is refused: writing through the one, or over the other, would change a
 // file this run cannot read.
-func (run *invocation) readClaudeSettings() (map[string]any, bool) {
-	path := run.claudeSettings()
+func (run *invocation) readHookSettings(path string) (map[string]any, bool) {
 	if shell.IsSymlink(path) {
 		run.mounting.Refuse(path + " is a symlink, so the dispatch guard was not registered — add it by hand")
 		return nil, false
@@ -150,10 +164,9 @@ func (run *invocation) readClaudeSettings() (map[string]any, bool) {
 	return settings, true
 }
 
-// writeClaudeSettings writes the settings beside the file and renames them over it, keeping its mode.
-// Claude reads the file at start, and a half-written one would hold no settings at all.
-func (run *invocation) writeClaudeSettings(settings map[string]any) bool {
-	path := run.claudeSettings()
+// writeHookSettings writes the settings beside the file and renames them over it, keeping its mode. A
+// client reads the file at start, and a half-written one would hold no settings at all.
+func (run *invocation) writeHookSettings(path string, settings map[string]any) bool {
 	var encoded bytes.Buffer
 	encoder := json.NewEncoder(&encoded)
 	// A hook command holding `&&` or `>` stays readable.
