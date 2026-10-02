@@ -10,7 +10,7 @@ argument-hint: "the vision, scope or constraint to set, or omit to seed the char
 
 Write `.idsd/charter.md`, including its protected `## Constraints` section. Don't list features (that's the roadmap), detail behaviour (the intents), or restate the project's agent instructions — link to them.
 
-A request naming one section touches only that section. A missing charter is missing input: obtain its content from the human rather than inventing project purpose to house a constraint. A charter missing from a project is the owner's call. Another skill reports it as missing input, never as a finding to fix.
+A request naming one section touches only that section. A missing charter is missing input: obtain its content from the human rather than inventing project purpose to house a constraint. A charter missing from a project is the owner's call. Another skill reports it as missing input and files no finding to fix it.
 
 ## Phase 1 — Inventory what exists
 

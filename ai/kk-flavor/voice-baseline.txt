@@ -19,8 +19,8 @@
 49 ai/kk-flavor/skills/kk-pr/SKILL.md
 48 ai/kk-flavor/workers/skillcraft.md
 48 ai/kk-flavor/skills/kk-patrol/SKILL.md
-47 ai/kk-flavor/skills/idsd-qualify/SKILL.md
 46 ai/kk-flavor/skills/idsd-ship/SKILL.md
+46 ai/kk-flavor/skills/idsd-qualify/SKILL.md
 43 ai/kk-flavor/skills/idsd-intent/SKILL.md
 43 ai/kk-flavor/skills/idsd-build/SKILL.md
 40 ai/kk-flavor/standards/records.md

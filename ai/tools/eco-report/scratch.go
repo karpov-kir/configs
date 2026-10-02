@@ -222,9 +222,9 @@ func (r *run) cmdDiscard() {
 	// Without this, a symlinked `.idsd` lets every deletion below reach through to a target outside the
 	// repo. `init` carries the same guard, for the same reason: a link there can steer a write out.
 	r.assertWritePathsAreReal("nothing was discarded")
-	// The folder name is the ship's name here, as the caller gave it. The frontmatter is read only to
-	// cross-check it, and only when there is a report left to read: a closed ship has none, and nothing
-	// about the deletion below needed it.
+	// The folder name is the ship's name here, as the caller gave it. The frontmatter cross-checks it
+	// where a report is left to read. A closed ship has none, and the deletion that follows does not
+	// need it.
 	stem := stemOfReportPath(r.report)
 	r.assertShipExists(stem)
 	slug := stem
