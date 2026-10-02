@@ -226,6 +226,7 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	run.areInstructionsReady = run.writeInstructions()
 	run.installPackages()
 	run.configureRtk()
+	run.registerAgentGuard()
 	run.installTools()
 	run.syncMcp()
 	run.verify()
