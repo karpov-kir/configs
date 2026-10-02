@@ -93,7 +93,7 @@ func (run *invocation) removeAgentGuard() {
 }
 
 // preToolUse is the settings' hooks and their PreToolUse groups, each made where absent. A value of
-// another shape is refused rather than replaced, since it is the owner's.
+// another shape is the owner's, and the run refuses it and leaves it as it stands.
 func (run *invocation) preToolUse(settings map[string]any) (map[string]any, []any, bool) {
 	hooks := map[string]any{}
 	if value, found := settings["hooks"]; found {

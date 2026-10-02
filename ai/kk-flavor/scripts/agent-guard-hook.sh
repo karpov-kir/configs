@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The PreToolUse hook command bootstrap registers on the Agent tool. It runs agent-guard.sh on the hook's
 # JSON and passes the guard's own refusal through as exit 2. Every other failure runs the dispatch with a
-# note on stderr: the resolver also exits 2 when it cannot build the guard, and in a hook that would
-# refuse every dispatch.
+# note on stderr. The resolver also exits 2 when it cannot build the guard, and a hook would read that as
+# a refusal of every dispatch.
 #
 #   usage: agent-guard-hook.sh < <the hook's JSON>
 #
