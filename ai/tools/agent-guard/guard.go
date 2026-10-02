@@ -29,10 +29,14 @@ const generalAgent = "general-purpose"
 
 // reNeeds is a prompt line naming what sends the dispatch to the general agent: a tool, or a type the
 // session never loaded.
-var reNeeds = regexp.MustCompile(`(?m)^\s*Needs:\s*\S`)
+var reNeeds = regexp.MustCompile(`(?m)^[ \t]*Needs:[ \t]*\S`)
+
+// RefusalPrefix opens the guard's own refusal. The hook passes every other exit, the resolver's
+// included, so a guard that cannot build stops no dispatch.
+const RefusalPrefix = "agent-guard refused this dispatch:"
 
 // refusal names the two narrow types, so the model can dispatch again without reading the rule.
-const refusal = "agent-guard: a general-purpose dispatch names no tool it needs. Dispatch to read-worker " +
+const refusal = RefusalPrefix + " a general-purpose dispatch names no tool it needs. Dispatch to read-worker " +
 	"(Read, Grep, Glob, Bash) or edit-worker (adds Edit, Write); where the task needs another tool, or this " +
 	"session predates those types, add a line `Needs: <the tool or the type>` to the prompt " +
 	"(~/.kk-flavor/standards/skill-protocol.md → Caller).\n"

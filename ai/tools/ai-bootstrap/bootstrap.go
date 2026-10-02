@@ -226,8 +226,9 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	run.areInstructionsReady = run.writeInstructions()
 	run.installPackages()
 	run.configureRtk()
-	run.registerAgentGuard()
 	run.installTools()
+	// After the tools, so the hook never names a guard that is not installed.
+	run.registerAgentGuard()
 	run.syncMcp()
 	run.verify()
 	run.checkModels()

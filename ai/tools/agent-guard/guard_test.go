@@ -22,6 +22,7 @@ func TestTheGuardRefusesOnlyAGeneralDispatchNamingNoNeed(t *testing.T) {
 		{"built-in type", `{"tool_name":"Agent","tool_input":{"subagent_type":"Explore","prompt":"x"}}`, exitAllow},
 		{"another tool", `{"tool_name":"Bash","tool_input":{"command":"ls"}}`, exitAllow},
 		{"unreadable input", `not json`, exitAllow},
+		{"an empty need", `{"tool_name":"Agent","tool_input":{"prompt":"Needs:\n\nReview the diff."}}`, exitRefuse},
 	} {
 		var stderr strings.Builder
 		got := Run(nil, strings.NewReader(tc.input), &stderr)

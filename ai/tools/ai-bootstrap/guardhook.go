@@ -1,6 +1,7 @@
 package aibootstrap
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -14,7 +15,7 @@ const guardMatcher = "Agent|Task"
 
 // guardCommand is the dispatch guard the hook runs, by its path under the mount.
 func (run *invocation) guardCommand() string {
-	return run.Home + "/.kk-flavor/scripts/agent-guard.sh"
+	return run.Home + "/.kk-flavor/scripts/agent-guard-hook.sh"
 }
 
 func (run *invocation) claudeSettings() string {
@@ -33,11 +34,10 @@ func (run *invocation) registerAgentGuard() {
 	if !ok {
 		return
 	}
-	hooks, _ := settings["hooks"].(map[string]any)
-	if hooks == nil {
-		hooks = map[string]any{}
+	hooks, groups, ok := run.preToolUse(settings)
+	if !ok {
+		return
 	}
-	groups, _ := hooks["PreToolUse"].([]any)
 	if slices.ContainsFunc(groups, run.isGuardGroup) {
 		run.mounting.Say("  ok       " + run.claudeSettings() + " runs the dispatch guard")
 		return
@@ -66,8 +66,10 @@ func (run *invocation) removeAgentGuard() {
 	if !ok {
 		return
 	}
-	hooks, _ := settings["hooks"].(map[string]any)
-	groups, _ := hooks["PreToolUse"].([]any)
+	hooks, groups, ok := run.preToolUse(settings)
+	if !ok {
+		return
+	}
 	kept := slices.DeleteFunc(slices.Clone(groups), run.isGuardGroup)
 	if len(kept) == len(groups) {
 		run.mounting.Say("  ok       " + run.claudeSettings() + " holds no dispatch guard")
@@ -90,9 +92,34 @@ func (run *invocation) removeAgentGuard() {
 	}
 }
 
+// preToolUse is the settings' hooks and their PreToolUse groups, each made where absent. A value of
+// another shape is refused rather than replaced, since it is the owner's.
+func (run *invocation) preToolUse(settings map[string]any) (map[string]any, []any, bool) {
+	hooks := map[string]any{}
+	if value, found := settings["hooks"]; found {
+		object, isObject := value.(map[string]any)
+		if !isObject {
+			run.mounting.Refuse(run.claudeSettings() + " holds hooks that are not an object, so the dispatch guard was left out")
+			return nil, nil, false
+		}
+		hooks = object
+	}
+	var groups []any
+	if value, found := hooks["PreToolUse"]; found {
+		list, isList := value.([]any)
+		if !isList {
+			run.mounting.Refuse(run.claudeSettings() + " holds PreToolUse hooks that are not a list, so the dispatch guard was left out")
+			return nil, nil, false
+		}
+		groups = list
+	}
+	return hooks, groups, true
+}
+
 // isGuardGroup says a PreToolUse group runs the dispatch guard, whatever else it holds.
 func (run *invocation) isGuardGroup(group any) bool {
-	entries, _ := group.(map[string]any)["hooks"].([]any)
+	object, _ := group.(map[string]any)
+	entries, _ := object["hooks"].([]any)
 	return slices.ContainsFunc(entries, func(entry any) bool {
 		hook, _ := entry.(map[string]any)
 		return hook["command"] == run.guardCommand()
@@ -113,7 +140,10 @@ func (run *invocation) readClaudeSettings() (map[string]any, bool) {
 		return map[string]any{}, true
 	}
 	settings := map[string]any{}
-	if err != nil || json.Unmarshal(body, &settings) != nil {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	// A number stays as it was written, where a float would round a large one.
+	decoder.UseNumber()
+	if err != nil || decoder.Decode(&settings) != nil {
 		run.mounting.Refuse("could not read " + path + " as JSON, so the dispatch guard was not registered")
 		return nil, false
 	}
@@ -124,8 +154,12 @@ func (run *invocation) readClaudeSettings() (map[string]any, bool) {
 // Claude reads the file at start, and a half-written one would hold no settings at all.
 func (run *invocation) writeClaudeSettings(settings map[string]any) bool {
 	path := run.claudeSettings()
-	body, err := json.MarshalIndent(settings, "", "  ")
-	if err != nil {
+	var encoded bytes.Buffer
+	encoder := json.NewEncoder(&encoded)
+	// A hook command holding `&&` or `>` stays readable.
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(settings); err != nil {
 		run.mounting.Refuse("could not write " + path)
 		return false
 	}
@@ -138,7 +172,7 @@ func (run *invocation) writeClaudeSettings(settings map[string]any) bool {
 		return false
 	}
 	staged := path + ".kk-flavor-staged"
-	if err := os.WriteFile(staged, append(body, '\n'), mode); err != nil || os.Rename(staged, path) != nil {
+	if err := os.WriteFile(staged, encoded.Bytes(), mode); err != nil || os.Rename(staged, path) != nil {
 		_ = os.Remove(staged)
 		run.mounting.Refuse("could not write " + path)
 		return false

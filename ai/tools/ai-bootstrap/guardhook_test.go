@@ -37,10 +37,13 @@ func guardHooks(t *testing.T, path string) (commands []string, keys []string) {
 func TestTheOwnerInstallAddsTheDispatchGuardAndUninstallTakesItOut(t *testing.T) {
 	f := newFixture(t)
 	settings := f.home + "/.claude/settings.json"
-	f.Write(settings, `{"model":"opus","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"rtk hook claude"}]}]}}`)
-	guard := f.home + "/.kk-flavor/scripts/agent-guard.sh"
+	f.Write(settings, `{"model":"opus","cleanupPeriodDays":12345678901234567890,"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"rtk hook claude"}]}]}}`)
+	guard := f.home + "/.kk-flavor/scripts/agent-guard-hook.sh"
 	for range 2 {
 		f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	}
+	if body, _ := os.ReadFile(settings); !strings.Contains(string(body), "12345678901234567890") {
+		t.Errorf("a number was rewritten:\n%s", body)
 	}
 	commands, keys := guardHooks(t, settings)
 	if strings.Join(commands, ",") != "rtk hook claude,"+guard || !strings.Contains(strings.Join(keys, ","), "model") {
@@ -62,6 +65,18 @@ func TestTheDispatchGuardLeavesUnreadableSettingsAndOtherInstallsAlone(t *testin
 	if body, _ := os.ReadFile(settings); string(body) != "not json\n" {
 		t.Fatalf("unreadable settings were rewritten: %q", body)
 	}
+	for _, shape := range []string{`{"hooks":[]}`, `{"hooks":{"PreToolUse":{}}}`} {
+		g := newFixture(t)
+		g.Write(g.home+"/.claude/settings.json", shape)
+		g.ExpectCode(g.install("--agent=claude", "--owner"), 1)
+		if body, _ := os.ReadFile(g.home + "/.claude/settings.json"); string(body) != shape {
+			t.Errorf("hooks of another shape were replaced: %s", body)
+		}
+	}
+	// A group that is not an object is the owner's, and the guard goes in beside it.
+	h := newFixture(t)
+	h.Write(h.home+"/.claude/settings.json", `{"hooks":{"PreToolUse":["x",null]}}`)
+	h.ExpectCode(h.install("--agent=claude", "--owner"), 0)
 	for _, args := range [][]string{{"--agent=codex", "--owner"}, {"--agent=claude"}} {
 		g := newFixture(t)
 		g.install(args...)
