@@ -216,7 +216,7 @@ var (
 		"collection", "station", "dimension", "extension", "sentence", "instance", "interval", "signal",
 		"terminal", "portal", "structure", "signature", "feature", "fixture", "element", "argument", "document"}
 	// A participle can end its clause after a preposition with its subject and object unsaid, as in
-	// `records it without playing.` The rule asks for the means with `by`, as in `by expecting a
+	// `records it without playing`. The rule asks for the means with `by`, as in `by expecting a
 	// refusal`, so `by` is left out.
 	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+[a-z]{3,}ing\s*(?:[.,;:]|$)`)
 
