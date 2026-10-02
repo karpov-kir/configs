@@ -90,11 +90,13 @@ func prompts(r *runner, opts options, _ []string) int {
 // read it in four Read calls, and every call reads the whole context again.
 const dispatchLine = "Dispatch each writer with its prompt file's text as the task message, never its path for the writer to Read."
 
-// The reviewer set these counts on 2026-09-29. Run 18b's one writer grew about 1.7k tokens a site from
-// 147k, so a writer's context holds some 400 sites.
+// The reviewer set these counts on 2026-10-02. A thin writer opens near 5k tokens, and every request
+// reads its whole context again, so a writer costs the square of its sites. One thin writer over 135
+// sites grew to 254k and read 13.7M tokens from the cache. The reach is from run 18b: its writer grew
+// about 1.7k tokens a site from 147k, so a writer's context holds some 400 sites.
 const (
-	oneWriterSites   = 150
-	twoWriterSites   = 300
+	oneWriterSites   = 50
+	twoWriterSites   = 100
 	maxWriters       = 3
 	writerReachSites = 400
 )
@@ -128,7 +130,7 @@ func plan(order []string, byFile map[string][]string) [][][]string {
 }
 
 // partition gives the files to n writers. A directory stays together up to one writer's room, the
-// larger of its share and 150 sites. A larger directory is dealt out file by file. Each unit goes to
+// larger of its share and 50 sites. A larger directory is dealt out file by file. Each unit goes to
 // the writer holding the fewest sites, the largest unit first.
 func partition(files []string, byFile map[string][]string, n int) [][]string {
 	n = min(n, len(files))

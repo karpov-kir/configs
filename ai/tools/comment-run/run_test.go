@@ -640,7 +640,7 @@ func TestCarriedRefusesAPathOutsideTheTree(t *testing.T) {
 	}
 }
 
-// The stage decides the writers from the sites: one up to 150, two up to 300, and three above. A file
+// The stage decides the writers from the sites: one up to 50, two up to 100, and three above. A file
 // stays whole, and past three writers' reach the batches follow.
 func TestPlanDecidesTheWritersFromTheSites(t *testing.T) {
 	sites := func(counts map[string]int) ([]string, map[string][]string) {
@@ -659,9 +659,10 @@ func TestPlanDecidesTheWritersFromTheSites(t *testing.T) {
 		counts  map[string]int
 		writers []int
 	}{
-		{map[string]int{"a/x.ts": 90, "a/y.ts": 60}, []int{1}},
-		{map[string]int{"a/x.ts": 100, "b/y.ts": 100, "b/z.ts": 50}, []int{2}},
-		{map[string]int{"a/x.ts": 120, "b/y.ts": 120, "c/z.ts": 120}, []int{3}},
+		{map[string]int{"a/x.ts": 30, "a/y.ts": 20}, []int{1}},
+		{map[string]int{"a/x.ts": 30, "b/y.ts": 21}, []int{2}},
+		{map[string]int{"a/x.ts": 40, "b/y.ts": 40, "b/z.ts": 20}, []int{2}},
+		{map[string]int{"a/x.ts": 40, "b/y.ts": 40, "c/z.ts": 41}, []int{3}},
 		{map[string]int{"a/x.ts": 400, "b/y.ts": 400, "c/z.ts": 400, "d/w.ts": 100}, []int{3, 1}},
 	} {
 		order, byFile := sites(tc.counts)
@@ -691,7 +692,7 @@ func TestPlanDecidesTheWritersFromTheSites(t *testing.T) {
 		}
 	}
 	// A directory's files stay with one writer where its size allows.
-	order, byFile = sites(map[string]int{"a/x.ts": 80, "a/y.ts": 70, "b/z.ts": 100, "b/w.ts": 60})
+	order, byFile = sites(map[string]int{"a/x.ts": 25, "a/y.ts": 20, "b/z.ts": 25, "b/w.ts": 20})
 	for _, group := range plan(order, byFile)[0] {
 		dirs := map[string]bool{}
 		for _, file := range group {
