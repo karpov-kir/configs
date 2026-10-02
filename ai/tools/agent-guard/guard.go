@@ -37,8 +37,8 @@ var reNeeds = regexp.MustCompile(`(?m)^[ \t]*Needs:[ \t]*\S`)
 const RefusalPrefix = "agent-guard refused this dispatch:"
 
 // refusal names the two narrow types, so the model can dispatch again without reading the rule.
-const refusal = RefusalPrefix + " a general-purpose dispatch names no tool it needs. In Claude, dispatch to " +
-	"read-worker (Read, Grep, Glob, Bash) or edit-worker (adds Edit, Write); in Codex, spawn the light-worker role. " +
+const refusal = RefusalPrefix + " a general-purpose dispatch names no tool it needs. Dispatch to " +
+	"read-worker (Read, Grep, Glob, Bash) or edit-worker (adds Edit, Write). " +
 	"Where the task needs another tool, or this session predates those types, add a line " +
 	"`Needs: <the tool or the type>` to the prompt (~/.kk-flavor/standards/skill-protocol.md → Caller).\n"
 

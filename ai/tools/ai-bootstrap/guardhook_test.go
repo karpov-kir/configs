@@ -85,3 +85,20 @@ func TestTheDispatchGuardLeavesUnreadableSettingsAndOtherInstallsAlone(t *testin
 		}
 	}
 }
+
+// A Codex install writes no guard and says why, on every run, and leaves Codex's config alone.
+func TestACodexInstallSaysWhyItWritesNoGuard(t *testing.T) {
+	f := newFixture(t)
+	config := f.codexHome + "/config.toml"
+	f.Write(config, "model = \"gpt\"\n")
+	for range 2 {
+		f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
+		f.ExpectSaid("  skipped  Codex exposes no role on spawn_agent, so there is no lighter worker to hold a spawn to")
+	}
+	if body, _ := os.ReadFile(config); string(body) != "model = \"gpt\"\n" {
+		t.Errorf("a Codex install changed its config:\n%s", body)
+	}
+	if _, err := os.Stat(f.codexHome + "/hooks.json"); err == nil {
+		t.Error("a Codex install wrote hooks.json")
+	}
+}
