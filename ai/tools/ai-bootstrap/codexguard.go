@@ -11,7 +11,7 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// The region bootstrap owns in Codex's config.toml, and the mark on the one line it adds to the owner's
+// The region bootstrap owns in Codex's config.toml, and the mark on the line it adds to the owner's
 // own [features] table. Both come out on uninstall, and every other line stays as the owner wrote it.
 const (
 	codexRegionOpen  = "# >>> kk-flavor: the light worker and the dispatch guard; bootstrap writes this region >>>"
