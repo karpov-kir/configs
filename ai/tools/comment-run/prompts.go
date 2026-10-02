@@ -389,7 +389,7 @@ func factsSentence(root, built string) string {
 	return "A site's facts file is " + built + ", the root being `" + root + "`, with `identifiers.txt` beside it."
 }
 
-// factsRoot is the one directory every site line's facts file stands under, by way of its file's facts
+// factsRoot is the directory every site line's facts file stands under, by way of its file's facts
 // directory. A site line built any other way refuses the prompt, which could not name its facts file.
 func factsRoot(lines []string) (string, error) {
 	root := ""
