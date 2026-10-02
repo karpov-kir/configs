@@ -44,9 +44,9 @@ func rulesHeld(runDir string) string {
 // reFlavorPath is a path through the flavor tree, by the mount or by the checkout it points at.
 var reFlavorPath = regexp.MustCompile(`kk-flavor(/[^\s'"|;&)<>]*)?`)
 
-// reachesRules says a path reaches the rule directories: one of them or a file in it, or the flavor root
-// a search or a change of directory can reach them from. A script run there is no read, and neither is a
-// file the writer was given to write, since this repository keeps code under the rule directories.
+// reachesRules says a path reaches the rule directories. The path is one of them, a file in one, or the
+// flavor root, from which a search or a change of directory reaches them. Running a script there passes.
+// So does a file the writer was given to write, because this repository keeps code under those directories.
 func reachesRules(path string, isShell bool, given []string) bool {
 	rest := strings.TrimSuffix(reFlavorPath.FindStringSubmatch(path)[1], "/")
 	switch {
