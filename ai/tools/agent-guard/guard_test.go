@@ -22,6 +22,9 @@ func TestTheGuardRefusesOnlyAGeneralDispatchNamingNoNeed(t *testing.T) {
 		{"built-in type", `{"tool_name":"Agent","tool_input":{"subagent_type":"Explore","prompt":"x"}}`, exitAllow},
 		{"another tool", `{"tool_name":"Bash","tool_input":{"command":"ls"}}`, exitAllow},
 		{"unreadable input", `not json`, exitAllow},
+		{"codex, no role", `{"tool_name":"spawn_agent","tool_input":{"task_name":"review","message":"Review the diff."}}`, exitRefuse},
+		{"codex, a role", `{"tool_name":"spawn_agent","tool_input":{"agent_type":"light-worker","message":"Review the diff."}}`, exitAllow},
+		{"codex, no role, a need", `{"tool_name":"spawn_agent","tool_input":{"message":"Needs: browser\n\nDrive the page."}}`, exitAllow},
 		{"an empty need", `{"tool_name":"Agent","tool_input":{"prompt":"Needs:\n\nReview the diff."}}`, exitRefuse},
 	} {
 		var stderr strings.Builder

@@ -229,6 +229,7 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	run.installTools()
 	// After the tools, so the hook names a guard already installed.
 	run.registerAgentGuard()
+	run.registerCodexLightWorker()
 	run.syncMcp()
 	run.verify()
 	run.checkModels()
