@@ -122,8 +122,8 @@ const (
 	checkHeaderOnImport = "header-on-import"
 	checkLongLine       = "long-line"
 	checkToolingDoubt   = "tooling-doubt"
-	// The sentence-shape checks a note's sentences are held to. A reviewer found two notes hard to follow
-	// that every other check passed: each packed its facts behind one of these shapes.
+	// The checks on how a note's sentence is built. A reviewer found two notes hard to follow that every
+	// other check passed, and each packed its facts behind one of these shapes.
 	checkFreeRelative   = "free-relative"
 	checkQuantifierOpen = "quantifier-subject"
 	checkNominalisation = "nominalisation"
@@ -211,13 +211,13 @@ var (
 	reQuantifierOpen = regexp.MustCompile(`^\W*(?:Only|Anything|Nothing|Everything|None|Nobody|Everyone|Every)\b`)
 	// A possessive over a noun made from a verb, `an API's refusal`, where the agent and its verb belong.
 	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}[\w-]+'s\s+([a-z]+(?:sal|val|wal|ial|ment|ance|ence|ure|tion|sion))\b`)
-	// Nouns with those endings that name a thing and no act, so a possessive over one is no nominalisation.
+	// Nouns with those endings that name a thing. A possessive over one of them is an ordinary noun phrase.
 	concreteNouns = []string{"version", "region", "session", "option", "position", "section", "function",
 		"collection", "station", "dimension", "extension", "sentence", "instance", "interval", "signal",
 		"terminal", "portal", "structure", "signature", "feature", "fixture", "element", "argument", "document"}
-	// A participle a preposition hangs at a clause's end, with no subject and nothing it acts on:
-	// `records it without playing.` `by` stays out, since the rule asks for the means that way: `by
-	// expecting a refusal`.
+	// A participle that ends its clause after a preposition, its subject and its object both unsaid:
+	// `records it without playing.` The rule asks for the means with `by`, as in `by expecting a
+	// refusal`, so `by` is left out.
 	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+[a-z]{3,}ing\s*(?:[.,;:]|$)`)
 
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
@@ -1001,8 +1001,8 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	return found
 }
 
-// sentenceShape adds the findings a note's sentence draws for its shape: a free relative, a quantifier
-// subject, a possessive over a verbal noun, and a participle a preposition leaves without a subject.
+// sentenceShape adds a note sentence's findings for how it is built. They are a free relative, a
+// quantifier subject, a possessive over a verbal noun, and a participle ending its clause.
 func (s scanner) sentenceShape(read string, offset int, add func(check string, start, end int)) {
 	if at := reFreeRelative.FindStringIndex(read); at != nil {
 		add(checkFreeRelative, offset+at[0], offset+at[1])
