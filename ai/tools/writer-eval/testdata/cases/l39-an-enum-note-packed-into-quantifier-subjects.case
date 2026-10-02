@@ -1,0 +1,17 @@
+expect: written
+note: written
+site: 1
+lands: Refused
+keeps: refus
+keeps: settl
+bars: \bonly a\b | ^only\b | anything | 's refusal | without settling | that claim | those tests
+why: a reviewer called the enum's note hard to follow on 2026-10-02: one sentence packs three facts behind a quantifier subject and a possessive nominalisation, and the second opens on a quantifier over a negated clause; the note belongs on the two members it tells apart, in one form (rule q), each fact its own sentence with the clearing house as the agent; one block per case, so this case scores the move onto Refused and the sentence shape, and the sibling's form is read by hand
+labelled: 2026-10-02
+--- code
+export enum SettlementClaim {
+  Supported = 'supported',
+  Refused = 'refused',
+  Unknown = 'unknown',
+}
+--- facts
+Only a clearing house's refusal is `Refused`, because the settlement tests record that claim as the result without settling. Anything no house established is `Unknown`, and those tests settle it.

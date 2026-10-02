@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -38,6 +39,8 @@ const (
 	// so a sentence at the rule's own edge is not a finding, and only a sentence carrying a second
 	// idea is.
 	maxSentenceWords = 30
+	// A note's sentence is descriptive text, which ASD-STE100 bounds at 25 words.
+	maxNoteSentenceWords = 25
 
 	// The note pattern spends one subordinating connective on `so`, which puts a conforming note at one.
 	// The check fires above that.
@@ -119,6 +122,12 @@ const (
 	checkHeaderOnImport = "header-on-import"
 	checkLongLine       = "long-line"
 	checkToolingDoubt   = "tooling-doubt"
+	// The sentence-shape checks a note's sentences are held to. A reviewer found two notes hard to follow
+	// that every other check passed: each packed its facts behind one of these shapes.
+	checkFreeRelative   = "free-relative"
+	checkQuantifierOpen = "quantifier-subject"
+	checkNominalisation = "nominalisation"
+	checkDanglingVerb   = "subjectless-participle"
 )
 
 // AllChecks is every check name, which the suite reads to prove each one fires on its corpus.
@@ -127,7 +136,8 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
 	checkTestsNarration, checkHeaderOnImport,
-	checkLongLine, checkToolingDoubt}
+	checkLongLine, checkToolingDoubt,
+	checkFreeRelative, checkQuantifierOpen, checkNominalisation, checkDanglingVerb}
 
 // reImportLine opens an import, in the languages whose files open on one.
 var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
@@ -195,6 +205,21 @@ var (
 
 	// The connectives a subordinate clause hangs off. A sentence is a finding at two. Past that the
 	// reader holds one clause open while reading another.
+	// A free relative names a thing by what it is not yet known to be: `whatever script it names`.
+	reFreeRelative = regexp.MustCompile(`(?i)\b(?:whatever|whichever|whoever|whomever|wherever)\b`)
+	// A sentence whose subject is a quantifier: `Only a refusal is …`, `Anything no API established …`.
+	reQuantifierOpen = regexp.MustCompile(`^\W*(?:Only|Anything|Nothing|Everything|None|Nobody|Everyone|Every)\b`)
+	// A possessive over a noun made from a verb, `an API's refusal`, where the agent and its verb belong.
+	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}[\w-]+'s\s+([a-z]+(?:sal|val|wal|ial|ment|ance|ence|ure|tion|sion))\b`)
+	// Nouns with those endings that name a thing and no act, so a possessive over one is no nominalisation.
+	concreteNouns = []string{"version", "region", "session", "option", "position", "section", "function",
+		"collection", "station", "dimension", "extension", "sentence", "instance", "interval", "signal",
+		"terminal", "portal", "structure", "signature", "feature", "fixture", "element", "argument", "document"}
+	// A participle a preposition hangs at a clause's end, with no subject and nothing it acts on:
+	// `records it without playing.` `by` stays out, since the rule asks for the means that way: `by
+	// expecting a refusal`.
+	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+[a-z]{3,}ing\s*(?:[.,;:]|$)`)
+
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
 
 	// A preposition before `which` defines a term, as in "a book in which no posting declares the
@@ -949,7 +974,12 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 		// The count reads `text`, because blanking an inline code span leaves spaces behind. A backticked
 		// identifier is a word on the page, and the blanked form drops it.
-		if len(strings.Fields(text[span[0]:span[1]])) > maxSentenceWords {
+		bound := maxSentenceWords
+		if s.profile == ProfileComment {
+			bound = maxNoteSentenceWords
+			s.sentenceShape(read, span[0], add)
+		}
+		if len(strings.Fields(text[span[0]:span[1]])) > bound {
 			add(checkLongSentence, span[0], span[1])
 		}
 		if len(reConnective.FindAllString(rePrepositionWhich.ReplaceAllString(read, " "), -1)) >= flaggedConnectivesPerSentence {
@@ -969,6 +999,25 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 	}
 	return found
+}
+
+// sentenceShape adds the findings a note's sentence draws for its shape: a free relative, a quantifier
+// subject, a possessive over a verbal noun, and a participle a preposition leaves without a subject.
+func (s scanner) sentenceShape(read string, offset int, add func(check string, start, end int)) {
+	if at := reFreeRelative.FindStringIndex(read); at != nil {
+		add(checkFreeRelative, offset+at[0], offset+at[1])
+	}
+	if at := reQuantifierOpen.FindStringIndex(read); at != nil {
+		add(checkQuantifierOpen, offset+at[0], offset+at[1])
+	}
+	for _, m := range reNominalisation.FindAllStringSubmatchIndex(read, -1) {
+		if !slices.Contains(concreteNouns, strings.ToLower(read[m[2]:m[3]])) {
+			add(checkNominalisation, offset+m[0], offset+m[1])
+		}
+	}
+	if at := reDanglingVerb.FindStringIndex(read); at != nil && at[0] > 0 {
+		add(checkDanglingVerb, offset+at[0], offset+at[1])
+	}
 }
 
 // shortStems are the verbs `ing` is part of rather than an ending on: no subject went missing in
