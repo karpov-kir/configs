@@ -18,7 +18,6 @@ func (run *invocation) uninstall() int {
 	run.mounting.Unmount()
 	run.removeInstructions()
 	run.removeAgentGuard()
-	run.removeCodexLightWorker()
 	run.reportRemainingProjects()
 	// The line is worded for either case, because the tier a machine was installed with is recorded
 	// nowhere and an uninstall cannot tell whether this machine ever got rtk.
