@@ -26,12 +26,16 @@ func TestRuleReadsHoldTheWriterToItsTwoFiles(t *testing.T) {
 		return call{at: at, tool: "Bash", input: map[string]any{"command": command}, message: "m2", time: after}
 	}
 	brief, standard := "~/.kk-flavor/workers/comment-writer.md", filepath.Join(home, ".kk-flavor/standards/comments.md")
+	given := []string{"ai/kk-flavor/standards/architecture/Logger.ts"}
 	clean := []call{
 		read(1, "m1", brief, nil), read(2, "m1", standard, nil),
 		bash(3, "~/.kk-flavor/skills/kk-edit/scripts/voice-check.sh --profile=comment --source --record - <<'EOF'"),
 		bash(4, "~/.kk-flavor/workers/refactor/dup-literals.sh ledger.ts"),
+		read(5, "m3", "/src/configs/ai/kk-flavor/standards/architecture/Logger.ts", nil),
+		{at: 6, tool: "Edit", input: map[string]any{"file_path": "/src/configs/ai/kk-flavor/standards/architecture/Logger.ts"}, message: "m4"},
+		read(7, "m5", "~/.kk-flavor/skills/kk-edit/SKILL.md", nil),
 	}
-	if got := ruleReads(clean, home, prompted); len(got) != 0 {
+	if got := ruleReads(clean, given, home, prompted); len(got) != 0 {
 		t.Errorf("a clean writer drew findings: %v", got)
 	}
 	for _, tc := range []struct {
@@ -47,13 +51,17 @@ func TestRuleReadsHoldTheWriterToItsTwoFiles(t *testing.T) {
 		{"by shell", append(clean[:2:2], bash(3, "cat ~/.kk-flavor/standards/code-style.md")), "call 3: reads"},
 		{"by the checkout", append(clean[:2:2], read(3, "m2", "/src/configs/ai/kk-flavor/workers/refactor.md", nil)), "call 3: reads"},
 		{"by grep", append(clean[:2:2], call{at: 3, tool: "Grep", input: map[string]any{"pattern": "note", "path": "~/.kk-flavor/standards"}, message: "m2"}), "call 3: reads"},
+		{"by a glob from the root", append(clean[:2:2], call{at: 3, tool: "Grep", input: map[string]any{"pattern": "x", "path": "~/.kk-flavor", "glob": "standards/*.md"}, message: "m2"}), "call 3: reads"},
+		{"by find", append(clean[:2:2], bash(3, "find ~/.kk-flavor -name '*.md'")), "call 3: reads"},
+		{"from the root by cd", append(clean[:2:2], bash(3, "cd ~/.kk-flavor && cat standards/writing.md")), "call 3: reads"},
+		{"a script fed a file", append(clean[:2:2], bash(3, "bash ~/.kk-flavor/workers/x.sh<~/.kk-flavor/standards/git.md")), "call 3: reads"},
 	} {
-		got := strings.Join(ruleReads(tc.calls, home, prompted), "\n")
+		got := strings.Join(ruleReads(tc.calls, given, home, prompted), "\n")
 		if !strings.Contains(got, tc.want) {
 			t.Errorf("%s: findings %q lack %q", tc.name, got, tc.want)
 		}
 	}
-	if got := ruleReads(clean, home, time.Time{}); len(got) == 0 {
+	if got := ruleReads(clean, given, home, time.Time{}); len(got) == 0 {
 		t.Error("reads with no prompt time drew no finding")
 	}
 }

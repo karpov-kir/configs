@@ -43,7 +43,7 @@ func taint(r *runner, opts options, _ []string) int {
 		read++
 		// A run prompted with the rules by name holds their sum, and its writers are held to the reads.
 		if runDir := filepath.Dir(ledger); rulesHeld(runDir) != "" {
-			for _, finding := range ruleReads(calls, home, promptedAt(ledger)) {
+			for _, finding := range ruleReads(calls, files, home, promptedAt(ledger)) {
 				rules++
 				fmt.Fprintf(r.stdout, "%s: rules: %s\n", arg, finding)
 			}

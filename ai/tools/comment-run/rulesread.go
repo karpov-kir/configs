@@ -41,13 +41,33 @@ func rulesHeld(runDir string) string {
 	return strings.TrimSpace(string(held))
 }
 
-// reRuleTree is a path into the two rule directories, by the mount or by the checkout it points at.
-var reRuleTree = regexp.MustCompile(`kk-flavor/(standards|workers)\b[^\s'"|;&)]*`)
+// reFlavorPath is a path through the flavor tree, by the mount or by the checkout it points at.
+var reFlavorPath = regexp.MustCompile(`kk-flavor(/[^\s'"|;&)<>]*)?`)
+
+// reachesRules says a path reaches the rule directories: one of them or a file in it, or the flavor root
+// a search or a change of directory can reach them from. A script run there is no read, and neither is a
+// file the writer was given to write, since this repository keeps code under the rule directories.
+func reachesRules(path string, isShell bool, given []string) bool {
+	rest := strings.TrimSuffix(reFlavorPath.FindStringSubmatch(path)[1], "/")
+	switch {
+	case isShell && strings.HasSuffix(rest, ".sh"):
+		return false
+	case rest == "":
+		return true
+	case !strings.HasPrefix(rest, "/standards") && !strings.HasPrefix(rest, "/workers"):
+		return false
+	}
+	for _, file := range given {
+		if strings.HasSuffix("/"+file, "/"+path) {
+			return false
+		}
+	}
+	return true
+}
 
 // ruleReads checks a writer's calls against its prompt. The first turn holds two calls, each reading a
-// rule file whole after the prompt was written. Every later call keeps out of the rule directories,
-// except one that runs a script there, such as the voice check.
-func ruleReads(calls []call, home string, prompted time.Time) []string {
+// rule file whole after the prompt was written. Every later call keeps out of the rule directories.
+func ruleReads(calls []call, given []string, home string, prompted time.Time) []string {
 	if len(calls) == 0 {
 		return []string{"the transcript holds no call, so the writer read no rule"}
 	}
@@ -93,9 +113,11 @@ func ruleReads(calls []call, home string, prompted time.Time) []string {
 			continue
 		}
 		var named []string
-		for _, path := range reRuleTree.FindAllString(c.text("command")+" "+c.text("file_path")+" "+c.text("path")+" "+c.text("pattern"), -1) {
-			if c.tool != "Bash" || !strings.HasSuffix(path, ".sh") {
-				named = append(named, path)
+		for _, key := range []string{"command", "file_path", "path", "glob"} {
+			for _, path := range reFlavorPath.FindAllString(c.text(key), -1) {
+				if reachesRules(path, key == "command", given) {
+					named = append(named, path)
+				}
 			}
 		}
 		if len(named) > 0 {
