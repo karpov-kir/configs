@@ -96,8 +96,8 @@ const dispatchLine = "Dispatch each writer with its prompt file's text as the ta
 // The reviewer set these counts on 2026-10-02. A thin writer opens near 5k tokens, and every request
 // reads its whole context again, so a writer costs the square of its sites. One thin writer over 135
 // sites grew to 254k and read 13.7M tokens from the cache. Three writers of 45 should re-read a third of
-// that, and the bill fall 30 to 40%, since writes and output stay: an estimate from that one run until
-// the next full pass of like size reports its usage. The reach is from run 18b: its writer grew
+// that. Writes and output stay, so the bill should fall 30 to 40%. Both figures are estimates from that
+// one run until the next full pass of like size reports its usage. The reach is from run 18b: its writer grew
 // about 1.7k tokens a site from 147k, so a writer's context holds some 400 sites.
 const (
 	oneWriterSites   = 50
