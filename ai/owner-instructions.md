@@ -12,4 +12,4 @@ Create a worktree with `git worktree add ~/Documents/WP/worktrees/<repo-key>/<wo
 
 ## Memory
 
-Read `~/Documents/AI/MEMORY.md` at the start of every session. Write owner memory only to that file, shared by all owner clients; never to these instructions or a client's automatic memory directory. Preserve existing entries when updating it.
+Owner memory is a record that all owner clients share in `~/Documents/AI/MEMORY.md`. Write owner memory only to that file. Never write it to these instructions or to a client's automatic memory directory. Keep its existing entries when you update it. No session or worker reads it at start. Its entries reach agents when they are promoted into the standard or instruction that owns their lane. That integration runs from time to time, under `~/.kk-flavor/standards/records.md` → **Promotion is the exit upward**.
