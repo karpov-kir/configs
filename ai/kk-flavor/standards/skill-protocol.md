@@ -14,6 +14,8 @@ Never exceed your licence — a gated, out-of-scope, or human-decision change �
 
 **Model selection follows [model-policy.md](model-policy.md), and every dispatch names its task there.** A dispatch that names none inherits the orchestrator's model, so a cheap coordinator quietly lowers every worker under it.
 
+**A Claude dispatch takes the narrowest agent type holding the tools its task needs.** `read-worker` holds Read, Grep, Glob and Bash, for a task that changes no file. `edit-worker` adds Edit and Write. The general agent takes a task needing a tool outside both, such as Agent, Skill or a browser, and its prompt names that tool on a `Needs: <tool>` line. A worker under `~/.kk-flavor/workers/` writes a ledger file, so it goes to `edit-worker`. That holds for a worker whose contract changes no code. The comment writer has its own type. Drive goes to the general agent with a `Needs: browser` line when a scenario opens a UI, and to `edit-worker` otherwise. A skill run as a subagent needs Agent or Skill, so it goes to the general agent. In the desktop app the general agent opens near 45k tokens, nearly all of them tool definitions, and a narrow type near 5k. A narrow type still loads the instructions and the standards a general agent loads, so no rule is lost. A type the session never loaded fails the dispatch by name, as does a tool the type lacks. Where the session predates the type, the general agent stands in, and its `Needs:` line names the type. Codex has no agent types, and its dispatches stay as they are.
+
 ## Phase boundaries
 
 A **phase** is one chunk of work inside a session — the grilling, the build, the pass. **The gap between two is the only place this decision belongs**; mid-phase, continue or split what is left into subagents.

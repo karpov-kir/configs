@@ -314,6 +314,8 @@ func (d writerDispatch) write(name string, slots map[string]string) (string, err
 	slots["Change scope"] += " " + verdictSentence + " " + returnSentence(returnFile(d.runDir, name))
 	slots["Ledger"] = "`" + filepath.Join(d.runDir, "comment-writer-"+name+"-queue.md") + "`"
 	slots["Patch queue"] = ""
+	// A writer goes to its own agent type, so no tool sends it to the general agent.
+	slots["Needs"] = ""
 	slots["User-stated emphasis"] = d.emphasis
 	prompt, err := fill(d.template, slots)
 	if err != nil {
