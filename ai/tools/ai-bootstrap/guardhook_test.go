@@ -33,7 +33,7 @@ func guardHooks(t *testing.T, path string) (commands []string, keys []string) {
 }
 
 // An owner install adds the dispatch guard beside the hooks and settings already there, once however
-// often it runs, and an uninstall takes out the guard alone.
+// often it runs, and an uninstall takes out only the guard.
 func TestTheOwnerInstallAddsTheDispatchGuardAndUninstallTakesItOut(t *testing.T) {
 	f := newFixture(t)
 	settings := f.home + "/.claude/settings.json"

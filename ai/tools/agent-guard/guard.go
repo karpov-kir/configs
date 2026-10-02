@@ -1,12 +1,12 @@
-// Package agentguard refuses a Claude dispatch to the general agent that names no tool it needs. It is
-// the PreToolUse hook bootstrap registers on the Agent tool.
+// Package agentguard refuses a Claude dispatch to the general agent whose prompt has no `Needs:` line.
+// It is the PreToolUse hook bootstrap registers on the Agent tool.
 //
-//	usage: agent-guard.sh < <the hook's JSON on stdin>
+//	usage: agent-guard.sh < <the hook's JSON>
 //
-// `~/.kk-flavor/standards/skill-protocol.md` → **Caller** sends a dispatch to the narrowest agent
-// type holding its tools, and the general agent only with a `Needs: <tool>` line. A general agent
-// opens near 45k tokens in the desktop app and a narrow type near 5k, and a rule held only in an
-// instruction file was what dispatched 76% of a month's general-agent requests with no template.
+// The rule is `~/.kk-flavor/standards/skill-protocol.md` → `Caller`: a dispatch takes the narrowest
+// agent type holding its tools. The general agent opens near 45k tokens in the desktop app, and a
+// narrow type near 5k. Held only in an instruction file, the rule left 76% of a month's requests to
+// the general agent with no template.
 //
 // tested by: the Go suite beside this file.
 package agentguard
@@ -37,10 +37,17 @@ const refusal = "agent-guard: a general-purpose dispatch names no tool it needs.
 	"session predates those types, add a line `Needs: <the tool or the type>` to the prompt " +
 	"(~/.kk-flavor/standards/skill-protocol.md → Caller).\n"
 
+// usage is the line the stub states. A hook passes no argument, so an argument is a caller's mistake.
+const usage = "usage: agent-guard.sh < <the hook's JSON>"
+
 // Run reads one PreToolUse event and returns the exit code that lets the dispatch run or refuses it.
-// Input it cannot read lets the dispatch run with a note on stderr: a guard that failed closed would
+// Input it cannot read lets the dispatch run with a note on stderr. A guard that failed closed would
 // stop every dispatch on a change to the hook protocol.
-func Run(stdin io.Reader, stderr io.Writer) int {
+func Run(args []string, stdin io.Reader, stderr io.Writer) int {
+	if len(args) > 0 {
+		fmt.Fprintf(stderr, "agent-guard.sh: takes no argument, only the hook's JSON on stdin\n%s\n", usage)
+		return exitRefuse
+	}
 	var event struct {
 		ToolName  string `json:"tool_name"`
 		ToolInput struct {

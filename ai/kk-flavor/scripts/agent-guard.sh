@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Refuse a Claude dispatch to the general agent whose prompt names no tool it needs. Bootstrap registers
-# it as the PreToolUse hook on the Agent tool, and the hook's JSON arrives on stdin.
+# Refuse a Claude dispatch to the general agent whose prompt has no `Needs:` line. Bootstrap registers it
+# as the PreToolUse hook on the Agent tool, and the hook's JSON arrives on stdin.
 #
 #   usage: agent-guard.sh < <the hook's JSON>
 #
 # Exits 0 to let the dispatch run and 2 to refuse it, with the reason on stderr for the model. Input it
-# cannot read runs the dispatch unchecked. The rule is skill-protocol.md → Caller.
+# cannot read runs the dispatch unchecked. The rule is `skill-protocol.md` → **Caller**.
 #
 # tested by: the Go suite in ai/tools/agent-guard/. The shared stub region and the resolver it calls
 # have their own cases in the Go suite in ai/tools/reach/.

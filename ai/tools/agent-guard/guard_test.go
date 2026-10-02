@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// The guard refuses a general-agent dispatch with no Needs line and lets every other dispatch run: a
-// narrow or built-in type, a Needs line naming a tool or a type the session predates, and any tool but
-// the Agent tool.
+// The guard refuses a dispatch to the general agent with no Needs line. It lets a narrow or built-in
+// type run, a Needs line naming a tool or a type the session predates, and every tool but Agent.
 func TestTheGuardRefusesOnlyAGeneralDispatchNamingNoNeed(t *testing.T) {
 	for _, tc := range []struct {
 		name, input string
@@ -25,7 +24,7 @@ func TestTheGuardRefusesOnlyAGeneralDispatchNamingNoNeed(t *testing.T) {
 		{"unreadable input", `not json`, exitAllow},
 	} {
 		var stderr strings.Builder
-		got := Run(strings.NewReader(tc.input), &stderr)
+		got := Run(nil, strings.NewReader(tc.input), &stderr)
 		if got != tc.want {
 			t.Errorf("%s: exit %d, want %d (%s)", tc.name, got, tc.want, stderr.String())
 		}

@@ -9,5 +9,5 @@ import (
 )
 
 func main() {
-	os.Exit(agentguard.Run(os.Stdin, os.Stderr))
+	os.Exit(agentguard.Run(os.Args[1:], os.Stdin, os.Stderr))
 }
