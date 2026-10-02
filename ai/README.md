@@ -83,7 +83,8 @@ Re-run bootstrap after changing the template. An adjacent receipt identifies unc
 upgrades and removal; local edits are preserved and reported. An older generated Codex instruction
 file is backed up before replacement. If it contains added personal text, bootstrap refuses to replace it.
 
-Both clients use `~/Documents/AI/MEMORY.md` for owner memory. Bootstrap creates the file only when absent
+Both clients write owner memory to `~/Documents/AI/MEMORY.md`, a record no session reads at start; its entries reach
+agents when they are promoted into the ecosystem. Bootstrap creates the file only when absent
 and never removes it on uninstall. An owner install that finds a store at the older `~/Document/AI/MEMORY.md`
 moves it there and removes the emptied directories; finding one at each path it refuses, because choosing
 between them would strand somebody's entries.

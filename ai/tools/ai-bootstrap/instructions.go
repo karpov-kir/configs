@@ -12,7 +12,7 @@ import (
 // The owner tier's memory store, and where an owner install before this one put it. The spelling was
 // `Document` for months, which no other tool on a Mac uses, and the owner's own instructions name
 // `Documents`. A fix to the destination alone would leave every entry already written at a path no
-// session reads, so moveLegacyOwnerMemory, a step of the install run, moves them.
+// write or integration reaches, so moveLegacyOwnerMemory, a step of the install run, moves them.
 const (
 	ownerMemoryFile = "/Documents/AI/MEMORY.md"
 	legacyMemoryOne = "/Document/AI/MEMORY.md"
@@ -226,7 +226,7 @@ func withoutBlankLines(text string) string {
 }
 
 // The owner's entries, moved off the path an earlier install wrote them to. A run that skipped this
-// leaves them where no session reads, and the failure is silent: the run reports a memory file
+// leaves them where no write or integration reaches, and the failure is silent: the run reports a memory file
 // created, and that file is empty.
 //
 // Returns true when there is no entry to move, which is every run after the first.
