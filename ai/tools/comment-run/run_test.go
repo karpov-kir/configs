@@ -529,7 +529,8 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
 	}
 	prompt, _ := os.ReadFile(strings.TrimSpace(said.stdout))
-	for _, want := range []string{"ledger.ts:1 ledger.ts/2/1.facts", "book.ts:1 book.ts/2/1.facts", "return-writer-loop-round-1.md", readSentence} {
+	for _, want := range []string{"ledger.ts:1 ledger.ts/2/1.facts", "book.ts:1 book.ts/2/1.facts", "return-writer-loop-round-1.md", readSentence,
+		"keep what it already states correctly"} {
 		if !strings.Contains(string(prompt), want) {
 			t.Errorf("the round's prompt lacks %q:\n%s", want, prompt)
 		}

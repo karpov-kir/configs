@@ -84,3 +84,9 @@ export enum SettlementClaim {
   /** No clearing house answered, and the settlement tests settle the posting to find out. */
   Unknown = 'unknown',
 }
+
+// A ledger that ignores the settlement mode stalls on its first posting. The scheme is asked with no
+// mode, so the first posting still settles on such a ledger.
+export async function asksSchemeWithoutMode(scheme: string): Promise<boolean> {
+  return true;
+}

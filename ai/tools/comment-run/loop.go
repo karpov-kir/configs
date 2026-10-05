@@ -120,7 +120,8 @@ func loop(r *runner, opts options, _ []string) int {
 			"sent %d block(s) back, and the strip removed them; each facts file carries the review's sentence under "+
 			"`# code review:`. No reusable verdicts.", tree, held["head"], held["base"], fingerprint, n),
 		"Change scope": fmt.Sprintf("the sites review sent back, %d, are the lines below, one `<file>:<line> <facts path>` "+
-			"line each. %s You write into the files those lines name only.", n, factsSentence(facts, "`<root>/<facts path>`")),
+			"line each. %s Where review sent a standing block back, keep what it already states correctly, its fact and its act, "+
+			"and change what the review's sentence names. You write into the files those lines name only.", n, factsSentence(facts, "`<root>/<facts path>`")),
 		"Held by a concurrent lane": "",
 		"Deterministic tool output": "`comment-strip.sh --facts=<dir> --archive=<archive> --lines=<line> <file>` at each site, each file's last line first, with its sites as the final tree numbers them, and each facts path under the round's root:\n```\n" + strings.TrimRight(printed.String(), "\n") + "\n```",
 	})

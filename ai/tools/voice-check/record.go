@@ -19,6 +19,9 @@ const (
 	checkRecordSelfNamed = "block-names-its-declaration"
 	checkValueThisOpens  = "value-block-opens-on-this"
 	checkValueActor      = "value-as-actor"
+	// A reviewer read a note stating a fact and stopping as having no point: "Stalls and what?". Its
+	// record named the act every time, and the block never did.
+	checkFactNoAct = "fact-with-no-act"
 )
 
 // recordMarker ends the record and opens the block. Everything above it is slots, everything under
@@ -246,7 +249,54 @@ func RecordFindings(file string, lines []string) []Finding {
 		out = append(out, Finding{file, at, checkRecordUntied,
 			fmt.Sprintf("does: %s, and the body spells none of it", does)})
 	}
+	if does != "" && !strings.EqualFold(does, noDoes) && !dataDeclaration(body) && !noteStatesAnAct(blockText, declaredName(body)) {
+		out = append(out, Finding{file, at, checkFactNoAct,
+			fmt.Sprintf("the record's act is %q, and the note states the fact alone; say what this code does about it, and what that gives its caller", does)})
+	}
 	return out
+}
+
+var (
+	// reSummaryOpen opens a summary, the sentence saying what a declaration does: the note is the rest.
+	reSummaryOpen = regexp.MustCompile(`^(?:Tells|Returns|Lists|Checks|Throws)\b`)
+	// An act shows in a note by a connector to the fact, a sentence opening on its verb, or a sentence
+	// whose subject is this code.
+	reActConnector = regexp.MustCompile(`(?i)\b(?:so|because|therefore|which is why|that is why|for that reason|since)\b`)
+	reActVerbFirst = regexp.MustCompile(`^[A-Z][a-z]+s\b`)
+	// A sentence naming code, a caller or a file, tells what that code does: the rule lets a note name a
+	// caller's act.
+	reActNamesCode = regexp.MustCompile("`[^`]+`|\\b[a-z]+[A-Z]\\w*\\b")
+	reActThisCode  = regexp.MustCompile(`\b[Tt]his\s+[a-z]+\b`)
+)
+
+// noteStatesAnAct says a block's note, its sentences after any summary, states what the code does.
+func noteStatesAnAct(block, declared string) bool {
+	var words []string
+	for _, line := range strings.Split(block, "\n") {
+		if text := strings.TrimSpace(commentLineText(line)); text != "" {
+			words = append(words, text)
+		}
+	}
+	sentences := regexp.MustCompile(`[.!?]\s+`).Split(strings.Join(words, " "), -1)
+	if len(sentences) > 0 && reSummaryOpen.MatchString(sentences[0]) {
+		sentences = sentences[1:]
+	}
+	if len(sentences) == 0 || strings.TrimSpace(strings.Join(sentences, "")) == "" {
+		return true
+	}
+	for _, sentence := range sentences {
+		sentence = strings.TrimSpace(sentence)
+		if reActConnector.MatchString(sentence) || reActVerbFirst.MatchString(sentence) || reActThisCode.MatchString(sentence) ||
+			reActNamesCode.MatchString(sentence) || (declared != "" && strings.Contains(sentence, declared)) {
+			return true
+		}
+	}
+	return false
+}
+
+// commentLineText is a comment line with its markers taken off.
+func commentLineText(line string) string {
+	return regexp.MustCompile(`^\s*(?:/\*\*|\*/|\*|//|#)\s?`).ReplaceAllString(line, "")
 }
 
 // namesSomethingIn says the phrase shares one segment with the set. One segment is enough: a tie

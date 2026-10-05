@@ -111,3 +111,8 @@ export enum SettlementClaim {
   Refused = 'refused',
   Unknown = 'unknown',
 }
+
+// Tells whether the ledger takes the scheme, asked without a settlement mode.
+export async function asksSchemeWithoutMode(scheme: string): Promise<boolean> {
+  return true;
+}
