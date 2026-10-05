@@ -937,7 +937,10 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 			if at == nil {
 				break
 			}
-			add(checkCoined, from+at[2], from+at[3])
+			if !strings.EqualFold(coinedIn[from+at[2]:from+at[3]], "names no") ||
+				!reNamedInACall.MatchString(coinedIn[from+at[3]:]) {
+				add(checkCoined, from+at[2], from+at[3])
+			}
 			from += at[3]
 		}
 		if inIdentifier := coinedInIdentifier(word); inIdentifier != nil {
@@ -1152,6 +1155,10 @@ func readAllCapped(from io.Reader, cap int64) ([]byte, error) {
 // tell the lane only reads for is a tell that reopens. This one reopened three times before anyone
 // measured it.
 var defaultCoined = []string{"has no name", "names no", "names nothing", "a name it does not hold"}
+
+// reNamedInACall is a thing a request or a call names literally, and the idiom said of one is plain
+// English. Run 25's writer turned a request that named no scheme into a passive to get past the check.
+var reNamedInACall = regexp.MustCompile(`(?i)^\s+(?:scheme|type|key|parameter|mode|format|field|argument|header|option|version|currency|file|path)s?\b`)
 
 // coinedTerms is a caller's own words followed by the built-in phrases. It resolves here because
 // scanSegment is the only place a check runs. A construction site that merged them would leave every

@@ -282,10 +282,12 @@ func TestTaintReadsARangelessDiffAndAScriptWrite(t *testing.T) {
 		[3]string{"Bash", `{"command":"printf 'fact: x' | voice-check.sh --source --record --file=ledger.ts - 2>&1 | tail -3"}`, `"clean"`},
 		[3]string{"Bash", `{"command":"cat new.ts > ledger.ts"}`, `""`},
 		[3]string{"Bash", `{"command":"python3 - <<'PY'\nopen('vc2.txt','w').write(open('vc.txt').read())\nPY\nvoice-check.sh --profile=comment --source --record --file=ledger.ts - < vc2.txt"}`, `"clean"`},
+		[3]string{"Bash", `{"command":"sed -i '' 's/yet/and/' vc2.txt && voice-check.sh --profile=comment --source --record --file=ledger.ts - < vc2.txt"}`, `"clean"`},
 		[3]string{"Edit", `{"file_path":"/tree/ledger.ts","old_string":"a","new_string":"b"}`, `"ok"`},
 	)
 	said := c.run("taint", "--ledger="+ledger, path)
 	if said.code != exitFindings || !strings.Contains(said.stdout, "tainted: call 1 ") || !strings.Contains(said.stdout, "script write: call 2 ") ||
+		strings.Contains(said.stdout, "script write: call 6 ") ||
 		strings.Contains(said.stdout, "script write: call 3 ") || !strings.Contains(said.stdout, "script write: call 4 ") ||
 		strings.Contains(said.stdout, "script write: call 5 ") {
 		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)

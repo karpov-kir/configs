@@ -40,7 +40,7 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    The block is the summary and the note together. The site is `none` only where both parts are `none`.
 
-Copy no sentence from the facts file into the block. Write each kept fact again from the code and the claim. Copy a line carrying only a doc tag (`@param`, `@returns`, `@throws`, `@example`) unchanged where the file's other blocks carry them, and write no new one.
+Copy no sentence from the facts file into the block. Write each kept fact again from the code and the claim. A sentence a review finding tells you to keep stays word for word, though the facts file holds it. Copy a line carrying only a doc tag (`@param`, `@returns`, `@throws`, `@example`) unchanged where the file's other blocks carry them, and write no new one.
 
 ## How these read
 

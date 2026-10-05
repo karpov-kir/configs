@@ -757,6 +757,22 @@ func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
 	}
 }
 
+// A request names its scheme literally, and run 25's writer bent "the request names no scheme" into a
+// passive to pass. The idiom for an absent thing still draws the finding.
+func TestNamesNoOfAThingACallNamesIsPlain(t *testing.T) {
+	s := voiceScanner()
+	s.profile = ProfileComment
+	plain := "// A ledger that ignores the mode stalls, which is why the request names no scheme."
+	if found := s.scanSource("f.ts", []string{plain, "export const MODE = 0;"}, nil, nil); hasCheck(found, checkCoined) {
+		t.Errorf("%q reports a coined phrase", plain)
+	}
+	for _, idiom := range []string{"// The entry names no owner, so the walk skips it.", "// The entry names nothing the book holds."} {
+		if found := s.scanSource("f.ts", []string{idiom, "export const MODE = 0;"}, nil, nil); !hasCheck(found, checkCoined) {
+			t.Errorf("%q reports no coined phrase", idiom)
+		}
+	}
+}
+
 func TestAStreamOverTheCapIsRefusedRatherThanTruncated(t *testing.T) {
 	under := strings.Repeat("x", 16)
 	if _, err := readAllCapped(strings.NewReader(under), 32); err != nil {

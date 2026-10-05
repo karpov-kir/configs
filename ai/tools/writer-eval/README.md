@@ -341,3 +341,17 @@ possessive over a verbal noun, a participle left without its subject, and a note
 two of its members. The writer meets them as findings, and the rules sum stays where it was. A
 free-relative check and a 25-word sentence bound were left out, since the brief's own model notes use
 `whatever mode the posting names` and run to 29 words.
+
+## Two bounds a case cannot reach
+
+Run 25's loop rounds rewrote one block under two bounds, and each cost the block a clear sentence.
+The two-sentence bound packed three facts into two sentences, and the second ended on a clause a
+reader had to unpick. The per-file connector bound, `tie-opening-repeated`, refused the writer's tie
+with "so", since two other blocks in the file used it, and the writer bent the sentence around
+"because".
+
+No case here measures either. A case hands the writer one declaration and no other block of its
+file, so the connector bound has nothing to count. The brief's twelve model notes tie with "so" twice
+and "therefore" twice, and every other tie once each. A writer following the models reaches the
+bound on a file's third block that ties alike. A full pass reports that as `tie-opening-repeated`
+on that file. A case cannot.

@@ -260,7 +260,7 @@ var (
 	// reSummaryOpen opens a summary, the sentence saying what a declaration does: the note is the rest.
 	reSummaryOpen = regexp.MustCompile(`^(?:Tells|Returns|Lists|Checks|Throws)\b`)
 	// An act shows in a note by a connector to the fact, a sentence opening on its verb, or a sentence
-	// whose subject is this code. `or so` is a hedge and no connector, and a capitalised word ending
+	// whose subject is this code. `or so` hedges a claim and is left out, and a capitalised word ending
 	// in s is a plural subject where a relative or a verb follows it.
 	reActConnector = regexp.MustCompile(`(?i)\b(?:so|because|therefore|then|which is why|that is why|for that reason|since)\b`)
 	reHedgeSo      = regexp.MustCompile(`(?i)\bor so\b`)
