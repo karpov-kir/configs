@@ -97,3 +97,20 @@ func TestOfferedRecordsReadsALoopRoundsFactsByTheirClaims(t *testing.T) {
 		t.Fatalf("a loop round's facts map to %v (own %v), %v", all, own, err)
 	}
 }
+
+// A decline recorded again changes nothing and leaves the file as it stands.
+func TestADeclineRecordedTwiceChangesNothing(t *testing.T) {
+	rulesHome(t, "rules one ")
+	archive := t.TempDir()
+	offered := []Offered{{Decl: "export function claimFor() {", Span: "abc", Claims: "def"}}
+	if n, err := DecideOffered(archive, "run20", "f.ts", offered, true); err != nil || n != 1 {
+		t.Fatalf("first decline: %d, %v", n, err)
+	}
+	before, _ := os.ReadFile(declinedName(archive, "f.ts"))
+	if n, err := DecideOffered(archive, "run21", "f.ts", offered, true); err != nil || n != 0 {
+		t.Fatalf("second decline changed %d, %v", n, err)
+	}
+	if after, _ := os.ReadFile(declinedName(archive, "f.ts")); string(after) != string(before) {
+		t.Errorf("the second decline rewrote the record:\n%s", after)
+	}
+}
