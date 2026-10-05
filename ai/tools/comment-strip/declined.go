@@ -199,8 +199,8 @@ func containsName(names []string, name string) bool {
 }
 
 // Offered is one archived record a site carried to its writer, as the strip saw it: the declaration,
-// the code under it in the stripped file and the claims. A writer's verdict on the site is a verdict on
-// each, and a facts file alone cannot say which records it carried.
+// the code under it in the stripped file and the claims. A writer's verdict on the site covers each. A
+// facts file by itself cannot say which records it carried.
 type Offered struct {
 	Decl   string `json:"decl"`
 	Span   string `json:"span"`
@@ -210,8 +210,8 @@ type Offered struct {
 // offeredName is the file beside a site's facts naming what the site carried.
 func offeredName(facts string) string { return strings.TrimSuffix(facts, ".facts") + ".offered" }
 
-// offeredAt is what one site carries: every archived record held at its line, and the record this run
-// archives for it, whose claims are the site's own with the earlier ones beside them.
+// offeredAt is what one site carries. That is every archived record held at its line, and the record
+// this run archives for the site, holding its own claims and the earlier ones.
 func offeredAt(records []archived, held map[string]int, s site, record, stripped string) []Offered {
 	span := siteSpan(shell.SplitLines(stripped), s.line)
 	var out []Offered
@@ -252,8 +252,8 @@ func ReadOffered(facts string) []Offered {
 }
 
 // DecideOffered records a verdict on what a site carried. A decline records each under the rules now,
-// and a written block takes their declines away. It returns how many records changed, and writes
-// nothing where none did.
+// and a written block takes their declines away. It returns how many records changed, and leaves the
+// file as it stands where no record changed.
 func DecideOffered(archive, run, path string, offered []Offered, isDeclined bool) (int, error) {
 	if len(offered) == 0 {
 		return 0, nil

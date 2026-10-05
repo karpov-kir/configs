@@ -42,8 +42,8 @@ func declinedStage(r *runner, opts options, _ []string) int {
 		tree = held["top"]
 	}
 	r.absolute(&tree)
-	// A backfill records the rules and code standing now as what the run decided on, so a run whose
-	// rules have changed since is refused.
+	// A backfill records the rules and code standing now as what the run decided on. A run decided
+	// under other rules is refused.
 	if held := rulesHeld(runDir); held != "" && !commentstrip.SameRules(held, commentstrip.RulesSum()) {
 		return r.refuse("the rules changed since %s's prompts: %s then, %s now; its declines would hold for rules no writer weighed",
 			run, held, commentstrip.RulesSum())
@@ -58,11 +58,10 @@ func declinedStage(r *runner, opts options, _ []string) int {
 	return exitClean
 }
 
-// decideFromReturns reads every writer return in runDir in round order. Each verdict maps through its
-// round's prompt to the facts file its site carried. Where the strip wrote down what that site carried,
-// the last verdict on each record stands: a `none` declines it, and a block written takes the decline
-// away. A run before that record maps by the claims' words instead, and there a record any block was
-// written for is never declined, since a claim repeated at another declaration reads the same.
+// decideFromReturns reads every writer return in runDir in round order, each verdict mapped to the facts
+// its site carried. Where the strip recorded the site's records, the last verdict on each stands. An
+// older run maps by the claims' words, and a record any block was written for stays undeclined there:
+// a claim repeated at another declaration reads the same.
 func decideFromReturns(runDir, archive, run, tree string, warn io.Writer) (int, int, error) {
 	returns, err := filepath.Glob(returnFile(runDir, "*"))
 	if err != nil {
