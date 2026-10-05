@@ -115,14 +115,6 @@ English comes next (`this check`, `this filter`, `this lookup`), and `this funct
 with the act first. A note warning about an edit says what depends on this or what changing it breaks. It gives the fact,
 then what the edit breaks, and stops there.
 
-**The sentence.** Each sentence states one fact or one act, in at most 25 words. One connector may join
-a fact to the act that relies on it. The agent is named and acts through a verb: `a clearing house
-refuses`, and not `a clearing house's refusal`. No sentence opens on `Only`, `Anything`, `Nothing` or
-`Every`, even for a universal fact. The agent is named instead. No free relative stands in a note
-(`whatever script it names`), and no participle cluster is a subject (`the worker registered at the
-address`). The sentences follow ASD-STE100's descriptive rules, without its word list, its ban on -ing
-forms or its rules for procedures and paragraphs.
-
 **Terms.** A term outside the code under the block and outside ordinary English is written as what it
 is. It takes the words of the code's own condition: `a book in which no posting declares the
 currency`, and not `an unpriced book`.

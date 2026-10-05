@@ -326,3 +326,16 @@ the eval gives the writer that file and the brief, which is what the pipeline's 
 sum moved from `1562bee4f02f` to `8add386518c3` with no word of either rule changed. The context did
 change, so a column under the old sum is no reading of the new one: the first full run under
 `8add386518c3` is the floor's no-change pair, and not a rule's effect.
+
+## Sentence-shape rules, measured and left unlanded
+
+A reviewer found two notes hard to follow on 2026-10-02. One packed three facts behind quantifier
+subjects and a possessive over a verbal noun, and the other a free relative and a participle cluster
+for a subject. l39 and l40 carry the two shapes in the ledger domain. Rules then went into the brief
+and `comments.md`: a note of at most 40 words, one fact or one act per sentence, at most 25 words a
+sentence, and ASD-STE100's descriptive rules named. A full table at fifteen rolls measured them
+against main's column `8add386518c3`. They cost four rolls overall (930 to 926), l24 fell from 10 to
+4 and l11 from 15 to 11, and l39 stayed at 0: every roll still wrote the note on the enum. l40 rose
+from 0 to 4. The rules were dropped. The comment profile carries the checks instead (the four shapes,
+the 25-word sentence and a note on an enum naming two of its members), so the writer meets them as
+findings and the rules sum stays where it was.

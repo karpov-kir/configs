@@ -128,6 +128,8 @@ const (
 	checkQuantifierOpen = "quantifier-subject"
 	checkNominalisation = "nominalisation"
 	checkDanglingVerb   = "subjectless-participle"
+	// A note on an enum that names two of its members tells them apart, and it goes on each member.
+	checkMembersInOneNote = "members-in-one-note"
 )
 
 // AllChecks is every check name, which the suite reads to prove each one fires on its corpus.
@@ -137,7 +139,7 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
 	checkTestsNarration, checkHeaderOnImport,
 	checkLongLine, checkToolingDoubt,
-	checkFreeRelative, checkQuantifierOpen, checkNominalisation, checkDanglingVerb}
+	checkFreeRelative, checkQuantifierOpen, checkNominalisation, checkDanglingVerb, checkMembersInOneNote}
 
 // reImportLine opens an import, in the languages whose files open on one.
 var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
@@ -621,6 +623,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
 		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
 		found = append(found, s.longLines(file, b, lines)...)
+		found = append(found, membersInOneNote(file, b, lines, whole)...)
 		limit := maxBlockTextLines
 		header := b.isFileHeader(lines, held)
 		// A file header stands apart from the code under it. The strip takes the blank line under a
@@ -1018,6 +1021,58 @@ func (s scanner) sentenceShape(read string, offset int, add func(check string, s
 	if at := reDanglingVerb.FindStringIndex(read); at != nil && at[0] > 0 {
 		add(checkDanglingVerb, offset+at[0], offset+at[1])
 	}
+}
+
+var (
+	reEnumOpen   = regexp.MustCompile(`^\s*(?:export\s+)?(?:declare\s+)?(?:const\s+)?enum\s+\w+`)
+	reEnumMember = regexp.MustCompile(`^\s*([A-Za-z_]\w*)\s*(?:=|,|$)`)
+	reUnionOpen  = regexp.MustCompile(`^\s*(?:export\s+)?type\s+\w+\s*=`)
+	reLiteral    = regexp.MustCompile(`'([^']+)'|"([^"]+)"`)
+)
+
+// membersInOneNote finds a block on an enum, or on a union of string literals, that names two or more of
+// the declaration's own members. Telling members apart is a fact about each member, and it belongs on
+// each in one form. A reviewer read such a note as hard to follow, and the writer kept writing it there.
+func membersInOneNote(file string, b block, lines, whole []string) []Finding {
+	if b.end >= len(whole) {
+		return nil
+	}
+	var members []string
+	switch decl := whole[b.end]; {
+	case reEnumOpen.MatchString(decl):
+		for _, line := range whole[b.end+1:] {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "}") {
+				break
+			}
+			if m := reEnumMember.FindStringSubmatch(line); m != nil && !strings.HasPrefix(trimmed, "//") {
+				members = append(members, m[1])
+			}
+		}
+	case reUnionOpen.MatchString(decl):
+		for _, line := range whole[b.end:] {
+			for _, m := range reLiteral.FindAllStringSubmatch(line, -1) {
+				members = append(members, m[1]+m[2])
+			}
+			if strings.HasSuffix(strings.TrimSpace(line), ";") {
+				break
+			}
+		}
+	default:
+		return nil
+	}
+	text := join(lines, b.start, b.end, proseOf).text
+	named := 0
+	for _, member := range members {
+		if regexp.MustCompile(`\b` + regexp.QuoteMeta(member) + `\b`).MatchString(text) {
+			named++
+		}
+	}
+	if named < 2 {
+		return nil
+	}
+	return []Finding{{File: file, Line: b.start, Check: checkMembersInOneNote,
+		Text: "a note that tells members apart goes on each member, in one form"}}
 }
 
 // shortStems are the verbs `ing` is part of rather than an ending on: no subject went missing in

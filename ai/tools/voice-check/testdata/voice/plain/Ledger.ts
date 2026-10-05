@@ -78,11 +78,9 @@ export function warmUpPosting(book: Element): void {
   return;
 }
 
-/**
- * A clearing house refused the posting under `Refused`, and the settlement tests report that answer as it stands.
- * No clearing house answered under `Unknown`, and the settlement tests settle the posting to find out.
- */
 export enum SettlementClaim {
+  /** A clearing house refused the posting, and the settlement tests report that answer as it stands. */
   Refused = 'refused',
+  /** No clearing house answered, and the settlement tests settle the posting to find out. */
   Unknown = 'unknown',
 }
