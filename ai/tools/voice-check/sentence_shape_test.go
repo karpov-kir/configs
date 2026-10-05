@@ -24,6 +24,13 @@ func TestANoteTellingMembersApartBelongsOnEachMember(t *testing.T) {
 		{"an ordering", "// Names the claim, ordered from `Refused` to `Unknown`, which the audit sorts by.\n" + enum, false},
 		{"per-member notes", "export enum Claim {\n  // A clearing house refused.\n  Refused = 'refused',\n  // No house answered.\n  Unknown = 'unknown',\n}\n", false},
 		{"function naming member words", "// `Refused` and `Unknown` postings are both kept.\nexport function keep(p: Posting): boolean {\n  return true;\n}\n", false},
+		{"union with undefined", "// `refused` is a refusal, and `unknown` is no answer.\nexport type A = 'refused' | 'unknown' | undefined;\n", true},
+		{"trailing-pipe union", "// `Refused` is a refusal, and `Unknown` is no answer.\nexport type D = 'Refused' |\n  'Unknown';\n", true},
+		{"quoted literals in code spans", "// `'refused'` is a refusal, and `'unknown'` is no answer.\nexport type B = 'refused' | 'unknown';\n", true},
+		{"qualified members", "// `Claim.Refused` is a refusal, and `Claim.Unknown` is no answer.\n" + enum, true},
+		{"member after a block comment", "// `Refused` is a refusal, and `Unknown` is no answer.\nexport enum Claim {\n  Refused = 'refused',\n  /* No house answered. */ Unknown = 'unknown',\n}\n", true},
+		{"order as a word", "// `Refused` is a refusal in order to retry, and `Unknown` is no answer.\n" + enum, true},
+		{"function type alias", "// Called once to `read` and once to `write`.\nexport type Handler = (mode: 'read' | 'write') => void;\n", false},
 		{"object alias with literals", "// `x` and `y` name the two axes.\nexport type Shape = { a: 'x'; b: 'y' };\n", false},
 	} {
 		lines := strings.Split(strings.TrimSuffix(tc.source, "\n"), "\n")
@@ -60,6 +67,8 @@ func TestSentenceShapeChecksFireOnTheReviewedShapesOnly(t *testing.T) {
 		{"When loading, the house drops the cache.", checkDanglingVerb, true},
 		{"The house drops the cache without warning.", checkDanglingVerb, false},
 		{"This check rests on nothing.", checkDanglingVerb, false},
+		{"The house drops the posting when pending, so this check waits.", checkDanglingVerb, false},
+		{`"Only" postings are kept.`, checkQuantifierOpen, false},
 		{"Tells whether a posting settles, by expecting a refusal.", checkDanglingVerb, false},
 	} {
 		if got := scan(tc.sentence)[tc.check]; got != tc.fires {

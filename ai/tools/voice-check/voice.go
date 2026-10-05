@@ -206,7 +206,7 @@ var (
 	// reader holds one clause open while reading another.
 	// A sentence whose subject is a quantifier pronoun: `Only a refusal is …`, `Anything no API
 	// established …`. `Every caller` names its agent, and Python's `None` opens many a note.
-	reQuantifierOpen = regexp.MustCompile(`^\W*(?:Only|Anything|Nothing|Everything|Nobody|Everyone)\b`)
+	reQuantifierOpen = regexp.MustCompile(`^[^\w"']*(?:Only|Anything|Nothing|Everything|Nobody|Everyone)\b`)
 	// A possessive over a noun made from a verb, `an API's refusal`, where the agent and its verb belong.
 	// The nouns are a closed list, since the same endings close many a noun that names a thing.
 	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}([\w-]+)'s\s+(` +
@@ -221,7 +221,8 @@ var (
 	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+([a-z]{3,}ing)\s*(?:[.,;:]|$)`)
 	// Words ending in -ing that are nouns, and no participle.
 	ingNouns = []string{"nothing", "something", "anything", "everything", "morning", "evening", "warning",
-		"padding", "string", "thing", "ceiling", "building", "setting", "heading", "listing", "ring"}
+		"padding", "string", "thing", "ceiling", "building", "setting", "heading", "listing", "ring",
+		"pending", "encoding", "caching", "logging", "rounding", "routing", "billing", "timing", "spacing"}
 
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
 
@@ -1024,11 +1025,13 @@ var (
 	reMemberAt = regexp.MustCompile(`(?:^|[{,])\s*([A-Za-z_]\w*)\s*(?:=[^,}]*)?`)
 	// A type alias whose right side is string literals joined by `|`, on one line or continued by lines
 	// opening on `|`.
-	reLiteralUnion   = regexp.MustCompile(`^\s*(?:export\s+)?type\s+\w+(?:<[^>]*>)?\s*=\s*\|?\s*((?:'[^']*'|"[^"]*")(?:\s*\|\s*(?:'[^']*'|"[^"]*"))*)?\s*;?\s*$`)
-	reUnionContinued = regexp.MustCompile(`^\s*\|\s*('[^']*'|"[^"]*")\s*;?\s*$`)
-	reLiteral        = regexp.MustCompile(`'([^']*)'|"([^"]*)"`)
+	reUnionOpen = regexp.MustCompile(`^\s*(?:export\s+)?type\s+\w+(?:<[^>]*>)?\s*=(.*)$`)
+	// The parts a literal union is made of: string literals, and `undefined` or `null` beside them.
+	reUnionPart = regexp.MustCompile(`^\s*(?:'[^']*'|"[^"]*"|undefined|null)\s*$`)
+	reLiteral   = regexp.MustCompile(`'([^']*)'|"([^"]*)"`)
 	// An ordering across the members is the enum's own fact, and the rule asks for it there.
-	reOrdering = regexp.MustCompile(`(?i)\b(?:order|ordered|ordering|sorted|sorts)\b`)
+	reOrdering       = regexp.MustCompile(`(?i)\b(?:ordered|ordering|sorted|sorts|the order of)\b`)
+	reLeadingComment = regexp.MustCompile(`^\s*/\*.*?\*/\s*`)
 )
 
 // membersInOneNote finds a block on an enum, or on a union of string literals, that names two or more of
@@ -1047,7 +1050,7 @@ func membersInOneNote(file string, b block, lines, whole []string) []Finding {
 			if strings.Contains(body, "}") {
 				break
 			}
-			trimmed := strings.TrimSpace(line)
+			trimmed := strings.TrimSpace(reLeadingComment.ReplaceAllString(line, ""))
 			if !strings.HasPrefix(trimmed, "//") && !strings.HasPrefix(trimmed, "*") && !strings.HasPrefix(trimmed, "/*") {
 				body += "," + trimmed
 			}
@@ -1056,17 +1059,26 @@ func membersInOneNote(file string, b block, lines, whole []string) []Finding {
 		for _, m := range reMemberAt.FindAllStringSubmatch(body, -1) {
 			members = append(members, m[1])
 		}
-	} else if m := reLiteralUnion.FindStringSubmatch(decl); m != nil {
-		literals := m[1]
+	} else if m := reUnionOpen.FindStringSubmatch(decl); m != nil {
+		// The union runs to the line ending on `;`, or to a line that neither opens nor closes on `|`.
+		union := m[1]
 		for _, line := range whole[b.end+1:] {
-			c := reUnionContinued.FindStringSubmatch(line)
-			if c == nil {
+			trimmed := strings.TrimSpace(union)
+			if strings.HasSuffix(trimmed, ";") || (!strings.HasSuffix(trimmed, "|") && !strings.HasPrefix(strings.TrimSpace(line), "|")) {
 				break
 			}
-			literals += "|" + c[1]
+			union += " " + line
 		}
-		for _, l := range reLiteral.FindAllStringSubmatch(literals, -1) {
-			members = append(members, l[1]+l[2])
+		for _, part := range strings.Split(strings.TrimSuffix(strings.TrimSpace(union), ";"), "|") {
+			if strings.TrimSpace(part) == "" {
+				continue
+			}
+			if !reUnionPart.MatchString(part) {
+				return nil
+			}
+			if l := reLiteral.FindStringSubmatch(part); l != nil {
+				members = append(members, l[1]+l[2])
+			}
 		}
 	} else {
 		return nil
@@ -1077,7 +1089,8 @@ func membersInOneNote(file string, b block, lines, whole []string) []Finding {
 	}
 	named := 0
 	for _, member := range members {
-		if len(member) > 1 && strings.Contains(raw, "`"+member+"`") {
+		if len(member) > 1 && (strings.Contains(raw, "`"+member+"`") || strings.Contains(raw, "`'"+member+"'`") ||
+			strings.Contains(raw, "."+member+"`")) {
 			named++
 		}
 	}
