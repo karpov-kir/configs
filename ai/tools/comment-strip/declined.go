@@ -288,7 +288,7 @@ func DecideOffered(archive, run, path string, offered []Offered, isDeclined bool
 		switch {
 		case isDeclined:
 			held = append(held, entry)
-			// The same decline recorded again changes nothing, whichever run recorded it first.
+			// The same decline recorded again leaves the record as it stands, whichever run recorded it first.
 			if had == nil || !sameRules(had.Rules, rules) || had.Span != o.Span {
 				changed++
 			} else {
@@ -316,7 +316,7 @@ func writeDeclined(archive, path string, held []declined) error {
 }
 
 // RecordsAtSite names the archived records of path the strip would hold at line, in the stripped file a
-// round read. A verdict without a record of what its site carried covers these and no other.
+// round read. A verdict without a record of what its site carried covers these records only.
 func RecordsAtSite(archive, path string, stripped []string, line int) ([]string, error) {
 	records, err := readArchive(archive, path)
 	if err != nil {

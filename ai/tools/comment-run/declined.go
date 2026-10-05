@@ -130,8 +130,8 @@ func decideFromReturns(runDir, archive, run, tree string, warn io.Writer) (int, 
 				mark(written, path, all)
 				continue
 			}
-			// A decline covers the records at its own site, read in the stripped file the writers' round
-			// read. A loop round's tree is kept nowhere, so its declines wait for a run that records them.
+			// A decline covers the records at its own site, which the stripped file of the writers' round
+			// places. A loop round's tree is kept nowhere, so its declines wait for a run that records them.
 			at, _ := strconv.Atoi(m[2])
 			stripped, err := os.ReadFile(filepath.Join(runDir, "post-strip", path))
 			if roundOf(ret) > 0 || err != nil {
