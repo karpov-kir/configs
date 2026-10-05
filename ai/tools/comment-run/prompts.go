@@ -266,12 +266,14 @@ func returnFile(runDir, name string) string {
 
 // returnSentence tells a writer how to work: a file at a time, each block through the Edit tool, and the
 // return to a file. Every turn reads the whole context again, and run 18's writers took 2.6 turns a site
-// where run 18b's took 0.8. Run 18b's writer wrote by shell script, and one insert slipped.
+// where run 18b's took 0.8. Run 18b's writer wrote by shell script, and one insert slipped. Run 25's writer
+// left its check inputs in the scratchpad root, so the sentence names the run directory for them.
 func returnSentence(path string) string {
 	return "Append each site's verdict line to your ledger as you finish the site, in the shape below. Work a file at a time. Read all of a file's facts files in one call. Check all of its blocks in one " +
 		"voice-check call, where the brief checks one block: each part is a record, a line reading `---`, and the " +
 		"block with its declaration and body, the parts apart on a line reading `===`, and each finding names its " +
-		"part as `-#<n>` on stdin. Then write the file's blocks with Edit calls issued together in one turn; no shell " +
+		"part as `-#<n>` on stdin. A file you write for a check, the voice-check input among them, goes in `" +
+		filepath.Dir(path) + "`. Then write the file's blocks with Edit calls issued together in one turn; no shell " +
 		"command writes a source file. Write your whole return, in the brief's Verdict shape, to `" + path +
 		"` with the Write tool, and end your message with that path."
 }

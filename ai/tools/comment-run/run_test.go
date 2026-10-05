@@ -269,6 +269,7 @@ func TestTaintReadsWritesFromTheLedger(t *testing.T) {
 
 // A diff with no range prints HEAD's blocks under a `-`, and run 18 tainted two writers that way while
 // this stage stayed quiet. A write by shell script is reported too, since writes go through the Edit tool.
+// A script that writes scratch files and hands the source file to a check as `--file=` writes no source.
 func TestTaintReadsARangelessDiffAndAScriptWrite(t *testing.T) {
 	c := newChange(t)
 	ledger := filepath.Join(t.TempDir(), "comment-writer-A-queue.md")
@@ -280,11 +281,13 @@ func TestTaintReadsARangelessDiffAndAScriptWrite(t *testing.T) {
 		[3]string{"Bash", `{"command":"sed -i '' '3i\\\\// a note' ledger.ts"}`, `""`},
 		[3]string{"Bash", `{"command":"printf 'fact: x' | voice-check.sh --source --record --file=ledger.ts - 2>&1 | tail -3"}`, `"clean"`},
 		[3]string{"Bash", `{"command":"cat new.ts > ledger.ts"}`, `""`},
+		[3]string{"Bash", `{"command":"python3 - <<'PY'\nopen('vc2.txt','w').write(open('vc.txt').read())\nPY\nvoice-check.sh --profile=comment --source --record --file=ledger.ts - < vc2.txt"}`, `"clean"`},
 		[3]string{"Edit", `{"file_path":"/tree/ledger.ts","old_string":"a","new_string":"b"}`, `"ok"`},
 	)
 	said := c.run("taint", "--ledger="+ledger, path)
 	if said.code != exitFindings || !strings.Contains(said.stdout, "tainted: call 1 ") || !strings.Contains(said.stdout, "script write: call 2 ") ||
-		strings.Contains(said.stdout, "script write: call 3 ") || !strings.Contains(said.stdout, "script write: call 4 ") {
+		strings.Contains(said.stdout, "script write: call 3 ") || !strings.Contains(said.stdout, "script write: call 4 ") ||
+		strings.Contains(said.stdout, "script write: call 5 ") {
 		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }
@@ -530,7 +533,7 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 	}
 	prompt, _ := os.ReadFile(strings.TrimSpace(said.stdout))
 	for _, want := range []string{"ledger.ts:1 ledger.ts/2/1.facts", "book.ts:1 book.ts/2/1.facts", "return-writer-loop-round-1.md", readSentence,
-		"keep what it already states correctly"} {
+		"keep what it already states correctly", "the voice-check input among them, goes in `" + runDir + "`"} {
 		if !strings.Contains(string(prompt), want) {
 			t.Errorf("the round's prompt lacks %q:\n%s", want, prompt)
 		}

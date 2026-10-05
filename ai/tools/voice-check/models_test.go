@@ -37,8 +37,8 @@ func TestTheBriefsModelNotesPassEveryCheck(t *testing.T) {
 }
 
 // A note on a body states its act by a connector, a verb-first sentence, this code as subject or a name
-// of code. The reviewed block stated a fact and stopped, and three sound notes at c528b1028 stated their
-// act each a different way.
+// of code. The reviewed block stated a fact and stopped, and three sound notes in the reviewed change
+// stated their act each a different way.
 func TestANoteStatesItsActOrDrawsAFinding(t *testing.T) {
 	for _, tc := range []struct {
 		block string
@@ -46,7 +46,13 @@ func TestANoteStatesItsActOrDrawsAFinding(t *testing.T) {
 	}{
 		{"// Tells whether the ledger grants the scheme, asked without a mode. On a ledger that ignores the mode,\n// the first posting stalls.", false},
 		{"// A server that fails the request answers with no body. This branch passes such a response through unchanged.", true},
-		{"// An XHR for a data URI fails there. A test that sends one is skipped by `skipOnPlatform`.", true},
+		{"// A ledger on the old firmware drops a posting by wire. A test that sends one is skipped by `skipOnFirmware`.", true},
+		{"// A ledger that ignores the mode stalls on its first posting.", false},
+		{"// Ledgers that ignore the mode stall on their first posting.", false},
+		{"// A ledger that ignores the mode stalls on its first posting, or so the vendor says.", false},
+		{"// A ledger that ignores this mode stalls on its first posting.", false},
+		{"// An old ledger ignores the mode. The call then returns false after a second.", true},
+		{"// Keeps the mode out of the request, since a ledger that ignores it stalls.", true},
 		{"// Rejects a set in which no entry declares the currency. Such a set would end up empty.", true},
 		{"// A ledger that ignores the mode stalls on its first posting, so the scheme is asked with no mode.", true},
 	} {
@@ -62,6 +68,10 @@ func TestANoteStatesItsActOrDrawsAFinding(t *testing.T) {
 		{"Tells whether the ledger grants a scheme, asked without a settlement mode.", true},
 		{"Returns the claim, or Unknown when the ledger answers nothing.", false},
 		{"Tells whether a posting settles, by expecting a refusal.", false},
+		{"Tells whether the ledger grants a scheme, asked without a settlement mode, once.", true},
+		{"Says whether the ledger grants a scheme, asked without a settlement mode.", true},
+		{"Returns the entries, sorted oldest first.", false},
+		{"Tells whether the ledger grants a scheme, as the posting rules need.", false},
 	} {
 		fired := false
 		s.sentenceShape(tc.sentence, 0, func(check string, _, _ int) { fired = fired || check == checkTrailingAct })
