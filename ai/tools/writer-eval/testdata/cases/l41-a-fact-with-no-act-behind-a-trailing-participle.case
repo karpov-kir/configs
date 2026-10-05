@@ -1,0 +1,14 @@
+expect: written
+summary: none
+note: written
+keeps: no mode | without a mode | with no mode | without the mode | no settlement mode
+keeps: first posting | posting-warm-up | postingwarmup
+bars: whatever | , asked
+why: a reviewer rejected a block on 2026-10-05 whose summary carried the act as a trailing participle ("asked without" the setting) with no reason, and whose note stated a fact and stopped ("Stalls and what?"); the brief's own model note had that shape, and runs 18 and 20 copied it; the sound block, which run 20's first writer wrote, gives no summary and states the fact, the act, and what the act gives its caller
+labelled: 2026-10-05
+--- code
+export async function claimsSchemeThroughLedgerApi(scheme: PostingScheme): Promise<boolean> {
+  return askLedger(scheme, { mode: undefined }).then(answer => answer === 'Supported');
+}
+--- facts
+A ledger that ignores the settlement mode stalls on its first posting, whatever mode the posting names. The scheme is asked with no mode, so the first posting `audit/PostingWarmUp.ts` sends still runs on such a ledger.

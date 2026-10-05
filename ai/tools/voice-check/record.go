@@ -19,6 +19,9 @@ const (
 	checkRecordSelfNamed = "block-names-its-declaration"
 	checkValueThisOpens  = "value-block-opens-on-this"
 	checkValueActor      = "value-as-actor"
+	// A reviewer read a note stating a fact and stopping as having no point: "Stalls and what?". Its
+	// record named the act every time, and the block never did.
+	checkFactNoAct = "fact-with-no-act"
 )
 
 // recordMarker ends the record and opens the block. Everything above it is slots, everything under
@@ -246,7 +249,69 @@ func RecordFindings(file string, lines []string) []Finding {
 		out = append(out, Finding{file, at, checkRecordUntied,
 			fmt.Sprintf("does: %s, and the body spells none of it", does)})
 	}
+	if does != "" && !strings.EqualFold(does, noDoes) && !dataDeclaration(body) && !noteStatesAnAct(blockText, declaredName(body)) {
+		out = append(out, Finding{file, at, checkFactNoAct,
+			fmt.Sprintf("the record's act is %q, and the note states the fact alone; say what this code does about it, and what that gives its caller", does)})
+	}
 	return out
+}
+
+var (
+	// reSummaryOpen opens a summary, the sentence saying what a declaration does: the note is the rest.
+	reSummaryOpen = regexp.MustCompile(`^(?:Tells|Returns|Lists|Checks|Throws)\b`)
+	// An act shows in a note by a connector to the fact, a sentence opening on its verb, or this code as
+	// a subject. "The" or "its" before a noun for code counts only at a sentence's start. Mid-sentence,
+	// as in "when the request carries a mode", the noun is part of a fact.
+	reActConnector = regexp.MustCompile(`(?i)\b(?:so|because|therefore|which is why|that is why|for that reason|since)\b`)
+	// `or so` hedges a claim and joins no fact to an act.
+	reHedgeSo = regexp.MustCompile(`(?i)\bor so\b`)
+	// A capitalised word ending in s is a plural subject where a relative or a verb follows it.
+	reActVerbFirst = regexp.MustCompile(`^(?:[A-Z][a-z]+s)\s+(\w+)`)
+	rePluralNext   = regexp.MustCompile(`^(?:that|which|who|whose|of|in|on|with|from|for|are|were|have|had|do|did|can|may|must|will|would|should|could)$`)
+	// A sentence naming code, a caller or a file, tells what that code does: the rule lets a note name a
+	// caller's act.
+	reActNamesCode = regexp.MustCompile("`[^`]+`|\\b[a-z]+[A-Z]\\w*\\b")
+	reActThisCode  = regexp.MustCompile(`\b[Tt]his\s+(?:code|function|method|call|check|helper|class|wrapper|copy|branch|loop|guard|test|module|hook|filter|declaration|constructor|getter|setter|handler|callback|case|row|entry|walk|probe|request)\b|^(?:The|Its)\s+(?:code|function|method|call|check|helper|class|wrapper|copy|branch|loop|guard|test|module|hook|filter|declaration|constructor|getter|setter|handler|callback|case|row|entry|walk|probe|request)\b|\b[Tt]his\s+(?:name|value|key|result|string|id)\b`)
+	reDeclaredWord = func(name string) *regexp.Regexp {
+		return regexp.MustCompile(`(?:^|[^\w$])` + regexp.QuoteMeta(name) + `(?:[^\w$]|$)`)
+	}
+)
+
+// noteStatesAnAct says a block's note, its sentences after any summary, states what the code does.
+func noteStatesAnAct(block, declared string) bool {
+	var words []string
+	for _, line := range strings.Split(block, "\n") {
+		if text := strings.TrimSpace(commentLineText(line)); text != "" {
+			words = append(words, text)
+		}
+	}
+	sentences := regexp.MustCompile(`[.!?]\s+`).Split(strings.Join(words, " "), -1)
+	if len(sentences) > 0 && reSummaryOpen.MatchString(sentences[0]) {
+		sentences = sentences[1:]
+	}
+	if len(sentences) == 0 || strings.TrimSpace(strings.Join(sentences, "")) == "" {
+		return true
+	}
+	for _, sentence := range sentences {
+		sentence = strings.TrimSpace(sentence)
+		if reActConnector.MatchString(reHedgeSo.ReplaceAllString(sentence, "")) || verbFirst(sentence) || reActThisCode.MatchString(sentence) ||
+			reActNamesCode.MatchString(sentence) || (declared != "" && reDeclaredWord(declared).MatchString(sentence)) {
+			return true
+		}
+	}
+	return false
+}
+
+// verbFirst says a sentence opens on a verb in the third person: a capitalised word ending in s that
+// no relative, preposition or plural verb follows.
+func verbFirst(sentence string) bool {
+	m := reActVerbFirst.FindStringSubmatch(sentence)
+	return m != nil && !strings.HasPrefix(m[0], "This ") && !strings.HasPrefix(m[0], "Its ") && !rePluralNext.MatchString(m[1])
+}
+
+// commentLineText is a comment line with its markers taken off.
+func commentLineText(line string) string {
+	return regexp.MustCompile(`^\s*(?:/\*\*|\*/|\*|//|#)\s?`).ReplaceAllString(line, "")
 }
 
 // namesSomethingIn says the phrase shares one segment with the set. One segment is enough: a tie

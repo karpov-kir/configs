@@ -207,6 +207,9 @@ var (
 	// reRedirectTarget is a redirect with its target in the first group. A redirect counts only when its
 	// target is the file, since `2>&1` and a pipe into a check name the file and leave it as it was.
 	reRedirectTarget = regexp.MustCompile(`>>?\s*['"]?(\S+)`)
+	// reFlagValue is a file named as a flag's value, which a check reads. Run 25's writer wrote two
+	// scratch files by python and named the source file to a check by `--file=`. The stage read a write.
+	reFlagValue = regexp.MustCompile(`(?:^|\s)--[\w-]+=[^\s'"]+`)
 )
 
 // hit is one history read that showed the writer a comment line of a file it still wrote to after, or
@@ -288,12 +291,13 @@ func named(command string, files []string) []string {
 	return out
 }
 
-// scriptWrites says the shell command writes the file: an in-place edit naming it, or a redirect into it.
+// scriptWrites says the shell command writes the file: an in-place edit naming it other than as a flag's
+// value, or a redirect into it.
 func scriptWrites(command, file string) bool {
 	if !strings.Contains(command, file) {
 		return false
 	}
-	if reScriptEdit.MatchString(command) {
+	if reScriptEdit.MatchString(command) && strings.Contains(reFlagValue.ReplaceAllString(command, ""), file) {
 		return true
 	}
 	for _, m := range reRedirectTarget.FindAllStringSubmatch(command, -1) {

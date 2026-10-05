@@ -341,3 +341,40 @@ possessive over a verbal noun, a participle left without its subject, and a note
 two of its members. The writer meets them as findings, and the rules sum stays where it was. A
 free-relative check and a 25-word sentence bound were left out, since the brief's own model notes use
 `whatever mode the posting names` and run to 29 words.
+
+## Two bounds a case cannot reach
+
+Run 25's loop rounds rewrote one block under two bounds, and each cost the block a clear sentence.
+The two-sentence bound packed three facts into two sentences, and the second ended on a clause a
+reader had to unpick. Two other blocks in the file tied with "so". The per-file connector bound,
+`tie-opening-repeated`, then refused the writer's tie with it. The writer bent the sentence around "because".
+
+No case here measures either. A case hands the writer one declaration and leaves out the rest of
+its file, so the connector bound counts one block. The brief's twelve model notes tie with "so" twice
+and "therefore" twice, and every other tie once each. A writer following the models reaches the
+bound on a file's third block that ties alike. A full pass reports that as `tie-opening-repeated`
+on that file. A case cannot.
+
+## The rules' own free relatives, reworded and left
+
+Notes may not use a free relative, and the rules said "whatever" and "wherever" in nine places. A
+rewording of all nine, meaning unchanged, was measured at fifteen rolls against the same rules
+without it. k01 fell from 9 to 3, k06 from 6 to 1 and l12 from 15 to 12. Each drop was the writer
+answering `none` where a note is wanted, and no other case moved past the band. The rewording was
+left out. In the brief it touched six lines. Two say question 3 runs on any answer to question 1. One
+keeps a test-pinned fact at its site, and one sets the order of a fact's parts. One has the means
+follow with `by`, and one makes four verbs a figure. In the standard it touched three. One has the
+means follow with `by`, one has an ordering earn a sentence where a test pins it, and one puts a
+claim from another file on its function. A later rewording measures the first three before
+it lands, since those decide whether a note is written at all.
+
+## What l39 and l40 read
+
+l39 reads 0 with the writer's check in its loop. `members-in-one-note` fired on every roll on the
+rules of 2026-10-05, and the writer rewrote each time. Every roll then still failed for two
+reasons: four note sentences, over the ceiling, and a block one line off the member it names. So
+the 0 is the writer and the check together. In a run, the check refuses the shape the reviewer
+rejected, and the case reads what the writer does after the refusal.
+
+l40 barred "therefore", and the brief's model notes tie with it twice. The bar was dropped. On the
+same rolls, l40 reads 13 of 15 without it.

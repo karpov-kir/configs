@@ -2,6 +2,7 @@ package voicecheck
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -223,6 +224,22 @@ func TestABlockNamingItsOwnDeclarationIsRefused(t *testing.T) {
 		"if (status >= 100) {\n  return status;\n}"
 	if got := checksOf(RecordFindings("-", shell.SplitLines(branch))); len(got) != 0 {
 		t.Fatalf("a branch naming the value it reads reports %v", got)
+	}
+}
+
+// A reviewer asked "and what?" of a note that states a fact and stops. Where the record names an act,
+// such a note on a body draws a finding, though a word in it holds the declared name.
+func TestAFactWithNoActIsRefused(t *testing.T) {
+	record := "fact: a ledger that ignores the settlement mode stalls on its first posting\nbears_on: post\n" +
+		"does: asks the scheme with no mode\n---\n"
+	code := "\nexport function post(scheme: string): boolean {\n  return ask(scheme, { mode: undefined });\n}"
+	bare := record + "// A ledger that ignores the mode stalls on its first posting." + code
+	if got := checksOf(RecordFindings("-", shell.SplitLines(bare))); !slices.Contains(got, checkFactNoAct) {
+		t.Fatalf("a note stating the fact alone reports %v", got)
+	}
+	acts := record + "// A ledger that ignores the mode stalls on its first posting, so the scheme is asked with no mode." + code
+	if got := checksOf(RecordFindings("-", shell.SplitLines(acts))); slices.Contains(got, checkFactNoAct) {
+		t.Fatalf("a note stating its act reports %v", got)
 	}
 }
 

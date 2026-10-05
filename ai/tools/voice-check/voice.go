@@ -127,6 +127,11 @@ const (
 	checkDanglingVerb   = "subjectless-participle"
 	// A note on an enum that names two of its members tells them apart, and it goes on each member.
 	checkMembersInOneNote = "members-in-one-note"
+	// A free relative names a thing by what it is not yet known to be: `whatever script it names`.
+	checkFreeRelative = "free-relative"
+	// A summary can name its act in a participle after a comma, at the sentence end. The act then
+	// carries no reason, and a reviewer asked for one.
+	checkTrailingAct = "summary-trailing-participle"
 )
 
 // AllChecks is every check name, which the suite reads to prove each one fires on its corpus.
@@ -136,7 +141,8 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
 	checkTestsNarration, checkHeaderOnImport,
 	checkLongLine, checkToolingDoubt,
-	checkQuantifierOpen, checkNominalisation, checkDanglingVerb, checkMembersInOneNote}
+	checkQuantifierOpen, checkNominalisation, checkDanglingVerb, checkMembersInOneNote,
+	checkFreeRelative, checkTrailingAct}
 
 // reImportLine opens an import, in the languages whose files open on one.
 var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
@@ -219,6 +225,10 @@ var (
 	// playing`. The rule asks for the means with `by`, as in `by expecting a refusal`, so `by` is left
 	// out.
 	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+([a-z]{3,}ing)\s*(?:[.,;:]|$)`)
+	reFreeRelative = regexp.MustCompile(`(?i)\b(?:whatever|whichever|whoever|whomever|wherever)\b`)
+	// A summary answering a question, its sentence going on past a comma with a past participle: the act
+	// with no subject or reason. A summary of a value, `Returns the entries, sorted oldest first`, is left.
+	reTrailingAct = regexp.MustCompile("^\\W*(?:Tells|Checks|Says|Decides|Reports)\\b(?:[^.`]|`[^`]*`)*,\\s+(?:\\w+ly\\s+)?(?:[a-z]+[^e\\W]ed|agreed|guaranteed|freed|given|made|done|seen|known|taken|written|sent|run|kept|held|found|built|left|set|put|shown)\\b(?:[^.`]|`[^`]*`)*[.!?]?\\s*$")
 	// Words ending in -ing that are nouns, and no participle.
 	ingNouns = []string{"nothing", "something", "anything", "everything", "morning", "evening", "warning",
 		"padding", "string", "thing", "ceiling", "building", "setting", "heading", "listing", "ring",
@@ -927,7 +937,10 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 			if at == nil {
 				break
 			}
-			add(checkCoined, from+at[2], from+at[3])
+			if !strings.EqualFold(coinedIn[from+at[2]:from+at[3]], "names no") ||
+				!reNamedInACall.MatchString(coinedIn[from+at[3]:]) {
+				add(checkCoined, from+at[2], from+at[3])
+			}
 			from += at[3]
 		}
 		if inIdentifier := coinedInIdentifier(word); inIdentifier != nil {
@@ -1007,6 +1020,12 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 // sentenceShape adds a note sentence's findings for how it is built. They are a quantifier subject, a
 // possessive over a verbal noun, and a participle a preposition leaves without its subject.
 func (s scanner) sentenceShape(read string, offset int, add func(check string, start, end int)) {
+	if at := reFreeRelative.FindStringIndex(read); at != nil {
+		add(checkFreeRelative, offset+at[0], offset+at[1])
+	}
+	if reTrailingAct.MatchString(read) {
+		add(checkTrailingAct, offset, offset+len(read))
+	}
 	if at := reQuantifierOpen.FindStringIndex(read); at != nil {
 		add(checkQuantifierOpen, offset+at[0], offset+at[1])
 	}
@@ -1136,6 +1155,10 @@ func readAllCapped(from io.Reader, cap int64) ([]byte, error) {
 // tell the lane only reads for is a tell that reopens. This one reopened three times before anyone
 // measured it.
 var defaultCoined = []string{"has no name", "names no", "names nothing", "a name it does not hold"}
+
+// reNamedInACall is a thing a request or a call names literally, and the idiom said of one is plain
+// English. Run 25's writer turned a request that named no scheme into a passive to get past the check.
+var reNamedInACall = regexp.MustCompile(`(?i)^\s+(?:scheme|type|key|parameter|mode|format|field|argument|header|option|version|currency|file|path)s?\b`)
 
 // coinedTerms is a caller's own words followed by the built-in phrases. It resolves here because
 // scanSegment is the only place a check runs. A construction site that merged them would leave every

@@ -40,21 +40,23 @@ Each site gets two part lines: `summary: needed` or `summary: none` from questio
 
    The block is the summary and the note together. The site is `none` only where both parts are `none`.
 
-Copy no sentence from the facts file into the block. Write each kept fact again from the code and the claim. Copy a line carrying only a doc tag (`@param`, `@returns`, `@throws`, `@example`) unchanged where the file's other blocks carry them, and write no new one.
+Copy no sentence from the facts file into the block. Write each kept fact again from the code and the claim. A sentence a review finding tells you to keep stays word for word, though the facts file holds it. Copy a line carrying only a doc tag (`@param`, `@returns`, `@throws`, `@example`) unchanged where the file's other blocks carry them, and write no new one.
 
 ## How these read
 
 Twelve notes written to the record.
 
 ```ts
-// Publishes the outcome of a posting whose settlement failed. The ledger's own claims decide which token it gets.
+// Publishes the outcome of a posting whose settlement failed. The ledger's own claims decide which
+// token it gets.
+
 import { LedgerClaim } from './LedgerClaims';
 
 // `LedgerBook.SETTLED` is missing on some ledger builds here, so the value is spelled out.
 const SETTLED = 2;
 
-// Tells whether the ledger has the scheme at all, asked without a settlement mode. A ledger that
-// ignores the mode stalls on its first posting, whatever mode the posting names.
+// A ledger that ignores the settlement mode stalls on its first posting. The scheme is asked with no
+// mode, so the first posting `audit/PostingWarmUp.ts` sends still runs on such a ledger.
 export async function claimsScheme(scheme: PostingScheme): Promise<boolean> {
 
 // `formatFault`, the formatter for a fault's message, appends `(code [Unreadable])` to readable messages too.
@@ -64,28 +66,30 @@ export function isPlaceholderFaultText(formatted: string): boolean {
 // Names the posting format, which carries the precision: `AMT2` is two decimals and `AMT4` is four.
 format: string | null;
 
-// XML Name rules cap no element name, and whoever served the export chose this one.
+// XML Name rules cap no element name, and the export's publisher chose this one.
 const PUBLISHED_ELEMENT_NAME_CHARACTER_LIMIT = 40;
 
-// This branch keeps a status from 100 up, because `0` is what a fetch reports for a request that never reached a server.
+// This branch keeps a status from 100 up, because `0` is what a fetch reports for a request that never
+// reached a server.
 if (typeof status === 'number' && status >= 100 && status < 600) {
 
 // Each refusal message of a posting cell starts with one of these values.
 // The audit dataset groups the cell's results by that value.
 export enum PostingOutcome {
 
-// Marks a posting service status from 500 to 599. A server returns those statuses for its own errors, which no ledger causes.
+// Marks a posting service status from 500 to 599. A server returns those statuses for its own errors,
+// which no ledger causes.
 UnmeasuredPostingServerFailed = 'UNMEASURED_POSTING_SERVER_FAILED',
 
 // A ledger export predating the period fields ignores them and answers about the entry type only,
 // which is why this call hands the stub what such an export returns.
 stubReadingLedger({ supported: true, reads });
 
-// Every caller removes postings from the ledger while it walks the result, so the walk runs over a
+// Every caller removes postings from the ledger as it walks the result. The walk therefore runs over a
 // copy that keeps listing every posting after a removal.
 export function snapshotPostings(list: LivePostingList): Posting[] {
 
-// The audit dataset keeps each cell's history under this name. Renaming a format or a scheme value
+// The audit dataset keeps each cell's history under this name. A renamed format or scheme value
 // changes the name and starts a new history.
 export function formatPostingCellName(format: PostingFormat, scheme: SettlementScheme): string {
 ```
