@@ -1060,7 +1060,7 @@ func membersInOneNote(file string, b block, lines, whole []string) []Finding {
 			members = append(members, m[1])
 		}
 	} else if m := reUnionOpen.FindStringSubmatch(decl); m != nil {
-		// The union runs to the line ending on `;`, or to a line that neither opens nor closes on `|`.
+		// The union runs on while a line ends on `|` or the next opens on it, and stops at a `;`.
 		union := m[1]
 		for _, line := range whole[b.end+1:] {
 			trimmed := strings.TrimSpace(union)
