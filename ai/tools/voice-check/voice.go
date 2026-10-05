@@ -129,8 +129,8 @@ const (
 	checkMembersInOneNote = "members-in-one-note"
 	// A free relative names a thing by what it is not yet known to be: `whatever script it names`.
 	checkFreeRelative = "free-relative"
-	// A summary that ends on a participle after a comma tacks the act on with no reason: "Tells whether
-	// … grants a key system, asked without an encryption scheme." A reviewer asked why it was asked so.
+	// A summary can name its act in a participle after a comma, at the sentence end. The act then
+	// carries no reason, and a reviewer asked for one.
 	checkTrailingAct = "summary-trailing-participle"
 )
 
