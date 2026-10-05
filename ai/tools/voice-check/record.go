@@ -259,18 +259,22 @@ func RecordFindings(file string, lines []string) []Finding {
 var (
 	// reSummaryOpen opens a summary, the sentence saying what a declaration does: the note is the rest.
 	reSummaryOpen = regexp.MustCompile(`^(?:Tells|Returns|Lists|Checks|Throws)\b`)
-	// An act shows in a note by a connector to the fact, a sentence opening on its verb, or a sentence
-	// whose subject is this code. `or so` hedges a claim and is left out, and a capitalised word ending
-	// in s is a plural subject where a relative or a verb follows it.
-	reActConnector = regexp.MustCompile(`(?i)\b(?:so|because|therefore|then|which is why|that is why|for that reason|since)\b`)
-	reHedgeSo      = regexp.MustCompile(`(?i)\bor so\b`)
+	// An act shows in a note by a connector to the fact, a sentence opening on its verb, or this code as
+	// a subject. "The" or "its" before a noun for code counts only at a sentence's start. Mid-sentence,
+	// as in "when the request carries a mode", the noun is part of a fact.
+	reActConnector = regexp.MustCompile(`(?i)\b(?:so|because|therefore|which is why|that is why|for that reason|since)\b`)
+	// `or so` hedges a claim and joins no fact to an act.
+	reHedgeSo = regexp.MustCompile(`(?i)\bor so\b`)
+	// A capitalised word ending in s is a plural subject where a relative or a verb follows it.
 	reActVerbFirst = regexp.MustCompile(`^(?:[A-Z][a-z]+s)\s+(\w+)`)
 	rePluralNext   = regexp.MustCompile(`^(?:that|which|who|whose|of|in|on|with|from|for|are|were|have|had|do|did|can|may|must|will|would|should|could)$`)
 	// A sentence naming code, a caller or a file, tells what that code does: the rule lets a note name a
 	// caller's act.
 	reActNamesCode = regexp.MustCompile("`[^`]+`|\\b[a-z]+[A-Z]\\w*\\b")
-	reActThisCode  = regexp.MustCompile(`\b(?:[Tt]his|[Tt]he|[Ii]ts)\s+(?:code|function|method|call|check|helper|class|wrapper|copy|branch|loop|guard|test|module|hook|filter|declaration|constructor|getter|setter|handler|callback|case|row|entry|walk|probe|request)\b|\b[Tt]his\s+(?:name|value|key|result|string|id)\b`)
-	reDeclaredWord = func(name string) *regexp.Regexp { return regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`) }
+	reActThisCode  = regexp.MustCompile(`\b[Tt]his\s+(?:code|function|method|call|check|helper|class|wrapper|copy|branch|loop|guard|test|module|hook|filter|declaration|constructor|getter|setter|handler|callback|case|row|entry|walk|probe|request)\b|^(?:The|Its)\s+(?:code|function|method|call|check|helper|class|wrapper|copy|branch|loop|guard|test|module|hook|filter|declaration|constructor|getter|setter|handler|callback|case|row|entry|walk|probe|request)\b|\b[Tt]his\s+(?:name|value|key|result|string|id)\b`)
+	reDeclaredWord = func(name string) *regexp.Regexp {
+		return regexp.MustCompile(`(?:^|[^\w$])` + regexp.QuoteMeta(name) + `(?:[^\w$]|$)`)
+	}
 )
 
 // noteStatesAnAct says a block's note, its sentences after any summary, states what the code does.

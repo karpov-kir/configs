@@ -228,7 +228,7 @@ var (
 	reFreeRelative = regexp.MustCompile(`(?i)\b(?:whatever|whichever|whoever|whomever|wherever)\b`)
 	// A summary answering a question, its sentence going on past a comma with a past participle: the act
 	// with no subject or reason. A summary of a value, `Returns the entries, sorted oldest first`, is left.
-	reTrailingAct = regexp.MustCompile(`^\W*(?:Tells|Checks|Says|Decides|Reports)\b[^.]*,\s+(?:\w+ly\s+)?(?:[a-z]+[^e\W]ed|given|made|done|seen|known|taken|written|sent|run|kept|held|found|built|left|set|put|shown)\b[^.]*[.!?]?\s*$`)
+	reTrailingAct = regexp.MustCompile("^\\W*(?:Tells|Checks|Says|Decides|Reports)\\b(?:[^.`]|`[^`]*`)*,\\s+(?:\\w+ly\\s+)?(?:[a-z]+[^e\\W]ed|agreed|guaranteed|freed|given|made|done|seen|known|taken|written|sent|run|kept|held|found|built|left|set|put|shown)\\b(?:[^.`]|`[^`]*`)*[.!?]?\\s*$")
 	// Words ending in -ing that are nouns, and no participle.
 	ingNouns = []string{"nothing", "something", "anything", "everything", "morning", "evening", "warning",
 		"padding", "string", "thing", "ceiling", "building", "setting", "heading", "listing", "ring",

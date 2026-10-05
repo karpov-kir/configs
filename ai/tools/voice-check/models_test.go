@@ -52,6 +52,9 @@ func TestANoteStatesItsActOrDrawsAFinding(t *testing.T) {
 		{"// A ledger that ignores the mode stalls on its first posting, or so the vendor says.", false},
 		{"// A ledger that ignores this mode stalls on its first posting.", false},
 		{"// An old ledger ignores the mode. The call then returns false after a second.", true},
+		{"// A ledger stalls when the request carries a mode.", false},
+		{"// A ledger stalls when the row holds no mode.", false},
+		{"// A ledger stalls on the entry and then drops it.", false},
 		{"// Keeps the mode out of the request, since a ledger that ignores it stalls.", true},
 		{"// Rejects a set in which no entry declares the currency. Such a set would end up empty.", true},
 		{"// A ledger that ignores the mode stalls on its first posting, so the scheme is asked with no mode.", true},
@@ -59,6 +62,10 @@ func TestANoteStatesItsActOrDrawsAFinding(t *testing.T) {
 		if got := noteStatesAnAct(tc.block, "claimFor"); got != tc.acts {
 			t.Errorf("states an act %v, want %v:\n%s", got, tc.acts, tc.block)
 		}
+	}
+	// A declared name that opens on `$` has no word boundary before it.
+	if !noteStatesAnAct("// A ledger stalls on $fetch.", "$fetch") {
+		t.Error("a note naming its declaration `$fetch` reads as stating no act")
 	}
 	s := scanner{profile: ProfileComment}
 	for _, tc := range []struct {
@@ -71,6 +78,9 @@ func TestANoteStatesItsActOrDrawsAFinding(t *testing.T) {
 		{"Tells whether the ledger grants a scheme, asked without a settlement mode, once.", true},
 		{"Says whether the ledger grants a scheme, asked without a settlement mode.", true},
 		{"Returns the entries, sorted oldest first.", false},
+		{"Tells whether `cfg.mode` grants a scheme, asked once.", true},
+		{"Tells whether the ledger grants a scheme, asked without `opts.mode`.", true},
+		{"Tells whether the ledger grants a scheme, agreed once.", true},
 		{"Tells whether the ledger grants a scheme, as the posting rules need.", false},
 	} {
 		fired := false

@@ -832,3 +832,21 @@ func TestFactsRootRebuildsEverySiteLinesFactsFile(t *testing.T) {
 		}
 	}
 }
+
+// A flag's value names a file a check reads, and a script's own string holding a flag is no such
+// value. A one-liner that replaced `--mode=old` in its text and wrote the source file once passed.
+func TestAFlagValueIsNoWriteAndAQuotedFlagHidesNone(t *testing.T) {
+	for _, tc := range []struct {
+		command string
+		writes  bool
+	}{
+		{`sed -i '' 's/a/b/' vc2.txt && voice-check.sh --file=x.ts - < vc2.txt`, false},
+		{`python3 -c "s=src.replace('--mode=old','--mode=new');open('x.ts','w').write(s)"`, true},
+		{`node -e "s=s.replace('--a=1','--a=2');fs.writeFileSync('x.ts',s)"`, true},
+		{`sed -i '' 's/a/b/' x.ts --file=x.ts`, true},
+	} {
+		if got := scriptWrites(tc.command, "x.ts"); got != tc.writes {
+			t.Errorf("%s: writes %v, want %v", tc.command, got, tc.writes)
+		}
+	}
+}

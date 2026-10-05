@@ -209,7 +209,7 @@ var (
 	reRedirectTarget = regexp.MustCompile(`>>?\s*['"]?(\S+)`)
 	// reFlagValue is a file named as a flag's value, which a check reads. Run 25's writer wrote two
 	// scratch files by python and named the source file to a check by `--file=`. The stage read a write.
-	reFlagValue = regexp.MustCompile(`--[\w-]+=\S+`)
+	reFlagValue = regexp.MustCompile(`(?:^|\s)--[\w-]+=[^\s'"]+`)
 )
 
 // hit is one history read that showed the writer a comment line of a file it still wrote to after, or
