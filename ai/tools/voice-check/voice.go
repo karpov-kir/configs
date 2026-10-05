@@ -1031,7 +1031,7 @@ var (
 )
 
 // membersInOneNote finds a block on an enum, or on a union of string literals, that names two or more of
-// the declaration's own members. Telling members apart is a fact about each member, and it belongs on
+// the declaration's own members. A note that tells members apart states a fact about each member, so it goes on
 // each in one form. A reviewer read such a note as hard to follow, and the writer kept writing it there.
 func membersInOneNote(file string, b block, lines, whole []string) []Finding {
 	if b.end >= len(whole) {
