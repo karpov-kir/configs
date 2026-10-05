@@ -39,8 +39,6 @@ const (
 	// so a sentence at the rule's own edge is not a finding, and only a sentence carrying a second
 	// idea is.
 	maxSentenceWords = 30
-	// A note's sentence is descriptive text, which ASD-STE100 bounds at 25 words.
-	maxNoteSentenceWords = 25
 
 	// The note pattern spends one subordinating connective on `so`, which puts a conforming note at one.
 	// The check fires above that.
@@ -124,7 +122,6 @@ const (
 	checkToolingDoubt   = "tooling-doubt"
 	// The checks on how a note's sentence is built. A reviewer found two notes hard to follow that every
 	// other check passed, and each packed its facts behind one of these shapes.
-	checkFreeRelative   = "free-relative"
 	checkQuantifierOpen = "quantifier-subject"
 	checkNominalisation = "nominalisation"
 	checkDanglingVerb   = "subjectless-participle"
@@ -139,7 +136,7 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
 	checkTestsNarration, checkHeaderOnImport,
 	checkLongLine, checkToolingDoubt,
-	checkFreeRelative, checkQuantifierOpen, checkNominalisation, checkDanglingVerb, checkMembersInOneNote}
+	checkQuantifierOpen, checkNominalisation, checkDanglingVerb, checkMembersInOneNote}
 
 // reImportLine opens an import, in the languages whose files open on one.
 var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
@@ -207,20 +204,24 @@ var (
 
 	// The connectives a subordinate clause hangs off. A sentence is a finding at two. Past that the
 	// reader holds one clause open while reading another.
-	// A free relative names a thing by what it is not yet known to be: `whatever script it names`.
-	reFreeRelative = regexp.MustCompile(`(?i)\b(?:whatever|whichever|whoever|whomever|wherever)\b`)
-	// A sentence whose subject is a quantifier: `Only a refusal is …`, `Anything no API established …`.
-	reQuantifierOpen = regexp.MustCompile(`^\W*(?:Only|Anything|Nothing|Everything|None|Nobody|Everyone|Every)\b`)
+	// A sentence whose subject is a quantifier pronoun: `Only a refusal is …`, `Anything no API
+	// established …`. `Every caller` names its agent, and Python's `None` opens many a note.
+	reQuantifierOpen = regexp.MustCompile(`^\W*(?:Only|Anything|Nothing|Everything|Nobody|Everyone)\b`)
 	// A possessive over a noun made from a verb, `an API's refusal`, where the agent and its verb belong.
-	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}[\w-]+'s\s+([a-z]+(?:sal|val|wal|ial|ment|ance|ence|ure|tion|sion))\b`)
-	// Nouns with those endings that name a thing. A possessive over one of them is an ordinary noun phrase.
-	concreteNouns = []string{"version", "region", "session", "option", "position", "section", "function",
-		"collection", "station", "dimension", "extension", "sentence", "instance", "interval", "signal",
-		"terminal", "portal", "structure", "signature", "feature", "fixture", "element", "argument", "document"}
-	// A participle can end its clause after a preposition with its subject and object unsaid, as in
-	// `records it without playing`. The rule asks for the means with `by`, as in `by expecting a
-	// refusal`, so `by` is left out.
-	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+[a-z]{3,}ing\s*(?:[.,;:]|$)`)
+	// The nouns are a closed list, since the same endings close many a noun that names a thing.
+	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}([\w-]+)'s\s+(` +
+		`refusal|approval|removal|denial|dismissal|withdrawal|renewal|reversal|arrival|rejection|` +
+		`acceptance|failure|deletion|insertion|completion|admission|submission|omission|selection|` +
+		`creation|cancellation|registration|confirmation|validation)\b`)
+	// Words a possessive cannot come from: `that's essential` is a contraction.
+	notPossessors = []string{"that", "it", "there", "here", "what", "who", "he", "she", "one"}
+	// A participle a preposition leaves with its subject and object unsaid: `records it without
+	// playing`. The rule asks for the means with `by`, as in `by expecting a refusal`, so `by` is left
+	// out.
+	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+([a-z]{3,}ing)\s*(?:[.,;:]|$)`)
+	// Words ending in -ing that are nouns, and no participle.
+	ingNouns = []string{"nothing", "something", "anything", "everything", "morning", "evening", "warning",
+		"padding", "string", "thing", "ceiling", "building", "setting", "heading", "listing", "ring"}
 
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
 
@@ -977,12 +978,10 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 		// The count reads `text`, because blanking an inline code span leaves spaces behind. A backticked
 		// identifier is a word on the page, and the blanked form drops it.
-		bound := maxSentenceWords
 		if s.profile == ProfileComment {
-			bound = maxNoteSentenceWords
 			s.sentenceShape(read, span[0], add)
 		}
-		if len(strings.Fields(text[span[0]:span[1]])) > bound {
+		if len(strings.Fields(text[span[0]:span[1]])) > maxSentenceWords {
 			add(checkLongSentence, span[0], span[1])
 		}
 		if len(reConnective.FindAllString(rePrepositionWhich.ReplaceAllString(read, " "), -1)) >= flaggedConnectivesPerSentence {
@@ -1004,67 +1003,81 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	return found
 }
 
-// sentenceShape adds a note sentence's findings for how it is built. They are a free relative, a
-// quantifier subject, a possessive over a verbal noun, and a participle ending its clause.
+// sentenceShape adds a note sentence's findings for how it is built. They are a quantifier subject, a
+// possessive over a verbal noun, and a participle a preposition leaves without its subject.
 func (s scanner) sentenceShape(read string, offset int, add func(check string, start, end int)) {
-	if at := reFreeRelative.FindStringIndex(read); at != nil {
-		add(checkFreeRelative, offset+at[0], offset+at[1])
-	}
 	if at := reQuantifierOpen.FindStringIndex(read); at != nil {
 		add(checkQuantifierOpen, offset+at[0], offset+at[1])
 	}
 	for _, m := range reNominalisation.FindAllStringSubmatchIndex(read, -1) {
-		if !slices.Contains(concreteNouns, strings.ToLower(read[m[2]:m[3]])) {
+		if !slices.Contains(notPossessors, strings.ToLower(read[m[2]:m[3]])) {
 			add(checkNominalisation, offset+m[0], offset+m[1])
 		}
 	}
-	if at := reDanglingVerb.FindStringIndex(read); at != nil && at[0] > 0 {
-		add(checkDanglingVerb, offset+at[0], offset+at[1])
+	if m := reDanglingVerb.FindStringSubmatchIndex(read); m != nil && !slices.Contains(ingNouns, strings.ToLower(read[m[2]:m[3]])) {
+		add(checkDanglingVerb, offset+m[0], offset+m[1])
 	}
 }
 
 var (
-	reEnumOpen   = regexp.MustCompile(`^\s*(?:export\s+)?(?:declare\s+)?(?:const\s+)?enum\s+\w+`)
-	reEnumMember = regexp.MustCompile(`^\s*([A-Za-z_]\w*)\s*(?:=|,|$)`)
-	reUnionOpen  = regexp.MustCompile(`^\s*(?:export\s+)?type\s+\w+\s*=`)
-	reLiteral    = regexp.MustCompile(`'([^']+)'|"([^"]+)"`)
+	reEnumOpen = regexp.MustCompile(`^\s*(?:export\s+)?(?:declare\s+)?(?:const\s+)?enum\s+\w+\s*\{?(.*)$`)
+	reMemberAt = regexp.MustCompile(`(?:^|[{,])\s*([A-Za-z_]\w*)\s*(?:=[^,}]*)?`)
+	// A type alias whose right side is string literals joined by `|`, on one line or continued by lines
+	// opening on `|`.
+	reLiteralUnion   = regexp.MustCompile(`^\s*(?:export\s+)?type\s+\w+(?:<[^>]*>)?\s*=\s*\|?\s*((?:'[^']*'|"[^"]*")(?:\s*\|\s*(?:'[^']*'|"[^"]*"))*)?\s*;?\s*$`)
+	reUnionContinued = regexp.MustCompile(`^\s*\|\s*('[^']*'|"[^"]*")\s*;?\s*$`)
+	reLiteral        = regexp.MustCompile(`'([^']*)'|"([^"]*)"`)
+	// An ordering across the members is the enum's own fact, and the rule asks for it there.
+	reOrdering = regexp.MustCompile(`(?i)\b(?:order|ordered|ordering|sorted|sorts)\b`)
 )
 
 // membersInOneNote finds a block on an enum, or on a union of string literals, that names two or more of
-// the declaration's own members. A note that tells members apart states a fact about each member, so it goes on
-// each in one form. A reviewer read such a note as hard to follow, and the writer kept writing it there.
+// the declaration's own members in code spans. A note that tells members apart states a fact about each
+// member, so it goes on each in one form. A reviewer read such a note as hard to follow, and the writer
+// kept writing it there. A note stating an ordering across the members stays.
 func membersInOneNote(file string, b block, lines, whole []string) []Finding {
 	if b.end >= len(whole) {
 		return nil
 	}
 	var members []string
-	switch decl := whole[b.end]; {
-	case reEnumOpen.MatchString(decl):
+	decl := whole[b.end]
+	if m := reEnumOpen.FindStringSubmatch(decl); m != nil {
+		body := m[1]
 		for _, line := range whole[b.end+1:] {
+			if strings.Contains(body, "}") {
+				break
+			}
 			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "}") {
-				break
-			}
-			if m := reEnumMember.FindStringSubmatch(line); m != nil && !strings.HasPrefix(trimmed, "//") {
-				members = append(members, m[1])
+			if !strings.HasPrefix(trimmed, "//") && !strings.HasPrefix(trimmed, "*") && !strings.HasPrefix(trimmed, "/*") {
+				body += "," + trimmed
 			}
 		}
-	case reUnionOpen.MatchString(decl):
-		for _, line := range whole[b.end:] {
-			for _, m := range reLiteral.FindAllStringSubmatch(line, -1) {
-				members = append(members, m[1]+m[2])
-			}
-			if strings.HasSuffix(strings.TrimSpace(line), ";") {
+		body, _, _ = strings.Cut(body, "}")
+		for _, m := range reMemberAt.FindAllStringSubmatch(body, -1) {
+			members = append(members, m[1])
+		}
+	} else if m := reLiteralUnion.FindStringSubmatch(decl); m != nil {
+		literals := m[1]
+		for _, line := range whole[b.end+1:] {
+			c := reUnionContinued.FindStringSubmatch(line)
+			if c == nil {
 				break
 			}
+			literals += "|" + c[1]
 		}
-	default:
+		for _, l := range reLiteral.FindAllStringSubmatch(literals, -1) {
+			members = append(members, l[1]+l[2])
+		}
+	} else {
 		return nil
 	}
-	text := join(lines, b.start, b.end, proseOf).text
+	raw := strings.Join(lines[b.start-1:b.end], "\n")
+	if reOrdering.MatchString(raw) {
+		return nil
+	}
 	named := 0
 	for _, member := range members {
-		if regexp.MustCompile(`\b` + regexp.QuoteMeta(member) + `\b`).MatchString(text) {
+		if len(member) > 1 && strings.Contains(raw, "`"+member+"`") {
 			named++
 		}
 	}

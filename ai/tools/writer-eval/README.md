@@ -336,6 +336,8 @@ and `comments.md`: a note of at most 40 words, one fact or one act per sentence,
 sentence, and ASD-STE100's descriptive rules named. A full table at fifteen rolls measured them
 against main's column `8add386518c3`. They cost four rolls overall (930 to 926), l24 fell from 10 to
 4 and l11 from 15 to 11, and l39 stayed at 0: every roll still wrote the note on the enum. l40 rose
-from 0 to 4. The rules were dropped. The comment profile carries the checks instead (the four shapes,
-the 25-word sentence and a note on an enum naming two of its members), so the writer meets them as
-findings and the rules sum stays where it was.
+from 0 to 4. The rules were dropped, and the comment profile carries checks instead: a quantifier subject, a
+possessive over a verbal noun, a participle left without its subject, and a note on an enum naming
+two of its members. The writer meets them as findings, and the rules sum stays where it was. A
+free-relative check and a 25-word sentence bound were left out, since the brief's own model notes use
+`whatever mode the posting names` and run to 29 words.
