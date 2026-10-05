@@ -15,9 +15,9 @@ import (
 )
 
 // A site a writer answered `none` stays declined while what it decided on holds: the rules, the
-// declaration, the code under it and the claims it weighed. Without this record every run offered the
-// archive's claims again, and run 22 over an unchanged tree prompted two writers for 82 sites run 20 had
-// declined under the same rules.
+// declaration, the code under it and the claims it weighed. Before this record, every run offered the
+// archive's claims again. Run 22 over an unchanged tree prompted two writers for 82 sites, and run 20 had
+// declined them under the same rules.
 
 // DeclinedLine ends the stderr line naming an offer the strip held back. A run counts them by it.
 const DeclinedLine = " declined it, since its record holds"
@@ -48,8 +48,8 @@ func readDeclined(archive, path string) []declined {
 	return held
 }
 
-// claimsSum identifies the claims an archived record holds, read as words, so a new claim or a changed
-// one at the same declaration makes a new offer.
+// claimsSum identifies the claims an archived record holds by their words. A new claim or a changed
+// one at the same declaration then makes a new offer.
 func claimsSum(claims string) string {
 	// The set of claims, in any order and however a run sectioned them: an offer archives its site's
 	// claims again under an earlier run's marker.
@@ -116,9 +116,9 @@ func OfferedRecords(archive, path, facts string) (all, own []string, err error) 
 	return all, own, nil
 }
 
-// Decide records a writer's verdict on the archived records named: a decline records each against the
-// code at its declaration in tree, and a written block takes any decline it had away. It returns how
-// many records it changed.
+// Decide records a writer's verdict on the archived records named. A decline records each against the
+// code at its declaration in tree, and a written block takes its decline away. It returns how many
+// records it changed.
 func Decide(archive, run, tree, path string, names []string, isDeclined bool) (int, error) {
 	records, err := readArchive(archive, path)
 	if err != nil {
@@ -176,7 +176,7 @@ func Decide(archive, run, tree, path string, names []string, isDeclined bool) (i
 }
 
 // siteSpan is the code a site's decline was decided on. A claim whose declaration left the file sits at
-// the file's level, under no code, and its decline holds on the rules and its claims alone.
+// the file's level, under no code, and its decline holds on the rules and its claims only.
 func siteSpan(lines []string, at int) string {
 	if at == fileLevel {
 		return "file-level"

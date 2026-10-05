@@ -50,8 +50,8 @@ func declinedStage(r *runner, opts options, _ []string) int {
 	return exitClean
 }
 
-// decideFromReturns reads every writer return in runDir in round order, maps each verdict through its
-// round's prompt to the archived claims it weighed, and records the last verdict on each: `none`
+// decideFromReturns reads every writer return in runDir in round order. It maps each verdict through
+// its round's prompt to the archived claims it weighed, and records the last verdict on each. A `none`
 // declines the site, and a block written takes the decline away.
 func decideFromReturns(runDir, archive, run, tree string, warn io.Writer) (int, int, error) {
 	returns, err := filepath.Glob(returnFile(runDir, "*"))
