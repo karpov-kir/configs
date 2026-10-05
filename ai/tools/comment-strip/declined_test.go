@@ -98,7 +98,7 @@ func TestOfferedRecordsReadsALoopRoundsFactsByTheirClaims(t *testing.T) {
 	}
 }
 
-// A decline recorded again changes nothing and leaves the file as it stands.
+// A decline recorded again leaves the count at zero and the file as it stands.
 func TestADeclineRecordedTwiceChangesNothing(t *testing.T) {
 	rulesHome(t, "rules one ")
 	archive := t.TempDir()
