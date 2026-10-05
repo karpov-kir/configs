@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -119,6 +120,13 @@ const (
 	checkHeaderOnImport = "header-on-import"
 	checkLongLine       = "long-line"
 	checkToolingDoubt   = "tooling-doubt"
+	// The checks on how a note's sentence is built. A reviewer found two notes hard to follow that every
+	// other check passed, and each packed its facts behind one of these shapes.
+	checkQuantifierOpen = "quantifier-subject"
+	checkNominalisation = "nominalisation"
+	checkDanglingVerb   = "subjectless-participle"
+	// A note on an enum that names two of its members tells them apart, and it goes on each member.
+	checkMembersInOneNote = "members-in-one-note"
 )
 
 // AllChecks is every check name, which the suite reads to prove each one fires on its corpus.
@@ -127,7 +135,8 @@ var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSu
 	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
 	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
 	checkTestsNarration, checkHeaderOnImport,
-	checkLongLine, checkToolingDoubt}
+	checkLongLine, checkToolingDoubt,
+	checkQuantifierOpen, checkNominalisation, checkDanglingVerb, checkMembersInOneNote}
 
 // reImportLine opens an import, in the languages whose files open on one.
 var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
@@ -195,6 +204,26 @@ var (
 
 	// The connectives a subordinate clause hangs off. A sentence is a finding at two. Past that the
 	// reader holds one clause open while reading another.
+	// A sentence whose subject is a quantifier pronoun: `Only a refusal is …`, `Anything no API
+	// established …`. `Every caller` names its agent, and Python's `None` opens many a note.
+	reQuantifierOpen = regexp.MustCompile(`^[^\w"']*(?:Only|Anything|Nothing|Everything|Nobody|Everyone)\b`)
+	// A possessive over a noun made from a verb, `an API's refusal`, where the agent and its verb belong.
+	// The nouns are a closed list, since the same endings close many a noun that names a thing.
+	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}([\w-]+)'s\s+(` +
+		`refusal|approval|removal|denial|dismissal|withdrawal|renewal|reversal|arrival|rejection|` +
+		`acceptance|failure|deletion|insertion|completion|admission|submission|omission|selection|` +
+		`creation|cancellation|registration|confirmation|validation)\b`)
+	// Words a possessive cannot come from: `that's essential` is a contraction.
+	notPossessors = []string{"that", "it", "there", "here", "what", "who", "he", "she", "one"}
+	// A participle a preposition leaves with its subject and object unsaid: `records it without
+	// playing`. The rule asks for the means with `by`, as in `by expecting a refusal`, so `by` is left
+	// out.
+	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+([a-z]{3,}ing)\s*(?:[.,;:]|$)`)
+	// Words ending in -ing that are nouns, and no participle.
+	ingNouns = []string{"nothing", "something", "anything", "everything", "morning", "evening", "warning",
+		"padding", "string", "thing", "ceiling", "building", "setting", "heading", "listing", "ring",
+		"pending", "encoding", "caching", "logging", "rounding", "routing", "billing", "timing", "spacing"}
+
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
 
 	// A preposition before `which` defines a term, as in "a book in which no posting declares the
@@ -596,6 +625,7 @@ func (s scanner) scanSource(file string, lines []string, within map[int]bool, wh
 		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
 		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
 		found = append(found, s.longLines(file, b, lines)...)
+		found = append(found, membersInOneNote(file, b, lines, whole)...)
 		limit := maxBlockTextLines
 		header := b.isFileHeader(lines, held)
 		// A file header stands apart from the code under it. The strip takes the blank line under a
@@ -949,6 +979,9 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 		// The count reads `text`, because blanking an inline code span leaves spaces behind. A backticked
 		// identifier is a word on the page, and the blanked form drops it.
+		if s.profile == ProfileComment {
+			s.sentenceShape(read, span[0], add)
+		}
 		if len(strings.Fields(text[span[0]:span[1]])) > maxSentenceWords {
 			add(checkLongSentence, span[0], span[1])
 		}
@@ -969,6 +1002,103 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 	}
 	return found
+}
+
+// sentenceShape adds a note sentence's findings for how it is built. They are a quantifier subject, a
+// possessive over a verbal noun, and a participle a preposition leaves without its subject.
+func (s scanner) sentenceShape(read string, offset int, add func(check string, start, end int)) {
+	if at := reQuantifierOpen.FindStringIndex(read); at != nil {
+		add(checkQuantifierOpen, offset+at[0], offset+at[1])
+	}
+	for _, m := range reNominalisation.FindAllStringSubmatchIndex(read, -1) {
+		if !slices.Contains(notPossessors, strings.ToLower(read[m[2]:m[3]])) {
+			add(checkNominalisation, offset+m[0], offset+m[1])
+		}
+	}
+	if m := reDanglingVerb.FindStringSubmatchIndex(read); m != nil && !slices.Contains(ingNouns, strings.ToLower(read[m[2]:m[3]])) {
+		add(checkDanglingVerb, offset+m[0], offset+m[1])
+	}
+}
+
+var (
+	reEnumOpen = regexp.MustCompile(`^\s*(?:export\s+)?(?:declare\s+)?(?:const\s+)?enum\s+\w+\s*\{?(.*)$`)
+	reMemberAt = regexp.MustCompile(`(?:^|[{,])\s*([A-Za-z_]\w*)\s*(?:=[^,}]*)?`)
+	// A type alias whose right side is string literals joined by `|`, on one line or continued by lines
+	// opening on `|`.
+	reUnionOpen = regexp.MustCompile(`^\s*(?:export\s+)?type\s+\w+(?:<[^>]*>)?\s*=(.*)$`)
+	// The parts a literal union is made of: string literals, and `undefined` or `null` beside them.
+	reUnionPart = regexp.MustCompile(`^\s*(?:'[^']*'|"[^"]*"|undefined|null)\s*$`)
+	reLiteral   = regexp.MustCompile(`'([^']*)'|"([^"]*)"`)
+	// An ordering across the members is the enum's own fact, and the rule asks for it there.
+	reOrdering       = regexp.MustCompile(`(?i)\b(?:ordered|ordering|sorted|sorts|the order of)\b`)
+	reLeadingComment = regexp.MustCompile(`^\s*/\*.*?\*/\s*`)
+)
+
+// membersInOneNote finds a block on an enum, or on a union of string literals, that names two or more of
+// the declaration's own members in code spans. A note that tells members apart states a fact about each
+// member, so it goes on each in one form. A reviewer read such a note as hard to follow, and the writer
+// kept writing it there. A note stating an ordering across the members stays.
+func membersInOneNote(file string, b block, lines, whole []string) []Finding {
+	if b.end >= len(whole) {
+		return nil
+	}
+	var members []string
+	decl := whole[b.end]
+	if m := reEnumOpen.FindStringSubmatch(decl); m != nil {
+		body := m[1]
+		for _, line := range whole[b.end+1:] {
+			if strings.Contains(body, "}") {
+				break
+			}
+			trimmed := strings.TrimSpace(reLeadingComment.ReplaceAllString(line, ""))
+			if !strings.HasPrefix(trimmed, "//") && !strings.HasPrefix(trimmed, "*") && !strings.HasPrefix(trimmed, "/*") {
+				body += "," + trimmed
+			}
+		}
+		body, _, _ = strings.Cut(body, "}")
+		for _, m := range reMemberAt.FindAllStringSubmatch(body, -1) {
+			members = append(members, m[1])
+		}
+	} else if m := reUnionOpen.FindStringSubmatch(decl); m != nil {
+		// The union runs on while a line ends on `|` or the next opens on it, and stops at a `;`.
+		union := m[1]
+		for _, line := range whole[b.end+1:] {
+			trimmed := strings.TrimSpace(union)
+			if strings.HasSuffix(trimmed, ";") || (!strings.HasSuffix(trimmed, "|") && !strings.HasPrefix(strings.TrimSpace(line), "|")) {
+				break
+			}
+			union += " " + line
+		}
+		for _, part := range strings.Split(strings.TrimSuffix(strings.TrimSpace(union), ";"), "|") {
+			if strings.TrimSpace(part) == "" {
+				continue
+			}
+			if !reUnionPart.MatchString(part) {
+				return nil
+			}
+			if l := reLiteral.FindStringSubmatch(part); l != nil {
+				members = append(members, l[1]+l[2])
+			}
+		}
+	} else {
+		return nil
+	}
+	raw := strings.Join(lines[b.start-1:b.end], "\n")
+	if reOrdering.MatchString(raw) {
+		return nil
+	}
+	named := 0
+	for _, member := range members {
+		if len(member) > 1 && (strings.Contains(raw, "`"+member+"`") || strings.Contains(raw, "`'"+member+"'`") ||
+			strings.Contains(raw, "."+member+"`")) {
+			named++
+		}
+	}
+	if named < 2 {
+		return nil
+	}
+	return []Finding{{File: file, Line: b.start, Check: checkMembersInOneNote,
+		Text: "a note that tells members apart goes on each member, in one form"}}
 }
 
 // shortStems are the verbs `ing` is part of rather than an ending on: no subject went missing in

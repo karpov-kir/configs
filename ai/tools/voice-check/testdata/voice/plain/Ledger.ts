@@ -77,3 +77,10 @@ export function dropStaleClaims(book: Element): Element[] {
 export function warmUpPosting(book: Element): void {
   return;
 }
+
+export enum SettlementClaim {
+  /** A clearing house refused the posting, and the settlement tests report that answer as it stands. */
+  Refused = 'refused',
+  /** No clearing house answered, and the settlement tests settle the posting to find out. */
+  Unknown = 'unknown',
+}

@@ -102,3 +102,12 @@ export function dropStaleClaims(book: Element): Element[] {
 export function warmUpPosting(book: Element): void {
   return;
 }
+
+/**
+ * Only a clearing house's refusal is `Refused`, because the settlement tests record that claim without settling.
+ * Anything no house established is `Unknown`, and those tests settle whatever value it names.
+ */
+export enum SettlementClaim {
+  Refused = 'refused',
+  Unknown = 'unknown',
+}

@@ -1,0 +1,12 @@
+expect: written
+note: written
+keeps: script
+bars: whatever | whichever | registered at the returned | therefore | the script the caller
+why: a reviewer called the note hard to follow on 2026-10-02: a free relative with an ambiguous possessive, a participle cluster for a subject and a second relative clause, linked by "therefore"; the fact goes first and the act after it, each sentence one clause with a named subject
+labelled: 2026-10-02
+--- code
+export function clearingWorkerAddress(scriptUrl: string): string {
+  return `${testClientRoot}/clearing-worker.js?script=${encodeURIComponent(scriptUrl)}`;
+}
+--- facts
+The test client's `clearing-worker.js` imports whatever script its `script` query parameter points at. The worker registered at the returned address therefore runs the script the caller passed in.
