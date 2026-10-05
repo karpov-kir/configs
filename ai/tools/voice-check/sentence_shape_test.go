@@ -34,8 +34,8 @@ func TestANoteTellingMembersApartBelongsOnEachMember(t *testing.T) {
 	}
 }
 
-// The shape checks fire on the reviewed shapes and leave the rule's own phrasings, nouns ending in -ing
-// and ordinary possessives alone.
+// The shape checks fire on the reviewed shapes. The rule's own phrasings, nouns ending in -ing and
+// ordinary possessives draw no finding.
 func TestSentenceShapeChecksFireOnTheReviewedShapesOnly(t *testing.T) {
 	scan := func(sentence string) map[string]bool {
 		found := map[string]bool{}
