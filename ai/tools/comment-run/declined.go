@@ -42,6 +42,14 @@ func declinedStage(r *runner, opts options, _ []string) int {
 		tree = held["top"]
 	}
 	r.absolute(&tree)
+	// A backfill records the rules and code standing now as what the run decided on, so a run whose
+	// rules have changed since is refused.
+	if held := rulesHeld(runDir); held != "" && !commentstrip.SameRules(held, commentstrip.RulesSum()) {
+		return r.refuse("the rules changed since %s's prompts: %s then, %s now; its declines would hold for rules no writer weighed",
+			run, held, commentstrip.RulesSum())
+	}
+	fmt.Fprintf(r.stderr, "%s: a run without a record of what each site carried is read by its claims' words, against the code in %s as it stands now\n",
+		r.self, shell.Echoable(tree))
 	declined, cleared, err := decideFromReturns(runDir, archive, run, tree, r.stderr)
 	if err != nil {
 		return r.refuse("%v", err)
@@ -50,75 +58,122 @@ func declinedStage(r *runner, opts options, _ []string) int {
 	return exitClean
 }
 
-// decideFromReturns reads every writer return in runDir in round order. It maps each verdict through
-// its round's prompt to the archived claims it weighed, and records the last verdict on each. A `none`
-// declines the site, and a block written takes the decline away.
+// decideFromReturns reads every writer return in runDir in round order. Each verdict maps through its
+// round's prompt to the facts file its site carried. Where the strip wrote down what that site carried,
+// the last verdict on each record stands: a `none` declines it, and a block written takes the decline
+// away. A run before that record maps by the claims' words instead, and there a record any block was
+// written for is never declined, since a claim repeated at another declaration reads the same.
 func decideFromReturns(runDir, archive, run, tree string, warn io.Writer) (int, int, error) {
 	returns, err := filepath.Glob(returnFile(runDir, "*"))
 	if err != nil {
 		return 0, 0, err
 	}
 	sort.SliceStable(returns, func(i, j int) bool { return roundOf(returns[i]) < roundOf(returns[j]) })
-	final := map[string]map[string]bool{}
+	type verdict struct {
+		offered commentstrip.Offered
+		isNone  bool
+	}
+	exact := map[string]map[string]verdict{}
+	none, written := map[string]map[string]bool{}, map[string]map[string]bool{}
+	mark := func(m map[string]map[string]bool, path string, names []string) {
+		if m[path] == nil {
+			m[path] = map[string]bool{}
+		}
+		for _, name := range names {
+			m[path][name] = true
+		}
+	}
 	for _, ret := range returns {
 		facts, err := factsBySite(runDir, ret)
 		if err != nil {
-			return 0, 0, err
+			fmt.Fprintf(warn, "%s: %v, so its verdicts are left unrecorded\n", filepath.Base(ret), err)
+			continue
 		}
 		body, err := os.ReadFile(ret)
 		if err != nil {
 			return 0, 0, fmt.Errorf("cannot read %s", shell.Echoable(ret))
 		}
 		for _, m := range reVerdictLine.FindAllStringSubmatch(string(body), -1) {
-			path, site, verdict := m[1], m[1]+":"+m[2], m[3]
+			path, site, isNone := m[1], m[1]+":"+m[2], m[3] == "none"
 			factsPath, found := facts[site]
 			if !found {
 				fmt.Fprintf(warn, "%s: %s is no site its round offered, so its verdict is left unrecorded\n", filepath.Base(ret), site)
 				continue
 			}
+			if offered := commentstrip.ReadOffered(factsPath); offered != nil {
+				if exact[path] == nil {
+					exact[path] = map[string]verdict{}
+				}
+				for _, o := range offered {
+					exact[path][o.Decl+"\x00"+o.Claims] = verdict{offered: o, isNone: isNone}
+				}
+				continue
+			}
 			text, err := os.ReadFile(factsPath)
 			if err != nil {
-				return 0, 0, fmt.Errorf("cannot read %s", shell.Echoable(factsPath))
+				fmt.Fprintf(warn, "%s: cannot read the facts of %s, so its verdict is left unrecorded\n", filepath.Base(ret), site)
+				continue
 			}
-			all, own, err := commentstrip.OfferedRecords(archive, path, string(text))
+			all, _, err := commentstrip.OfferedRecords(archive, path, string(text))
 			if err != nil {
 				return 0, 0, err
 			}
-			if final[path] == nil {
-				final[path] = map[string]bool{}
-			}
-			names := own
-			if verdict == "none" {
-				names = all
-			}
-			for _, name := range names {
-				final[path][name] = verdict == "none"
+			if isNone {
+				mark(none, path, all)
+			} else {
+				mark(written, path, all)
 			}
 		}
 	}
 	declined, cleared := 0, 0
-	var paths []string
-	for path := range final {
-		paths = append(paths, path)
-	}
-	sort.Strings(paths)
-	for _, path := range paths {
-		var none, written []string
-		for name, isNone := range final[path] {
-			if isNone {
-				none = append(none, name)
+	for path, byRecord := range exact {
+		var declines, clears []commentstrip.Offered
+		for _, v := range byRecord {
+			if v.isNone {
+				declines = append(declines, v.offered)
 			} else {
-				written = append(written, name)
+				clears = append(clears, v.offered)
 			}
 		}
-		n, err := commentstrip.Decide(archive, run, tree, path, none, true)
+		n, err := commentstrip.DecideOffered(archive, run, path, declines, true)
 		if err != nil {
 			return 0, 0, err
 		}
 		declined += n
-		n, err = commentstrip.Decide(archive, run, tree, path, written, false)
-		if err != nil {
+		if n, err = commentstrip.DecideOffered(archive, run, path, clears, false); err != nil {
 			return 0, 0, err
+		}
+		cleared += n
+	}
+	var paths []string
+	for path := range none {
+		paths = append(paths, path)
+	}
+	for path := range written {
+		if none[path] == nil {
+			paths = append(paths, path)
+		}
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		var declines, clears []string
+		for name := range none[path] {
+			if !written[path][name] {
+				declines = append(declines, name)
+			}
+		}
+		for name := range written[path] {
+			clears = append(clears, name)
+		}
+		n, err := commentstrip.Decide(archive, run, tree, path, declines, true)
+		if err != nil {
+			fmt.Fprintf(warn, "%s: %v, so its declines are left unrecorded\n", path, err)
+			continue
+		}
+		declined += n
+		if n, err = commentstrip.Decide(archive, run, tree, path, clears, false); err != nil {
+			fmt.Fprintf(warn, "%s: %v\n", path, err)
+			continue
 		}
 		cleared += n
 	}

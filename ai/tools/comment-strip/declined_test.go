@@ -83,3 +83,17 @@ func TestABlockWrittenClearsItsOwnClaimsDecline(t *testing.T) {
 		t.Errorf("the site was not offered after its decline was cleared: %s", said.stderr)
 	}
 }
+
+// A run before the strip recorded what each site carried maps a facts file by its claims' words. The
+// review's sentence a loop round adds and a contradiction line are no claim, and the match holds.
+func TestOfferedRecordsReadsALoopRoundsFactsByTheirClaims(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.ts", keptSource)
+	archive := filepath.Join(f.dir, "archive")
+	f.run("--archive=" + archive)
+	offer, _ := os.ReadFile(filepath.Join(f.facts, "1.facts"))
+	looped := string(offer) + "contradicted: run21 the claim\n\n# code review:\nthe claim holds\n"
+	if all, own, err := OfferedRecords(archive, f.path, looped); err != nil || len(all) != 1 || len(own) != 1 {
+		t.Fatalf("a loop round's facts map to %v (own %v), %v", all, own, err)
+	}
+}

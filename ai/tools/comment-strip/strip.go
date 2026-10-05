@@ -325,7 +325,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	if archive != "" {
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
-		declines := readDeclined(archive, path)
+		declines, rules := readDeclined(archive, path), rulesSum()
 		offered := map[int]bool{}
 		for _, s := range sites {
 			offered[s.line] = true
@@ -343,15 +343,16 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			if only != nil && !only[at] {
 				continue
 			}
+			held[record.name] = at
 			// A site a writer declined under these rules, on this code and these claims, stays declined. A
 			// `--lines` strip is a review sending the site back, and it offers the site whatever was declined.
+			// The record stays held at its line, so a site offered there still carries its claims.
 			if only == nil && at <= height {
-				if run := declinedBy(declines, record, siteSpan(lines, at)); run != "" {
+				if run := declinedBy(declines, record, siteSpan(lines, at), rules); run != "" {
 					fmt.Fprintf(stderr, "%s:%d: declined as %s%s\n", path, at, run, DeclinedLine)
 					continue
 				}
 			}
-			held[record.name] = at
 			// Two records reading to one line are one site. earlierFacts, the writer of a site's earlier
 			// claims, gathers every record held at a line. A second site there doubled them. Run 8 offered 11
 			// lines twice, and the writers answered each duplicate `none`.
@@ -391,6 +392,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		}
 		if err := os.WriteFile(filepath.Join(dir, s.facts), []byte(offer), 0o644); err != nil {
 			return refuse("cannot write %s", shell.Echoable(filepath.Join(dir, s.facts)))
+		}
+		if archive != "" {
+			if err := writeOffered(dir, s.facts, offeredAt(records, held, s, record, stripped)); err != nil {
+				return refuse("%s", err.Error())
+			}
 		}
 		if archive != "" {
 			// What is kept is the claims alone, with the site line left off: a later run writes its

@@ -65,8 +65,8 @@ func claimsSum(claims string) string {
 }
 
 // declinedBy is the run that declined the record's site where that decision still holds, or "".
-func declinedBy(held []declined, record archived, span string) string {
-	rules, claims := rulesSum(), claimsSum(record.claims)
+func declinedBy(held []declined, record archived, span, rules string) string {
+	claims := claimsSum(record.claims)
 	for _, d := range held {
 		if sameRules(d.Rules, rules) && d.Decl == record.decl && d.Span == span && d.Claims == claims {
 			return d.Run
@@ -88,8 +88,14 @@ func OfferedRecords(archive, path, facts string) (all, own []string, err error) 
 	// neither, so both go before the claims are compared.
 	_, body, _ := strings.Cut(facts, "\n")
 	var kept []string
+	// A loop round adds the review's sentence under `# code review:` and the strip a `contradicted:`
+	// line, and neither is a claim the archive holds.
 	for _, line := range strings.Split(body, "\n") {
-		if !strings.HasPrefix(strings.TrimSpace(line), "# record ") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "# code review:" {
+			break
+		}
+		if !strings.HasPrefix(trimmed, "# record ") && !strings.HasPrefix(trimmed, "contradicted:") {
 			kept = append(kept, line)
 		}
 	}
@@ -120,6 +126,9 @@ func OfferedRecords(archive, path, facts string) (all, own []string, err error) 
 // code at its declaration in tree, and a written block takes its decline away. It returns how many
 // records it changed.
 func Decide(archive, run, tree, path string, names []string, isDeclined bool) (int, error) {
+	if len(names) == 0 {
+		return 0, nil
+	}
 	records, err := readArchive(archive, path)
 	if err != nil {
 		return 0, err
@@ -165,14 +174,10 @@ func Decide(archive, run, tree, path string, names []string, isDeclined bool) (i
 		held = append(held, declined{Run: run, Rules: rules, Decl: record.decl, Span: siteSpan(lines, at), Claims: claims})
 		changed++
 	}
-	out, err := json.MarshalIndent(held, "", " ")
-	if err != nil {
-		return 0, err
+	if changed == 0 {
+		return 0, nil
 	}
-	if err := os.WriteFile(declinedName(archive, path), append(out, '\n'), 0o644); err != nil {
-		return 0, fmt.Errorf("cannot write %s", shell.Echoable(declinedName(archive, path)))
-	}
-	return changed, nil
+	return changed, writeDeclined(archive, path, held)
 }
 
 // siteSpan is the code a site's decline was decided on. A claim whose declaration left the file sits at
@@ -191,4 +196,103 @@ func containsName(names []string, name string) bool {
 		}
 	}
 	return false
+}
+
+// Offered is one archived record a site carried to its writer, as the strip saw it: the declaration,
+// the code under it in the stripped file and the claims. A writer's verdict on the site is a verdict on
+// each, and a facts file alone cannot say which records it carried.
+type Offered struct {
+	Decl   string `json:"decl"`
+	Span   string `json:"span"`
+	Claims string `json:"claims"`
+}
+
+// offeredName is the file beside a site's facts naming what the site carried.
+func offeredName(facts string) string { return strings.TrimSuffix(facts, ".facts") + ".offered" }
+
+// offeredAt is what one site carries: every archived record held at its line, and the record this run
+// archives for it, whose claims are the site's own with the earlier ones beside them.
+func offeredAt(records []archived, held map[string]int, s site, record, stripped string) []Offered {
+	span := siteSpan(shell.SplitLines(stripped), s.line)
+	var out []Offered
+	if _, claims, _ := strings.Cut(record, "\n"); normalClaim(claims) != "" {
+		out = append(out, Offered{Decl: s.decl, Span: span, Claims: claimsSum(claims)})
+	}
+	for _, r := range records {
+		if at, found := held[r.name]; found && at == s.line {
+			out = append(out, Offered{Decl: r.decl, Span: span, Claims: claimsSum(r.claims)})
+		}
+	}
+	return out
+}
+
+func writeOffered(dir, facts string, offered []Offered) error {
+	body, err := json.MarshalIndent(offered, "", " ")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, offeredName(facts))
+	if err := os.WriteFile(path, append(body, '\n'), 0o644); err != nil {
+		return fmt.Errorf("cannot write %s", shell.Echoable(path))
+	}
+	return nil
+}
+
+// ReadOffered is what a site's facts file carried, or nil for a run before the strip wrote it.
+func ReadOffered(facts string) []Offered {
+	body, err := os.ReadFile(offeredName(facts))
+	if err != nil {
+		return nil
+	}
+	var out []Offered
+	if json.Unmarshal(body, &out) != nil {
+		return nil
+	}
+	return out
+}
+
+// DecideOffered records a verdict on what a site carried. A decline records each under the rules now,
+// and a written block takes their declines away. It returns how many records changed, and writes
+// nothing where none did.
+func DecideOffered(archive, run, path string, offered []Offered, isDeclined bool) (int, error) {
+	if len(offered) == 0 {
+		return 0, nil
+	}
+	rules := rulesSum()
+	if isDeclined && rules == "" {
+		return 0, fmt.Errorf("cannot read the rules under ~/.kk-flavor, and a decline keeps the rules it was made under")
+	}
+	held := readDeclined(archive, path)
+	changed := 0
+	for _, o := range offered {
+		kept := held[:0]
+		for _, d := range held {
+			if d.Decl != o.Decl || d.Claims != o.Claims {
+				kept = append(kept, d)
+			}
+		}
+		removed := len(kept) != len(held)
+		held = kept
+		if isDeclined {
+			held = append(held, declined{Run: run, Rules: rules, Decl: o.Decl, Span: o.Span, Claims: o.Claims})
+			changed++
+		} else if removed {
+			changed++
+		}
+	}
+	if changed == 0 {
+		return 0, nil
+	}
+	return changed, writeDeclined(archive, path, held)
+}
+
+func writeDeclined(archive, path string, held []declined) error {
+	out, err := json.MarshalIndent(held, "", " ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(declinedName(archive, path), append(out, '\n'), 0o644); err != nil {
+		return fmt.Errorf("cannot write %s", shell.Echoable(declinedName(archive, path)))
+	}
+	return nil
 }

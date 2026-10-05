@@ -131,7 +131,12 @@ func TestDeclinedRecordsAWritersNoneAndALoopBlockClearsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	body, _ := os.ReadFile(facts[0])
+	body = append(body, []byte("\n# code review:\nthe claim holds\n")...)
 	if err := os.WriteFile(filepath.Join(round, "1.facts"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sidecar, _ := os.ReadFile(strings.TrimSuffix(facts[0], ".facts") + ".offered")
+	if err := os.WriteFile(filepath.Join(round, "1.offered"), sidecar, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	prompt := "```\nledger.ts:3 ledger.ts/3/1.facts\n```\n"
