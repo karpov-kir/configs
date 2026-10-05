@@ -11,6 +11,7 @@
 //	usage: comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>...
 //	usage: comment-run.sh usage <transcript>...
 //	usage: comment-run.sh revert --run=<run> --run-dir=<dir> --archive=<dir> <path>...
+//	usage: comment-run.sh declined --run=<run> --run-dir=<dir> --archive=<dir> [--tree=<dir>]
 //
 // Exit 0 is a clean run, 1 a run that reported findings, and 2 a stage that did not run.
 package commentrun
@@ -34,7 +35,8 @@ const usage = "usage: comment-run.sh seed --run-dir=<dir> --archive=<dir> --rang
 	"       comment-run.sh keep-test --archive=<dir> <path>...\n" +
 	"       comment-run.sh loop --run-dir=<dir> --archive=<dir> --run=<run> [--contradict=<sentence>] <path>:<line> <review sentence>...\n" +
 	"       comment-run.sh usage <transcript>...\n" +
-	"       comment-run.sh revert --run=<run> --run-dir=<dir> --archive=<dir> <path>..."
+	"       comment-run.sh revert --run=<run> --run-dir=<dir> --archive=<dir> <path>...\n" +
+	"       comment-run.sh declined --run=<run> --run-dir=<dir> --archive=<dir> [--tree=<dir>]"
 
 const (
 	exitClean     = 0
@@ -55,6 +57,7 @@ var stages = map[string]stage{
 	"carried":         carriedStage,
 	"usage":           usageStage,
 	"revert":          revert,
+	"declined":        declinedStage,
 }
 
 // runner holds the directory a stage stands in and the streams it writes to.
@@ -86,7 +89,7 @@ func (r *runner) absolute(paths ...*string) {
 func Run(self string, args []string, cwd string, git repo.Git, stdout, stderr io.Writer) int {
 	r := &runner{self: self, cwd: cwd, git: git, stdout: stdout, stderr: stderr}
 	if len(args) == 0 {
-		return r.refuse("%s", "name a stage: seed, prompts, archive-written, carried, taint, keep-test, loop, usage or revert")
+		return r.refuse("%s", "name a stage: seed, prompts, archive-written, carried, taint, keep-test, loop, usage, revert or declined")
 	}
 	run, known := stages[args[0]]
 	if !known {

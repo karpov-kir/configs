@@ -54,7 +54,8 @@ func TestSentenceShapeChecksFireOnTheReviewedShapesOnly(t *testing.T) {
 		sentence, check string
 		fires           bool
 	}{
-		{"Only an API's refusal is Unsupported.", checkQuantifierOpen, true},
+		{"Only an API's refusal is Unsupported.", checkQuantifierOpen, false},
+		{"Only Apple devices run FairPlay, and Apple devices decode no VP9.", checkQuantifierOpen, false},
 		{"Anything no API established is Unknown.", checkQuantifierOpen, true},
 		{"Every caller removes postings from the ledger while it walks the result.", checkQuantifierOpen, false},
 		{"None when the house never answered.", checkQuantifierOpen, false},

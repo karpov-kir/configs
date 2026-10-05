@@ -110,3 +110,63 @@ func TestTaintHoldsAPromptedRunsWriterToTheRuleReads(t *testing.T) {
 		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }
+
+// The backfill reads each round's verdicts through its prompt to the archived claims they weighed. A
+// `none` declines them, and a later loop round's written block clears its own claims' decline.
+func TestDeclinedRecordsAWritersNoneAndALoopBlockClearsIt(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	// The prompts stage records the rules the run's writers weigh.
+	if said := c.run("prompts", "--run-dir="+runDir); said.code != exitClean {
+		t.Fatalf("prompts: %s", said.stderr)
+	}
+	if err := os.WriteFile(returnFile(runDir, "A"), []byte("Block 1/1 ledger.ts:3 | none\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said := c.run("declined", "--run=run20", "--run-dir="+runDir, "--archive="+archive, "--tree="+c.top)
+	if said.code != exitClean || !strings.Contains(said.stdout, "1 declined record(s) recorded") {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+	// A loop round writes a block on the same claims, under the prompt format of today.
+	facts, _ := filepath.Glob(filepath.Join(runDir, "facts", "*", "1.facts"))
+	round := filepath.Join(runDir, "review-loop", "loop-round-1", "ledger.ts", "3")
+	if err := os.MkdirAll(round, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := os.ReadFile(facts[0])
+	body = append(body, []byte("\n# code review:\nthe claim holds\n")...)
+	if err := os.WriteFile(filepath.Join(round, "1.facts"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sidecar, _ := os.ReadFile(strings.TrimSuffix(facts[0], ".facts") + ".offered")
+	if err := os.WriteFile(filepath.Join(round, "1.offered"), sidecar, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	prompt := "```\nledger.ts:3 ledger.ts/3/1.facts\n```\n"
+	if err := os.WriteFile(spawnFile(runDir, "loop-round-1"), []byte(prompt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(returnFile(runDir, "loop-round-1"), []byte("Block 1/1 ledger.ts:3 | OK\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said = c.run("declined", "--run=run20", "--run-dir="+runDir, "--archive="+archive, "--tree="+c.top)
+	if said.code != exitClean || !strings.Contains(said.stdout, "0 declined record(s) recorded, 1 decline(s) cleared") {
+		t.Fatalf("the loop round's block did not clear the decline: exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+}
+
+// One entry archives one block. Run 22's loop writer returned an enum's note moved onto two members in
+// one entry, and archive-written archived the first and lost the second.
+func TestArchiveWrittenRefusesAnEntryFencingTwoBlocks(t *testing.T) {
+	c := newChange(t)
+	ret := filepath.Join(t.TempDir(), "writer-A.md")
+	block := "```ts\n// A ledger build answers for its own scheme only.\nexport function claimFor(scheme: string): boolean {\n```\n"
+	if err := os.WriteFile(ret, []byte("Block 1/1 ledger.ts:4 | OK\n"+block+block), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said := c.run("archive-written", "--run=run22", "--archive="+filepath.Join(t.TempDir(), "archive"), ret)
+	if said.code != exitFindings || !strings.Contains(said.stdout, "fences 2 blocks") || !strings.Contains(said.stdout, "moved to its members") {
+		t.Fatalf("exit %d: %s%s", said.code, said.stdout, said.stderr)
+	}
+}

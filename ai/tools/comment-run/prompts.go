@@ -268,7 +268,7 @@ func returnFile(runDir, name string) string {
 // return to a file. Every turn reads the whole context again, and run 18's writers took 2.6 turns a site
 // where run 18b's took 0.8. Run 18b's writer wrote by shell script, and one insert slipped.
 func returnSentence(path string) string {
-	return "Work a file at a time. Read all of a file's facts files in one call. Check all of its blocks in one " +
+	return "Append each site's verdict line to your ledger as you finish the site, in the shape below. Work a file at a time. Read all of a file's facts files in one call. Check all of its blocks in one " +
 		"voice-check call, where the brief checks one block: each part is a record, a line reading `---`, and the " +
 		"block with its declaration and body, the parts apart on a line reading `===`, and each finding names its " +
 		"part as `-#<n>` on stdin. Then write the file's blocks with Edit calls issued together in one turn; no shell " +

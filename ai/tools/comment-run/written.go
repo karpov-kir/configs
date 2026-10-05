@@ -96,6 +96,14 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 				continue
 			}
 			lastFile = file
+			// One entry archives one block. Run 22's loop writer moved an enum's note onto two members in one
+			// entry, and the second note was archived nowhere.
+			if fences := len(reFence.FindAllStringIndex(text[m[0]:end], -1)); fences > 1 {
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%s refused: the entry fences %d blocks, and each block is its own entry; %s\n",
+					file, site, fences, membersShape)
+				continue
+			}
 			if m[6] >= 0 {
 				if landed := reLandedNote.FindStringSubmatch(text[m[6]:m[7]]); landed != nil {
 					site = landed[1]
@@ -134,6 +142,15 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 			return r.refuse("%v", err)
 		}
 	}
+	// A site a writer answered `none` is recorded too, so the next run on unchanged code and rules does
+	// not offer it again. Run 22 offered 82 sites run 20 had declined under the same rules.
+	if runDir != "" {
+		declined, cleared, err := decideFromReturns(runDir, archive, run, r.cwd, r.stderr)
+		if err != nil {
+			return r.refuse("%v", err)
+		}
+		fmt.Fprintf(r.stderr, "%s: %d declined record(s) recorded, %d decline(s) cleared\n", r.self, declined, cleared)
+	}
 	fmt.Fprintf(r.stderr, "%s: %d block(s) archived, %d refused\n", r.self, archived, refused)
 	if refused > 0 {
 		return exitFindings
@@ -147,11 +164,16 @@ func writtenDir(runDir string) string {
 }
 
 // verdictShape is the verdict line this stage reads, with its example.
+// membersShape is the return for a note moved onto the members it tells apart: the site offered gets no
+// block, and each member is an entry of its own. The members check's finding says it in these words.
+const membersShape = "where a note moves onto the members it tells apart, the offered site returns `none` with the line " +
+	"`moved to its members`, and each member is an entry of its own, with its own line, block and record"
+
 const verdictShape = "`Block N/M <path>:<offered line> | OK`, as in `Block 2/16 src/ledger.ts:64 | OK`"
 
 // verdictSentence asks a writer for that shape in its prompt. A sentence in the brief changes the rules
 // sum, and every block a run wrote would reopen, so the prompt carries it.
-const verdictSentence = "Every verdict line holds the file and the site's line as offered, and only those, even where the block landed elsewhere: " + verdictShape + "."
+const verdictSentence = "Every verdict line holds the file and the site's line as offered, and only those, even where the block landed elsewhere: " + verdictShape + ". Each entry holds one block: " + membersShape + "."
 
 // recordOf is the record lines a verdict's segment carries, or an empty string for a summary.
 func recordOf(segment string) string {

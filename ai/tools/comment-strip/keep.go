@@ -58,6 +58,9 @@ var movedRules = map[string]string{"1562bee4f02f": "8add386518c3"}
 // records it, so a run's writers and its archive hold one set of rules.
 func RulesSum() string { return rulesSum() }
 
+// SameRules says whether rules summed one way stand under the rules summed the other, a move included.
+func SameRules(written, now string) bool { return sameRules(written, now) }
+
 // sameRules says whether a block written under the rules summed as written stands under the rules
 // summed as now.
 func sameRules(written, now string) bool {
