@@ -325,6 +325,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 	if archive != "" {
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
+		declines := readDeclined(archive, path)
 		offered := map[int]bool{}
 		for _, s := range sites {
 			offered[s.line] = true
@@ -341,6 +342,14 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))
 			if only != nil && !only[at] {
 				continue
+			}
+			// A site a writer declined under these rules, on this code and these claims, stays declined. A
+			// `--lines` strip is a review sending the site back, and it offers the site whatever was declined.
+			if only == nil && at <= height {
+				if run := declinedBy(declines, record, siteSpan(lines, at)); run != "" {
+					fmt.Fprintf(stderr, "%s:%d: declined as %s%s\n", path, at, run, DeclinedLine)
+					continue
+				}
 			}
 			held[record.name] = at
 			// Two records reading to one line are one site. earlierFacts, the writer of a site's earlier

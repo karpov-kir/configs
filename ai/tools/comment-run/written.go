@@ -134,6 +134,15 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 			return r.refuse("%v", err)
 		}
 	}
+	// A site a writer answered `none` is recorded too, so the next run on unchanged code and rules does
+	// not offer it again. Run 22 offered 82 sites run 20 had declined under the same rules.
+	if runDir != "" {
+		declined, cleared, err := decideFromReturns(runDir, archive, run, r.cwd, r.stderr)
+		if err != nil {
+			return r.refuse("%v", err)
+		}
+		fmt.Fprintf(r.stderr, "%s: %d declined site(s) recorded, %d decline(s) cleared\n", r.self, declined, cleared)
+	}
 	fmt.Fprintf(r.stderr, "%s: %d block(s) archived, %d refused\n", r.self, archived, refused)
 	if refused > 0 {
 		return exitFindings
