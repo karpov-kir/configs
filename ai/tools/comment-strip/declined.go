@@ -153,16 +153,19 @@ func Decide(archive, run, tree, path string, names []string, isDeclined bool) (i
 			continue
 		}
 		claims := claimsSum(record.claims)
+		var had *declined
 		kept := held[:0]
 		for _, d := range held {
 			if d.Decl != record.decl || d.Claims != claims {
 				kept = append(kept, d)
+			} else {
+				d := d
+				had = &d
 			}
 		}
-		removed := len(kept) != len(held)
 		held = kept
 		if !isDeclined {
-			if removed {
+			if had != nil {
 				changed++
 			}
 			continue
@@ -171,7 +174,12 @@ func Decide(archive, run, tree, path string, names []string, isDeclined bool) (i
 		if at > len(lines) {
 			continue
 		}
-		held = append(held, declined{Run: run, Rules: rules, Decl: record.decl, Span: siteSpan(lines, at), Claims: claims})
+		span := siteSpan(lines, at)
+		if had != nil && sameRules(had.Rules, rules) && had.Span == span {
+			held = append(held, *had)
+			continue
+		}
+		held = append(held, declined{Run: run, Rules: rules, Decl: record.decl, Span: span, Claims: claims})
 		changed++
 	}
 	if changed == 0 {
@@ -265,18 +273,28 @@ func DecideOffered(archive, run, path string, offered []Offered, isDeclined bool
 	held := readDeclined(archive, path)
 	changed := 0
 	for _, o := range offered {
+		entry := declined{Run: run, Rules: rules, Decl: o.Decl, Span: o.Span, Claims: o.Claims}
+		var had *declined
 		kept := held[:0]
 		for _, d := range held {
 			if d.Decl != o.Decl || d.Claims != o.Claims {
 				kept = append(kept, d)
+			} else {
+				d := d
+				had = &d
 			}
 		}
-		removed := len(kept) != len(held)
 		held = kept
-		if isDeclined {
-			held = append(held, declined{Run: run, Rules: rules, Decl: o.Decl, Span: o.Span, Claims: o.Claims})
-			changed++
-		} else if removed {
+		switch {
+		case isDeclined:
+			held = append(held, entry)
+			// The same decline recorded again changes nothing, whichever run recorded it first.
+			if had == nil || !sameRules(had.Rules, rules) || had.Span != o.Span {
+				changed++
+			} else {
+				held[len(held)-1] = *had
+			}
+		case had != nil:
 			changed++
 		}
 	}
@@ -295,4 +313,41 @@ func writeDeclined(archive, path string, held []declined) error {
 		return fmt.Errorf("cannot write %s", shell.Echoable(declinedName(archive, path)))
 	}
 	return nil
+}
+
+// RecordsAtSite names the archived records of path the strip would hold at line, in the stripped file a
+// round read. A verdict without a record of what its site carried covers these and no other.
+func RecordsAtSite(archive, path string, stripped []string, line int) ([]string, error) {
+	records, err := readArchive(archive, path)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, record := range records {
+		if declarationLine(stripped, record.decl, record.line, min(max(record.line, 1), max(len(stripped), 1))) == line {
+			names = append(names, record.name)
+		}
+	}
+	return names, nil
+}
+
+// RulesOfRun is the rules sum the archive's written blocks of run carry, or "" where it holds none.
+func RulesOfRun(archive, run string) string {
+	entries, _ := os.ReadDir(archive)
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".written") {
+			continue
+		}
+		body, _ := os.ReadFile(filepath.Join(archive, e.Name()))
+		var held []written
+		if json.Unmarshal(body, &held) != nil {
+			continue
+		}
+		for _, w := range held {
+			if w.Run == run && w.Rules != "" {
+				return w.Rules
+			}
+		}
+	}
+	return ""
 }

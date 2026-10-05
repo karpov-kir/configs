@@ -204,9 +204,9 @@ var (
 
 	// The connectives a subordinate clause hangs off. A sentence is a finding at two. Past that the
 	// reader holds one clause open while reading another.
-	// A sentence whose subject is a quantifier pronoun: `Only a refusal is …`, `Anything no API
-	// established …`. `Every caller` names its agent, and Python's `None` opens many a note.
-	reQuantifierOpen = regexp.MustCompile(`^[^\w"']*(?:Only|Anything|Nothing|Everything|Nobody|Everyone)\b`)
+	// A sentence whose subject is a quantifier pronoun: `Anything no API established …`. `Every caller`
+	// and `Only Apple devices` name their agent, and Python's `None` opens many a note.
+	reQuantifierOpen = regexp.MustCompile(`^[^\w"']*(?:Anything|Nothing|Everything|Nobody|Everyone)\b`)
 	// A possessive over a noun made from a verb, `an API's refusal`, where the agent and its verb belong.
 	// The nouns are a closed list, since the same endings close many a noun that names a thing.
 	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}([\w-]+)'s\s+(` +
@@ -1098,7 +1098,7 @@ func membersInOneNote(file string, b block, lines, whole []string) []Finding {
 		return nil
 	}
 	return []Finding{{File: file, Line: b.start, Check: checkMembersInOneNote,
-		Text: "a note that tells members apart goes on each member, in one form"}}
+		Text: "a note that tells members apart goes on each member, in one form: the site returns none, and each member is an entry of its own"}}
 }
 
 // shortStems are the verbs `ing` is part of rather than an ending on: no subject went missing in

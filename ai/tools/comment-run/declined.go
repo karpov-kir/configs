@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,7 +45,15 @@ func declinedStage(r *runner, opts options, _ []string) int {
 	r.absolute(&tree)
 	// A backfill records the rules and code standing now as what the run decided on. A run decided
 	// under other rules is refused.
-	if held := rulesHeld(runDir); held != "" && !commentstrip.SameRules(held, commentstrip.RulesSum()) {
+	held := rulesHeld(runDir)
+	if held == "" {
+		// A run before the prompts stage recorded its rules carries them on the blocks it archived.
+		held = commentstrip.RulesOfRun(archive, run)
+	}
+	if held == "" {
+		return r.refuse("%s recorded no rules sum and archived no block, so the rules its writers weighed are unknown", run)
+	}
+	if !commentstrip.SameRules(held, commentstrip.RulesSum()) {
 		return r.refuse("the rules changed since %s's prompts: %s then, %s now; its declines would hold for rules no writer weighed",
 			run, held, commentstrip.RulesSum())
 	}
@@ -54,7 +63,7 @@ func declinedStage(r *runner, opts options, _ []string) int {
 	if err != nil {
 		return r.refuse("%v", err)
 	}
-	fmt.Fprintf(r.stdout, "%d declined site(s) recorded, %d decline(s) cleared by a block written later\n", declined, cleared)
+	fmt.Fprintf(r.stdout, "%d declined record(s) recorded, %d decline(s) cleared by a block written later\n", declined, cleared)
 	return exitClean
 }
 
@@ -117,11 +126,29 @@ func decideFromReturns(runDir, archive, run, tree string, warn io.Writer) (int, 
 			if err != nil {
 				return 0, 0, err
 			}
-			if isNone {
-				mark(none, path, all)
-			} else {
+			if !isNone {
 				mark(written, path, all)
+				continue
 			}
+			// A decline covers the records at its own site, read in the stripped file the writers' round
+			// read. A loop round's tree is kept nowhere, so its declines wait for a run that records them.
+			at, _ := strconv.Atoi(m[2])
+			stripped, err := os.ReadFile(filepath.Join(runDir, "post-strip", path))
+			if roundOf(ret) > 0 || err != nil {
+				fmt.Fprintf(warn, "%s: %s has no stripped tree to place it in, so its decline is left unrecorded\n", filepath.Base(ret), site)
+				continue
+			}
+			here, err := commentstrip.RecordsAtSite(archive, path, shell.SplitLines(string(stripped)), at)
+			if err != nil {
+				return 0, 0, err
+			}
+			var atSite []string
+			for _, name := range all {
+				if slices.Contains(here, name) {
+					atSite = append(atSite, name)
+				}
+			}
+			mark(none, path, atSite)
 		}
 	}
 	declined, cleared := 0, 0
