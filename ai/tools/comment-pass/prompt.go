@@ -8,7 +8,7 @@ import (
 
 // userPrompt is one file's call: the file numbered, the material by id, the reviewer's notes on the
 // file, and the reply's grammar. The page goes in as the system prompt.
-func userPrompt(path string, lines []string, m material, notes []string) string {
+func userPrompt(path string, lines []string, m material, notes []string, width int) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "File %s, numbered:\n\n", path)
 	for n, line := range lines {
@@ -32,6 +32,7 @@ func userPrompt(path string, lines []string, m material, notes []string) string 
 		}
 	}
 	b.WriteString(replyGrammar)
+	fmt.Fprintf(&b, "Each comment line, at the indent it will sit at, fits in %d columns.\n", width)
 	return b.String()
 }
 

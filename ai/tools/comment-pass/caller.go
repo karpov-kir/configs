@@ -11,8 +11,9 @@ import (
 )
 
 // Caller sends one file's call: the page as the system prompt and the file's prompt as the message.
-// It returns the reply's text. The pass calls the model through the CLI, and a suite hands it a fake.
-type Caller func(system, user string) (string, error)
+// It returns the reply's text and what the call cost in dollars. The pass calls the model through the
+// CLI, and a suite hands it a fake.
+type Caller func(system, user string) (string, float64, error)
 
 // callTimeout bounds one file's call. A file and the page fit in one turn with no tools.
 const callTimeout = 10 * time.Minute
@@ -20,7 +21,7 @@ const callTimeout = 10 * time.Minute
 // CLICaller runs `claude -p` with the page and the prompt as its only input. The call gets no tools,
 // settings or MCP servers, and the page stands in for the CLI's own system prompt.
 func CLICaller(model string) Caller {
-	return func(system, user string) (string, error) {
+	return func(system, user string) (string, float64, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), callTimeout)
 		defer cancel()
 		args := []string{"-p", "--output-format", "json", "--tools", "", "--setting-sources", "",
@@ -34,16 +35,17 @@ func CLICaller(model string) Caller {
 		cmd.Stdout, cmd.Stderr = &out, &errOut
 		runErr := cmd.Run()
 		var reply struct {
-			Result  string `json:"result"`
-			IsError bool   `json:"is_error"`
+			Result  string  `json:"result"`
+			IsError bool    `json:"is_error"`
+			Cost    float64 `json:"total_cost_usd"`
 		}
 		if json.Unmarshal(out.Bytes(), &reply) != nil {
-			return "", fmt.Errorf("the CLI answered no JSON (%v): %s", runErr, firstLine(out.String()+errOut.String()))
+			return "", 0, fmt.Errorf("the CLI answered no JSON (%v): %s", runErr, firstLine(out.String()+errOut.String()))
 		}
 		if reply.IsError || runErr != nil {
-			return "", fmt.Errorf("the CLI's call failed: %s", firstLine(reply.Result+errOut.String()))
+			return "", reply.Cost, fmt.Errorf("the CLI's call failed: %s", firstLine(reply.Result+errOut.String()))
 		}
-		return reply.Result, nil
+		return reply.Result, reply.Cost, nil
 	}
 }
 

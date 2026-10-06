@@ -71,9 +71,9 @@ func run(t *testing.T, dir, base, reply string, calls *int, extra ...string) (in
 	}
 	lookup := func(k string) (string, bool) { v, ok := env[k]; return v, ok }
 	caller := func(string) Caller {
-		return func(system, user string) (string, error) {
+		return func(system, user string) (string, float64, error) {
 			*calls++
-			return reply, nil
+			return reply, 0.01, nil
 		}
 	}
 	var out, errOut strings.Builder
@@ -170,8 +170,27 @@ func TestARerunOfAnUnchangedFileReusesItsReply(t *testing.T) {
 func TestTheNotesReachTheFilesCall(t *testing.T) {
 	lines := strings.Split(headLedger, "\n")
 	m := findMaterial("ledger.ts", lines, map[int]bool{3: true})
-	prompt := userPrompt("ledger.ts", lines, m, []string{"ledger.ts:1 the summary says nothing the name does not"})
+	prompt := userPrompt("ledger.ts", lines, m, []string{"ledger.ts:1 the summary says nothing the name does not"}, 120)
 	if !strings.Contains(prompt, "The reviewer's notes on this file") || !strings.Contains(prompt, "ledger.ts:1 the summary") {
 		t.Fatalf("prompt:\n%s", prompt)
+	}
+}
+
+// The call names the width the gate holds its lines to, since the model sees no config.
+func TestTheCallNamesTheWidth(t *testing.T) {
+	lines := strings.Split(headLedger, "\n")
+	m := findMaterial("ledger.ts", lines, map[int]bool{3: true})
+	if prompt := userPrompt("ledger.ts", lines, m, nil, 120); !strings.Contains(prompt, "fits in 120 columns") {
+		t.Fatalf("prompt:\n%s", prompt)
+	}
+}
+
+// A run ends with its totals: decisions by verb, the calls made and what they cost.
+func TestARunEndsWithItsTotals(t *testing.T) {
+	dir, base := fixture(t)
+	calls := 0
+	code, text := run(t, dir, base, "c1 keep: fine\np1 add: r\n// Reopens the book.\n", &calls)
+	if code != 0 || !strings.Contains(text, "total: 1 file(s) decided, 0 refused; 1 kept, 0 rewritten, 0 removed, 1 added, 0 skipped; 1 call(s), $0.0100") {
+		t.Fatalf("exit %d:\n%s", code, text)
 	}
 }

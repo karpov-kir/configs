@@ -102,6 +102,9 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		return refuse("%v", err)
 	}
 	failed := 0
+	// The run's totals: each verb's decisions, the files written, the calls made and what they cost.
+	verbs := map[string]int{}
+	files, calls, cost := 0, 0, 0.0
 	sort.Strings(paths)
 	for _, path := range paths {
 		if !sourceExtensions[filepath.Ext(path)] {
@@ -124,7 +127,7 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if len(m.candidates) == 0 && len(m.places) == 0 {
 			continue
 		}
-		prompt := userPrompt(path, lines, m, notes[path])
+		prompt := userPrompt(path, lines, m, notes[path], widthFor(path, width))
 		if list {
 			fmt.Fprintf(stdout, "%s: %d comment(s), %d place(s)\n", path, len(m.candidates), len(m.places))
 			for _, c := range m.candidates {
@@ -139,7 +142,11 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		store := cachePath(stateHome, repoKey, path)
 		reply, source := cachedReply(store, key), "kept"
 		if reply == "" {
-			if reply, err = call(model)(string(page), prompt); err != nil {
+			var spent float64
+			reply, spent, err = call(model)(string(page), prompt)
+			calls++
+			cost += spent
+			if err != nil {
 				failed++
 				fmt.Fprintf(stdout, "%s: the call failed: %v\n", path, err)
 				continue
@@ -167,7 +174,9 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			}
 		}
 		written := 0
+		files++
 		for _, d := range decisions {
+			verbs[d.verb]++
 			if d.verb != "keep" && d.verb != "skip" {
 				written++
 			}
@@ -183,6 +192,10 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if err := os.WriteFile(filepath.Join(top, path), []byte(out), 0o644); err != nil {
 			return refuse("cannot write %s", path)
 		}
+	}
+	if !list {
+		fmt.Fprintf(stdout, "total: %d file(s) decided, %d refused; %d kept, %d rewritten, %d removed, %d added, %d skipped; %d call(s), $%.4f\n",
+			files, failed, verbs["keep"], verbs["rewrite"], verbs["remove"], verbs["add"], verbs["skip"], calls, cost)
 	}
 	if failed > 0 {
 		return 1
