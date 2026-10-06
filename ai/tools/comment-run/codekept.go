@@ -165,7 +165,7 @@ func (r *runner) settleOffered(runDir, ret, archive, file, site string, at int) 
 	}
 	var claims []string
 	for _, o := range commentstrip.ReadOffered(factsPath) {
-		claims = append(claims, o.Claims)
+		claims = append(claims, commentstrip.SettledKey(o.Decl, o.Claims))
 	}
 	read := file
 	r.absolute(&read)

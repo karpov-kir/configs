@@ -336,7 +336,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			if _, found := held[record.name]; found || (record.decl != "" && keptDecls[record.decl]) {
 				continue
 			}
-			if at, found := settled[claimsSum(record.claims)]; found && only == nil {
+			if at, found := settled[SettledKey(record.decl, claimsSum(record.claims))]; found && only == nil {
 				fmt.Fprintf(stderr, "%s: %s settled by the block standing at :%d, which its site's writer wrote with the claim in front of it\n",
 					path, record.decl, at)
 				continue
