@@ -868,6 +868,8 @@ func TestAFlagValueIsNoWriteAndAQuotedFlagHidesNone(t *testing.T) {
 		{"python3 - a.ts x.ts <<'EOF'\nfor p in sys.argv[1:]: open(p,'w').write('')\nEOF", true},
 		{`ruby -e "File.write('x.ts', s)"`, true},
 		{`node -e "fs.writeFileSync(path.join('src','x.ts'), s)"`, true},
+		{"python3 - <<'EOF'\nout=Path('/tmp/x.ts.txt')\nout.write_text(open('x.ts').read())\nEOF", false},
+		{`python3 -c "open('/tmp/x.ts.txt','w').write(open('x.ts').read())"`, false},
 		{"node - x.ts <<'EOF'\nconst p = process.argv[1]\nfs.writeFileSync(p, s)\nEOF", false},
 	} {
 		if got := scriptWrites(tc.command, "x.ts"); got != tc.writes {

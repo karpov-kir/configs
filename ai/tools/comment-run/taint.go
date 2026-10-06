@@ -334,7 +334,7 @@ func scriptWrites(command, file string) bool {
 func interpreterWrites(command, file string) bool {
 	for _, m := range reWriteCall.FindAllStringSubmatch(command, -1) {
 		target := strings.TrimSpace(strings.Join(m[1:], ""))
-		if strings.Contains(reJoin.ReplaceAllString(target, "/"), file) {
+		if pathEndsIn(target, file) {
 			return true
 		}
 		if !reIdentifier.MatchString(target) {
@@ -344,7 +344,7 @@ func interpreterWrites(command, file string) bool {
 			regexp.QuoteMeta(target) + `\s+in\s+([^\n]+?):(?:\s|$)`)
 		for _, a := range bound.FindAllStringSubmatch(command, -1) {
 			value := a[1] + a[2]
-			if strings.Contains(reJoin.ReplaceAllString(value, "/"), file) {
+			if pathEndsIn(value, file) {
 				return true
 			}
 			if n := reArgv.FindStringSubmatch(value); n != nil && argNames(command, n[1], n[2], n[3] == ":", file) {
@@ -377,4 +377,11 @@ func argNames(command, vector, index string, slice bool, file string) bool {
 		}
 	}
 	return false
+}
+
+// pathEndsIn says the text holds a path that ends in the file, with a path join's parts joined. A
+// scratch file named after its source, such as `/tmp/src/x.ts.txt`, is a path of its own.
+func pathEndsIn(text, file string) bool {
+	return regexp.MustCompile(`(?:^|['"/\s(\[])` + regexp.QuoteMeta(file) + `(?:['"\s)\],]|$)`).
+		MatchString(reJoin.ReplaceAllString(text, "/"))
 }
