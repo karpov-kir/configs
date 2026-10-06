@@ -10,14 +10,15 @@ import (
 
 // The review's inputs, each pinned where it found the pass wrong.
 
-// A reply the gate refused is not kept, so the next run asks again. A change of model asks again too.
-func TestARefusedReplyIsAskedAgainAndAModelChangeAsksAgain(t *testing.T) {
+// A reply the gate refused is kept, so the next run refuses it again without asking again: a second
+// ask would be a re-roll. A change of model asks again.
+func TestARefusedReplyIsNotAskedAgainAndAModelChangeAsksAgain(t *testing.T) {
 	dir, base := fixture(t)
 	t.Setenv("TEST_STATE", t.TempDir())
 	calls := 0
 	refused := "c1 rewrite: r\n// **bold** words\np1 skip: none\n"
 	for round := 1; round <= 2; round++ {
-		if code, text := run(t, dir, base, refused, &calls); code != 1 || calls != round {
+		if code, text := run(t, dir, base, refused, &calls); code != 1 || calls != 1 {
 			t.Fatalf("round %d: exit %d, %d call(s)\n%s", round, code, calls, text)
 		}
 	}

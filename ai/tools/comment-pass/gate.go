@@ -15,7 +15,8 @@ import (
 
 // The gate checks what takes no judgement. A line fits the repository's print width. A block holds at
 // most four prose lines, and a file header at most eight. A comment holds no markdown. A comment that
-// fails the gate fails the pass, with its text shown, and the pass retries and drops no comment.
+// fails the gate fails the pass, with its text shown, and the file is left as it was. A line past the
+// width is wrapped before the gate reads it.
 
 const (
 	maxBlockLines  = 4
@@ -50,7 +51,7 @@ func gateFindings(m material, decisions []decision, width int) []string {
 			if body != "" {
 				prose++
 			}
-			if columns(line)+indentWidth(m, d.id) > width {
+			if placedColumns(line)+indentWidth(m, d.id) > width {
 				out = append(out, fmt.Sprintf("%s: a line is wider than %d: %s", d.id, width, line))
 			}
 			if reMarkdown.MatchString(body) {

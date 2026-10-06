@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const usage = "usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --dry-run] [--page=<file>] [--model=<name>] [<path>...]"
+const usage = "usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --dry-run] [--ask] [--page=<file>] [--model=<name>] [<path>...]"
 
 // maxFileBytes bounds the file one call reads, beside the page, inside the model's context.
 const maxFileBytes = 200_000
@@ -31,7 +31,7 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		return 2
 	}
 	var base, notesFile, pageFile, model string
-	list, dry := false, false
+	list, dry, ask := false, false, false
 	var paths []string
 	for _, arg := range args {
 		switch {
@@ -47,6 +47,9 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			list = true
 		case arg == "--dry-run":
 			dry = true
+		// A person asks again on purpose. A rerun never does it on its own, since a second ask is a re-roll.
+		case arg == "--ask":
+			ask = true
 		case strings.HasPrefix(arg, "--"):
 			return refuse("%q is no option", arg)
 		default:
@@ -140,7 +143,10 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		}
 		key := inputKey(string(page), prompt, model)
 		store := cachePath(stateHome, repoKey, path)
-		reply, source := cachedReply(store, key), "kept"
+		reply, source := "", "kept"
+		if !ask {
+			reply = cachedReply(store, key)
+		}
 		if reply == "" {
 			var spent float64
 			reply, spent, err = call(model)(string(page), prompt)
@@ -162,16 +168,19 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			fmt.Fprintf(stdout, "%s: the reply does not parse: %v\n%s\n", path, err, reply)
 			continue
 		}
-		if found := gateFindings(m, decisions, widthFor(path, width)); len(found) > 0 {
-			failed++
-			fmt.Fprintf(stdout, "%s: the gate refused the file, which is left as it was:\n%s\n", path, strings.Join(found, "\n"))
-			continue
-		}
-		// A reply is kept only once it parsed and passed the gate, so a refused one is asked again.
+		// A reply is kept once it parses. A rerun applies it again rather than asking again, so a reply
+		// the gate refused is never rolled a second time, and a later wrap or gate can still take it.
 		if source == "called" {
 			if err := keepReply(store, key, reply); err != nil {
 				fmt.Fprintf(stderr, "%s: cannot keep the reply for %s: %v\n", self, path, err)
 			}
+		}
+		decisions = rewrap(m, decisions, widthFor(path, width))
+		if found := gateFindings(m, decisions, widthFor(path, width)); len(found) > 0 {
+			failed++
+			fmt.Fprintf(stdout, "%s: the gate refused the file, which is left as it was. Its reply is kept, and a rerun "+
+				"refuses it again until the file, notes, page or model change, or --ask is given:\n%s\n", path, strings.Join(found, "\n"))
+			continue
 		}
 		written := 0
 		files++

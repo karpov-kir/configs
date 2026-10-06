@@ -4,7 +4,7 @@
 # under the page at ~/.kk-flavor/standards/comments.md. The tool applies the decisions and runs the
 # mechanical gate. A file with the same page, content and notes as at its last call reuses that reply.
 #
-#   usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --dry-run] [--page=<file>] [--model=<name>] [<path>...]
+#   usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --dry-run] [--ask] [--page=<file>] [--model=<name>] [<path>...]
 #
 # Exit 0: every file passed. Exit 1: a file's reply or gate failed. Exit 2: the pass did not run.
 #
