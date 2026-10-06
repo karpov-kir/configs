@@ -78,8 +78,8 @@ var reDeclaration = regexp.MustCompile(`^\s*(?:export\s+)?(?:default\s+)?(?:decl
 var notDeclaration = regexp.MustCompile(`^\s*(?:if|for|while|switch|return|catch|await|throw|else|do|try|new|typeof|case|` +
 	`it|describe|test|beforeEach|afterEach|beforeAll|afterAll|expect)\b`)
 
-// reUnitTest is a unit test's file. Its comments the change touched are material, and it is offered no
-// place to add one: a test is no carrier of a fact.
+// reUnitTest is a unit test's file. Its comments the change touched are material. A test is the wrong
+// place for a fact, so the pass offers a test file only those comments.
 var reUnitTest = regexp.MustCompile(`\.(?:test|spec)\.[a-z]+$|_test\.go$`)
 
 // findMaterial reads the file's comment blocks and declarations against the changed lines.
@@ -142,8 +142,8 @@ func firstContentLine(lines []string) int {
 	return 0
 }
 
-// declarationSpan is the lines of the declaration opening on line `at`: up to the bracket that closes
-// what the declaration opens, or its own line where it opens nothing. A change to a body changes the
+// declarationSpan is the lines of the declaration opening on line `at`, up to the bracket that closes
+// what it opens. A declaration that opens no bracket is its own line. A change to a body changes the
 // declaration, and the comment on it is the pass's material.
 func declarationSpan(lines []string, at int) []int {
 	if at < 1 || at > len(lines) {

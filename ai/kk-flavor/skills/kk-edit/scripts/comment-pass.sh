@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Passes the comments of a change's changed files: one model call per file decides each comment the
-# change touched and each declaration it added or changed, and writes the comment text, under the page
-# at ~/.kk-flavor/standards/comment-page.md. The tool applies the decisions and runs the mechanical
-# gate. A file whose page, content and notes are unchanged since its last call takes that call's reply.
+# Passes the comments of a change's changed files, one model call per file. The call decides each
+# comment the change touched and each declaration it added or changed, and writes the comment text,
+# under the page at ~/.kk-flavor/standards/comment-page.md. The tool applies the decisions and runs the
+# mechanical gate. A file with the same page, content and notes as at its last call reuses that reply.
 #
 #   usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --dry-run] [--page=<file>] [--model=<name>] [<path>...]
 #
-# Exit 0 where every file passed, 1 where a file's reply or gate failed, and 2 where the pass did not run.
+# Exit 0: every file passed. Exit 1: a file's reply or gate failed. Exit 2: the pass did not run.
 #
 # tested by: the Go suite in ai/tools/comment-pass/. The shared stub region and the resolver it
 # calls have their own cases in the Go suite in ai/tools/reach/.

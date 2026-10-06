@@ -93,7 +93,7 @@ func TestTheMaterialIsWhatTheChangeTouched(t *testing.T) {
 	}
 }
 
-// One call writes the file: a rewrite replaces the block, an add goes above its declaration at its
+// One call writes the file. A rewrite replaces the block, an add goes on its declaration at its
 // indent, and the untouched comment stands.
 func TestOneCallRewritesAndAdds(t *testing.T) {
 	dir, base := fixture(t)
@@ -110,8 +110,8 @@ func TestOneCallRewritesAndAdds(t *testing.T) {
 	}
 }
 
-// A reply that leaves an id unanswered, answers one it was not offered, or gives a verb its kind does
-// not take fails the file, which stays as it was.
+// A malformed reply fails the file, which stays as it was. It may leave an id unanswered, answer an id
+// the call did not offer, or give an id a verb of the other kind.
 func TestAMalformedReplyFailsTheFile(t *testing.T) {
 	for _, reply := range []string{
 		"c1 keep: fine\n",

@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// The gate checks what has no judgement in it: a line no wider than the repository prints, a block of
-// at most four prose lines and a file header of at most eight, and no markdown. A comment that fails
-// it fails the pass, with its text shown. Nothing is retried and nothing is dropped.
+// The gate checks what takes no judgement. A line fits the repository's print width. A block holds at
+// most four prose lines, and a file header at most eight. A comment holds no markdown. A comment that
+// fails the gate fails the pass, with its text shown, and the pass retries and drops no comment.
 
 const (
 	maxBlockLines  = 4
@@ -59,8 +59,8 @@ func gateFindings(m material, decisions []decision, width int) []string {
 	return out
 }
 
-// indentWidth is the indent the comment will take, which counts toward the line's width. It is read
-// at apply time, and the gate runs on the text alone, so the caller passes it through the material.
+// indentWidth is the indent the comment will take, which counts toward the line's width. The gate
+// reads the text before it is placed, so the material carries each id's indent.
 func indentWidth(m material, id string) int { return m.indents[id] }
 
 var reCommentLead = regexp.MustCompile(`^\s*(?:/\*\*?|\*/|\*|//|#)\s?`)

@@ -60,7 +60,7 @@ type decision struct {
 var reDecision = regexp.MustCompile(`^([cp]\d+) (keep|remove|rewrite|add|skip): (.+)$`)
 
 // parseReply reads the model's reply against the material. Every id is answered once with a verb its
-// kind takes, and a writing verb carries text. Anything else refuses the file.
+// kind takes, and a writing verb carries text. A reply of another shape refuses the file.
 func parseReply(reply string, m material) ([]decision, error) {
 	want := map[string]string{}
 	for _, c := range m.candidates {

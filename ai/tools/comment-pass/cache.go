@@ -10,9 +10,9 @@ import (
 )
 
 // A rerun calls the model only for a file whose input changed. The page, the file as the change left
-// it and the reviewer's notes on it are hashed together. A file whose hash matches its last call takes
-// that call's reply again, so a comment Kirill accepted is not sampled afresh. The cache holds one
-// reply per file and nothing else.
+// it and the reviewer's notes on it are hashed together. A file with its last call's hash reuses that
+// call's reply, and a comment the reviewer accepted stays as it was. The cache holds one reply per
+// file.
 
 // cacheEntry is the last call of one file.
 type cacheEntry struct {

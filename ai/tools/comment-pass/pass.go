@@ -18,8 +18,8 @@ const usage = "usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --
 var sourceExtensions = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true,
 	".cjs": true, ".go": true, ".py": true, ".sh": true, ".java": true, ".kt": true, ".swift": true, ".rs": true}
 
-// Run is the pass over a change: each changed source file in one call. It exits 0 where every file
-// passed, 1 where a file's reply or gate failed, and 2 where the pass did not run.
+// Run is the pass over a change: each changed source file in one call. Exit 0: every file passed.
+// Exit 1: a file's reply or gate failed. Exit 2: the pass did not run.
 func Run(self string, args []string, cwd string, lookup func(string) (string, bool), call func(model string) Caller,
 	stdout, stderr io.Writer) int {
 	refuse := func(format string, a ...any) int {
@@ -60,6 +60,7 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 	if err != nil && !list {
 		return refuse("cannot read the page at %s", pageFile)
 	}
+	page = []byte(withoutLayer(string(page)))
 	notes, err := readNotes(notesFile)
 	if err != nil {
 		return refuse("%v", err)
@@ -185,8 +186,8 @@ func readNotes(file string) (map[string][]string, error) {
 	return out, nil
 }
 
-// repositoryKey names the repository the cache keeps replies for: its origin where it has one, so
-// every worktree of it shares the cache, and its path otherwise.
+// repositoryKey names the repository the cache keeps replies for. Every worktree shares the origin's
+// URL, and a checkout with no origin falls back to its path.
 func repositoryKey(top string) string {
 	name, err := gitOut(top, "remote", "get-url", "origin")
 	if err != nil || name == "" {
@@ -199,4 +200,12 @@ func repositoryKey(top string) string {
 func gitOut(dir string, args ...string) (string, error) {
 	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
 	return strings.TrimSpace(string(out)), err
+}
+
+// withoutLayer takes off the `**Layer:**` line every standard opens on. The model has no use for it.
+func withoutLayer(page string) string {
+	if first, rest, found := strings.Cut(page, "\n"); found && strings.HasPrefix(first, "**Layer:**") {
+		return strings.TrimLeft(rest, "\n")
+	}
+	return page
 }

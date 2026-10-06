@@ -5,7 +5,8 @@ import (
 	"strings"
 )
 
-// edit replaces lines first..last (1-based, inclusive) with text; first > last inserts before first.
+// edit replaces the lines from first to last with text. Lines count from 1, and both ends are
+// included. An edit whose first line comes after its last inserts the text before the first.
 type edit struct {
 	first, last int
 	text        []string
