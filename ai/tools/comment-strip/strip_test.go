@@ -743,3 +743,19 @@ func TestALinesStripOffersTheArchivedSiteWhereNoBlockStands(t *testing.T) {
 		t.Fatalf("the facts file offers no archived claim:\n%s", facts)
 	}
 }
+
+// A record whose declaration was rewritten under its name reads at the new declaration. The strip's
+// line names that declaration for the runner. Run 26's lane turned an interface into a type alias.
+func TestARecordPlacedByNameIsNamedInTheStripsLine(t *testing.T) {
+	f := newFixture(t, "f.ts", "// A ledger posts each width it holds.\nexport interface Played {\n  w: number;\n}\n")
+	archive := filepath.Join(f.dir, "archive")
+	f.cut("--archive=" + archive)
+	f.write("export type Played = Pick<Config, 'w'>;\n")
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	said := f.run("--archive=" + archive)
+	if !strings.Contains(said.stderr, "f.ts:1: export interface Played { placed at `export type Played = Pick<Config, 'w'>;` by name, its text changed") {
+		t.Fatalf("exit %d: %s", said.code, said.stderr)
+	}
+}

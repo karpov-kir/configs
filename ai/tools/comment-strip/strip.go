@@ -350,10 +350,13 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			// Where a block stands there, that block was written for the claim and the record is spent.
 			// Run 26's lane turned `interface PlayedRepresentation` into a type alias, the loop wrote the
 			// alias's block, and run 27 offered the interface's records at the file's head.
-			if only == nil && at > 0 && at <= height && strings.TrimSpace(lines[at-1]) != record.decl &&
-				keptDecls[strings.TrimSpace(lines[at-1])] {
-				fmt.Fprintf(stderr, "%s:%d: %s%s\n", path, at, record.decl, SupersededLine)
-				continue
+			if at > 0 && at <= height && strings.TrimSpace(lines[at-1]) != record.decl {
+				fmt.Fprintf(stderr, "%s:%d: %s placed at `%s` by name, its text changed\n", path, at, record.decl,
+					strings.TrimSpace(lines[at-1]))
+				if only == nil && keptDecls[strings.TrimSpace(lines[at-1])] {
+					fmt.Fprintf(stderr, "%s:%d: %s%s\n", path, at, record.decl, SupersededLine)
+					continue
+				}
 			}
 			if only != nil && !only[at] {
 				continue
