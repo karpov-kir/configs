@@ -37,8 +37,9 @@ func PrivateNamesPath(lookup func(string) (string, bool)) string {
 
 // PrivateNamesHeader opens a new list. The list starts with no entries, and its owner fills it.
 const PrivateNamesHeader = `# Private names kept out of public repositories, one per line: a whole word in any case, or
-# "re:" and a regular expression. Lines opening on "#" are comments. The register scan, the gate
-# and the configs hooks read this file, and a match is reported by the entry's line here.
+# "re:" and a case-sensitive regular expression, as "re:(?i)acme\w*" for every identifier built on
+# a word. Lines opening on "#" are comments. The register scan, the gate and the configs hooks read
+# this file, and a match is reported by the entry's line here.
 `
 
 // privateName is one entry of the owner's list, compiled, with the line it stands on.
@@ -54,7 +55,7 @@ type privateNames []privateName
 // compile is refused, since a list that silently drops an entry guards less than its owner thinks.
 func loadPrivateNames(path string) (privateNames, error) {
 	file, err := os.Open(path)
-	if os.IsNotExist(err) {
+	if os.IsNotExist(err) && os.Getenv(privateNamesEnv) == "" {
 		return nil, nil
 	}
 	if err != nil {
@@ -99,9 +100,24 @@ func privateNameText(line int) string {
 	return fmt.Sprintf("the entry on line %d of the private-name list", line)
 }
 
-// privateScan is the `--private-names` mode. Given a revision range it reads every line the range adds,
-// in every file, and every commit message in it: the gate and the pre-push hook call it so. Given
-// `--message=<file>` it reads that file whole: the commit-msg hook and a PR body before it is sent.
+// emptyTree is git's empty tree. A range from it reads a branch from its first commit.
+const emptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
+// redactedPath stands in for a path that holds a private name, in every report that prints a path.
+const redactedPath = "<a path holding a private name>"
+
+// redact is the path as a report may print it.
+func (names privateNames) redact(path string) string {
+	if len(names.hits(path)) > 0 {
+		return redactedPath
+	}
+	return path
+}
+
+// privateScan is the `--private-names` mode. The gate and the pre-push hook hand it a revision range,
+// and it reads each path, each added line and each commit message there. `--message=<file>` reads a PR
+// body whole. `--commit-message=<file>` reads a commit message as git keeps it, with git's `#` lines
+// dropped, as the commit-msg hook receives it.
 func privateScan(out console, args []string, cwd string, cfg Config) int {
 	names, err := loadPrivateNames(cfg.PrivateNames)
 	if err != nil {
@@ -112,20 +128,33 @@ func privateScan(out console, args []string, cwd string, cfg Config) int {
 		return 0
 	}
 	if len(args) != 1 {
-		return out.refuseArguments(fmt.Errorf("--private-names takes one revision range or --message=<file> — the scan did NOT run"))
+		return out.refuseArguments(fmt.Errorf("--private-names takes one revision range, --message=<file> or --commit-message=<file> — the scan did NOT run"))
 	}
 	var found []string
-	if file, ok := strings.CutPrefix(args[0], "--message="); ok {
+	message, whole := strings.CutPrefix(args[0], "--message=")
+	commit, isCommit := strings.CutPrefix(args[0], "--commit-message=")
+	switch {
+	case whole || isCommit:
+		file := message
+		if isCommit {
+			file = commit
+		}
 		body, err := os.ReadFile(file)
 		if err != nil {
 			return out.refuseArguments(fmt.Errorf("cannot read %s — the scan did NOT run", file))
 		}
 		for n, line := range strings.Split(string(body), "\n") {
+			if isCommit && strings.HasPrefix(line, "# ") && strings.Contains(line, ">8") {
+				break
+			}
+			if isCommit && strings.HasPrefix(line, "#") {
+				continue
+			}
 			for _, entry := range names.hits(line) {
-				found = append(found, fmt.Sprintf("%s:%d: %s: %s", file, n+1, checkPrivateName, privateNameText(entry)))
+				found = append(found, fmt.Sprintf("%s:%d: %s: %s", names.redact(file), n+1, checkPrivateName, privateNameText(entry)))
 			}
 		}
-	} else {
+	default:
 		lines, messages, err := privateRange(cwd, args[0], names)
 		if err != nil {
 			return out.refuseArguments(fmt.Errorf("%v — the scan did NOT run", err))
@@ -142,27 +171,43 @@ func privateScan(out console, args []string, cwd string, cfg Config) int {
 	return 0
 }
 
-// privateRange reads the lines a revision range adds and the messages of its commits.
+// privateRange reads the paths and lines a revision range adds and the messages of its commits. A hunk
+// header counts the hunk's lines, and each of those lines is content. An added line reading `++ x`
+// shows in the diff as `+++ x`, the shape of a file header.
 func privateRange(cwd, revisions string, names privateNames) ([]string, []string, error) {
 	diff, err := exec.Command("git", "-C", cwd, "diff", "--no-color", "--unified=0", revisions).Output()
 	if err != nil {
 		return nil, nil, fmt.Errorf("git cannot diff %s", revisions)
 	}
 	var lines []string
-	file, at := "", 0
+	file, at, oldLeft, newLeft := "", 0, 0, 0
 	for _, line := range strings.Split(string(diff), "\n") {
+		if oldLeft > 0 || newLeft > 0 {
+			switch {
+			case strings.HasPrefix(line, "+"):
+				for _, entry := range names.hits(line[1:]) {
+					lines = append(lines, fmt.Sprintf("%s:%d: %s: %s", names.redact(file), at, checkPrivateName, privateNameText(entry)))
+				}
+				at++
+				newLeft--
+			case strings.HasPrefix(line, "-"):
+				oldLeft--
+			}
+			continue
+		}
 		switch {
-		case strings.HasPrefix(line, "+++ "):
-			file = strings.TrimPrefix(strings.TrimPrefix(line, "+++ "), "b/")
+		case strings.HasPrefix(line, "diff --git "):
+			if _, after, found := strings.Cut(line, " b/"); found {
+				file = after
+				for _, entry := range names.hits(file) {
+					lines = append(lines, fmt.Sprintf("%s: %s: the path holds %s", redactedPath, checkPrivateName, privateNameText(entry)))
+				}
+			}
 		case strings.HasPrefix(line, "@@ "):
-			if m := reHunkStart.FindStringSubmatch(line); m != nil {
-				at, _ = strconv.Atoi(m[1])
+			if m := reHunkCounts.FindStringSubmatch(line); m != nil {
+				oldLeft, newLeft = count(m[1]), count(m[3])
+				at, _ = strconv.Atoi(m[2])
 			}
-		case strings.HasPrefix(line, "+"):
-			for _, entry := range names.hits(line[1:]) {
-				lines = append(lines, fmt.Sprintf("%s:%d: %s: %s", file, at, checkPrivateName, privateNameText(entry)))
-			}
-			at++
 		}
 	}
 	// A bare revision is the work not yet committed, and its diff is all there is to read.
@@ -170,6 +215,10 @@ func privateRange(cwd, revisions string, names privateNames) ([]string, []string
 		return lines, nil, nil
 	}
 	commits := strings.Replace(revisions, "...", "..", 1)
+	// A range from the empty tree reads the branch from its first commit, which `A..B` would leave out.
+	if base, head, found := strings.Cut(commits, ".."); found && base == emptyTree {
+		commits = head
+	}
 	log, err := exec.Command("git", "-C", cwd, "log", "--format=%H%x00%B%x00", commits).Output()
 	if err != nil {
 		return nil, nil, fmt.Errorf("git cannot list the commits of %s", commits)
@@ -185,4 +234,14 @@ func privateRange(cwd, revisions string, names privateNames) ([]string, []string
 	return lines, messages, nil
 }
 
-var reHunkStart = regexp.MustCompile(`^@@ -\S+ \+(\d+)`)
+// reHunkCounts is a hunk header's old count, new start and new count. A count left out is one.
+var reHunkCounts = regexp.MustCompile(`^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@`)
+
+// count reads a hunk count. git leaves a count of one out.
+func count(text string) int {
+	if text == "" {
+		return 1
+	}
+	n, _ := strconv.Atoi(text)
+	return n
+}

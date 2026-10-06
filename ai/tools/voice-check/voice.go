@@ -1342,6 +1342,13 @@ flags:
 	if err != nil {
 		return out.refuse(err)
 	}
+	// A path or another check's quote that holds a private name is printed redacted.
+	for i := range found {
+		found[i].File = s.private.redact(found[i].File)
+		if found[i].Check != checkPrivateName && len(s.private.hits(found[i].Text)) > 0 {
+			found[i].Text = "<text holding a private name>"
+		}
+	}
 	return reportVoice(out, profile, found, over)
 }
 

@@ -8,4 +8,4 @@
 # tested by: the Go suite in ai/tools/ai-bootstrap/.
 set -euo pipefail
 top="$(git rev-parse --show-toplevel)"
-exec "$top/ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh" --private-names --message="$1"
+exec "$top/ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh" --private-names --commit-message="$1"

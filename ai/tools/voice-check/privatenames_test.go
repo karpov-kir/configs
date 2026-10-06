@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"configs/ai/tools/repo"
 	"configs/ai/tools/repo/repotest"
 )
 
@@ -123,5 +124,69 @@ func TestAnEmptyListPassesAndABrokenEntryRefuses(t *testing.T) {
 	}
 	if code := Run("voice-check.sh", []string{"--private-names", "HEAD"}, dir, repotest.New(dir), writeList(t, "re:(\n"), &out, &errOut); code != 2 {
 		t.Fatalf("a broken entry exits %d", code)
+	}
+}
+
+// Review found five ways past the scan, and each is pinned here. An added line opened on `++ `. A
+// name stood in a path, or in a branch's first commit. git's own comment lines filled a message. Another
+// check quoted a name.
+func TestTheScanHoldsAgainstWhatReviewFound(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	write("a.md", "first\n")
+	git("add", "-A")
+	git("commit", "-qm", "Read the vaultkeep book")
+	root := git("rev-parse", "HEAD")
+	write("c.md", "++ vaultkeep\nsee it\n")
+	write("vaultkeep-dir/f.md", "clean\n")
+	git("add", "-A")
+	git("commit", "-qm", "clean")
+	cfg := writeList(t, "# list\nvaultkeep\n")
+	run := func(args ...string) (int, string) {
+		var out, errOut strings.Builder
+		code := Run("voice-check.sh", args, dir, repotest.New(dir), cfg, &out, &errOut)
+		return code, out.String() + errOut.String()
+	}
+	code, text := run("--private-names", root+"..HEAD")
+	if code != 1 || !strings.Contains(text, "c.md:1: private-name") || !strings.Contains(text, redactedPath+": private-name: the path holds") {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+	code, text = run("--private-names", emptyTree+"..HEAD")
+	if code != 1 || !strings.Contains(text, "commit "+root[:12]+": private-name") {
+		t.Fatalf("the first commit went unread, exit %d:\n%s", code, text)
+	}
+	if strings.Contains(strings.ToLower(text), "vaultkeep") {
+		t.Fatalf("the report quotes the name:\n%s", text)
+	}
+	write("MSG", "Fix the book\n# On branch vaultkeep-x\n# ------------------------ >8 ------------------------\nvaultkeep below the cut\n")
+	if code, text := run("--private-names", "--commit-message="+filepath.Join(dir, "MSG")); code != 0 {
+		t.Fatalf("git's own lines refused the message, exit %d:\n%s", code, text)
+	}
+	// The register scan redacts the path and another check's quote of the name.
+	write("vaultkeep-dir/g.ts", "// Read the vaultkeep row, in effect, so the ledger posts it.\nexport const ROW = 1;\n")
+	git("add", "-A")
+	var out, errOut strings.Builder
+	code = Run("voice-check.sh", []string{"--profile=comment", "HEAD", "--", "vaultkeep-dir/g.ts"}, dir, repo.Exec{}, cfg, &out, &errOut)
+	text = out.String() + errOut.String()
+	if code != 1 || !strings.Contains(text, "private-name") || strings.Contains(strings.ToLower(text), "vaultkeep") {
+		t.Fatalf("the register scan, exit %d:\n%s", code, text)
 	}
 }

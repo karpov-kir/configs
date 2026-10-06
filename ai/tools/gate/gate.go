@@ -501,7 +501,8 @@ func (g *gate) quote(line string) {
 }
 
 // privateNamesCmd reads the branch against main and then the uncommitted work. Where main is missing it
-// reads the uncommitted work.
+// says so and reads the uncommitted work.
 const privateNamesCmd = `scan=ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh; ` +
-	`if git rev-parse --verify -q origin/main >/dev/null; then "$scan" --private-names origin/main...HEAD || exit; fi; ` +
+	`if git rev-parse --verify -q origin/main >/dev/null; then "$scan" --private-names origin/main...HEAD || exit; ` +
+	`else echo "private names: no origin/main, so the branch's commits went unread and only the uncommitted work was read" >&2; fi; ` +
 	`"$scan" --private-names HEAD`

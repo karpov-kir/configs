@@ -15,7 +15,9 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
   [ "$local_sha" = "$zero" ] && continue
   base="$remote_sha"
   if [ "$base" = "$zero" ]; then
-    base="$(git merge-base origin/main "$local_sha" 2>/dev/null || git rev-list --max-parents=0 "$local_sha" | tail -1)"
+    # A new branch reads from where it leaves main. With no main it reads from the empty tree, and its
+    # first commit is read too.
+    base="$(git merge-base origin/main "$local_sha" 2>/dev/null || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)"
   fi
   "$top/ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh" --private-names "$base..$local_sha" || status=$?
 done
