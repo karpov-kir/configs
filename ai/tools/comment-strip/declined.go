@@ -77,8 +77,8 @@ func declinedBy(held []declined, record archived, span, rules string) string {
 
 // OfferedRecords names the archived records of path whose claims a facts file carried, and of those the
 // records holding the site's own claims, its first block. A `none` declines every claim the writer
-// weighed there. A block written settles only the site's own claims: a claim offered beside them as an
-// earlier run's belongs to a declaration of its own.
+// weighed there, and a block written settles every one of them too: the writer weighed each claim in
+// front of it, and the block is its answer.
 func OfferedRecords(archive, path, facts string) (all, own []string, err error) {
 	records, err := readArchive(archive, path)
 	if err != nil {
@@ -348,6 +348,28 @@ func RulesOfRun(archive, run string) string {
 			if w.Run == run && w.Rules != "" {
 				return w.Rules
 			}
+		}
+	}
+	return ""
+}
+
+// heldDecline is the run whose decline holds the record at line `at`. A record whose declaration left
+// the file reads at the file level. A decline of its claims on that declaration then holds it at any
+// span, since the code that decline weighed is gone. Run 26 declined
+// two member records, the lane folded the member into another type, and run 28 offered them again.
+func heldDecline(held []declined, record archived, lines []string, at int, rules string) string {
+	if run := declinedBy(held, record, siteSpan(lines, at), rules); run != "" || at != fileLevel || record.decl == "" {
+		return run
+	}
+	for _, line := range lines {
+		if strings.TrimSpace(line) == record.decl {
+			return ""
+		}
+	}
+	claims := claimsSum(record.claims)
+	for _, d := range held {
+		if sameRules(d.Rules, rules) && d.Decl == record.decl && d.Claims == claims {
+			return d.Run
 		}
 	}
 	return ""

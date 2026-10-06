@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	readerjudge "configs/ai/tools/reader-judge"
@@ -37,6 +38,9 @@ type written struct {
 	Block string `json:"block"`
 	// Record is the note's three slot lines, as the writer returned them.
 	Record string `json:"record"`
+	// Settles is the claims of every record the block's site was offered. A writer weighs every claim in
+	// front of it, so the block it wrote is its answer to each of them.
+	Settles []string `json:"settles,omitempty"`
 }
 
 // writtenName is the file under the archive holding the blocks the lane wrote in one source file.
@@ -373,7 +377,7 @@ func renameWritten(archive, path string, lines []string, forward, back func(stri
 			}
 			break
 		}
-		if next != w {
+		if next.Decl != w.Decl || next.Span != w.Span || next.Block != w.Block || next.Record != w.Record {
 			held[i] = next
 			renamed++
 		}
@@ -389,4 +393,64 @@ func renameWritten(archive, path string, lines []string, forward, back func(stri
 		return 0, fmt.Errorf("cannot write %s", shell.Echoable(writtenName(archive, path)))
 	}
 	return renamed, nil
+}
+
+// SettleAt records that the block on line `at` of the file answers the claims its site was offered. A
+// writer weighs every claim in front of it, so its block answers each of them, as ruled after run 28.
+func SettleAt(archive, path string, lines []string, at int, claims []string) error {
+	if len(claims) == 0 {
+		return nil
+	}
+	var block string
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		if u.Line == at {
+			block = blockText(lines, u)
+		}
+	}
+	held := readWritten(archive, path)
+	for n := len(held) - 1; n >= 0; n-- {
+		if held[n].Block != block {
+			continue
+		}
+		for _, c := range claims {
+			if !slices.Contains(held[n].Settles, c) {
+				held[n].Settles = append(held[n].Settles, c)
+			}
+		}
+		body, err := json.MarshalIndent(held, "", " ")
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(writtenName(archive, path), append(body, '\n'), 0o644)
+	}
+	return nil
+}
+
+// settledClaims is the claims the blocks standing and kept in the file settled, by claims sum, each
+// with the line of the block that settled it.
+func settledClaims(archive, path string, lines []string) map[string]int {
+	kept := map[string]bool{}
+	for _, v := range KeepVerdicts(archive, path, lines) {
+		if v.Run != "" {
+			for _, u := range readerjudge.CommentBlocks(lines) {
+				if u.Line == v.Line {
+					kept[blockText(lines, u)] = true
+				}
+			}
+		}
+	}
+	out := map[string]int{}
+	for _, w := range readWritten(archive, path) {
+		if !kept[w.Block] {
+			continue
+		}
+		for _, u := range readerjudge.CommentBlocks(lines) {
+			if blockText(lines, u) == w.Block {
+				for _, c := range w.Settles {
+					out[c] = u.Line
+				}
+			}
+		}
+	}
+	return out
 }

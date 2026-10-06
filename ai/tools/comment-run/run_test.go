@@ -1061,8 +1061,34 @@ func TestArchiveWrittenAcceptsABlockOnASitePlacedByName(t *testing.T) {
 	}
 }
 
-// The refactor lane's edits are settled by the carried stage. The next seed lists them for the lane's
-// prompt, and the carried stage refuses a later lane's edit to one while its code holds.
+// A `none` declines what its site was offered and clears no decline, however often it is read.
+func TestANoneClearsNoDecline(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	if said := c.run("prompts", "--run-dir="+runDir); said.code != exitClean {
+		t.Fatalf("prompts: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	sites, _ := os.ReadFile(filepath.Join(runDir, "sites.txt"))
+	site := regexp.MustCompile(`ledger\.ts:(\d+)`).FindStringSubmatch(string(sites))
+	if site == nil {
+		t.Fatalf("no ledger.ts site in %s", sites)
+	}
+	if err := os.WriteFile(returnFile(runDir, "A"), []byte("Block 1/1 ledger.ts:"+site[1]+" | none\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for round := 1; round <= 2; round++ {
+		said := c.run("archive-written", "--run=run26", "--archive="+archive, "--run-dir="+runDir)
+		if strings.Contains(said.stderr, "decline(s) cleared") && !strings.Contains(said.stderr, " 0 decline(s) cleared") {
+			t.Fatalf("round %d cleared a decline:\n%s%s", round, said.stdout, said.stderr)
+		}
+		held, _ := filepath.Glob(filepath.Join(archive, "*.declined"))
+		if len(held) == 0 {
+			t.Fatalf("round %d: no decline recorded:\n%s%s", round, said.stdout, said.stderr)
+		}
+	}
+}
+
 func TestTheCarriedStageSettlesTheLanesEdits(t *testing.T) {
 	c := newChange(t)
 	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")

@@ -326,6 +326,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		lines := shell.SplitLines(stripped)
 		height := len(lines)
 		declines, rules := readDeclined(archive, path), rulesSum()
+		settled := settledClaims(archive, path, lines)
 		offered := map[int]bool{}
 		for _, s := range sites {
 			offered[s.line] = true
@@ -333,6 +334,11 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 		for _, record := range records {
 			// A kept block's own record stays unread: the block standing there is what it became.
 			if _, found := held[record.name]; found || (record.decl != "" && keptDecls[record.decl]) {
+				continue
+			}
+			if at, found := settled[claimsSum(record.claims)]; found && only == nil {
+				fmt.Fprintf(stderr, "%s: %s settled by the block standing at :%d, which its site's writer wrote with the claim in front of it\n",
+					path, record.decl, at)
 				continue
 			}
 			if _, gone := carriedAt[record.decl]; record.decl != "" && gone {
@@ -366,7 +372,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			// `--lines` strip is a review sending the site back, and it offers the site whatever was declined.
 			// The record stays held at its line, so a site offered there still carries its claims.
 			if only == nil && at <= height {
-				if run := declinedBy(declines, record, siteSpan(lines, at), rules); run != "" {
+				if run := heldDecline(declines, record, lines, at, rules); run != "" {
 					fmt.Fprintf(stderr, "%s:%d: declined as %s%s\n", path, at, run, DeclinedLine)
 					continue
 				}
