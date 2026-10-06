@@ -162,16 +162,18 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			fmt.Fprintf(stdout, "%s: the reply does not parse: %v\n%s\n", path, err, reply)
 			continue
 		}
-		if found := gateFindings(m, decisions, widthFor(path, width)); len(found) > 0 {
-			failed++
-			fmt.Fprintf(stdout, "%s: the gate refused the file, which is left as it was:\n%s\n", path, strings.Join(found, "\n"))
-			continue
-		}
-		// A reply is kept only once it parsed and passed the gate, so a refused one is asked again.
+		// A reply is kept once it parses. A rerun applies it again rather than asking again, so a reply
+		// the gate refused is never rolled a second time, and a later wrap or gate can still take it.
 		if source == "called" {
 			if err := keepReply(store, key, reply); err != nil {
 				fmt.Fprintf(stderr, "%s: cannot keep the reply for %s: %v\n", self, path, err)
 			}
+		}
+		decisions = rewrap(m, decisions, widthFor(path, width))
+		if found := gateFindings(m, decisions, widthFor(path, width)); len(found) > 0 {
+			failed++
+			fmt.Fprintf(stdout, "%s: the gate refused the file, which is left as it was:\n%s\n", path, strings.Join(found, "\n"))
+			continue
 		}
 		written := 0
 		files++

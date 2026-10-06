@@ -129,12 +129,13 @@ func TestAMalformedReplyFailsTheFile(t *testing.T) {
 	}
 }
 
-// The gate refuses a block over four prose lines, a line over the width and markdown, with the text
-// shown, and leaves the file as it was.
+// The gate refuses a block over four prose lines, a line no wrap can bring within the width, and
+// markdown, with the text shown, and leaves the file as it was.
 func TestTheGateRefusesWithTheTextShown(t *testing.T) {
 	for _, comment := range []string{
 		"// one\n// two\n// three\n// four\n// five\n",
-		"// " + strings.Repeat("word ", 30) + "\n",
+		"// " + strings.Repeat("w", 130) + "\n",
+		"// " + strings.Repeat("word ", 130) + "\n",
 		"// **bold** words\n",
 	} {
 		dir, base := fixture(t)
