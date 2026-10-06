@@ -3,8 +3,9 @@ package commentrun
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
+
+	readerjudge "configs/ai/tools/reader-judge"
 )
 
 // dispatchedDir is where a run keeps each file as its writers received it: the seed's strip, the tree
@@ -13,9 +14,6 @@ import (
 func dispatchedDir(runDir string) string {
 	return filepath.Join(runDir, "dispatched")
 }
-
-// reEditableLine is a line a writer's edit may change: a comment line or a blank one.
-var reEditableLine = regexp.MustCompile(`^\s*(?://|/\*|\*|$)`)
 
 // codeChanged is the first line of the file, as the tree numbers it, whose code differs from the file
 // as its writer received it, or 0. A writer writes comment lines only. Run 26's writers changed the
@@ -51,11 +49,19 @@ type codeLine struct {
 	text string
 }
 
-// codeLines is the text's lines of code, each with its whitespace as it stands.
+// codeLines is the text's lines of code, each with its whitespace as it stands. The strip's grammar
+// decides which lines are comment: a `#` header and a `/* */` body line are among them.
 func codeLines(text string) []codeLine {
+	lines := strings.Split(text, "\n")
+	comment := map[int]bool{}
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		for n := u.Line; n < u.Line+u.Span; n++ {
+			comment[n] = true
+		}
+	}
 	var out []codeLine
-	for i, line := range strings.Split(text, "\n") {
-		if !reEditableLine.MatchString(line) {
+	for i, line := range lines {
+		if !comment[i+1] && strings.TrimSpace(line) != "" {
 			out = append(out, codeLine{i + 1, line})
 		}
 	}

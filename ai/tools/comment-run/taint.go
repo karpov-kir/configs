@@ -205,11 +205,19 @@ var (
 	// A script names files it only reads, and run 26's writer named six source files in a script that
 	// appended its ledger. A write counts against the file its target names.
 	reIdentifier = regexp.MustCompile(`^[A-Za-z_]\w*$`)
-	reArgv       = regexp.MustCompile(`\b(?:sys\.argv|process\.argv|ARGV)\[(\d+)\]`)
-	// reScriptRun is the line running a script on stdin or from a file, with its arguments after.
-	reScriptRun   = regexp.MustCompile(`\b(?:python3?|node|ruby)\s+(?:-|\S+\.(?:py|js|rb))\s+(.*)$`)
+	reArgv       = regexp.MustCompile(`\b(sys\.argv|process\.argv|ARGV)\[(\d+)(:?)`)
+	// reScriptRun is the line running a script on stdin or from a file, its flags before it and its
+	// arguments after.
+	reScriptRun   = regexp.MustCompile(`\b(python3?|node|ruby)\s+(?:-[\w-]+\s+)*(?:-|\S+\.(?:py|js|rb))\s+(.*)$`)
 	reInterpreter = regexp.MustCompile(`\b(?:python3?|node|ruby)\b`)
-	reWriteCall   = regexp.MustCompile(`\bopen\(\s*([^,)]+),\s*['"][wa]|\bwriteFile(?:Sync)?\(\s*([^,)]+)|\bPath\(\s*([^)]+)\)\.write_(?:text|bytes)`)
+	reWriteCall   = regexp.MustCompile(`\bopen\(\s*(?:file\s*=\s*)?([^,)]+),\s*(?:mode\s*=\s*)?['"][^'"]*[wa+]` +
+		`|\bwriteFile(?:Sync)?\(\s*((?:[^,()]|\([^)]*\))+)` +
+		`|\b\w+\(\s*([^)]+)\)\.write_(?:text|bytes)\(` +
+		`|\b(\w+)\.write_(?:text|bytes)\(` +
+		`|\bFile\.write\(\s*([^,)]+)` +
+		`|\bFile\.open\(\s*([^,)]+),\s*['"][wa]`)
+	// reJoin is two quoted parts a path join puts a separator between.
+	reJoin = regexp.MustCompile(`['"]\s*,\s*['"]`)
 	// A log's graph opens lines on `* `, so a log read counts only a line opening a block. Run 13's one
 	// log read flagged every file its writer held.
 	reBlockOpener = regexp.MustCompile(`(?m)^[+-]?\s*(\d+[:\t]\s*)?(//|/\*)`)
@@ -321,23 +329,25 @@ func scriptWrites(command, file string) bool {
 	return false
 }
 
-// interpreterWrites says a script writes the file: a write whose target names it, or a write to a
-// variable assigned a string naming it or an argument naming it.
+// interpreterWrites says a script writes the file. Its write call names the file, or names a variable
+// that a string, a loop over strings or an argument binds to the file.
 func interpreterWrites(command, file string) bool {
 	for _, m := range reWriteCall.FindAllStringSubmatch(command, -1) {
-		target := strings.TrimSpace(m[1] + m[2] + m[3])
-		if strings.Contains(target, file) {
+		target := strings.TrimSpace(strings.Join(m[1:], ""))
+		if strings.Contains(reJoin.ReplaceAllString(target, "/"), file) {
 			return true
 		}
 		if !reIdentifier.MatchString(target) {
 			continue
 		}
-		for _, a := range regexp.MustCompile(`\b`+regexp.QuoteMeta(target)+`\s*=\s*([^\n;]+)`).FindAllStringSubmatch(command, -1) {
-			value := a[1]
-			if strings.Contains(value, file) {
+		bound := regexp.MustCompile(`\b` + regexp.QuoteMeta(target) + `\s*=\s*([^\n;]+)|\bfor\s+` +
+			regexp.QuoteMeta(target) + `\s+in\s+([^\n]+?):(?:\s|$)`)
+		for _, a := range bound.FindAllStringSubmatch(command, -1) {
+			value := a[1] + a[2]
+			if strings.Contains(reJoin.ReplaceAllString(value, "/"), file) {
 				return true
 			}
-			if n := reArgv.FindStringSubmatch(value); n != nil && argNames(command, n[1], file) {
+			if n := reArgv.FindStringSubmatch(value); n != nil && argNames(command, n[1], n[2], n[3] == ":", file) {
 				return true
 			}
 		}
@@ -345,21 +355,25 @@ func interpreterWrites(command, file string) bool {
 	return false
 }
 
-// argNames says the script's argument at the index names the file. A script reads its arguments
-// from the line that runs it, up to a heredoc or the end of the line.
-func argNames(command, index, file string) bool {
+// argNames says the script's argument at the index names the file, or any from it on where the index
+// opens a slice. Python's argv carries the script before the arguments, and Node's the interpreter
+// too. A script reads its arguments from the line that runs it, up to a heredoc.
+func argNames(command, vector, index string, slice bool, file string) bool {
 	at, err := strconv.Atoi(index)
 	if err != nil {
 		return false
 	}
+	at -= map[string]int{"sys.argv": 1, "process.argv": 2, "ARGV": 0}[vector]
 	for _, line := range strings.Split(command, "\n") {
 		run := reScriptRun.FindStringSubmatch(line)
 		if run == nil {
 			continue
 		}
-		args := strings.Fields(strings.Split(run[1], "<<")[0])
-		if at >= 1 && at <= len(args) && strings.Contains(args[at-1], file) {
-			return true
+		args := strings.Fields(strings.Split(run[2], "<<")[0])
+		for i, arg := range args {
+			if (i == at || (slice && i >= at)) && strings.Contains(arg, file) {
+				return true
+			}
 		}
 	}
 	return false

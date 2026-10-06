@@ -24,6 +24,7 @@ var (
 	reFence          = regexp.MustCompile("(?s)```[A-Za-z]*\n(.*?)```")
 	reRecordSlot     = regexp.MustCompile(`^\s*(?:-\s*)?(fact|bears_on|does):\s*(.*)$`)
 	reCommentLine    = regexp.MustCompile(`^\s*(/\*|\*|//|#)`)
+	reOpensBody      = regexp.MustCompile(`[{(\[]\s*$`)
 )
 
 // archiveWritten reads each writer's return, finds each block it wrote in the file as the file stands
@@ -209,11 +210,15 @@ func (r *runner) locate(file, site, segment string) (int, string) {
 		return 0, "the verdict fences no block"
 	}
 	// A writer may fence a block together with the code line that precedes it, as run 26's loop writer
-	// did for two summary-only blocks. The block is the fence's first run of comment lines.
+	// did for two summary-only blocks. The block is the fence's first run of comment lines. A code line
+	// before it that opens a body puts the run inside that body, and the fence is refused.
 	var block []string
 	for _, line := range strings.Split(fence[1], "\n") {
 		if !reCommentLine.MatchString(line) {
 			if len(block) == 0 {
+				if reOpensBody.MatchString(line) {
+					return 0, "the fenced block holds no comment line before the code"
+				}
 				continue
 			}
 			break
