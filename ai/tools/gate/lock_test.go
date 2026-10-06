@@ -30,8 +30,12 @@ func TestASecondGateWaitsForTheFirstRatherThanRacingIt(t *testing.T) {
 		t.Fatalf("an unheld lock made the first gate wait %s, so the queue below proves nothing", waited)
 	}
 
+	// The second gate says when it began, so the hold is counted from there. Counted from the line
+	// that starts it, the hold includes the time the scheduler took to run it, which it never queued.
+	began := make(chan time.Time, 1)
 	queued := make(chan time.Duration, 1)
 	go func() {
+		began <- time.Now()
 		second, waitedFor, err := takeLock(home, testPoll, nil)
 		if err != nil {
 			queued <- -1
@@ -43,6 +47,7 @@ func TestASecondGateWaitsForTheFirstRatherThanRacingIt(t *testing.T) {
 
 	// Long enough that a second gate which ignored the lock would be well past taking it.
 	held := 150 * time.Millisecond
+	start := <-began
 	time.Sleep(held)
 	select {
 	case got := <-queued:
@@ -51,9 +56,11 @@ func TestASecondGateWaitsForTheFirstRatherThanRacingIt(t *testing.T) {
 	default:
 	}
 
+	held = time.Since(start)
 	first.release()
 	got := <-queued
-	if got < held {
+	// The gate starts its clock a few instructions after the time it sent.
+	if got < held-time.Millisecond {
 		t.Errorf("the second gate reports a wait of %s, under the %s the first held the lock — the "+
 			"figure the gate subtracts from its budget is smaller than the time it actually queued",
 			got, held)
