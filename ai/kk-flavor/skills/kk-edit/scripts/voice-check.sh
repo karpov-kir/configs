@@ -1,78 +1,31 @@
 #!/usr/bin/env bash
-# Register check for comments and prose. By default it reads the comments a change set added and says
-# which sentences are written in the register the rule forbids. With `--density` it reports how many
-# comment lines the set carries beside the host repository's own rate.
+# Register check for prose. It reads a PR body, a review comment, a reply or a rule file, and says
+# which sentences are written in the register the rule forbids.
 #
-#   usage: voice-check.sh [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record [--file=<path>]] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]
-#          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
-#          exit 2, never scanned, and paths after `--` narrow the scan to them
-#   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread. The default is in
+#   usage: voice-check.sh [--profile=prose|instruction] [--kind=pr-body|ticket] [--per-file] [--] <path>|- ...
+#          # `-` reads stdin; a path that starts with `-` goes after `--`
+#   env:   DENSITY_MAX_FILE_BYTES — refuse a file larger than this. The default is in
 #          `~/.kk-flavor/configs/voice-check.conf`.
 #
-# Exits 1 with findings, 0 when clean, 2 when the scan did not run — git rejecting the arguments, a
-# path passed where a revision belongs, or a threshold that is no number. Prose/data files (md, txt,
-# json, lockfiles) don't count. With no diff args, untracked text files are scanned too; the index is
-# never touched.
-#
-# The default mode prints each outlier with its counts, then on stderr its denominator — files reached,
-# files with countable added lines, outliers, untracked files skipped unread — and one line saying which
-# run this was: nothing reached, nothing countable, or a targeting aid and not a bar. It counts ADDED
-# lines, so rewording a comment the base already carried moves it into the added set, and the ratio can
-# rise across a pass that cut comments.
-#
-# `--density` counts each changed file as it will land, against the rate the repo's untouched files run at,
-# and says how far over it sits and which files carry it. Two runs over one tree print one report. How
-# The figure is reported and gates no edit. It always exits 0, because the bar that used to gate
-# on it is what drove comments into compression, and a compressed comment is what this tool catches.
-# Files are read as they sit in the working tree; revisions only choose which files. Only a file new
-# since the diff's base is held to the per-file ceiling: one the repo already carried has the repo's own
-# density. It exits 2 when every file outside the change set is free of countable lines, because the
-# repository then has no rate to report against.
-#
-# The default mode prints one finding per line as `<file>:<line>: <check>: <matched text>`, exit 1 with
-# findings, 0 clean, 2 when the scan did not run. It counts nothing: each check names a shape a reader
-# stumbles on, so a finding is an edit to make and never a number to drive down. The rule it enforces
-# is `~/.kk-flavor/standards/comments.md`, and the tells are
+# Prints one finding per line as `<file>:<line>: <check>: <matched text>`. Exits 1 with findings, 0
+# clean, 2 when the scan did not run: an unknown flag, a path that cannot be read, a file over the
+# byte cap, or a threshold that is no number. It counts nothing: each check names a shape a reader
+# stumbles on, so a finding is an edit to make and never a number to drive down. The tells are
 # `~/.kk-flavor/standards/human-writing.md` -> AI tells -> House voice.
 #
-# `tooling-doubt` is the comment profile's, over a block and over a string of three words or more that
-# the change adds outside a unit test's file. It names a lane's doubt about a claim it moved, which the
-# artifact never carries.
+# Two profiles. `prose` (the default) reads a markdown or plain-text file whole. `instruction` reads a
+# rule file under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
+# `--kind` reads a prose body as a PR body or a ticket: it leaves the repository's template lines
+# unread and adds the `tests-narration` check. `--per-file` prints a finding count per path instead of
+# the findings.
 #
-# Three profiles. `comment` (the default) reads the comment lines a diff added to source files, and
-# takes `-` to read a unified diff on stdin, which is how a branch this checkout does not hold is
-# scanned: `gh pr diff <N> | voice-check.sh -`. `prose` reads a markdown or plain-text
-# file named as a path or `-`: a PR body, a review comment, a reply. `instruction` reads a rule file
-# under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
-#
-# `--record`, with `--source`, reads a note's record above a `---` line: `fact:`, `bears_on:`, `does:`.
-# The block and its declaration sit under the line. `bears_on` has to be declared there and said in the
-# block, and `does` has to share a word with the body. `does: none` stands on a data declaration: an enum, an interface, a type, a constant or a field.
-#
-# Its checks are record-slot-missing, bears-on-elsewhere, block-omits-bears-on and does-untied.
-#
-# `--source` with revisions in place of a path reads every block of each source file they touch.
-#
-# `--carriers=<facts dir>`, as the first argument, reads a change set's added code against the blocks
-# the strip archived there. It exits 1 on a landing that is no carrier. Those are a string sharing six
-# words in a row with a block, a name of more than five words, and an unread constant or type member.
-#
-# `bare-identifier` places a name the repository resolves from outside its own source: the tsconfig
-# `lib` files, the `@types` packages and the test matchers, read once and cached under
-# `${XDG_CACHE_HOME:-~/.cache}/kk-flavor/vocabulary`. A name the repository declares stays a finding.
-#
-# Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, long-block,
-# coined, coined-identifier, counterfactual-consequence, anthropomorphism, elided-verb, long-sentence,
-# clause-depth, double-negative, semicolon, `reason-by-link`, `alone-for-only`, `tooling-doubt`. Several are scoped by profile. `long-block` is the comment
-# profile's, since only there is a block a thing. `bold` is not the instruction profile's: a rule file IS markdown, so its bold is
-# structure rather than the tell. `coined` is not the instruction profile's either: a coined word is a
-# codebase's invented vocabulary, and a rule file is prose about writing that uses the ordinary English
-# word a codebase may have coined. `coined-identifier` is the comment profile's, since it asks whether
-# the code spells a compound. The three sentence shapes read a comment and a body and skip a rule
-# file, for the same reason `coined` does. `coined` also carries a built-in list of the phrases every
-# repository coins by accident, the house idiom of naming. No repository keeps a word list: the
-# hyphenated names a repository spells in its paths and its code are read off its tree. A finding that
-# must stand is a defect in the check, fixed there.
+# Checks: bold, contrast, counterfactual-opener, no-subject, intensifier, positional, coined,
+# counterfactual-consequence, anthropomorphism, elided-verb, long-sentence, clause-depth,
+# double-negative, semicolon. `bold` is not the instruction profile's: a rule file IS markdown, so its
+# bold is structure rather than the tell. `coined` and the three sentence shapes are not the
+# instruction profile's either: a rule file is prose about writing, and writing about a shape is not
+# writing in it. `coined` carries a built-in list of the phrases every repository coins by accident,
+# the house idiom of naming. A finding that must stand is a defect in the check, fixed there.
 #
 # tested by: the Go suite in ai/tools/voice-check/. The shared stub region and the resolver it
 # calls have their own cases in the Go suite in ai/tools/reach/.

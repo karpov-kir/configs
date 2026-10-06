@@ -6,8 +6,7 @@ import (
 )
 
 // declareAgents mounts each agent definition the flavor ships, for Claude, which reads defined agents
-// from ~/.claude/agents. The comment writer is one. Run 18's writers held some 116k tokens before their
-// first site, 47k of it the general agent's own start, and the thin writer opened 31k lighter.
+// from ~/.claude/agents.
 func (run *invocation) declareAgents() {
 	if run.agent != claudeAgent {
 		return

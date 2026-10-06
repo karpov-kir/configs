@@ -166,14 +166,14 @@ func TestASecondRunOverAFinishedMachineRelinksNothing(t *testing.T) {
 	}
 }
 
-// Claude reads defined agents from ~/.claude/agents, and the flavor's comment writer is one. Codex has
-// no such directory, and a Codex run mounts none.
+// Claude reads defined agents from ~/.claude/agents. Codex has no such directory, and a Codex run
+// mounts none.
 func TestClaudeGetsTheFlavorsAgentsAndCodexNone(t *testing.T) {
 	f := newFixture(t)
 	f.ExpectCode(f.install("--agent=claude"), 0)
-	f.ExpectLinkTo(f.home+"/.claude/agents/comment-writer.md", f.repo+"/kk-flavor/agents/comment-writer.md")
+	f.ExpectLinkTo(f.home+"/.claude/agents/ledger-worker.md", f.repo+"/kk-flavor/agents/ledger-worker.md")
 
 	g := newFixture(t)
 	g.ExpectCode(g.install("--agent=codex"), 0)
-	g.ExpectAbsent(g.home + "/.claude/agents/comment-writer.md")
+	g.ExpectAbsent(g.home + "/.claude/agents/ledger-worker.md")
 }

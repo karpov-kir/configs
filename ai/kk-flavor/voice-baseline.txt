@@ -10,7 +10,7 @@
 # Measured by the check in the same change that added it.
 #
 120 ai/kk-flavor/standards/ecosystem.md
-117 ai/kk-flavor/standards/model-policy.md
+116 ai/kk-flavor/standards/model-policy.md
 96 ai/kk-flavor/standards/skill-protocol.md
 93 ai/kk-flavor/skills/idsd-reactor/SKILL.md
 69 ai/kk-flavor/standards/testing.md
@@ -53,7 +53,7 @@
 14 ai/kk-flavor/skills/kk-reduce/stats.md
 13 ai/kk-flavor/workers/reduce/reconcile.md
 13 ai/kk-flavor/workers/reduce/arbitrate.md
-11 ai/kk-flavor/workers/refactor.md
+8 ai/kk-flavor/workers/refactor.md
 11 ai/kk-flavor/standards/git.md
 11 ai/kk-flavor/standards/code-style.md
 11 ai/kk-flavor/standards/building.md
@@ -73,13 +73,9 @@
 4 ai/kk-flavor/standards/live-systems.md
 4 ai/kk-flavor/skills/kk-edit/SKILL.md
 4 ai/kk-flavor/skills/idsd-finalize/pr.md
-3 ai/kk-flavor/standards/comments.md
+0 ai/kk-flavor/standards/comments.md
 3 ai/kk-flavor/skills/idsd-intent/templates/ice-template.md
 2 ai/kk-flavor/standards/core-principles.md
 2 ai/kk-flavor/skills/idsd-charter/templates/charter-template.md
-0 ai/kk-flavor/workers/refactor/tests/comment-verdicts.md
-0 ai/kk-flavor/workers/comment-writer/tests/summary-verdicts.md
-0 ai/kk-flavor/workers/comment-writer/tests/note-placement.md
-0 ai/kk-flavor/workers/comment-writer.md
 0 ai/kk-flavor/standards/browser.md
 0 ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md

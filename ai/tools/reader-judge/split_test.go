@@ -6,23 +6,6 @@ import (
 	"testing"
 )
 
-func TestSplitSourceOffersWholeBlocks(t *testing.T) {
-	lines := strings.Split(strings.TrimSuffix(source, "\n"), "\n")
-	units, view := Split(lines, CommentBlocks(lines), all)
-	if len(units) != 3 {
-		t.Fatalf("got %d units, want 3 (header block, on a(), trailing)", len(units))
-	}
-	if units[0].Line != 1 || units[0].Span != 2 {
-		t.Fatalf("the header block is line %d span %d, want 1 span 2", units[0].Line, units[0].Span)
-	}
-	if !strings.Contains(view, "   1| // file header\n   .| // second line\n") {
-		t.Fatalf("the view does not mark the continuation line:\n%s", view)
-	}
-	if !strings.Contains(view, "    | *ptr = 1\n") {
-		t.Fatalf("a dereference was offered as a unit:\n%s", view)
-	}
-}
-
 func TestSplitProseHoldsAFenceAsOneUnit(t *testing.T) {
 	lines := []string{"para", "```xml", "<a/>", "<b/>", "```", "", "after"}
 	units, view := Split(lines, proseBlocks(lines), all)
@@ -38,26 +21,12 @@ func TestSplitProseHoldsAFenceAsOneUnit(t *testing.T) {
 }
 
 func TestApplyDeletesTheWholeSpanAndKeepsTheTrailingNewline(t *testing.T) {
-	lines := strings.Split(strings.TrimSuffix(source, "\n"), "\n")
-	units, _ := Split(lines, CommentBlocks(lines), all)
+	lines := []string{"first paragraph", "wrapped onto a second line", "", "second paragraph"}
+	units, _ := Split(lines, proseBlocks(lines), all)
 	got := Apply(lines, units, []int{1})
-	want := "\nfunc a() {}\n// on a()\n*ptr = 1\n// trailing\n"
+	want := "\nsecond paragraph\n"
 	if got != want {
 		t.Fatalf("got %q, want %q", got, want)
-	}
-}
-
-// A `/*` block whose continuation lines carry no leading `*` is still one comment. Split as one unit per
-// comment-looking line, deleting it took the first line alone and left `kept for history. */` to break
-// the file.
-func TestSplitSourceHoldsABlockCommentWhole(t *testing.T) {
-	lines := []string{"/* Legacy block comment", "   kept for history. */", "code()", "/* one-liner */", "code()", "// after"}
-	units, view := Split(lines, CommentBlocks(lines), all)
-	if len(units) != 3 || units[0].Span != 2 || units[1].Span != 1 || units[2].Span != 1 {
-		t.Fatalf("got %d units with spans %v, want 3 with spans 2, 1, 1", len(units), spansOf(units))
-	}
-	if !strings.Contains(view, "   1| /* Legacy block comment\n   .|    kept for history. */\n") {
-		t.Fatalf("the closing line is not marked as the block's continuation:\n%s", view)
 	}
 }
 
@@ -211,34 +180,5 @@ func TestASubjectOnlyMessageIsStillJudged(t *testing.T) {
 	}
 	if withheld := subjectLines([]string{"Subject", "", "Body."}); len(withheld) != 1 || !withheld[1] {
 		t.Fatalf("the subject block is %v, want line 1", withheld)
-	}
-}
-
-// A unit is a thing the model may delete, and Apply drops every line of one. A script's interpreter
-// directive reads as a `#` comment, so it would join the header below it — and a vote against that
-// header would take `#!/usr/bin/env bash` with it and leave a file the kernel will not run.
-func TestAShebangIsNeverOfferedAsAUnit(t *testing.T) {
-	lines := []string{"#!/usr/bin/env bash", "# What this script does.", "# A second line.", "set -euo pipefail"}
-	units := CommentBlocks(lines)
-	for _, unit := range units {
-		if unit.Line == 1 {
-			t.Fatalf("the shebang was offered as a unit: %+v", unit)
-		}
-	}
-	if len(units) != 1 || units[0].Line != 2 || units[0].Span != 2 {
-		t.Fatalf("want one unit over lines 2-3; got %+v", units)
-	}
-	// Deleting everything on offer leaves the script runnable.
-	if kept := Apply(lines, units, []int{1}); !strings.HasPrefix(kept, "#!/usr/bin/env bash\n") {
-		t.Fatalf("a vote against the header took the shebang with it:\n%s", kept)
-	}
-}
-
-// Only at the top of the file. A `#!` further down is an ordinary comment and stays offerable.
-func TestAHashBangBelowTheFirstLineIsAnOrdinaryComment(t *testing.T) {
-	lines := []string{"code", "#!not-a-shebang", "more code"}
-	units := CommentBlocks(lines)
-	if len(units) != 1 || units[0].Line != 2 {
-		t.Fatalf("want the line-2 comment offered; got %+v", units)
 	}
 }

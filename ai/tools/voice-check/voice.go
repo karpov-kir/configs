@@ -1,10 +1,6 @@
-// The voice half of the detector: which sentences in a comment, a body or a rule file are written in
-// the house register rather than in plain prose. It counts nothing. Each check names a shape a reader
-// stumbles on, and reports the text that matched so the writer can see what to change.
-//
-// The bar (bar.go) says how MANY comment lines a change set may carry. This says whether the lines it
-// carries can be read. The two are separate because a set can be driven to any rate by compressing
-// every sentence, which meets the number and is the defect.
+// The register check: which sentences in a body, a reply or a rule file are written in the house
+// register rather than in plain prose. It counts nothing. Each check names a shape a reader stumbles
+// on, and reports the text that matched so the writer can see what to change.
 //
 // Deterministic, so two runs over one text print one report.
 package voicecheck
@@ -14,27 +10,17 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
-	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 
-	"configs/ai/tools/diffscan"
 	"configs/ai/tools/repo"
 	"configs/ai/tools/shell"
 )
 
-// A file header gets more text lines than a block, because a header carries the call order and error
-// modes a published surface owes. Text lines, not raw lines: a `/**` opening and
-// a `*/` closing carry no words, and counting them would make every four-sentence block a finding.
 const (
-	maxBlockTextLines  = 4
-	maxHeaderTextLines = 8
-
 	// writing.md puts one idea in a sentence and keeps it under about 25 words. The check fires at 30
 	// so a sentence at the rule's own edge is not a finding, and only a sentence carrying a second
 	// idea is.
@@ -52,29 +38,19 @@ const (
 	minClauseTailWords = 4
 )
 
-// Findings and echoed text are bounded the same way the default mode's are: under kk-pr this text
-// comes off a branch somebody else wrote.
+// Findings and echoed text are bounded: under kk-pr this text comes off a branch somebody else wrote.
 const (
 	maxFindings   = 500
 	maxMatchBytes = 120
-	// What a whole diff or body on stdin may be. Held apart from DENSITY_MAX_FILE_BYTES, which is a
-	// per-FILE number: a diff is many files, and `gh pr diff` over an ordinary change set is larger
-	// than any file in it. Read to a cap and TRUNCATED, a scan reports clean over the half it never
-	// saw — and git orders a diff by path, so padding an early file pushes a hostile one past the cut.
+	// What a body on stdin may be. A stream read to a cap and TRUNCATED would report clean over the part
+	// the scan never saw, so a stream over this is refused.
 	maxStdinBytes = 64 * 1024 * 1024
-	// The highest line number a hunk header may claim before the line is dropped. scanAdded sizes a
-	// slice by it, and on the `-` arm the header comes off a diff somebody else wrote: `@@ +10000000`
-	// for one added line measured 166 MB resident, and a 2^31 line number asks for tens of gigabytes.
-	// A source file reaching this many lines has other problems.
-	maxDiffLine = 1 << 20
 )
 
 // Profile is which text the scan reads and which checks apply to it.
 type Profile string
 
 const (
-	// ProfileComment reads the comment lines a diff added to source files.
-	ProfileComment Profile = "comment"
 	// ProfileProse reads a markdown or plain-text file whole: a PR body, a review comment, a reply.
 	ProfileProse Profile = "prose"
 	// ProfileInstruction reads a rule file under ai/kk-flavor/, skipping the frontmatter, fenced code
@@ -98,92 +74,26 @@ func (f Finding) String() string {
 
 // The checks, each named so a report can name it.
 const (
-	checkBold           = "bold"
-	checkContrast       = "contrast"
-	checkCounterfactal  = "counterfactual-opener"
-	checkNoSubject      = "no-subject"
-	checkIntensifier    = "intensifier"
-	checkPositional     = "positional"
-	checkLongBlock      = "long-block"
-	checkCoined         = "coined"
-	checkCoinedIdent    = "coined-identifier"
-	checkCounterfact    = "counterfactual-consequence"
-	checkAnthropo       = "anthropomorphism"
-	checkElidedVerb     = "elided-verb"
-	checkBareIdent      = "bare-identifier"
-	checkLongSentence   = "long-sentence"
-	checkClauseDepth    = "clause-depth"
-	checkDoubleNeg      = "double-negative"
-	checkSemicolon      = "semicolon"
-	checkReasonAway     = "reason-by-link"
-	checkAloneForOnly   = "alone-for-only"
-	checkHeaderOnImport = "header-on-import"
-	checkLongLine       = "long-line"
-	checkToolingDoubt   = "tooling-doubt"
-	// The checks on how a note's sentence is built. A reviewer found two notes hard to follow that every
-	// other check passed, and each packed its facts behind one of these shapes.
-	checkQuantifierOpen = "quantifier-subject"
-	checkNominalisation = "nominalisation"
-	checkDanglingVerb   = "subjectless-participle"
-	// A note on an enum that names two of its members tells them apart, and it goes on each member.
-	checkMembersInOneNote = "members-in-one-note"
-	// A free relative names a thing by what it is not yet known to be: `whatever script it names`.
-	checkFreeRelative = "free-relative"
-	// A summary can name its act in a participle after a comma, at the sentence end. The act then
-	// carries no reason, and a reviewer asked for one.
-	checkTrailingAct = "summary-trailing-participle"
+	checkBold          = "bold"
+	checkContrast      = "contrast"
+	checkCounterfactal = "counterfactual-opener"
+	checkNoSubject     = "no-subject"
+	checkIntensifier   = "intensifier"
+	checkPositional    = "positional"
+	checkCoined        = "coined"
+	checkCounterfact   = "counterfactual-consequence"
+	checkAnthropo      = "anthropomorphism"
+	checkElidedVerb    = "elided-verb"
+	checkLongSentence  = "long-sentence"
+	checkClauseDepth   = "clause-depth"
+	checkDoubleNeg     = "double-negative"
+	checkSemicolon     = "semicolon"
 )
 
 // AllChecks is every check name, which the suite reads to prove each one fires on its corpus.
 var AllChecks = []string{checkBold, checkContrast, checkCounterfactal, checkNoSubject,
-	checkIntensifier, checkPositional, checkLongBlock, checkCoined, checkCoinedIdent,
-	checkCounterfact, checkAnthropo, checkElidedVerb, checkBareIdent,
-	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkReasonAway, checkAloneForOnly,
-	checkTestsNarration, checkHeaderOnImport,
-	checkLongLine, checkToolingDoubt,
-	checkQuantifierOpen, checkNominalisation, checkDanglingVerb, checkMembersInOneNote,
-	checkFreeRelative, checkTrailingAct}
-
-// reImportLine opens an import, in the languages whose files open on one.
-var reImportLine = regexp.MustCompile(`^\s*(import\b|from\s+\S+\s+import\b|(const|let|var)\s+[\w{}, ]+=\s*require\()`)
-
-// reAlone is the word itself. What it follows decides whether it is the exclusivity word or the
-// ordinary one.
-var reAlone = regexp.MustCompile(`(?i)\balone\b`)
-
-// The governing verb of `leave the actor alone` stands three words back.
-const aloneLookBackWords = 3
-
-// aloneStandsAfter is the pronouns the word follows in its ordinary sense. aloneStandsUnder, the
-// table beside it, is the verbs that take it: `leave it alone`, `the header stands alone`.
-var aloneStandsAfter = map[string]bool{"it": true, "them": true, "him": true, "her": true, "me": true,
-	"us": true, "you": true, "i": true, "he": true, "she": true, "we": true, "they": true}
-
-var aloneStandsUnder = map[string]bool{"leave": true, "leaves": true, "left": true, "leaving": true,
-	"let": true, "lets": true, "letting": true, "stand": true, "stands": true, "standing": true,
-	"stood": true, "go": true, "goes": true, "went": true, "gone": true}
-
-// aloneIsIdiom says this occurrence is the ordinary word, where the exclusivity one would be a
-// finding. `before` is the text up to the word.
-func aloneIsIdiom(before string) bool {
-	words := strings.Fields(before)
-	for at := len(words) - 1; at >= 0 && at > len(words)-1-aloneLookBackWords; at-- {
-		word := strings.ToLower(strings.Trim(words[at], "`*_,.;:()\"'"))
-		if aloneStandsUnder[word] {
-			return true
-		}
-		if at == len(words)-1 && aloneStandsAfter[word] {
-			return true
-		}
-	}
-	return false
-}
-
-// reReasonAway is a note handing its reason to another note: `for the reason {@link X} gives`,
-// `see <X> for why`, `as {@link X} explains`. A reason is written where it is read. A block carrying
-// one of these shapes has to take its reason in.
-var reReasonAway = regexp.MustCompile(`(?i)\b(for the reason|see|as)\s+(\{@link\s+[^}\n]{1,80}\}|` +
-	"`[^`\n]{1,80}`" + `)\s+(gives|states|explains|for why|for the reason)\b`)
+	checkIntensifier, checkPositional, checkCoined, checkCounterfact, checkAnthropo, checkElidedVerb,
+	checkLongSentence, checkClauseDepth, checkDoubleNeg, checkSemicolon, checkTestsNarration}
 
 var (
 	// A bold span opening on a word or a backtick. `**` around a space is markdown that did not close.
@@ -210,34 +120,10 @@ var (
 
 	// The connectives a subordinate clause hangs off. A sentence is a finding at two. Past that the
 	// reader holds one clause open while reading another.
-	// A sentence whose subject is a quantifier pronoun: `Anything no API established …`. `Every caller`
-	// and `Only Apple devices` name their agent, and Python's `None` opens many a note.
-	reQuantifierOpen = regexp.MustCompile(`^[^\w"']*(?:Anything|Nothing|Everything|Nobody|Everyone)\b`)
-	// A possessive over a noun made from a verb, `an API's refusal`, where the agent and its verb belong.
-	// The nouns are a closed list, since the same endings close many a noun that names a thing.
-	reNominalisation = regexp.MustCompile(`(?i)\b(?:an?|the)\s+(?:[\w-]+\s+){0,2}([\w-]+)'s\s+(` +
-		`refusal|approval|removal|denial|dismissal|withdrawal|renewal|reversal|arrival|rejection|` +
-		`acceptance|failure|deletion|insertion|completion|admission|submission|omission|selection|` +
-		`creation|cancellation|registration|confirmation|validation)\b`)
-	// Words a possessive cannot come from: `that's essential` is a contraction.
-	notPossessors = []string{"that", "it", "there", "here", "what", "who", "he", "she", "one"}
-	// A participle a preposition leaves with its subject and object unsaid: `records it without
-	// playing`. The rule asks for the means with `by`, as in `by expecting a refusal`, so `by` is left
-	// out.
-	reDanglingVerb = regexp.MustCompile(`(?i)\b(?:without|after|before|upon|on|when|while)\s+([a-z]{3,}ing)\s*(?:[.,;:]|$)`)
-	reFreeRelative = regexp.MustCompile(`(?i)\b(?:whatever|whichever|whoever|whomever|wherever)\b`)
-	// A summary answering a question, its sentence going on past a comma with a past participle: the act
-	// with no subject or reason. A summary of a value, `Returns the entries, sorted oldest first`, is left.
-	reTrailingAct = regexp.MustCompile("^\\W*(?:Tells|Checks|Says|Decides|Reports)\\b(?:[^.`]|`[^`]*`)*,\\s+(?:\\w+ly\\s+)?(?:[a-z]+[^e\\W]ed|agreed|guaranteed|freed|given|made|done|seen|known|taken|written|sent|run|kept|held|found|built|left|set|put|shown)\\b(?:[^.`]|`[^`]*`)*[.!?]?\\s*$")
-	// Words ending in -ing that are nouns, and no participle.
-	ingNouns = []string{"nothing", "something", "anything", "everything", "morning", "evening", "warning",
-		"padding", "string", "thing", "ceiling", "building", "setting", "heading", "listing", "ring",
-		"pending", "encoding", "caching", "logging", "rounding", "routing", "billing", "timing", "spacing"}
-
 	reConnective = regexp.MustCompile(`\b(?:because|so|since|where|while|which|whose|although|unless|whereas)\b`)
 
 	// A preposition before `which` defines a term, as in "a book in which no posting declares the
-	// currency". The comment rules ask for that wording, so it opens no clause the reader holds.
+	// currency". The writing rules ask for that wording, so it opens no clause the reader holds.
 	rePrepositionWhich = regexp.MustCompile(`\b(?:in|of|to|for|on|at|by|under|with|from) which\b`)
 
 	// Negation a reader has to carry. At two in a sentence the reader resolves them against each other
@@ -338,236 +224,24 @@ func sentenceSpans(text string) [][2]int {
 	return out
 }
 
-// stripMarker takes the comment syntax off a line, leaving the words. A `*` continuation loses its
-// star, so a sentence that starts a continuation line is read as starting a sentence.
-func stripMarker(raw string) string {
-	line := strings.TrimLeft(raw, shell.SpaceBytes)
-	for _, marker := range []string{"/**", "/*", "*/", "//", "#"} {
-		if strings.HasPrefix(line, marker) {
-			return strings.TrimSpace(line[len(marker):])
-		}
-	}
-	// Stripped unconditionally, the `**Bold**` opening a starless line inside a `/* */` block becomes
-	// `*Bold**`: the bold check cannot fire and the echoed text is corrupt.
-	if rest, marked := continuation(line); marked {
-		return strings.TrimSpace(rest)
-	}
-	return line
-}
-
-// continuation reads a `*` or `*/` continuation marker, returning what follows it. A space or the end
-// of the line has to follow the marker. `*ptr = 1` and `*/2` are code, and dense arithmetic read as a
-// comment would count as dense prose.
-func continuation(line string) (string, bool) {
-	rest := ""
-	switch {
-	case strings.HasPrefix(line, "*/"):
-		rest = line[2:]
-	case strings.HasPrefix(line, "*"):
-		rest = line[1:]
-	default:
-		return line, false
-	}
-	if rest == "" || rest[0] == ' ' || rest[0] == '\t' {
-		return rest, true
-	}
-	return line, false
-}
-
-// proseOf is stripMarker with the doc tags dropped, which is what a check reads. A `@param` line
-// joined into the segment would put the signature in the middle of a sentence.
-func proseOf(raw string) string {
-	stripped := stripMarker(raw)
-	if !isProseLine(stripped) {
-		return ""
-	}
-	return stripped
-}
-
-// block is one run of adjacent comment lines, by the 1-based lines it spans.
-type block struct {
-	start int
-	end   int
-}
-
-// present says a line is one this scan actually holds. Over a whole file every line is; over the
-// sparse file scanChange reconstructs from a diff, only the added ones are, and the rest are gaps
-// standing in for text nobody handed us.
-//
-// The distinction is load-bearing twice over, and both ways it goes wrong quietly. A gap read as a
-// blank line makes every block in a diff look like a file header, because nothing but blanks stands
-// above it — and a header is allowed twice a block's length, so blocks of five to eight lines pass
-// unreported in the one mode that matters. A gap read as more of a `/*` run makes one reworded `/**`
-// swallow every later comment in the file into a single block, because the `*/` that would have
-// closed it is a line the diff never added.
-type present func(int) bool
-
-func wholeFile(int) bool { return true }
-
-func onlyAdded(within map[int]bool) present {
-	if within == nil {
-		return wholeFile
-	}
-	return func(at int) bool { return within[at] }
-}
-
-// commentBlocks groups adjacent comment lines. Mirrors reader-judge's own grouping: inside a `/*` run
-// every line belongs to the block until one carries `*/`, whatever it starts with — except that a gap
-// ends the run here, since the line that would have closed it may be one the diff did not touch.
-func commentBlocks(lines []string) []block { return commentBlocksIn(lines, wholeFile) }
-
-func commentBlocksIn(lines []string, held present) []block {
-	var found []block
-	inBlock, inStar := false, false
-	for i, raw := range lines {
-		at := i + 1
-		line := strings.TrimLeft(raw, shell.SpaceBytes)
-		switch {
-		case !held(at):
-			inBlock, inStar = false, false
-		case isShebang(at, line):
-			// An interpreter directive, not a comment. Counted as one it joins the file header below
-			// it and spends a line of that header's allowance, so a script whose header is exactly at
-			// the limit reports long for saying which interpreter runs it.
-			inBlock, inStar = false, false
-		case inStar:
-			found[len(found)-1].end = at
-			if strings.Contains(line, "*/") {
-				inStar, inBlock = false, false
-			}
-		case !isComment(line):
-			inBlock = false
-		case inBlock:
-			found[len(found)-1].end = at
-			inStar = opensStar(line)
-		default:
-			found = append(found, block{start: at, end: at})
-			inBlock = true
-			inStar = opensStar(line)
-		}
-	}
-	return found
-}
-
-// isShebang says this is the interpreter directive a script opens with. Only on the first line: `#!`
-// anywhere else is an ordinary comment that happens to start with a bang.
-func isShebang(at int, line string) bool {
-	return at == 1 && strings.HasPrefix(line, "#!")
-}
-
-func opensStar(line string) bool {
-	return strings.HasPrefix(line, "/*") && !strings.Contains(line[2:], "*/")
-}
-
-// isFileHeader says this block opens the file: nothing but blank lines stands above it. A block two
-// lines down from an import is not a header, and giving it the header's allowance would let every
-// block in a file claim eight lines by sitting near the top.
-//
-// A line above that this scan does not hold refuses the claim rather than passing it. Over a diff we
-// cannot see what stands there, and the header allowance is twice a block's, so a guess in the
-// generous direction is the whole check going quiet.
-func (b block) isFileHeader(lines []string, held present) bool {
-	for at := 1; at < b.start; at++ {
-		line := strings.TrimSpace(lines[at-1])
-		if !held(at) {
-			return false
-		}
-		// A shell script's interpreter directive stands above its header and does not displace it.
-		if line == "" || isShebang(at, line) {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-// toolInputIn returns the first line of this block that a check reads, or "" where none does. A
-// comment is prose to a reader and input to a check at the same time, and this block is both.
-//
-// The scan covers the block opening the file, since a header scan reads no further. comment-strip
-// keeps these same lines, so both tools agree on the text carrying a second reader.
-func (b block) toolInputIn(lines []string) string {
-	for at := b.start; at <= b.end && at <= len(lines); at++ {
-		text := strings.TrimSpace(stripMarker(lines[at-1]))
-		if toolInputLine.MatchString(text) || namedSuite.MatchString(text) {
-			return shell.CutBytesMarked(shell.Oneline(text), 60)
-		}
-	}
-	return ""
-}
-
-// The spellings a check in ai/tools/ reads out of a file's opening comment block: a usage line, a
-// test declaration, and the name of the suite covering the script.
-var (
-	toolInputLine = regexp.MustCompile(`^(usage:|untested:)`)
-	namedSuite    = regexp.MustCompile(`[A-Za-z0-9_.-]+-test\.sh`)
-)
-
-// textLines is how long a block reads: the lines carrying prose. A `/**` and its closing `*/` carry no
-// words, and a doc tag line is a table of the signature rather than a sentence, so neither spends the
-// allowance. Counting tag lines made a six-parameter function's `@param` list a long block, which is
-// the one shape the rule has no quarrel with.
-func (b block) textLines(lines []string) int {
-	counted := 0
-	for at := b.start; at <= b.end && at <= len(lines); at++ {
-		if isProseLine(stripMarker(lines[at-1])) {
-			counted++
-		}
-	}
-	return counted
-}
-
-// isProseLine says a stripped comment line carries sentences. A line opening on a doc tag does not:
-// `@param`, `@returns`, `@throws`, `@example` and the rest are the signature written out, and every
-// language's doc tool spells them this way. A `usage:` line is a grammar. The scan once joined two
-// of them, one per form of a call, into one long sentence.
-func isProseLine(stripped string) bool {
-	return stripped != "" && !strings.HasPrefix(stripped, "@") &&
-		!toolInputLine.MatchString(strings.TrimSpace(stripped))
-}
-
-// scanner holds one run's settings so every profile reaches the same checks.
+// scanner holds one run's settings so both profiles reach the same checks.
 type scanner struct {
 	profile Profile
 	// coined is words a caller names beside the built-in ones. No run names any: a repository keeps no
 	// word list. The suite does, to reach the checks with a word of its own.
 	coined []string
-	// derived is the hyphenated names the repository spells itself, in a path or on a line of code. The
-	// coined-identifier check passes over these and fires on every other compound the code spells.
-	derived map[string]bool
-	// record says the text opens with the note's record, which RecordFindings reads against the block
-	// and the source under it. The register checks read the prose either way.
-	record bool
-	// tieLines is the file the writer is writing the block into. The tie bound reads its other blocks.
-	// A kept block is read with no file named, and it stays nil there.
-	tieLines []string
 	// kind is the body a prose text is read as, empty for none. template is its template's lines,
 	// which the checks leave unread.
 	kind     string
 	template map[string]bool
-	// vocabulary is the names the repository resolves from outside its own source, which a reader
-	// places without an appositive. Nil where the repository has no type environment to read.
-	vocabulary map[string]bool
-	// width is the line width the repository formats code to, which a comment line keeps too.
-	width int
 	// inCell says the segment is one cell of a table row. A cell is a list by construction. A semicolon
 	// in one separates two fields, and the same semicolon in prose joins two clauses.
 	inCell bool
-	// notice writes a line to the run's stderr. A file this scan declines to read has to say so, or
-	// the report claims a denominator it never covered. Nil in a caller that only wants the findings.
-	notice func(string)
 }
 
-func (s scanner) announce(line string) {
-	if s.notice != nil {
-		s.notice(line)
-	}
-}
-
-// segment is one run of text a check reads whole, with the line every byte of it came from. A comment
-// block and a markdown paragraph are both written across several lines and read as one, so a check
-// that ran per line would never see a sentence that wraps — and a wrapped sentence is the ordinary
-// case in a block the width of a screen.
+// segment is one run of text a check reads whole, with the line every byte of it came from. A markdown
+// paragraph is written across several lines and read as one, so a check that ran per line would never
+// see a sentence that wraps.
 type segment struct {
 	text   string
 	lineOf []int
@@ -614,110 +288,6 @@ func (seg segment) lineSpan(from, to int) (int, int) {
 		}
 	}
 	return first, last
-}
-
-// scanSource reads a source file's comment blocks. `within` is the set of lines this scan holds, nil
-// over a whole file; it scopes the scan by deciding what a block IS, so a block never reaches a check
-// carrying a line the diff did not add and nothing needs filtering afterwards.
-//
-// `whole` is the file as the change leaves it, and it is nil where the run cannot reach the file.
-// Two checks exempt a word the code beside a block already spells, and both read `whole`. Over a
-// diff, `lines` carries the added lines alone, so the declaration under an untouched block is a gap
-// and the exemption goes with it. The scan's scope stays with `lines`.
-func (s scanner) scanSource(file string, lines []string, within map[int]bool, whole []string) []Finding {
-	var found []Finding
-	held := onlyAdded(within)
-	if whole == nil {
-		whole = lines
-	}
-	identifiers := identifierWordsOf(whole)
-	for _, b := range commentBlocksIn(lines, held) {
-		found = append(found, s.coinedIdentifiers(file, b, lines, identifiers)...)
-		found = append(found, s.bareIdentifiers(file, b, lines, declaredAt(whole, b))...)
-		found = append(found, s.longLines(file, b, lines)...)
-		found = append(found, membersInOneNote(file, b, lines, whole)...)
-		limit := maxBlockTextLines
-		header := b.isFileHeader(lines, held)
-		// A file header stands apart from the code under it. The strip takes the blank line under a
-		// header with the header, and three rewritten headers of run 8 then sat directly on an import.
-		// A Go package comment sits on `package` with no blank, so only an import under one is read.
-		if header && b.end < len(whole) && reImportLine.MatchString(whole[b.end]) {
-			found = append(found, Finding{File: file, Line: b.end, Check: checkHeaderOnImport,
-				Text: strings.TrimSpace(whole[b.end])})
-		}
-		if header {
-			limit = maxHeaderTextLines
-		}
-		if n := b.textLines(lines); n > limit {
-			text := fmt.Sprintf("%d text lines, over %d", n, limit)
-			// A split is the remedy this finding usually gets. Here it would put a blank line through
-			// the block, a header scan ends at that blank, and the lines under it reach no reader in
-			// silence. Two scripts lost their binary this way, so the finding rules the split out.
-			if read := b.toolInputIn(lines); header && read != "" {
-				text += fmt.Sprintf(" — a check reads %q here, so shorten this block and keep it whole", read)
-			}
-			found = append(found, Finding{File: file, Line: b.start, Check: checkLongBlock, Text: text})
-		}
-		found = append(found, s.scanSegment(file, join(lines, b.start, b.end, proseOf))...)
-		found = append(found, doubtIn(file, b.start, b.end, lines, proseOf)...)
-	}
-	if !IsTestFile(file) {
-		found = append(found, doubtInStrings(file, lines, held)...)
-	}
-	return found
-}
-
-// reToolingDoubt is the tooling's own doubt about a claim it moved. Run 10 wrote into six string
-// values of a product's catalogue that each claim came from an earlier comment and stood unchecked.
-// A claim someone archived is its author's. A lane that cannot check it routes it to review, and the
-// artifact never carries the lane's doubt.
-var reToolingDoubt = regexp.MustCompile(`(?i)\b(unverified|carried over|not checked)\b`)
-
-// doubtIn reports the tooling's doubt on the lines from..to, each read through prose.
-func doubtIn(file string, from, to int, lines []string, prose func(string) string) []Finding {
-	var found []Finding
-	for at := from; at <= to && at <= len(lines); at++ {
-		if m := reToolingDoubt.FindString(prose(lines[at-1])); m != "" {
-			found = append(found, Finding{File: file, Line: at, Check: checkToolingDoubt, Text: m})
-		}
-	}
-	return found
-}
-
-// reStringLiteral is a quoted string on one line, in the three quotes the source languages use.
-var reStringLiteral = regexp.MustCompile("'(?:[^'\\\\]|\\\\.)*'|\"(?:[^\"\\\\]|\\\\.)*\"|`[^`]*`")
-
-// reProseWords is three words in a row, and a literal holding them reads as a sentence. A path or a key
-// holds no such run. A pattern holds `|` or a backslash, and the check passes over it too.
-var reProseWords = regexp.MustCompile(`[A-Za-z]+[,.:]?\s+[A-Za-z]+[,.:]?\s+[A-Za-z]+`)
-
-// doubtInStrings reads the string literals on the code lines this scan holds. Comment prose moved
-// into a string value leaves every comment check behind, and run 10 moved it there.
-func doubtInStrings(file string, lines []string, held present) []Finding {
-	var found []Finding
-	for i, raw := range lines {
-		at := i + 1
-		if !held(at) || isComment(strings.TrimLeft(raw, shell.SpaceBytes)) {
-			continue
-		}
-		for _, literal := range reStringLiteral.FindAllString(raw, -1) {
-			if !reProseWords.MatchString(literal) || strings.ContainsAny(literal, "|\\") {
-				continue
-			}
-			if m := reToolingDoubt.FindString(literal); m != "" {
-				found = append(found, Finding{File: file, Line: at, Check: checkToolingDoubt, Text: m})
-			}
-		}
-	}
-	return found
-}
-
-// IsTestFile says the file is a unit test's own, whose strings are fixtures and quote whatever the case
-// needs.
-func IsTestFile(file string) bool {
-	base := path.Base(file)
-	return strings.HasSuffix(base, "_test.go") || strings.Contains(base, ".test.") ||
-		strings.Contains(base, ".spec.")
 }
 
 // scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
@@ -816,11 +386,8 @@ func participialPhrase(read string) []int {
 	return nil
 }
 
-// Three shapes a reviewer read as confusing, each counted on sixty files of reviewed code before it
-// became a check. comment-census holds the counts and the samples behind them.
-//
-// They read comments alone, because the counts were taken over comment blocks. A rule file writes
-// about these shapes, and writing about one is not writing in it.
+// Three sentence shapes a reviewer read as confusing, each counted on sixty files of reviewed code
+// before it became a check.
 var (
 	// A consequence about code that does not exist. The reader inverts it to learn what this code
 	// does. 14 of 304 notes.
@@ -842,18 +409,18 @@ var (
 	reComparativeTail = regexp.MustCompile(`(?i)^\s+(more|longer|further|fewer|less|worse|better)\b`)
 )
 
-// SentenceShapes are the three comment-only checks, exported so comment-census counts the patterns
-// this scan fires on. One definition, two readers.
-func SentenceShapes() map[string][]*regexp.Regexp {
-	return map[string][]*regexp.Regexp{
-		checkCounterfact: {reSoWould},
-		checkAnthropo:    reAnthropomorphic,
-		checkElidedVerb:  {reElidedVerb},
-	}
+// sentenceShapes are the three checks above, in the order a segment is read for them.
+var sentenceShapes = []struct {
+	check    string
+	patterns []*regexp.Regexp
+}{
+	{checkCounterfact, []*regexp.Regexp{reSoWould}},
+	{checkAnthropo, reAnthropomorphic},
+	{checkElidedVerb, []*regexp.Regexp{reElidedVerb}},
 }
 
 // scanSegment is every check over one segment, and the only place a check runs. One function, so the
-// three profiles cannot drift into reading the same sentence differently.
+// two profiles cannot drift into reading the same sentence differently.
 func (s scanner) scanSegment(file string, seg segment) []Finding {
 	if seg.text == "" {
 		return nil
@@ -868,54 +435,25 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 
 	// Every check reads the segment with its inline code spans blanked. Blanking replaces each span
 	// with as many spaces, so an offset into `prose` addresses the same byte of `text`, and every
-	// finding is echoed out of `text` so the writer reads what they typed.
-	//
-	// The comment profile is the exception, and only for `coined`: a coined word inside backticks
-	// there is an identifier built on the term, which is the rename the refactor lane owes. In a rule
-	// file or a body there are no identifiers, so a backticked word is a quoted literal — and a rule
-	// that names a coined word as a tell would otherwise report itself for naming it.
+	// finding is echoed out of `text` so the writer reads what they typed. A backticked word is a quoted
+	// literal, and a rule that names a coined word as a tell would otherwise report itself for naming it.
 	prose := reInlineCode.ReplaceAllStringFunc(text, func(span string) string {
 		return strings.Repeat(" ", len(span))
 	})
-	// The three sentence shapes read a comment and a body, since a PR body carries the same shapes a
-	// comment does. They stay out of the instruction profile: a rule file writes about them, and
-	// writing about one is not writing in it.
-	if s.profile == ProfileComment || s.profile == ProfileProse {
-		for _, name := range []string{checkCounterfact, checkAnthropo, checkElidedVerb} {
-			for _, pattern := range SentenceShapes()[name] {
+	// The three sentence shapes read a body and stay out of the instruction profile: a rule file writes
+	// about them, and writing about one is not writing in it.
+	if s.profile == ProfileProse {
+		for _, shape := range sentenceShapes {
+			for _, pattern := range shape.patterns {
 				at := pattern.FindStringIndex(prose)
 				// `no` before a comparative is the ordinary word, as in "saying no more than itself".
 				// The check reported its own documentation there.
 				if at == nil || reComparativeTail.MatchString(prose[at[1]:]) {
 					continue
 				}
-				add(name, at[0], at[1])
+				add(shape.check, at[0], at[1])
 				break
 			}
-		}
-	}
-	// Two shapes a reviewer sent back on 2026-09-22. The exclusivity word after a noun reads as "by
-	// itself" to a reader in a second language, and `only` is the word they expect. A reason given as a
-	// pointer at another comment leaves the reason at neither block. Both read `prose`, or start there,
-	// so a comment quoting either shape in backticks is a mention and is passed over.
-	if s.profile == ProfileComment {
-		for _, at := range reAlone.FindAllStringIndex(prose, -1) {
-			if aloneIsIdiom(prose[:at[0]]) {
-				continue
-			}
-			add(checkAloneForOnly, at[0], at[1])
-		}
-		// The link form makes this shape readable, and `text` still holds the backticked name. A match
-		// opening inside a code span is a quotation of the shape.
-		for from := 0; from < len(text); {
-			at := reReasonAway.FindStringIndex(text[from:])
-			if at == nil {
-				break
-			}
-			if start := from + at[0]; prose[start] == text[start] {
-				add(checkReasonAway, start, from+at[1])
-			}
-			from += at[1]
 		}
 	}
 	// A coined word is a codebase's invented vocabulary, so the check belongs where code and the text
@@ -923,9 +461,6 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 	// English word a codebase may happen to have coined. A machine-level conf naming one project's
 	// terms would otherwise report every repository's rule files for using English.
 	coinedIn := prose
-	if s.profile == ProfileComment {
-		coinedIn = text
-	}
 	if s.profile == ProfileInstruction {
 		coinedIn = ""
 	}
@@ -950,7 +485,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 	}
 
-	// Bold is markdown. A rule file is markdown, so the check is the comment and prose profiles'.
+	// Bold is markdown. A rule file is markdown, so the check is the prose profile's.
 	if s.profile != ProfileInstruction {
 		for _, at := range reBold.FindAllStringIndex(prose, -1) {
 			add(checkBold, at[0], at[1])
@@ -992,9 +527,6 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 		// The count reads `text`, because blanking an inline code span leaves spaces behind. A backticked
 		// identifier is a word on the page, and the blanked form drops it.
-		if s.profile == ProfileComment {
-			s.sentenceShape(read, span[0], add)
-		}
 		if len(strings.Fields(text[span[0]:span[1]])) > maxSentenceWords {
 			add(checkLongSentence, span[0], span[1])
 		}
@@ -1015,109 +547,6 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		}
 	}
 	return found
-}
-
-// sentenceShape adds a note sentence's findings for how it is built. They are a quantifier subject, a
-// possessive over a verbal noun, and a participle a preposition leaves without its subject.
-func (s scanner) sentenceShape(read string, offset int, add func(check string, start, end int)) {
-	if at := reFreeRelative.FindStringIndex(read); at != nil {
-		add(checkFreeRelative, offset+at[0], offset+at[1])
-	}
-	if reTrailingAct.MatchString(read) {
-		add(checkTrailingAct, offset, offset+len(read))
-	}
-	if at := reQuantifierOpen.FindStringIndex(read); at != nil {
-		add(checkQuantifierOpen, offset+at[0], offset+at[1])
-	}
-	for _, m := range reNominalisation.FindAllStringSubmatchIndex(read, -1) {
-		if !slices.Contains(notPossessors, strings.ToLower(read[m[2]:m[3]])) {
-			add(checkNominalisation, offset+m[0], offset+m[1])
-		}
-	}
-	if m := reDanglingVerb.FindStringSubmatchIndex(read); m != nil && !slices.Contains(ingNouns, strings.ToLower(read[m[2]:m[3]])) {
-		add(checkDanglingVerb, offset+m[0], offset+m[1])
-	}
-}
-
-var (
-	reEnumOpen = regexp.MustCompile(`^\s*(?:export\s+)?(?:declare\s+)?(?:const\s+)?enum\s+\w+\s*\{?(.*)$`)
-	reMemberAt = regexp.MustCompile(`(?:^|[{,])\s*([A-Za-z_]\w*)\s*(?:=[^,}]*)?`)
-	// A type alias whose right side is string literals joined by `|`, on one line or continued by lines
-	// opening on `|`.
-	reUnionOpen = regexp.MustCompile(`^\s*(?:export\s+)?type\s+\w+(?:<[^>]*>)?\s*=(.*)$`)
-	// The parts a literal union is made of: string literals, and `undefined` or `null` beside them.
-	reUnionPart = regexp.MustCompile(`^\s*(?:'[^']*'|"[^"]*"|undefined|null)\s*$`)
-	reLiteral   = regexp.MustCompile(`'([^']*)'|"([^"]*)"`)
-	// An ordering across the members is the enum's own fact, and the rule asks for it there.
-	reOrdering       = regexp.MustCompile(`(?i)\b(?:ordered|ordering|sorted|sorts|the order of)\b`)
-	reLeadingComment = regexp.MustCompile(`^\s*/\*.*?\*/\s*`)
-)
-
-// membersInOneNote finds a block on an enum, or on a union of string literals, that names two or more of
-// the declaration's own members in code spans. A note that tells members apart states a fact about each
-// member, so it goes on each in one form. A reviewer read such a note as hard to follow, and the writer
-// kept writing it there. A note stating an ordering across the members stays.
-func membersInOneNote(file string, b block, lines, whole []string) []Finding {
-	if b.end >= len(whole) {
-		return nil
-	}
-	var members []string
-	decl := whole[b.end]
-	if m := reEnumOpen.FindStringSubmatch(decl); m != nil {
-		body := m[1]
-		for _, line := range whole[b.end+1:] {
-			if strings.Contains(body, "}") {
-				break
-			}
-			trimmed := strings.TrimSpace(reLeadingComment.ReplaceAllString(line, ""))
-			if !strings.HasPrefix(trimmed, "//") && !strings.HasPrefix(trimmed, "*") && !strings.HasPrefix(trimmed, "/*") {
-				body += "," + trimmed
-			}
-		}
-		body, _, _ = strings.Cut(body, "}")
-		for _, m := range reMemberAt.FindAllStringSubmatch(body, -1) {
-			members = append(members, m[1])
-		}
-	} else if m := reUnionOpen.FindStringSubmatch(decl); m != nil {
-		// The union runs on while a line ends on `|` or the next opens on it, and stops at a `;`.
-		union := m[1]
-		for _, line := range whole[b.end+1:] {
-			trimmed := strings.TrimSpace(union)
-			if strings.HasSuffix(trimmed, ";") || (!strings.HasSuffix(trimmed, "|") && !strings.HasPrefix(strings.TrimSpace(line), "|")) {
-				break
-			}
-			union += " " + line
-		}
-		for _, part := range strings.Split(strings.TrimSuffix(strings.TrimSpace(union), ";"), "|") {
-			if strings.TrimSpace(part) == "" {
-				continue
-			}
-			if !reUnionPart.MatchString(part) {
-				return nil
-			}
-			if l := reLiteral.FindStringSubmatch(part); l != nil {
-				members = append(members, l[1]+l[2])
-			}
-		}
-	} else {
-		return nil
-	}
-	raw := strings.Join(lines[b.start-1:b.end], "\n")
-	if reOrdering.MatchString(raw) {
-		return nil
-	}
-	named := 0
-	for _, member := range members {
-		if len(member) > 1 && (strings.Contains(raw, "`"+member+"`") || strings.Contains(raw, "`'"+member+"'`") ||
-			strings.Contains(raw, "."+member+"`")) {
-			named++
-		}
-	}
-	if named < 2 {
-		return nil
-	}
-	return []Finding{{File: file, Line: b.start, Check: checkMembersInOneNote,
-		Text: "a note that tells members apart goes on each member, in one form: the site returns none, and each member is an entry of its own"}}
 }
 
 // shortStems are the verbs `ing` is part of rather than an ending on: no subject went missing in
@@ -1170,9 +599,9 @@ func (s scanner) coinedTerms() []string {
 // coinedPattern matches the term and anything built off it — a coined noun also catches its plural,
 // and a coined verb its `-s` and `-ing` forms, because a term is coined in every shape it takes.
 //
-// A term of several words needs no extra pattern. QuoteMeta leaves a space alone. A block's lines are
-// joined with one space before a check reads them, so a phrase broken across two comment lines is the
-// same phrase. The stem suffix lands on the last word, which is the word that inflects.
+// A term of several words needs no extra pattern. QuoteMeta leaves a space alone. A paragraph's lines
+// are joined with one space before a check reads them, so a phrase broken across two lines is the same
+// phrase. The stem suffix lands on the last word, which is the word that inflects.
 func coinedPattern(word string) *regexp.Regexp {
 	// The word is captured, and its boundaries are matched rather than asserted, because Go's `\b` is
 	// an ASCII word boundary: a coined term opening on a letter outside ASCII has no boundary before
@@ -1197,42 +626,18 @@ func coinedInIdentifier(word string) *regexp.Regexp {
 	return regexp.MustCompile(`\b[A-Za-z]*[a-z]` + regexp.QuoteMeta(titled) + `[A-Za-z]*\b`)
 }
 
-// ScanFile is the whole scan over one file's content, for a caller holding the bytes already. The
-// suite reads the fixture through it, so what a test measures is what a run reports.
-func ScanFile(profile Profile, coined []string, file, content string) []Finding {
-	s := scanner{profile: profile, coined: coined}
-	lines := shell.SplitLines(content)
-	if profile == ProfileComment {
-		return s.scanSource(file, lines, nil, lines)
-	}
-	return s.scanProse(file, lines)
-}
-
-// voice runs the register check, which is what bare arguments select.
+// voice parses the flags and runs the scan over the paths that follow them.
 func voice(out console, args []string, cwd string, git repo.Git, cfg Config) int {
-	profile := ProfileComment
+	profile := ProfileProse
 	counts := false
-	// The writer checks one block before it writes it, and a block is source where a revision range is
-	// a diff. The comment profile reads stdin as a diff, so a block piped to it holds no hunk and the
-	// run reports an empty scan. Run 7 put 17 bare identifiers over 8 files past the gate that way.
-	source := false
-	// The writer fills the note's record before it writes the block, and `--record` says the piped text
-	// opens with that record. Four blocks a reviewer sent back on 2026-09-22 each stated a fact and
-	// stopped, and the register checks passed every one, because their prose was sound.
-	record := false
-	// `--file` names the file the block goes into.
-	tieFile := ""
 	// A PR body and a ticket each have a width, and `--kind` reads the prose as one of them.
 	kind := ""
 flags:
 	for len(args) > 0 {
 		switch {
-		case args[0] == "--source":
-			source = true
-		case args[0] == "--record":
-			record = true
-		case strings.HasPrefix(args[0], "--file="):
-			tieFile = strings.TrimPrefix(args[0], "--file=")
+		case args[0] == "--":
+			args = args[1:]
+			break flags
 		case strings.HasPrefix(args[0], "--kind="):
 			kind = strings.TrimPrefix(args[0], "--kind=")
 			if !kinds[kind] {
@@ -1242,14 +647,19 @@ flags:
 		case strings.HasPrefix(args[0], "--profile="):
 			named := Profile(strings.TrimPrefix(args[0], "--profile="))
 			switch named {
-			case ProfileComment, ProfileProse, ProfileInstruction:
+			case ProfileProse, ProfileInstruction:
 				profile = named
 			default:
-				return out.refuseArguments(fmt.Errorf("no profile %q — the scan did NOT run. Profiles: comment prose instruction",
+				return out.refuseArguments(fmt.Errorf("no profile %q — the scan did NOT run. Profiles: prose instruction",
 					shell.CutBytesMarked(shell.Oneline(string(named)), 40)))
 			}
 		case args[0] == "--per-file":
 			counts = true
+		// A path that starts with `-` goes after `--`. Read as a path here, a mistyped flag would be
+		// refused as a file that cannot be read.
+		case strings.HasPrefix(args[0], "-") && args[0] != "-":
+			return out.refuseArguments(fmt.Errorf("no option %q — the scan did NOT run",
+				shell.CutBytesMarked(shell.Oneline(args[0]), 40)))
 		default:
 			break flags
 		}
@@ -1259,462 +669,37 @@ flags:
 		return out.refuseArguments(fmt.Errorf("--kind reads a PR body or a ticket, which the prose profile "+
 			"reads, and not the %s profile — the scan did NOT run", profile))
 	}
-	if record && !source {
-		return out.refuseArguments(errors.New("--record reads a record against the block and the source " +
-			"under it, which is what --source pipes — the scan did NOT run"))
-	}
-	if tieFile != "" && !record {
-		return out.refuseArguments(errors.New("--file reads the other blocks of the file a recorded block " +
-			"goes into, and needs --record — the scan did NOT run"))
-	}
-	if source && profile != ProfileComment {
-		return out.refuseArguments(fmt.Errorf("--source reads a block with the comment profile's checks, "+
-			"and the %s profile has no blocks — the scan did NOT run", profile))
-	}
-	if counts && profile == ProfileComment {
-		return out.refuseArguments(errors.New("--per-file counts the findings in each path it is given, " +
-			"and the comment profile is handed a diff — the scan did NOT run"))
+	if len(args) == 0 {
+		return out.refuseArguments(fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", profile))
 	}
 
-	// The arguments are read before anything else, and refused with the grammar. The scan would instead
-	// hand the caller a git failure, which is silent about what this tool takes.
-	if profile == ProfileComment && !source && len(args) > 0 && args[0] != "-" {
-		if err := diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
-			return out.refuseArguments(err)
-		}
-	}
-
-	s := scanner{profile: profile, record: record, kind: kind, notice: func(line string) { out.note("%s", line) }}
-	if tieFile != "" {
-		lines, err := readTieFile(cwd, tieFile)
-		if err != nil {
-			return out.refuseArguments(err)
-		}
-		s.tieLines = lines
-	}
-	if kind != "" || profile == ProfileComment {
+	s := scanner{profile: profile, kind: kind}
+	if kind != "" {
 		root := cwd
 		if top, err := git.TopLevel(cwd); err == nil && top != "" {
 			root = top
 		}
-		if kind != "" {
-			s.template = templateLines(root, kind)
-		}
-		if profile == ProfileComment {
-			s.width = prettierWidth(root)
-			s.derived = DerivedNames(root, git, cacheHomeFrom(os.LookupEnv))
-			s.vocabulary = DerivedVocabulary(root, cacheHomeFrom(os.LookupEnv))
-			if len(s.vocabulary) > 0 {
-				out.note("placing %d name(s) this repository resolves from its type environment", len(s.vocabulary))
-			}
-		}
+		s.template = templateLines(root, kind)
 	}
-	var err error
-	over := scanned{}
 	if counts {
-		return reportCounts(out, s, profile, args, cwd, cfg, &over)
+		return reportCounts(out, s, profile, args, cwd, cfg)
 	}
-
-	var found []Finding
-	if profile == ProfileComment && !source {
-		found, err = s.scanChange(args, cwd, git, cfg, &over)
-	} else if source && !record && namesRevisions(git, cwd, args) {
-		found, err = s.scanTouchedFiles(args, cwd, git, cfg, &over)
-	} else {
-		found, err = s.scanPaths(args, cwd, cfg, &over, source)
-	}
+	found, err := s.scanPaths(args, cwd, cfg)
 	if err != nil {
 		return out.refuse(err)
 	}
-	return reportVoice(out, profile, found, over)
-}
-
-// readTieFile reads the file `--file` names, relative to cwd, or refuses where it cannot be read.
-func readTieFile(cwd, named string) ([]string, error) {
-	path := named
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(cwd, path)
-	}
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("--file names %s, which cannot be read — the scan did NOT run", shell.Echoable(named))
-	}
-	return shell.SplitLines(string(body)), nil
-}
-
-// namesRevisions says the first argument is a revision. Writer I of run 10 asked `--source` for a
-// revision range, and the scan read the range as a path and exited 2.
-func namesRevisions(git repo.Git, cwd string, args []string) bool {
-	if len(args) == 0 || args[0] == "-" || args[0] == "--" {
-		return false
-	}
-	if _, err := os.Stat(shell.Join(cwd, args[0])); err == nil {
-		return false
-	}
-	return diffscan.RefuseNonRevisions(git, args, cwd) == nil && resolves(git, cwd, args[0])
-}
-
-// resolves says git reads the argument as a commit, or as a range of two.
-func resolves(git repo.Git, cwd, arg string) bool {
-	for _, end := range strings.Split(arg, "..") {
-		end = strings.Trim(end, ".")
-		if end == "" {
-			continue
-		}
-		if id, err := git.Resolve(cwd, end+"^{}"); err != nil || id == "" {
-			return false
-		}
-	}
-	return true
-}
-
-// scanTouchedFiles reads every block of each source file the revisions touch, as the file stands in
-// the working tree. `--source` reads a whole file, and a range names which files.
-func (s scanner) scanTouchedFiles(args []string, cwd string, git repo.Git, cfg Config, over *scanned) ([]Finding, error) {
-	root := cwd
-	if top, err := git.TopLevel(cwd); err == nil && top != "" {
-		root = top
-	}
-	named, pathspec := diffscan.RevisionsNamed(args)
-	files, err := git.Changed(root, named, pathspec)
-	if err != nil {
-		return nil, fmt.Errorf("git rejected these revisions — exit 2, the scan did NOT run. git said: %v", err)
-	}
-	var paths []string
-	for _, file := range files {
-		if !notThisRepositorysSource(file) {
-			paths = append(paths, file)
-		}
-	}
-	if len(paths) == 0 {
-		return nil, nil
-	}
-	return s.scanPaths(paths, root, cfg, over, true)
-}
-
-// scanChange reads the diff — git's, or one on stdin for a branch this checkout does not hold, which
-// is how the negative control runs over `gh pr diff`. Blocks are runs of ADDED comment lines, so the
-// scan needs no working tree: a block split by a line the diff did not touch is two blocks, which is
-// what a reviewer reading the diff sees too.
-func (s scanner) scanChange(args []string, cwd string, git repo.Git, cfg Config, over *scanned) ([]Finding, error) {
-	fromStdin := len(args) > 0 && args[0] == "-"
-	var diff []byte
-	var err error
-	if fromStdin {
-		if diff, err = readAllCapped(os.Stdin, maxStdinBytes); err != nil {
-			return nil, fmt.Errorf("the diff on stdin %v — exit 2, the scan did NOT run", err)
-		}
-	} else {
-		if err = diffscan.RefuseNonRevisions(git, args, cwd); err != nil {
-			return nil, err
-		}
-		if diff, err = diffscan.Diff(git, cwd, args); err != nil {
-			return nil, err
-		}
-	}
-
-	added := newAddedLines()
-	if err := s.readDiff(added, diff); err != nil {
-		return nil, err
-	}
-
-	// The untracked half runs only with no revisions and no diff on stdin, the way the default mode's
-	// does: with revisions the caller named two commits, and a file in neither of them is not part of
-	// what they asked about. A new file is the commonest place a new comment lands, so a voice scan
-	// that skipped it would report clean over the change most worth reading.
-	named, _ := diffscan.RevisionsNamed(args)
-	if !fromStdin && len(named) == 0 {
-		if err := s.readUntracked(added, cwd, git, cfg); err != nil {
-			return nil, err
-		}
-	}
-	over.files = len(added.order)
-	over.declined = len(added.declined)
-	// A diff on stdin names a branch this checkout may lack, so the file is out of reach here and the
-	// declaration exemption stays off. The diff carries context lines that usually hold the
-	// declaration, and reading those would close the gap. It needs diffscan to offer them.
-	var whole map[string][]string
-	if !fromStdin {
-		whole = s.endSide(args, cwd, git, cfg, added.order)
-	}
-	return s.scanAdded(added, whole), nil
-}
-
-// addedLines is what a diff or an untracked walk contributed, per file, in the order the files
-// arrived. Held apart from the scan so the two arms fill one structure and the scan reads it once.
-type addedLines struct {
-	byFile   map[string][]addedLine
-	order    []string
-	declined map[string]bool
-}
-
-type addedLine struct {
-	at   int
-	text string
-}
-
-func newAddedLines() *addedLines {
-	return &addedLines{byFile: map[string][]addedLine{}, declined: map[string]bool{}}
-}
-
-// declineOnce records a file this scan will not read and says so, the first time only. A diff carries
-// many lines of one file, and a notice per line would bury the report it belongs to.
-func (a *addedLines) declineOnce(file string, say func()) {
-	if a.declined[file] {
-		return
-	}
-	a.declined[file] = true
-	say()
-}
-
-func (a *addedLines) take(file string, at int, text string) {
-	if _, seen := a.byFile[file]; !seen {
-		a.order = append(a.order, file)
-	}
-	a.byFile[file] = append(a.byFile[file], addedLine{at: at, text: text})
-}
-
-// skip says whether this file is one the scan reads at all. A line number past the cap is dropped on
-// its own: scanAdded sizes a slice by the highest one, and on the `-` arm that number comes off a diff
-// somebody else wrote.
-func (s scanner) skip(a *addedLines, line diffscan.AddedLine, result *diffscan.Result) bool {
-	if notThisRepositorysSource(line.File) {
-		return true
-	}
-	// Both ends. The ceiling bounds what scanAdded allocates; the floor catches a hunk header whose
-	// line number overflowed the counter that walks it, which arrives negative and would otherwise
-	// pass the ceiling and index a zero-length slice.
-	//
-	// A line refused here is ANNOUNCED and counted, never dropped quietly. Dropped, one crafted hunk
-	// header takes a file out of the scan and the run still closes on "clean, which says the register
-	// was read" — the tool asserting it read what it discarded.
-	if line.Line < 1 || line.Line > maxDiffLine {
-		a.declineOnce(line.File, func() {
-			s.announce(fmt.Sprintf("skipping '%s' — its diff claims line %d, which is outside the range this scan reads; it was NOT scanned.",
-				shell.CutBytesMarked(shell.Oneline(line.File), maxPathBytes), line.Line))
-		})
-		return true
-	}
-	// This scan echoes file CONTENT — up to 120 bytes of it per finding — so it takes the guard
-	// dup-literals takes and not the one the default density mode takes: that one reports paths and
-	// counts, and a sentence out of a `.env` printed here reaches the orchestrator's transcript and
-	// any body drafted from it. The untracked arm gets the same guard from Options.
-	if !diffscan.SecretNamed(line.File) {
-		return false
-	}
-	a.declineOnce(line.File, func() {
-		result.SkippedUnread++
-		s.announce(diffscan.SecretSkipNotice(line.File))
-	})
-	return true
-}
-
-func (s scanner) readDiff(a *addedLines, diff []byte) error {
-	var result diffscan.Result
-	err := result.WalkDiff(diff, func(line diffscan.AddedLine) {
-		if !s.skip(a, line, &result) {
-			a.take(line.File, line.Line, line.Text)
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("the diff could not be read to the end (%v) — exit 2, the scan did NOT run over all of it. Not a clean result.", err)
-	}
-	return nil
-}
-
-func (s scanner) readUntracked(a *addedLines, cwd string, git repo.Git, cfg Config) error {
-	var result diffscan.Result
-	options := diffscan.Options{MaxFileBytes: cfg.MaxFileBytes, SkipSecretNamed: true, Announce: s.announce}
-	err := result.WalkUntracked(git, cwd, options, func(line diffscan.AddedLine) {
-		if !s.skip(a, line, &result) {
-			a.take(line.File, line.Line, line.Text)
-		}
-	})
-	if err != nil {
-		return errors.New("could not list untracked files — exit 2, the scan did NOT run over them.")
-	}
-	for _, name := range result.Declined {
-		a.declined[name] = true
-	}
-	return nil
-}
-
-// scanAdded reads each file as a sparse one: the added lines at their own numbers, and a gap standing
-// in for every line the diff did not carry. `within` is what tells a gap from a blank line the diff
-// really added, which decides where a block ends and whether one is a file header.
-func (s scanner) scanAdded(a *addedLines, whole map[string][]string) []Finding {
-	var found []Finding
-	for _, file := range a.order {
-		highest := 0
-		within := map[int]bool{}
-		for _, line := range a.byFile[file] {
-			if line.at > highest {
-				highest = line.at
-			}
-			within[line.at] = true
-		}
-		lines := make([]string, highest)
-		for _, line := range a.byFile[file] {
-			lines[line.at-1] = line.text
-		}
-		found = append(found, s.scanSource(file, lines, withoutSharedRegions(lines, within), whole[file])...)
-	}
-	return found
-}
-
-// endSide is each changed file as the change leaves it, for the checks that ask what the code beside
-// a block spells. `git diff` has three right-hand sides. No revisions and one revision both end at
-// the working tree. A range ends at the revision it names. A file this run cannot reach is left out
-// and falls back to the diff's own lines.
-func (s scanner) endSide(args []string, cwd string, git repo.Git, cfg Config, files []string) map[string][]string {
-	top, err := git.TopLevel(cwd)
-	if err != nil || len(files) == 0 {
-		return nil
-	}
-	named, _ := diffscan.RevisionsNamed(args)
-	rev := rightEnd(named)
-	whole := map[string][]string{}
-	if rev == "" {
-		for _, file := range files {
-			body, err := os.ReadFile(shell.Join(top, file))
-			if err != nil || int64(len(body)) > cfg.MaxFileBytes {
-				continue
-			}
-			whole[file] = shell.SplitLines(string(body))
-		}
-		return whole
-	}
-	// A revision this checkout lacks, or a read that fails, leaves the map short. The exemption falls
-	// silent for those files, the way every run behaved before this existed.
-	_ = git.ContentsAt(top, rev, files, cfg.MaxFileBytes, func(path string, content []byte) {
-		whole[path] = shell.SplitLines(string(content))
-	})
-	return whole
-}
-
-// rightEnd is the revision a diff's right-hand side names, or "" where that side is the working tree.
-// `a..b` and `a...b` both end at b, and `a..` ends at HEAD the way git reads it.
-func rightEnd(named []string) string {
-	if len(named) > 1 {
-		return named[len(named)-1]
-	}
-	if len(named) == 0 {
-		return ""
-	}
-	for _, separator := range []string{"...", ".."} {
-		if _, right, found := strings.Cut(named[0], separator); found {
-			if right == "" {
-				return "HEAD"
-			}
-			return right
-		}
-	}
-	// `git diff <rev>` compares that revision against the working tree.
-	return ""
-}
-
-// A region a repository holds byte-identical across several files. The two markers name it, and the
-// wiring check's shared-region scan enforces it.
-const (
-	sharedRegionOpen  = "# --- shared:"
-	sharedRegionClose = "# --- end shared:"
-)
-
-// withoutSharedRegions drops the lines inside a shared region. A finding there asks for an edit the
-// shared-region scan forbids, since the same bytes sit in every file carrying the region. The text is
-// one text however many copies exist, so a new file carrying a copy adds no prose to read.
-func withoutSharedRegions(lines []string, within map[int]bool) map[int]bool {
-	kept := map[int]bool{}
-	inside := false
-	for at := 1; at <= len(lines); at++ {
-		text := strings.TrimSpace(lines[at-1])
-		if strings.HasPrefix(text, sharedRegionClose) {
-			inside = false
-			continue
-		}
-		if strings.HasPrefix(text, sharedRegionOpen) {
-			inside = true
-		}
-		if !inside && within[at] {
-			kept[at] = true
-		}
-	}
-	return kept
-}
-
-// partMarker parts the blocks of one file piped in a single call.
-const partMarker = "==="
-
-// splitParts cuts the piped lines at each line reading `===`. Text with no such line is one part.
-func splitParts(lines []string) [][]string {
-	var parts [][]string
-	var part []string
-	for _, line := range lines {
-		if strings.TrimSpace(line) == partMarker {
-			parts = append(parts, part)
-			part = nil
-			continue
-		}
-		part = append(part, line)
-	}
-	return append(parts, part)
-}
-
-// scanRecords reads each part of a record-mode call against its block and the code under it, with the
-// file bound where a file is named. A writer checks all of a file's blocks in one call. Run 18's writers
-// called the check once per block, and each call was a turn that carried the whole context again.
-func (s scanner) scanRecords(file string, lines []string) []Finding {
-	parts := splitParts(lines)
-	var found []Finding
-	ties := s.tieLines
-	for n, part := range parts {
-		name := file
-		if len(parts) > 1 {
-			name = fmt.Sprintf("%s#%d", file, n+1)
-		}
-		found = append(found, RecordFindings(name, part)...)
-		_, under, _ := splitRecord(part)
-		if ties != nil {
-			block, _ := blockAndBody(under)
-			found = append(found, TieFindings(name, block, ties)...)
-			// A block checked in this call is not in the file yet, and the next part's bound counts it.
-			for _, line := range block {
-				ties = append(ties, "// "+line)
-			}
-			ties = append(ties, "")
-		}
-		found = append(found, s.scanSource(name, under, nil, under)...)
-	}
-	return found
-}
-
-// scanDiff is the diff half on its own, for a caller holding the bytes.
-func (s scanner) scanDiff(diff []byte) ([]Finding, error) {
-	added := newAddedLines()
-	if err := s.readDiff(added, diff); err != nil {
-		return nil, err
-	}
-	return s.scanAdded(added, nil), nil
+	return reportVoice(out, profile, found, len(args))
 }
 
 // scanPaths reads the named files, or stdin for `-`. The prose profile's caller usually holds the
 // text rather than a path — a PR body being drafted — so stdin is the common form there.
-func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned, source bool) ([]Finding, error) {
+func (s scanner) scanPaths(args []string, cwd string, cfg Config) ([]Finding, error) {
 	read := func(file string, lines []string) []Finding {
-		if source {
-			if !s.record {
-				return s.scanSource(file, lines, nil, lines)
-			}
-			return s.scanRecords(file, lines)
-		}
 		if s.kind == "" {
 			return s.scanProse(file, lines)
 		}
 		authored := AuthoredLines(strings.Join(lines, "\n"), s.template)
 		return append(s.scanProse(file, authored), KindFindings(file, lines, authored)...)
-	}
-	if len(args) == 0 {
-		return nil, fmt.Errorf("the %s profile needs a path, or `-` for stdin — the scan did NOT run", s.profile)
 	}
 	var found []Finding
 	for _, arg := range args {
@@ -1723,7 +708,6 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			if err != nil {
 				return nil, fmt.Errorf("stdin %v — exit 2, the scan did NOT run", err)
 			}
-			over.files++
 			found = append(found, read("-", shell.SplitLines(string(body)))...)
 			continue
 		}
@@ -1746,22 +730,14 @@ func (s scanner) scanPaths(args []string, cwd string, cfg Config, over *scanned,
 			return nil, fmt.Errorf("cannot read %s — exit 2, the scan did NOT run",
 				shell.CutBytesMarked(shell.Oneline(arg), maxPathBytes))
 		}
-		over.files++
 		found = append(found, read(arg, shell.SplitLines(string(body)))...)
 	}
 	return found, nil
 }
 
-// scanned is what a run covered, so an empty report can be told from an empty scan. diffscan's own
-// header states the rule: the denominator is contract, not decoration.
-type scanned struct {
-	files    int
-	declined int
-}
-
 // reportVoice prints the findings sorted, then a denominator on stderr. The sort makes two runs over one
-// tree print one report, so a diff of two runs is the change.
-func reportVoice(out console, profile Profile, found []Finding, over scanned) int {
+// text print one report, so a diff of two runs is the change.
+func reportVoice(out console, profile Profile, found []Finding, files int) int {
 	sort.SliceStable(found, func(i, j int) bool {
 		if found[i].File != found[j].File {
 			return found[i].File < found[j].File
@@ -1787,30 +763,12 @@ func reportVoice(out console, profile Profile, found []Finding, over scanned) in
 		byCheck[f.Check]++
 	}
 	var parts []string
-	listed := map[string]bool{}
 	for _, name := range AllChecks {
-		listed[name] = true
 		if byCheck[name] > 0 {
 			parts = append(parts, fmt.Sprintf("%s %d", name, byCheck[name]))
 		}
 	}
-	// The record checks and the file bound sit outside the corpus list, and the tally still names them.
-	var others []string
-	for name := range byCheck {
-		if !listed[name] {
-			others = append(others, name)
-		}
-	}
-	sort.Strings(others)
-	for _, name := range others {
-		parts = append(parts, fmt.Sprintf("%s %d", name, byCheck[name]))
-	}
-	out.note("%s profile: %d finding(s)%s over %d file(s), %d declined unread.",
-		profile, len(found), tally(parts), over.files, over.declined)
-	if over.files == 0 {
-		out.note("nothing reached the scan, so this run says nothing about the text.")
-		return exitClean
-	}
+	out.note("%s profile: %d finding(s)%s over %d file(s).", profile, len(found), tally(parts), files)
 	if len(found) == 0 {
 		out.note("clean, which says the register was read and matched nothing — not that the text was not read.")
 		return exitClean
@@ -1820,17 +778,12 @@ func reportVoice(out console, profile Profile, found []Finding, over scanned) in
 }
 
 // reportCounts prints one line per path: the finding count, a space, and the path as it was given. A
-// path with no findings gets a line too. reportVoice, the function that prints findings, shows at most
-// maxFindings, a const in this file. A count is one line however many findings it counts, so that cap
-// does not apply here.
-func reportCounts(out console, s scanner, profile Profile, args []string, cwd string, cfg Config, over *scanned) int {
-	if len(args) == 0 {
-		return out.refuse(fmt.Errorf("--per-file needs a path to count, and the %s profile got none — the scan did NOT run", profile))
-	}
+// path with no findings gets a line too. reportVoice shows at most maxFindings. A count is one line
+// however many findings it counts, so that cap does not apply here.
+func reportCounts(out console, s scanner, profile Profile, args []string, cwd string, cfg Config) int {
 	total := 0
 	for _, arg := range args {
-		// --per-file is refused with the comment profile, so these are prose paths.
-		found, err := s.scanPaths([]string{arg}, cwd, cfg, over, false)
+		found, err := s.scanPaths([]string{arg}, cwd, cfg)
 		if err != nil {
 			// The counts already printed stay on stdout. The caller pairs them back against the paths it
 			// asked for, and the last path with a line is where the run stopped.
@@ -1839,8 +792,7 @@ func reportCounts(out console, s scanner, profile Profile, args []string, cwd st
 		fmt.Fprintf(out.stdout, "%d %s\n", len(found), arg)
 		total += len(found)
 	}
-	out.note("%s profile: %d finding(s) over %d file(s), %d declined unread.",
-		profile, total, over.files, over.declined)
+	out.note("%s profile: %d finding(s) over %d file(s).", profile, total, len(args))
 	if total == 0 {
 		return exitClean
 	}
@@ -1853,122 +805,3 @@ func tally(parts []string) string {
 	}
 	return " — " + strings.Join(parts, ", ")
 }
-
-// A hyphenated pair in prose, and the identifier words a file spells outside its comments.
-var reHyphenPair = regexp.MustCompile(`\b([a-z]+)-([a-z]+)\b`)
-var reIdentifierWord = regexp.MustCompile(`[A-Za-z_$][\w$]*`)
-
-// identifierWordsOf collects what a file's identifiers spell, lowercased: each whole identifier, and
-// each adjacent pair of its camel humps joined. A compound in prose is matched against the pairs,
-// because the compound a reader meets with a hyphen sits inside an identifier as two humps.
-func identifierWordsOf(lines []string) map[string]bool {
-	out := map[string]bool{}
-	for _, line := range lines {
-		for _, word := range reIdentifierWord.FindAllString(line, -1) {
-			out[strings.ToLower(word)] = true
-			humps := strings.Fields(camelHump.ReplaceAllString(word, "$1 $2"))
-			for i := 0; i+1 < len(humps); i++ {
-				out[strings.ToLower(humps[i]+humps[i+1])] = true
-			}
-		}
-	}
-	return out
-}
-
-// rePathSpan is a backticked span holding a `/`, or one ending in a listed file extension, optionally
-// followed by `:` or `#` and more. It names a file, and a stem inside it is part of the path. A run's
-// writers could cite no file of another repository while the check read that stem as a bare name. The
-// list leaves out lock, env, ini, cfg and conf, because a member access often ends on one of them.
-var rePathSpan = regexp.MustCompile("`[^`]*/[^`]*`|`[^`]*\\.(?:ts|tsx|js|jsx|mjs|cjs|go|py|rb|rs|java|kt|kts|swift|c|h|cc|cpp|cs|m|php|sh|md|json|ya?ml|toml|xml|html|css|scss|sql|txt|gradle|proto|vue|svelte|dart|scala|lua|pl|tf|graphql|gql)(?:[:#][^`]*)?`")
-
-// A hump-cased name, and the comma that would place it.
-var reCamelToken = regexp.MustCompile(`\b[a-z][a-z0-9]*[A-Z][A-Za-z0-9]*\b`)
-var reAppositiveTail = regexp.MustCompile("^`?\\s*,")
-
-// placeableNames are the terms of art a reader already places, spelled the way an identifier is.
-// This check reported three of them in its own comment, which is what that run is for.
-var placeableNames = map[string]bool{"camelcase": true, "srgb": true, "ios": true, "macos": true,
-	"tvos": true, "watchos": true, "iphone": true, "ipad": true, "javascript": true, "typescript": true}
-
-// bareIdentifiers finds a name a block uses without saying what it is. A reader who cannot place a
-// name reads the sentence as being about something else. An appositive places one, and the site's own
-// declaration needs none. It reached 37 of 304 notes on a sixty-file set, and its false positives are
-// the terms of art in placeableNames, a list of names a reader already knows.
-func (s scanner) bareIdentifiers(file string, b block, lines []string, declared map[string]bool) []Finding {
-	var found []Finding
-	for at := b.start; at <= b.end && at <= len(lines); at++ {
-		text := rePathSpan.ReplaceAllStringFunc(proseOf(lines[at-1]), func(span string) string {
-			return strings.Repeat(" ", len(span))
-		})
-		for _, span := range reCamelToken.FindAllStringIndex(text, -1) {
-			token := text[span[0]:span[1]]
-			if declared[strings.ToLower(token)] || placeableNames[strings.ToLower(token)] ||
-				s.vocabulary[strings.ToLower(token)] ||
-				reAppositiveTail.MatchString(text[span[1]:]) {
-				continue
-			}
-			found = append(found, Finding{File: file, Line: at, Check: checkBareIdent, Text: token})
-		}
-	}
-	return found
-}
-
-// coinedIdentifiers finds a hyphenated compound in a block whose camelCase join the code spells. The
-// code invented the word and the prose took it, so the rename lane owns it. A compound the tree spells
-// hyphenated passes: that is a file, a directory or a flag of the repository's own, and its name.
-func (s scanner) coinedIdentifiers(file string, b block, lines []string, identifiers map[string]bool) []Finding {
-	var found []Finding
-	for at := b.start; at <= b.end && at <= len(lines); at++ {
-		text := proseOf(lines[at-1])
-		for _, m := range reHyphenPair.FindAllStringSubmatch(text, -1) {
-			if s.derived[strings.ToLower(m[0])] || !identifiers[strings.ToLower(m[1]+m[2])] {
-				continue
-			}
-			found = append(found, Finding{File: file, Line: at, Check: checkCoinedIdent, Text: m[0]})
-		}
-	}
-	return found
-}
-
-// declaredAt is what the declaration under a block spells, which is the name a block may use without
-// placing it. The block sits on that declaration, so its reader has the name in front of them.
-//
-// The lines it reads are the file as the change leaves it. A reader opens the file, so the
-// declaration under a block is in front of them whether or not the change touched it.
-func declaredAt(lines []string, b block) map[string]bool {
-	out := map[string]bool{}
-	// Comment lines are walked past as well as blank ones. Over a diff a block ends where its added
-	// lines end, and the rest of that same comment then stands between the block and the declaration.
-	// A walk stopping there would read the prose as the declaration and exempt every word of it.
-	at := b.end + 1
-	for at <= len(lines) && at <= b.end+maxLinesToDeclaration {
-		line := strings.TrimLeft(lines[at-1], shell.SpaceBytes)
-		if line != "" && !isComment(line) && !isShebang(at, line) {
-			break
-		}
-		at++
-	}
-	if at > len(lines) || at > b.end+maxLinesToDeclaration {
-		return out
-	}
-	// The declaration's first run of lines counts with it, up to a blank line or another comment. A note
-	// on a function names what the body under it does, and a name that body spells sits in front of the
-	// reader. k19 and k21 had every first draft sent back for local names declared three lines under the
-	// block.
-	for end := at; end <= len(lines) && end < at+bodyLinesInView; end++ {
-		line := strings.TrimLeft(lines[end-1], shell.SpaceBytes)
-		if end > at && (line == "" || isComment(line)) {
-			break
-		}
-		for _, word := range reIdentifierWord.FindAllString(lines[end-1], -1) {
-			out[strings.ToLower(word)] = true
-		}
-	}
-	return out
-}
-
-const bodyLinesInView = 30
-
-// The gap between a block and its declaration holds a comment's remaining lines and the blanks around
-// them. A bound well over the longest block stops a runaway walk from exempting a name off unrelated code.
-const maxLinesToDeclaration = 60

@@ -21,8 +21,8 @@ var kinds = map[string]bool{KindPRBody: true, KindTicket: true}
 
 const checkTestsNarration = "tests-narration"
 
-// kindChecks run only under `--kind`. They read a whole body, where the register checks read a comment
-// block. The house corpus holds blocks, so these checks are tested on their own.
+// kindChecks run only under `--kind`. They read a body's sections, which the house corpus does not
+// carry, so these checks are tested on their own.
 var kindChecks = []string{checkTestsNarration}
 
 // templateGlobs are where a repository keeps each kind's template, relative to its root.

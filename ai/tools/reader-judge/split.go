@@ -1,8 +1,7 @@
 // Turning a text into the units a vote may delete, and applying the verdict back onto it.
 //
-// A source file's units are its comment blocks; prose's are its markdown blocks. What is shown but
-// never offered lives here too — the code around a comment, a commit's subject and trailers, and
-// everything the diff did not touch.
+// A text's units are its markdown blocks. What is shown but never offered lives here too — a commit's
+// subject and trailers, and everything the diff did not touch.
 package readerjudge
 
 import (
@@ -20,10 +19,10 @@ type Unit struct {
 	Span int
 }
 
-// Split turns candidates into units and builds the view the model reads. A source file's candidates are its
-// comment blocks and its code is shown unnumbered; prose's are its markdown blocks, so a fenced block
-// is held whole and the model drops a pasted repro or not at all. offer says which candidates become
-// units, the rest are shown as context, and a unit's continuation lines are marked `.` in the margin.
+// Split turns candidates into units and builds the view the model reads. The candidates are markdown
+// blocks, so a fenced block is held whole and the model drops a pasted repro or not at all. offer
+// says which candidates become units, the rest are shown as context, and a unit's continuation lines
+// are marked `.` in the margin.
 func Split(lines []string, candidates []Unit, offer func(Unit) bool) ([]Unit, string) {
 	var units []Unit
 	numberAt := map[int]int{}
@@ -49,43 +48,6 @@ func Split(lines []string, candidates []Unit, offer func(Unit) bool) ([]Unit, st
 		}
 	}
 	return units, view.String()
-}
-
-func CommentBlocks(lines []string) []Unit {
-	var found []Unit
-	inBlock, inStar := false, false
-	for i, raw := range lines {
-		line := strings.TrimLeft(raw, shell.SpaceBytes)
-		// A script's interpreter directive is a `#` line, so it reads as a comment and would join the
-		// header below it — and a unit is a thing the model may delete, with Apply dropping every line
-		// of it. A vote against that header would take `#!/usr/bin/env bash` with it and leave a file
-		// the kernel will not run. It is never offered, on the same reasoning Kind.Subject withholds a
-		// commit's subject line.
-		if i == 0 && strings.HasPrefix(line, "#!") {
-			inBlock, inStar = false, false
-			continue
-		}
-		// Inside a `/*` block every line belongs to it until one carries `*/`, whatever it starts
-		// with: a continuation without a leading `*` is still the same comment, and ending the block
-		// there would delete its first line alone and leave the tail to break the file.
-		switch {
-		case inStar:
-			found[len(found)-1].Span++
-			if strings.Contains(line, "*/") {
-				inStar, inBlock = false, false
-			}
-		case !isComment(line):
-			inBlock = false
-		case inBlock:
-			found[len(found)-1].Span++
-			inStar = opensStar(line)
-		default:
-			found = append(found, Unit{Line: i + 1, Span: 1})
-			inBlock = true
-			inStar = opensStar(line)
-		}
-	}
-	return found
 }
 
 // proseBlocks makes the markdown block the unit. A line in the middle of a hard-wrapped paragraph is
@@ -261,34 +223,10 @@ func offeredKey(units []Unit) string {
 	return strings.Join(parts, ",")
 }
 
-func opensStar(line string) bool {
-	return strings.HasPrefix(line, "/*") && !strings.Contains(line[2:], "*/")
-}
-
-// isComment mirrors voice-check's: `//`, `/*`, `#`, and a continuation `*` or closing `*/` followed
-// by a space or the end of the line, so `*ptr = 1` stays code.
-func isComment(line string) bool {
-	switch {
-	case strings.HasPrefix(line, "//"), strings.HasPrefix(line, "/*"), strings.HasPrefix(line, "#"):
-		return true
-	}
-	rest := ""
-	switch {
-	case strings.HasPrefix(line, "*/"):
-		rest = line[2:]
-	case strings.HasPrefix(line, "*"):
-		rest = line[1:]
-	default:
-		return false
-	}
-	return rest == "" || rest[0] == ' ' || rest[0] == '\t'
-}
-
 // Apply deletes the chosen units' lines and returns what is left, always ending in one newline. Text
 // that ended in one and lost no unit comes back byte-identical; text that did not gains one.
 // A block cut from the middle leaves both its blank lines, so the seam doubles. Left alone: git's
-// `--cleanup` collapses them and markdown renders one and two alike, while closing the seam would
-// delete the blank between two functions in a source file, where a blank is structure.
+// `--cleanup` collapses them and markdown renders one and two alike.
 func Apply(lines []string, units []Unit, gone []int) string {
 	drop := map[int]bool{}
 	for _, index := range gone {

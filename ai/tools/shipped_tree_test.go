@@ -95,18 +95,18 @@ func TestEverySkillAndWorkerHasARow(t *testing.T) {
 		if _, stillASkill := skills[name]; stillASkill {
 			continue
 		}
-		if name == toolBuiltWorker || strings.HasPrefix(name, toolBuiltWorker+"/") {
+		if base, _, _ := strings.Cut(name, "/"); toolBuiltWorkers[base] {
 			continue
 		}
-		t.Errorf("worker row %s names no prompt: no file under kk-flavor/workers/, no worker whose prompt it names, no SKILL.md of its own, and it is not %s or one of its kinds, whose prompts a Go tool assembles", name, toolBuiltWorker)
+		t.Errorf("worker row %s names no prompt: no file under kk-flavor/workers/, no worker whose prompt it names, no SKILL.md of its own, and no Go tool assembles it", name)
 	}
 }
 
-// The worker whose prompt a Go tool assembles. The census finds a file for every other one, and this
-// row has none, so it passes by name. Naming it makes a second worker of this shape a decision
-// somebody writes down. Its `<name>/<kind>` sub-rows are the same tool, assembled the same way, and
-// price one kind apart for a question the tool's own tier cannot answer. The tree ships none today.
-const toolBuiltWorker = "reader-judge"
+// The workers whose prompt a Go tool assembles. The census finds a file for every other one, and these
+// rows have none, so they pass by name. Naming each makes another worker of this shape a decision
+// somebody writes down. A `<name>/<kind>` sub-row is the same tool, assembled the same way, and prices
+// one kind apart for a question the tool's own tier cannot answer. The tree ships none today.
+var toolBuiltWorkers = map[string]bool{"reader-judge": true, "comment-pass": true}
 
 // A session sub-row prices a named path through one session, and a worker row prices a spawn. So the
 // mode file that path reads is its evidence. A session's own row is a skill, already checked against
@@ -136,7 +136,10 @@ func TestSessionRowsMatchWhatNothingEnforces(t *testing.T) {
 	if !ok {
 		t.Fatal("kk-qualify carries no readable SKILL.md, so the lane table cannot be read")
 	}
-	enforced := map[string]bool{"reader-judge": true}
+	enforced := map[string]bool{}
+	for name := range toolBuiltWorkers {
+		enforced[name] = true
+	}
 	for _, row := range lanesTableRow.FindAllSubmatch(lanes, -1) {
 		enforced[string(row[1])] = true
 	}

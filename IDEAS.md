@@ -366,8 +366,8 @@ not.** Three cases went in — a real `IDEAS.md` entry, a plan report and a land
 `record-entry` and `reply` off zero coverage — and the false-cut count moved from a handful scattered
 across runs to a cluster that repeats. Over three runs, codex made 5, 4 and 3 false cuts and
 claude/haiku 8 and 7 — the separation holds, and is wider than it was. Those figures are the eleven
-cases as they stood on 2026-09-17; three `comment` cases have since joined and nothing has re-measured
-against fourteen, so read them as a reading of that corpus rather than of this one. What it still
+cases as they stood on 2026-09-17; the `comment` cases that joined later left with the comment
+pipeline, so the corpus is back to ten. What it still
 cannot do is rank two configurations a single false cut apart, and the answer to that is what it was:
 more real artifacts, labelled when they are written and the reading is fresh. `ticket` and `slack`
 remain at zero cases, deliberately — this repo produces neither, and a case someone invents to fill a

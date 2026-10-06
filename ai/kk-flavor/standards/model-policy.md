@@ -45,7 +45,7 @@ differs, since a site that bills separately is a site the cost surface has to sh
 name a row owning a prompt, one hop and never a chain, so every site still resolves to exactly one
 file. The second is a worker **that is still a mounted skill**, running from its own `SKILL.md` until
 that move finishes. The third is one **whose prompt a Go tool assembles** rather than reading it from
-the tree; `reader-judge` is the only one, and its row is a required input rather than a declaration
+the tree. `reader-judge` and `comment-pass` are the two, and each row is a required input rather than a declaration
 (**What the policy can and cannot reach** below).
 
 **A site is never declared in a skill's prose.** A line beside the prose can forget to mention itself,
@@ -173,8 +173,8 @@ A substitution never fails a call or the check. A usage limit does, and names th
 line may go into a report that leaves the machine. The account line and a limit error carry an email,
 and they stay on it.
 
-**A skill dispatches work as a subagent, and a Go tool with no session behind it uses reader-judge's
-caller.** Those are the two ways a model is called here. A subagent shows in the app, and it can run
+**A skill dispatches work as a subagent, and a Go tool with no session behind it calls the CLI
+itself, as reader-judge and comment-pass do.** Those are the two ways a model is called here. A subagent shows in the app, and it can run
 any model the account serves.
 
 **So a dispatch asks for a model the account serves.** `model-check` keeps the set it probed, per

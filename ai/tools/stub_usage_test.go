@@ -47,8 +47,7 @@ import (
 	aibootstrap "configs/ai/tools/ai-bootstrap"
 	buildgate "configs/ai/tools/build-gate"
 	"configs/ai/tools/cadence"
-	commentrun "configs/ai/tools/comment-run"
-	commentstrip "configs/ai/tools/comment-strip"
+	commentpass "configs/ai/tools/comment-pass"
 	duplicates "configs/ai/tools/dup-literals"
 	ecocheck "configs/ai/tools/eco-check"
 	ecoguide "configs/ai/tools/eco-guide"
@@ -219,8 +218,8 @@ var refusals = []refusal{
 	}},
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/cite-graph.sh"},
 	{stub: "ai/kk-flavor/skills/kk-ecosystem/scripts/ruleecho.sh"},
-	// An unknown option, refused in argument parsing before either scanner asks git anything. Not a
-	// revision git cannot resolve, which is git's complaint about the tree and carries no grammar.
+	// An unknown option, refused in argument parsing before any path is read. Not a path that cannot
+	// be read, which is a sound invocation the tool failed to carry out and carries no grammar.
 	{stub: "ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		cfg, err := voicecheck.LoadConfig(os.LookupEnv)
 		if err != nil {
@@ -229,14 +228,9 @@ var refusals = []refusal{
 		}
 		return voicecheck.Run(i.self(), i.args, i.cwd, repo.Exec{}, cfg, i.out, i.out)
 	}},
-	// No facts directory. The tool takes it first and refuses when it is absent, before it reads a
-	// path or reaches git. The refusal states the grammar, and it makes no claim about the tree.
-	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-strip.sh", call: func(i invocation) int {
-		return commentstrip.Strip(i.self(), i.args, i.cwd, repo.Exec{}, i.out, i.out)
-	}},
-	// No stage named. The tool refuses before it reads a path or reaches git.
-	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-run.sh", call: func(i invocation) int {
-		return commentrun.Run(i.self(), i.args, i.cwd, repo.Exec{}, i.out, i.out)
+	// No base named. The tool refuses before it reads a path or reaches git or a model.
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-pass.sh", call: func(i invocation) int {
+		return commentpass.Run(i.self(), i.args, i.cwd, os.LookupEnv, commentpass.CLICaller, i.out, i.out)
 	}},
 	{stub: "ai/kk-flavor/skills/kk-handoff/scripts/handoff-check.sh", call: func(i invocation) int {
 		// An environment no GIT_DIR can redirect, which is what the command hands it: a session drafting
