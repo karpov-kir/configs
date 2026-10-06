@@ -211,15 +211,45 @@ func TestAFileGitIgnoresIsNoInstruction(t *testing.T) {
 	root := newRoot(t, measurement{alpha, 1}, measurement{local, 12})
 	writeBaseline(t, root, baselineLine(1, alpha))
 	runtest.WriteFile(t, filepath.Join(root, ".gitignore"), standardsInRoot+"/"+local+"\n", 0o644)
-	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
-		t.Fatalf("git init: %v %s", err, out)
-	}
+	gitIn(t, root, "init", "-q")
 	if held := runOver(t, root); held.Code != 0 {
 		t.Errorf("an ignored file was measured as an instruction\n%v", held)
+	}
+	// A tracked file deleted from disk is no file to measure, and stops nothing.
+	gone := filepath.Join(root, standardsInRoot, "gone.md")
+	runtest.WriteFile(t, gone, "# gone\n", 0o644)
+	gitIn(t, root, "add", "-A")
+	if err := os.Remove(gone); err != nil {
+		t.Fatal(err)
+	}
+	if held := runOver(t, root); held.Code != 0 {
+		t.Errorf("a tracked file missing from disk stopped the run\n%v", held)
 	}
 	runtest.WriteFile(t, filepath.Join(root, ".gitignore"), "", 0o644)
 	if shown := runOver(t, root); shown.Code != 1 || !shown.Said(local) {
 		t.Errorf("an untracked file that is not ignored went unmeasured\n%v", shown)
+	}
+	// A non-ASCII name is measured whole, where git would quote it.
+	runtest.WriteFile(t, filepath.Join(root, ".gitignore"), standardsInRoot+"/"+local+"\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(root, standardsInRoot, "café.md"), "# café\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(root, checkerInRoot),
+		newStub([]measurement{{alpha, 1}, {local, 12}, {"café.md", 3}}), 0o755)
+	if shown := runOver(t, root); shown.Code != 1 || !shown.Said("café.md") {
+		t.Errorf("a non-ASCII name went unmeasured\n%v", shown)
+	}
+}
+
+// gitIn runs git on the fixture alone. A variable a hook exports would aim it at this repository.
+func gitIn(t *testing.T, root string, args ...string) {
+	t.Helper()
+	command := exec.Command("git", append([]string{"-C", root}, args...)...)
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "GIT_DIR=") && !strings.HasPrefix(kv, "GIT_WORK_TREE=") && !strings.HasPrefix(kv, "GIT_INDEX_FILE=") {
+			command.Env = append(command.Env, kv)
+		}
+	}
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v %s", args, err, out)
 	}
 }
 
