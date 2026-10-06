@@ -1118,3 +1118,26 @@ func TestTheCarriedStageSettlesTheLanesEdits(t *testing.T) {
 		t.Fatalf("a later lane's edit: exit %d\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }
+
+// A file-level site whose claim a written block carries is answered `OK` with the block. The `none`
+// with `moved to` that a moved block takes elsewhere is refused there, and only there.
+func TestArchiveWrittenRefusesAFileLevelSiteAnsweredAsMoved(t *testing.T) {
+	c := newChange(t)
+	for _, tc := range []struct {
+		body    string
+		refused bool
+	}{
+		{"Block 1/1 ledger.ts:0 | none\nmoved to ledger.ts:4\n", true},
+		{"Block 1/2 ledger.ts:0 | none\n\nBlock 2/2 ledger.ts:9 | none\nmoved to ledger.ts:4\n", false},
+		{"Block 1/1 ledger.ts:12 | none\nmoved to ledger.ts:4\n", false},
+	} {
+		ret := filepath.Join(t.TempDir(), "writer-A.md")
+		if err := os.WriteFile(ret, []byte(tc.body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		said := c.run("archive-written", "--run=run28", "--archive="+t.TempDir(), ret)
+		if got := strings.Contains(said.stdout, "ledger.ts:0 refused: a file-level site"); got != tc.refused {
+			t.Errorf("%q: refused %v, want %v:\n%s%s", tc.body, got, tc.refused, said.stdout, said.stderr)
+		}
+	}
+}
