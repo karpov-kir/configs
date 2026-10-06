@@ -150,7 +150,7 @@ func (r *runner) movedFrom(runDir, ret, file, site string, at int) (string, bool
 }
 
 // settleOffered records on the block archived at `at` the claims of every record the verdict's site was
-// offered. A site the round did not offer, or a run directory with no offered records, settles none.
+// offered. It reads the site's offered records beside its facts, where the round recorded them.
 func (r *runner) settleOffered(runDir, ret, archive, file, site string, at int) error {
 	if runDir == "" {
 		return nil

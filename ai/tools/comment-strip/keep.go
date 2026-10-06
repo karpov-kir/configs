@@ -396,9 +396,7 @@ func renameWritten(archive, path string, lines []string, forward, back func(stri
 }
 
 // SettleAt records that the block on line `at` of the file answers the claims its site was offered. A
-// written block settles every record offered at its site, where it once settled the site's own alone.
-// Run 26's writer wrote a block at an interface's site, and the claims offered beside its own came back
-// on the next pass as nobody's.
+// writer weighs every claim in front of it, so its block answers each of them, as ruled after run 28.
 func SettleAt(archive, path string, lines []string, at int, claims []string) error {
 	if len(claims) == 0 {
 		return nil

@@ -484,9 +484,8 @@ func TestADeclineHoldsARecordWhoseDeclarationLeft(t *testing.T) {
 	}
 }
 
-// A written block settles every record offered at its site. A writer weighs each claim in front of it,
-// so a claim it neither wrote nor declined is answered by the block it wrote. A record whose declaration
-// left the file, settled so, is held and offered no more.
+// A written block settles every record offered at its site, since a writer weighs each claim in front
+// of it. The strip then holds a settled record whose declaration left the file.
 func TestABlockSettlesEveryRecordOfferedAtItsSite(t *testing.T) {
 	rulesHome(t, "rules one ")
 	f := newFixture(t, "f.go", "// A ledger posts each amount in cents.\nconst AMOUNT_PLACES = 2\n\n// A ledger closes a book at midnight.\nconst CLOSE_HOUR = 0\n")
