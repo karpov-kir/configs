@@ -20,10 +20,10 @@ func userPrompt(path string, lines []string, m material, notes []string, width i
 		if c.decl > 0 {
 			on = fmt.Sprintf("line %d: %s", c.decl, strings.TrimSpace(lines[c.decl-1]))
 		}
-		fmt.Fprintf(&b, "%s  the comment on lines %d-%d, which sits on %s\n", c.id, c.first, c.last, on)
+		fmt.Fprintf(&b, "%s  the comment on lines %d-%d, which sits on %s (%d columns)\n", c.id, c.first, c.last, on, width-m.indents[c.id])
 	}
 	for _, p := range m.places {
-		fmt.Fprintf(&b, "%s  line %d, which has no comment: %s\n", p.id, p.line, strings.TrimSpace(lines[p.line-1]))
+		fmt.Fprintf(&b, "%s  line %d, which has no comment: %s (%d columns)\n", p.id, p.line, strings.TrimSpace(lines[p.line-1]), width-m.indents[p.id])
 	}
 	if len(notes) > 0 {
 		b.WriteString("\nThe reviewer's notes on this file, each to act on:\n")
@@ -32,7 +32,7 @@ func userPrompt(path string, lines []string, m material, notes []string, width i
 		}
 	}
 	b.WriteString(replyGrammar)
-	fmt.Fprintf(&b, "Each comment line, at the indent it will sit at, fits in %d columns.\n", width)
+	b.WriteString("Each comment line you write, its markers included, fits in the columns its id names.\n")
 	return b.String()
 }
 

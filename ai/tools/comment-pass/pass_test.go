@@ -176,11 +176,12 @@ func TestTheNotesReachTheFilesCall(t *testing.T) {
 	}
 }
 
-// The call names the width the gate holds its lines to, since the model sees no config.
-func TestTheCallNamesTheWidth(t *testing.T) {
-	lines := strings.Split(headLedger, "\n")
-	m := findMaterial("ledger.ts", lines, map[int]bool{3: true})
-	if prompt := userPrompt("ledger.ts", lines, m, nil, 120); !strings.Contains(prompt, "fits in 120 columns") {
+// Each id names the columns its comment lines may take, the width less the indent the gate adds.
+func TestTheCallNamesEachIdsColumns(t *testing.T) {
+	lines := []string{"export class Book {", "\tclose(): void {", "\t\tshut();", "\t}", "}"}
+	m := findMaterial("ledger.ts", lines, map[int]bool{2: true})
+	prompt := userPrompt("ledger.ts", lines, m, nil, 120)
+	if !strings.Contains(prompt, "export class Book { (120 columns)") || !strings.Contains(prompt, "close(): void { (116 columns)") {
 		t.Fatalf("prompt:\n%s", prompt)
 	}
 }
@@ -190,7 +191,7 @@ func TestARunEndsWithItsTotals(t *testing.T) {
 	dir, base := fixture(t)
 	calls := 0
 	code, text := run(t, dir, base, "c1 keep: fine\np1 add: r\n// Reopens the book.\n", &calls)
-	if code != 0 || !strings.Contains(text, "total: 1 file(s) decided, 0 refused; 1 kept, 0 rewritten, 0 removed, 1 added, 0 skipped; 1 call(s), $0.0100") {
+	if code != 0 || !strings.Contains(text, "total: 1 file(s) decided, 0 failed; 1 kept, 0 rewritten, 0 removed, 1 added, 0 skipped; 1 call(s), $0.0100") {
 		t.Fatalf("exit %d:\n%s", code, text)
 	}
 }

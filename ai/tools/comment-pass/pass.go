@@ -194,8 +194,14 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		}
 	}
 	if !list {
-		fmt.Fprintf(stdout, "total: %d file(s) decided, %d refused; %d kept, %d rewritten, %d removed, %d added, %d skipped; %d call(s), $%.4f\n",
-			files, failed, verbs["keep"], verbs["rewrite"], verbs["remove"], verbs["add"], verbs["skip"], calls, cost)
+		// A failed file is one the gate refused, whose reply did not parse, whose call failed, or which
+		// was too large to send. A dry run decides and writes nothing.
+		label := "total"
+		if dry {
+			label = "total, dry run, nothing written"
+		}
+		fmt.Fprintf(stdout, "%s: %d file(s) decided, %d failed; %d kept, %d rewritten, %d removed, %d added, %d skipped; %d call(s), $%.4f\n",
+			label, files, failed, verbs["keep"], verbs["rewrite"], verbs["remove"], verbs["add"], verbs["skip"], calls, cost)
 	}
 	if failed > 0 {
 		return 1
