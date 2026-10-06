@@ -529,8 +529,6 @@ func isProseLine(stripped string) bool {
 // scanner holds one run's settings so every profile reaches the same checks.
 type scanner struct {
 	profile Profile
-	// private is the owner's private-name list. Every profile reads it.
-	private privateNames
 	// coined is words a caller names beside the built-in ones. No run names any: a repository keeps no
 	// word list. The suite does, to reach the checks with a word of its own.
 	coined []string
@@ -866,13 +864,6 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		first, _ := seg.lineSpan(from, to)
 		found = append(found, Finding{File: file, Line: first, Check: check,
 			Text: strings.TrimSpace(text[from:to])})
-	}
-	// A private name is reported by the entry's line in the list. The finding holds none of its words.
-	for _, name := range s.private {
-		if at := name.re.FindStringIndex(text); at != nil {
-			first, _ := seg.lineSpan(at[0], at[1])
-			found = append(found, Finding{File: file, Line: first, Check: checkPrivateName, Text: privateNameText(name.line)})
-		}
 	}
 
 	// Every check reads the segment with its inline code spans blanked. Blanking replaces each span
@@ -1294,13 +1285,6 @@ flags:
 	}
 
 	s := scanner{profile: profile, record: record, kind: kind, notice: func(line string) { out.note("%s", line) }}
-	if cfg.PrivateNames != "" {
-		names, err := loadPrivateNames(cfg.PrivateNames)
-		if err != nil {
-			return out.refuseArguments(err)
-		}
-		s.private = names
-	}
 	if tieFile != "" {
 		lines, err := readTieFile(cwd, tieFile)
 		if err != nil {
@@ -1341,13 +1325,6 @@ flags:
 	}
 	if err != nil {
 		return out.refuse(err)
-	}
-	// A path or another check's quote that holds a private name is printed redacted.
-	for i := range found {
-		found[i].File = s.private.redact(found[i].File)
-		if found[i].Check != checkPrivateName && len(s.private.hits(found[i].Text)) > 0 {
-			found[i].Text = "<text holding a private name>"
-		}
 	}
 	return reportVoice(out, profile, found, over)
 }

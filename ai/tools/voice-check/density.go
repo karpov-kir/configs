@@ -39,7 +39,7 @@ const stubName = "voice-check.sh"
 //
 // The stub's header states this line word for word, and a case holds the two together, so a flag added
 // here is added there in the same edit.
-const usage = "usage: " + stubName + " [--density | --carriers=<facts dir> | --private-names <revisions>|--message=<file> | --per-file | --profile=comment|prose|instruction] [--source] [--record [--file=<path>]] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]"
+const usage = "usage: " + stubName + " [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record [--file=<path>]] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]"
 
 // console is the tool's name and its two streams. A finding goes to stdout bare. A note goes to
 // stderr under the tool's name, and the rest of the package writes there through this type alone. The
@@ -72,8 +72,6 @@ func (c console) refuseArguments(err error) int {
 
 type Config struct {
 	MaxFileBytes int64
-	// PrivateNames is the owner's list of names kept out of public text, outside every repository.
-	PrivateNames string
 }
 
 const configName = "voice-check.conf"
@@ -82,7 +80,7 @@ const configName = "voice-check.conf"
 // run's environment on top. A value that does not parse refuses the run. A caller who set one asked
 // for a bound, and falling back to the default would report a scan against a bound they did not pick.
 func LoadConfig(lookup func(string) (string, bool)) (Config, error) {
-	cfg := Config{MaxFileBytes: defaultMaxFileBytes, PrivateNames: PrivateNamesPath(lookup)}
+	cfg := Config{MaxFileBytes: defaultMaxFileBytes}
 	home, _ := lookup("HOME")
 	path := flavorconfig.Path(home, configName)
 	shipped, err := flavorconfig.Read(path, []string{"max-file-bytes"})
@@ -154,9 +152,6 @@ func Run(self string, args []string, cwd string, git repo.Git, cfg Config, stdou
 	out := console{self: self, stdout: stdout, stderr: stderr}
 	if len(args) > 0 && args[0] == "--density" {
 		return bar(out, args[1:], cwd, git, cfg)
-	}
-	if len(args) > 0 && args[0] == "--private-names" {
-		return privateScan(out, args[1:], cwd, cfg)
 	}
 	if len(args) > 0 && strings.HasPrefix(args[0], "--carriers=") {
 		return carriers(out, strings.TrimPrefix(args[0], "--carriers="), args[1:], cwd, git, cfg)
