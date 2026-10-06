@@ -230,7 +230,7 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	// After the tools, so the hook names a guard already installed.
 	run.registerAgentGuard()
 	run.sayCodexTakesNoGuard()
-	run.guardPrivateNames()
+	run.removeRetiredPrivateNameGuard()
 	run.syncMcp()
 	run.verify()
 	run.checkModels()

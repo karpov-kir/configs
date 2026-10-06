@@ -3,14 +3,11 @@
 # which sentences are written in the register the rule forbids. With `--density` it reports how many
 # comment lines the set carries beside the host repository's own rate.
 #
-#   usage: voice-check.sh [--density | --carriers=<facts dir> | --private-names <revisions>|--message=<file> | --per-file | --profile=comment|prose|instruction] [--source] [--record [--file=<path>]] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]
+#   usage: voice-check.sh [--density | --carriers=<facts dir> | --per-file | --profile=comment|prose|instruction] [--source] [--record [--file=<path>]] [--kind=pr-body|ticket] [<git-diff revisions>] [-- <paths>]
 #          # revisions default to HEAD (all uncommitted changes); a bare path argument is refused with
 #          exit 2, never scanned, and paths after `--` narrow the scan to them
 #   env:   DENSITY_MAX_FILE_BYTES — skip a file larger than this unread. The default is in
 #          `~/.kk-flavor/configs/voice-check.conf`.
-#          KK_PRIVATE_NAMES — the private-name list in place of the owner's, which is
-#          `${XDG_CONFIG_HOME:-~/.config}/kk-flavor/private-names.txt`. Every profile reads it. A
-#          match is reported by the entry's line in the list, so the report holds none of the words.
 #
 # Exits 1 with findings, 0 when clean, 2 when the scan did not run — git rejecting the arguments, a
 # path passed where a revision belongs, or a threshold that is no number. Prose/data files (md, txt,

@@ -5,8 +5,8 @@
 #          (no flag)  run every check, and let Go's own test cache answer where it can
 #          --full     defeat that cache too. The time budget is measured against this mode.
 #
-# Seven checks — gofmt, vet, the Go suite, the wiring check, the field guide, the instruction
-# baseline, the private-name list — run at once and printed in that order.
+# Six checks — gofmt, vet, the Go suite, the wiring check, the field guide, the instruction baseline
+# — run at once and printed in that order.
 #
 # It may never report a pass for a check it failed to run, finish over budget and exit 0, or skip
 # anything quietly. `ai/kk-flavor/standards/testing.md` rule 6 is the bound and `ai/tools/gate/` is
