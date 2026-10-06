@@ -1,6 +1,7 @@
 package aibootstrap
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,12 +22,9 @@ var retiredCommentState = []string{
 	".cache/kk-flavor/writer-eval-slots",
 }
 
-// removeRetiredCommentPipeline removes an agent link whose source this checkout no longer ships, and
-// moves the retired pipeline's state to the Trash.
+// removeRetiredCommentPipeline removes an agent link whose source this checkout no longer ships, and on
+// the owner's machine moves the retired pipeline's state to the Trash.
 func (run *invocation) removeRetiredCommentPipeline() {
-	if !run.isOwner {
-		return
-	}
 	var said bool
 	say := func(line string) {
 		if !said {
@@ -56,6 +54,10 @@ func (run *invocation) removeRetiredCommentPipeline() {
 			say("  removed  " + link + ", whose agent the flavor no longer ships")
 		}
 	}
+	// Every Claude install mounted the agent, but only the owner's runs kept the state.
+	if !run.isOwner {
+		return
+	}
 	trash := filepath.Join(run.Home, ".Trash")
 	stamp := time.Now().Format("2006-01-02")
 	for _, rel := range retiredCommentState {
@@ -63,7 +65,7 @@ func (run *invocation) removeRetiredCommentPipeline() {
 		if _, err := os.Stat(from); err != nil {
 			continue
 		}
-		to := filepath.Join(trash, strings.ReplaceAll(rel, "/", "_")+"-retired-"+stamp)
+		to := freeName(filepath.Join(trash, strings.ReplaceAll(rel, "/", "_")+"-retired-"+stamp))
 		switch {
 		case run.isDryRun:
 			say("  would move " + from + " to the Trash")
@@ -72,5 +74,17 @@ func (run *invocation) removeRetiredCommentPipeline() {
 		default:
 			say("  moved    " + from + " to " + to)
 		}
+	}
+}
+
+// freeName is path, or path with the first free counter after it, so a move never lands on an earlier
+// one's entry.
+func freeName(path string) string {
+	to := path
+	for n := 2; ; n++ {
+		if _, err := os.Lstat(to); os.IsNotExist(err) {
+			return to
+		}
+		to = fmt.Sprintf("%s-%d", path, n)
 	}
 }

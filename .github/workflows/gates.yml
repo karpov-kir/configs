@@ -6,7 +6,7 @@
 # it, so a release built from unchecked code is worse than no release. Sharing them would mean a
 # reusable workflow, which is more machinery than four commands are worth.
 
-# Four jobs, where there were six. The `suites` job ran every `*-test.sh`, and none are left. The
+# Three jobs, where there were six. The `suites` job ran every `*-test.sh`, and none are left. The
 # installers, the MCP scripts and the libraries they shared are all Go, and the three scripts that
 # stay shell are covered by Go suites inside the module.
 
