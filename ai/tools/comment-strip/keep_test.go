@@ -396,3 +396,71 @@ func TestACarrierOutsideGitStandsOnTheSourceFileAlone(t *testing.T) {
 		t.Fatal("a name a test file spells stood outside git")
 	}
 }
+
+// A possessive's apostrophe opens no quote. Run 27 read a carrier with two possessives as citing a
+// name between their apostrophes, found it nowhere, and offered a site whose carrier stood.
+func TestAPossessiveIsNoQuotedCarrierName(t *testing.T) {
+	names := carrierNames("the name entryBeforeBook and its one-line body, the entry's value before the book's; block deleted")
+	if len(names) != 1 || names[0] != "entryBeforeBook" {
+		t.Fatalf("names %q, want only entryBeforeBook", names)
+	}
+	if got := carrierNames("the check named 'refuses a cbcs posting' and `ASKS_ONCE`"); len(got) != 2 {
+		t.Fatalf("a quoted name and a code span read as %q", got)
+	}
+}
+
+// A carried claim the loop wrote again on the carrier's own declaration is named where it stands.
+func TestABlockOnTheCarrierIsNamed(t *testing.T) {
+	lines := []string{"// A ledger answers with an error element.", "const PARSE_FAILURE = 'ledgererror';", "", "if (found(PARSE_FAILURE)) {", "}"}
+	if name, at := blockOnCarrier(lines, "the constant name PARSE_FAILURE, read by the failed-parse check; block deleted"); name != "PARSE_FAILURE" || at != 1 {
+		t.Fatalf("named %q at %d", name, at)
+	}
+	if _, at := blockOnCarrier(lines[1:], "the constant name PARSE_FAILURE"); at != 0 {
+		t.Fatalf("a declaration with no block read as one at %d", at)
+	}
+}
+
+// A declaration text a file repeats reads at the line whose code a decline of the record's claims
+// holds. Run 27 read a run 26 decline of one table row against another row with the same text.
+func TestARepeatedDeclarationReadsAtItsDeclinedRow(t *testing.T) {
+	lines := []string{"const books = {", "  euro: {", "    [Posting.Deferred]: {", "      source: 'euro',", "    },", "  },",
+		"  yen: {", "    [Posting.Deferred]: {", "      source: 'yen',", "    },", "  },", "};"}
+	record := archived{name: "r", line: 8, decl: "[Posting.Deferred]: {", claims: "A ledger defers no euro posting.\n"}
+	if at := placeRecord(lines, record, nil, "rules", 8); at != 8 {
+		t.Fatalf("with no decline the nearest row reads %d, want 8", at)
+	}
+	declines := []declined{{Run: "run26", Rules: "rules", Decl: record.decl, Span: siteSpan(lines, 3), Claims: claimsSum(record.claims)}}
+	if at := placeRecord(lines, record, declines, "rules", 8); at != 3 {
+		t.Fatalf("the declined row reads %d, want 3", at)
+	}
+}
+
+// A declaration rewritten under its name reads at the new declaration. A member folded into another
+// type reads at the file level.
+func TestARewrittenDeclarationReadsAtItsName(t *testing.T) {
+	lines := []string{"import { a } from './a';", "", "export type Posted = Pick<Entry, 'amount'>;"}
+	if at := placeRecord(lines, archived{decl: "export interface Posted extends Pick<Entry, 'amount'> {", line: 5}, nil, "rules", 1); at != 3 {
+		t.Fatalf("the interface's record reads %d, want 3", at)
+	}
+	if at := placeRecord(lines, archived{decl: "amount: number;", line: 6}, nil, "rules", 1); at != fileLevel {
+		t.Fatalf("the member's record reads %d, want the file level", at)
+	}
+}
+
+// A name is read from a top declaration only: a `const enum` declares its own name, and an indented
+// local of the same name is no declaration of it.
+func TestANameIsReadFromATopDeclaration(t *testing.T) {
+	if got := declaredNameOf("export const enum Posting {"); got != "Posting" {
+		t.Fatalf("a const enum declares %q", got)
+	}
+	lines := []string{"export const enum Other {", "}", "function f() {", "  const limit = 5;", "}"}
+	if at := placeRecord(lines, archived{decl: "export const enum Posting {", line: 1}, nil, "rules", 1); at != fileLevel {
+		t.Fatalf("a vanished enum reads at %d, want the file level", at)
+	}
+	if at := placeRecord(lines, archived{decl: "export const limit = 5;", line: 4}, nil, "rules", 1); at != fileLevel {
+		t.Fatalf("a vanished constant reads at the local on %d, want the file level", at)
+	}
+	if got := carrierNames("the checks 'refuses a deferred posting' 'asks once per book'"); len(got) != 2 {
+		t.Fatalf("two quoted names read as %q", got)
+	}
+}

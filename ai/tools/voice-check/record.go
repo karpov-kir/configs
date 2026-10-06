@@ -192,8 +192,22 @@ func RecordFindings(file string, lines []string) []Finding {
 	held := readSlots(record)
 	block, body := blockAndBody(under)
 	at := len(record) + 1
-
+	// A summary-only block's record says so in its summary and note lines, and reads clean. Run 26's
+	// loop writer met a slot finding on one, then checked it with --source and without its record.
 	var out []Finding
+	if summaryOnly(record) {
+		blockText := strings.Join(block, "\n")
+		if dataDeclaration(body) && reValueThisOpens.MatchString(blockText) {
+			out = append(out, Finding{file, at, checkValueThisOpens,
+				"the block opens on this member, this row or this constant; open on the verb, as Names or Marks"})
+		}
+		if m := reValueActor.FindString(blockText); m != "" {
+			out = append(out, Finding{file, at, checkValueActor,
+				fmt.Sprintf("%q makes a value the actor; say what the code does to the thing, or who is asked", m)})
+		}
+		return out
+	}
+
 	for _, slot := range recordSlots {
 		if held[slot] == "" {
 			out = append(out, Finding{file, 1, checkRecordSlot, slot + ":"})
@@ -344,4 +358,16 @@ func spellsTheName(name, text string) bool {
 		}
 	}
 	return true
+}
+
+// summaryOnly says the record is a summary-only block's: `note: none` with `summary: written`, and no
+// fact.
+func summaryOnly(record []string) bool {
+	parts := map[string]string{}
+	for _, line := range record {
+		if name, value, cut := strings.Cut(line, ":"); cut {
+			parts[strings.ToLower(strings.TrimSpace(name))] = strings.ToLower(strings.TrimSpace(value))
+		}
+	}
+	return parts["note"] == "none" && parts["summary"] == "written" && (parts["fact"] == "" || parts["fact"] == "none")
 }

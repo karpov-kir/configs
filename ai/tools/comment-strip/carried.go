@@ -86,7 +86,7 @@ func Carry(archive, run, path string, lines []string, at int, carrier string) er
 
 var (
 	reCarrierSpan  = regexp.MustCompile("`([^`]+)`")
-	reCarrierQuote = regexp.MustCompile(`'([^']{3,})'|"([^"]{3,})"`)
+	reCarrierQuote = regexp.MustCompile(`"([^"]{3,})"`)
 	reCarrierName  = regexp.MustCompile(`\b[A-Za-z_$][\w$]*(?:[A-Z_][\w$]*|\.[A-Za-z_$][\w$]*)\b`)
 )
 
@@ -99,9 +99,11 @@ func carrierNames(carrier string) []string {
 	}
 	rest := reCarrierSpan.ReplaceAllString(carrier, " ")
 	for _, m := range reCarrierQuote.FindAllStringSubmatch(rest, -1) {
-		names = append(names, m[1]+m[2])
+		names = append(names, m[1])
 	}
 	rest = reCarrierQuote.ReplaceAllString(rest, " ")
+	quoted, rest := singleQuoted(rest)
+	names = append(names, quoted...)
 	names = append(names, reCarrierName.FindAllString(rest, -1)...)
 	return names
 }
@@ -239,4 +241,53 @@ func Withdraw(archive, run, path string) (int, error) {
 		return 0, err
 	}
 	return removed, os.WriteFile(carriedName(archive, path), append(body, '\n'), 0o644)
+}
+
+// blockOnCarrier is a name the carrier cites whose declaration in the file has a block on it, and that
+// block's first line. Run 26's loop wrote a block on the constant a carried claim had moved into, and
+// the strip went on saying the block was deleted. The strip names that block where it stands. A
+// carrier may cite several names, so the block is not read as the carried claim.
+func blockOnCarrier(lines []string, carrier string) (string, int) {
+	for _, name := range carrierNames(carrier) {
+		declares := regexp.MustCompile(`^\s*(?:export\s+)?(?:const|let|var|function|class|type|interface|enum)\s+` + regexp.QuoteMeta(name) + `\b`)
+		for _, u := range readerjudge.CommentBlocks(lines) {
+			if decl := declarationUnder(lines, u); decl <= len(lines) && declares.MatchString(lines[decl-1]) {
+				return name, u.Line
+			}
+		}
+	}
+	return "", 0
+}
+
+// singleQuoted is each name in single quotes, and the text with them blanked. A quote opens after a
+// space or a mark and closes before one. A possessive's apostrophe follows a letter, so "the book's
+// entry before the ledger's" cites no name.
+func singleQuoted(text string) ([]string, string) {
+	var names []string
+	out := []byte(text)
+	isWord := func(at int) bool {
+		if at < 0 || at >= len(text) {
+			return false
+		}
+		c := text[at]
+		return c == '_' || c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'
+	}
+	for open := 0; open < len(text); open++ {
+		if text[open] != '\'' || isWord(open-1) {
+			continue
+		}
+		for end := open + 1; end < len(text); end++ {
+			if text[end] == '\'' && !isWord(end+1) {
+				if end-open-1 >= 3 {
+					names = append(names, text[open+1:end])
+					for k := open; k <= end; k++ {
+						out[k] = ' '
+					}
+				}
+				open = end
+				break
+			}
+		}
+	}
+	return names, string(out)
 }
