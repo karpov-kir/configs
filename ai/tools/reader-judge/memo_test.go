@@ -2,7 +2,6 @@
 package readerjudge
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -82,9 +81,9 @@ func TestMemoInvalidatesWhenTheReaderPolicyChanges(t *testing.T) {
 func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	path := write(t, instructions)
 	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
-	lines := strings.Split(strings.TrimSuffix(source, "\n"), "\n")
-	units, _ := Split(lines, CommentBlocks(lines), all)
-	memo.record("comment\n"+offeredKey(units), source, []int{len(units) + 1})
+	lines := strings.Split(strings.TrimSuffix(instructions, "\n"), "\n")
+	units, _ := Split(lines, proseBlocks(lines), all)
+	memo.record("instruction\n", instructions, []int{len(units) + 1})
 	calls := 0
 	call := func(string, string) (string, error) { calls++; return "1", nil }
 	var out, errOut strings.Builder
@@ -93,61 +92,5 @@ func TestMemoNamingAUnitOutOfRangeIsIgnored(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("the planted verdict was taken as a verdict: %d model calls", calls)
-	}
-}
-
-// The verdict kind is paid for once over the same blocks, the way the delete kind is. Its answer is a
-// label per block, and the delete kind's record holds unit numbers, so it needed a record of its own.
-func TestTheVerdictKindIsPaidForOnce(t *testing.T) {
-	withTheRecordedVerdictKind(t)
-	path := write(t, source)
-	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
-	calls := 0
-	answer := func(string, string) (string, error) {
-		calls++
-		return "1 obvious\n2 keep\n3 coined\n", nil
-	}
-	var first, errOut strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &first, &errOut, answer, memo); code != exitCut {
-		t.Fatalf("first run exit %d — %s", code, errOut.String())
-	}
-	var second strings.Builder
-	if code := Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &second, &errOut, answer, memo); code != exitCut {
-		t.Fatalf("second run exit %d — %s", code, errOut.String())
-	}
-	if second.String() != first.String() {
-		t.Fatalf("the record answered differently:\ngot  %q\nwant %q", second.String(), first.String())
-	}
-	if calls != 1 {
-		t.Fatalf("the model was called %d times, want 1", calls)
-	}
-}
-
-// A record naming a block outside the ones this run offers was written by different code over the
-// same bytes. It is a miss, and the model answers again, which is what the delete kind's lookup does
-// for the same reason.
-func TestALabelRecordOutsideTheOfferedBlocksIsAMiss(t *testing.T) {
-	withTheRecordedVerdictKind(t)
-	path := write(t, source)
-	memo := &Memo{Dir: filepath.Join(t.TempDir(), "judged")}
-	calls := 0
-	answer := func(string, string) (string, error) {
-		calls++
-		return "1 obvious\n2 keep\n3 coined\n", nil
-	}
-	var out, errOut strings.Builder
-	Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &out, &errOut, answer, memo)
-	entries, err := os.ReadDir(memo.Dir)
-	if err != nil || len(entries) != 1 {
-		t.Fatalf("the run left %d record(s): %v", len(entries), err)
-	}
-	record := filepath.Join(memo.Dir, entries[0].Name())
-	if err := os.WriteFile(record, []byte("1 obvious\n2 keep\n3 coined\n4 stale\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	out.Reset()
-	Run("reader-judge.sh", []string{"comment-verdict", path}, noRepository, nil, &out, &errOut, answer, memo)
-	if calls != 2 {
-		t.Fatalf("the model was called %d times, and a record naming a fourth block is a miss", calls)
 	}
 }

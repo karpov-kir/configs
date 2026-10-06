@@ -42,8 +42,8 @@ func TestVotingRefusesIfAnyRollExplains(t *testing.T) {
 }
 
 // A roll that names a unit nobody offered has lost the plot exactly as a roll that explains has, and
-// fails the vote the same way. The gap the old line-count bound left is widest in a source file, whose
-// units are its comment blocks: a 500-line file with 40 of them accepted 501.
+// fails the vote the same way. The old line-count bound accepted any number up to the view's line
+// count, which a fenced block or a blank line puts past the units on offer.
 func TestVotingRefusesARollNamingAUnitThatWasNeverOffered(t *testing.T) {
 	view := viewOf("a", "b")
 	if _, err := Voting(rollsAnswering("1", "3", "1"), 3)("p", view); err == nil {

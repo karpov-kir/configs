@@ -120,24 +120,6 @@ serve() {
   exit 0
 }
 
-# Written by whoever puts the binary there — this script after a build, install.sh after a download.
-#
-# It is also the build identity every stub exports as ECO_TOOL_BUILD, so a tool that reports a
-# measurement can name what produced it. `992662a` settled the other half — a scanner number names the
-# commit it was read off — and a reading whose instrument is unnamed cannot be compared with one taken
-# later: a rebuild here moved voice-check's attribution figures on an unchanged tree, with the output
-# silent about it. The stamp carries this. It moves exactly when the build does, and costs one file
-# read. A hash of the binary on every invocation would cost more. Never the stub: that file barely
-# changes, so its identity would say little about the build.
-#
-# The tool that reports this reads it off its own `os.Executable()`, and this file never hands it
-# down. The stub used to export it beside a `git rev-parse`, which cost all 23 tools two processes per
-# invocation to carry a line a single tool prints.
-
-# voice-check/bar.go is that tool, and it reads the checkout's own commit there too. That is a
-# separate fact, because a tree can hold a stamp matching its own source and still sit at a commit no
-# other checkout has.
-
 # The mount resolves to one checkout's working tree. A session reading source, running a binary or
 # loading a skill through it gets whatever that tree currently holds. It was seen once in a live
 # session: a skill appeared in the skill list and vanished two turns later as that checkout moved and
@@ -146,6 +128,8 @@ serve() {
 # It names the SOURCE, not the bytes: identical source built under two Go toolchains stamps the same and
 # can still behave differently. Narrow, and stated rather than built for — but do not read a matching
 # stamp as a bytes-identical guarantee.
+# The stamp is written by whoever puts the binary there: this script after a build, install.sh after
+# a download.
 stamp="$binary.stamp"
 
 # Three answers: 0 built from this source, 1 built from something else, 2 could not tell. The third

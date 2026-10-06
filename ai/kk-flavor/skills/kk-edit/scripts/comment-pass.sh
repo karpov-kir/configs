@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Passes the comments of a change's changed files, one model call per file. The call decides each
 # comment the change touched and each declaration it added or changed, and writes the comment text,
-# under the page at ~/.kk-flavor/standards/comment-page.md. The tool applies the decisions and runs the
+# under the page at ~/.kk-flavor/standards/comments.md. The tool applies the decisions and runs the
 # mechanical gate. A file with the same page, content and notes as at its last call reuses that reply.
 #
 #   usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --dry-run] [--page=<file>] [--model=<name>] [<path>...]

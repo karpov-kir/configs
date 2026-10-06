@@ -6,12 +6,9 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
-	"strconv"
 	"strings"
 	"testing"
 
-	"configs/ai/tools/diffscan"
-	"configs/ai/tools/repo/repotest"
 	"configs/ai/tools/shell"
 )
 
@@ -24,14 +21,13 @@ const (
 	plainCorpus = "testdata/voice/plain"
 )
 
-// The two corpora are the same declarations written twice: once in the register this check exists to
-// find, once in the register the rule asks for. They hold the shape and not any subject, and they are
-// written for this suite so it depends on no tree outside this repository.
-//
-// A labelled corpus that does live outside it is read by the env-gated cases at the end of this file.
+// The two corpora are the same notes written twice: once in the register this check exists to find,
+// once in the register the rule asks for. Each note sits under a heading naming what it describes. They
+// hold the shape and not any subject, and they are written for this suite so it depends on no tree
+// outside this repository.
 func readCorpus(t *testing.T, dir string) (string, []string) {
 	t.Helper()
-	names, err := filepath.Glob(filepath.Join(dir, "*.ts"))
+	names, err := filepath.Glob(filepath.Join(dir, "*.md"))
 	if err != nil || len(names) == 0 {
 		t.Fatalf("no corpus under %s (%v), so this run says nothing", dir, err)
 	}
@@ -43,28 +39,50 @@ func readCorpus(t *testing.T, dir string) (string, []string) {
 }
 
 func voiceScanner() scanner {
-	return scanner{profile: ProfileComment, coined: fixtureCoined}
+	return scanner{profile: ProfileProse, coined: fixtureCoined}
 }
 
-// Every block written in the house register has to produce a finding. A block that slips through is a
-// comment the lane would pass unread, which is the whole of what this check exists to stop.
-func TestEveryBlockInTheHouseRegisterProducesAFinding(t *testing.T) {
-	name, lines := readCorpus(t, houseCorpus)
-	found := voiceScanner().scanSource(name, lines, nil, nil)
-	blocks := commentBlocks(lines)
-	if len(blocks) < 7 {
-		t.Fatalf("the house corpus holds %d blocks; it has to exercise every check", len(blocks))
+// paragraph is a run of lines between blank lines, by the 1-based lines it spans.
+type paragraph struct{ start, end int }
+
+// paragraphsOf lists a corpus's paragraphs. A heading names the note under it and is no paragraph.
+func paragraphsOf(lines []string) []paragraph {
+	var found []paragraph
+	open := false
+	for i, line := range lines {
+		at := i + 1
+		switch {
+		case strings.TrimSpace(line) == "" || strings.HasPrefix(line, "#"):
+			open = false
+		case open:
+			found[len(found)-1].end = at
+		default:
+			found = append(found, paragraph{at, at})
+			open = true
+		}
 	}
-	for _, b := range blocks {
+	return found
+}
+
+// Every paragraph written in the house register has to produce a finding. A paragraph that slips
+// through is text the lane would pass unread, which is the whole of what this check exists to stop.
+func TestEveryParagraphInTheHouseRegisterProducesAFinding(t *testing.T) {
+	name, lines := readCorpus(t, houseCorpus)
+	found := voiceScanner().scanProse(name, lines)
+	paragraphs := paragraphsOf(lines)
+	if len(paragraphs) < 7 {
+		t.Fatalf("the house corpus holds %d paragraphs; it has to exercise every check", len(paragraphs))
+	}
+	for _, p := range paragraphs {
 		reported := false
 		for _, f := range found {
-			if b.start <= f.Line && f.Line <= b.end {
+			if p.start <= f.Line && f.Line <= p.end {
 				reported = true
 			}
 		}
 		if !reported {
-			t.Errorf("no finding in the house-register block at lines %d-%d:\n%s",
-				b.start, b.end, strings.Join(lines[b.start-1:b.end], "\n"))
+			t.Errorf("no finding in the house-register paragraph at lines %d-%d:\n%s",
+				p.start, p.end, strings.Join(lines[p.start-1:p.end], "\n"))
 		}
 	}
 }
@@ -74,7 +92,7 @@ func TestEveryBlockInTheHouseRegisterProducesAFinding(t *testing.T) {
 func TestTheHouseCorpusExercisesEveryCheck(t *testing.T) {
 	name, lines := readCorpus(t, houseCorpus)
 	fired := map[string]int{}
-	for _, f := range voiceScanner().scanSource(name, lines, nil, nil) {
+	for _, f := range voiceScanner().scanProse(name, lines) {
 		fired[f.Check]++
 	}
 	for _, check := range AllChecks {
@@ -87,37 +105,36 @@ func TestTheHouseCorpusExercisesEveryCheck(t *testing.T) {
 	}
 }
 
-// The same declarations in the register the rule asks for. Zero, because a rule whose own examples
-// trip its check is a rule nobody can satisfy.
+// The same notes in the register the rule asks for. Zero, because a rule whose own examples trip its
+// check is a rule nobody can satisfy.
 func TestTheRegisterTheRuleAsksForReportsNothing(t *testing.T) {
 	name, lines := readCorpus(t, plainCorpus)
-	found := voiceScanner().scanSource(name, lines, nil, nil)
+	found := voiceScanner().scanProse(name, lines)
 	if len(found) != 0 {
 		t.Fatalf("%d finding(s) over prose written the way the rule asks:\n%s", len(found), render(found))
 	}
 }
 
-// The two corpora say the same things about the same declarations, so a difference in what the check
+// The two corpora say the same things under the same headings, so a difference in what the check
 // reports is a difference in register and not in subject.
-func TestTheTwoCorporaDeclareTheSameSymbols(t *testing.T) {
-	declarations := func(dir string) []string {
+func TestTheTwoCorporaDescribeTheSameSymbols(t *testing.T) {
+	headings := func(dir string) []string {
 		_, lines := readCorpus(t, dir)
 		var names []string
 		for _, line := range lines {
-			if strings.HasPrefix(line, "export function ") || strings.HasPrefix(line, "export enum ") ||
-				strings.HasPrefix(line, "export interface ") {
+			if strings.HasPrefix(line, "## ") {
 				names = append(names, line)
 			}
 		}
 		sort.Strings(names)
 		return names
 	}
-	house, plain := declarations(houseCorpus), declarations(plainCorpus)
+	house, plain := headings(houseCorpus), headings(plainCorpus)
 	if len(house) == 0 {
-		t.Fatal("the house corpus declares nothing")
+		t.Fatal("the house corpus names nothing")
 	}
 	if strings.Join(house, "\n") != strings.Join(plain, "\n") {
-		t.Fatalf("the corpora declare different symbols, so the difference between them is not register:\n--- house ---\n%s\n--- plain ---\n%s",
+		t.Fatalf("the corpora describe different symbols, so the difference between them is not register:\n--- house ---\n%s\n--- plain ---\n%s",
 			strings.Join(house, "\n"), strings.Join(plain, "\n"))
 	}
 }
@@ -136,23 +153,23 @@ func TestEachCheckFiresOnItsOwnShapeAndNotOnPlainProse(t *testing.T) {
 		fires string
 		plain string
 	}{
-		{checkBold, "// The **one** rule here.", "// The one rule is stated once."},
-		{checkContrast, "// Read from the book rather than the entry.", "// Reads the book's attribute."},
-		{checkContrast, "// Instead of totalling, the ledger is left whole.", "// Accepts an Entry instead of a string."},
-		{checkCounterfactal, "// Otherwise the reader picks the older entry.", "// The reader picks the older entry when nothing narrows."},
-		{checkNoSubject, "// Counted across the whole ledger.", "// Counts every entry across the ledger."},
-		{checkNoSubject, "// Reading entries out of a ledger.", "// Reads entries out of a ledger."},
-		{checkIntensifier, "// Nothing ties the entry to its book.", "// The entry has no compile-time tie to its book."},
-		{checkPositional, "// Distinct from the token above.", "// Distinct from `Untotalled`."},
-		{checkCoined, "// The reader climbs to the newest entry.", "// The reader selects the newest entry."},
+		{checkBold, "The **one** rule here.", "The one rule is stated once."},
+		{checkContrast, "Read from the book rather than the entry.", "Reads the book's attribute."},
+		{checkContrast, "Instead of totalling, the ledger is left whole.", "Accepts an Entry instead of a string."},
+		{checkCounterfactal, "Otherwise the reader picks the older entry.", "The reader picks the older entry when nothing narrows."},
+		{checkNoSubject, "Counted across the whole ledger.", "Counts every entry across the ledger."},
+		{checkNoSubject, "Reading entries out of a ledger.", "Reads entries out of a ledger."},
+		{checkIntensifier, "Nothing ties the entry to its book.", "The entry has no compile-time tie to its book."},
+		{checkPositional, "Distinct from the token above.", "Distinct from `Untotalled`."},
+		{checkCoined, "The reader climbs to the newest entry.", "The reader selects the newest entry."},
 	}
 	s := voiceScanner()
 	for _, c := range cases {
 		t.Run(c.check+"/"+c.fires, func(t *testing.T) {
-			if !hasCheck(s.scanSource("f.ts", []string{c.fires}, nil, nil), c.check) {
+			if !hasCheck(s.scanProse("f.md", []string{c.fires}), c.check) {
 				t.Errorf("%q produced no %s finding, so the check cannot fire", c.fires, c.check)
 			}
-			if hasCheck(s.scanSource("f.ts", []string{c.plain}, nil, nil), c.check) {
+			if hasCheck(s.scanProse("f.md", []string{c.plain}), c.check) {
 				t.Errorf("%q produced a %s finding, and it is plain prose", c.plain, c.check)
 			}
 		})
@@ -185,30 +202,6 @@ func TestAnImperativeEndingInIngIsNotADroppedSubject(t *testing.T) {
 	}
 }
 
-func TestABlockIsMeasuredInTheLinesThatCarryWords(t *testing.T) {
-	four := []string{"const a = 1;", "/**", " * One.", " * Two.", " * Three.", " * Four.", " */", "const b = 2;"}
-	five := []string{"const a = 1;", "/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */", "const b = 2;"}
-	s := scanner{profile: ProfileComment}
-	if hasCheck(s.scanSource("f.ts", four, nil, nil), checkLongBlock) {
-		t.Error("a four-sentence block was reported long; its `/**` and `*/` carry no words")
-	}
-	if !hasCheck(s.scanSource("f.ts", five, nil, nil), checkLongBlock) {
-		t.Error("a five-line block was not reported long")
-	}
-}
-
-func TestAFileHeaderIsAllowedMoreThanABlockInTheBody(t *testing.T) {
-	header := []string{"/**"}
-	for i := 1; i <= 6; i++ {
-		header = append(header, " * Line "+strconv.Itoa(i)+".")
-	}
-	header = append(header, " */", "const a = 1;")
-	s := scanner{profile: ProfileComment}
-	if hasCheck(s.scanSource("f.ts", header, nil, nil), checkLongBlock) {
-		t.Error("a six-line file header was reported long, and a header is allowed eight")
-	}
-}
-
 // The instruction profile reads a rule file's prose and nothing it uses as structure. A heading is a
 // label; a fenced block is the example the rule is stating; the frontmatter is machine-read.
 func TestTheInstructionProfileSkipsHeadingsFencesAndFrontmatter(t *testing.T) {
@@ -219,7 +212,7 @@ func TestTheInstructionProfileSkipsHeadingsFencesAndFrontmatter(t *testing.T) {
 		"# Nothing above this line",
 		"",
 		"```ts",
-		"// Counted across the whole ledger rather than per book.",
+		"Counted across the whole ledger rather than per book.",
 		"```",
 		"",
 		"State the fact rather than the alternative.",
@@ -234,10 +227,10 @@ func TestTheInstructionProfileSkipsHeadingsFencesAndFrontmatter(t *testing.T) {
 	}
 }
 
-// Bold is markdown, so a rule file's own bold is structure and the comment and prose profiles' concern
-// alone. A rule file's bold is answered for by whoever rewrites it, never by a check that would report
-// every defined term in the tree.
-func TestBoldIsAFindingInACommentAndNotInARuleFile(t *testing.T) {
+// Bold is markdown, so a rule file's own bold is structure and the prose profile's concern alone. A
+// rule file's bold is answered for by whoever rewrites it, never by a check that would report every
+// defined term in the tree.
+func TestBoldIsAFindingInABodyAndNotInARuleFile(t *testing.T) {
 	line := "The **one** rule."
 	if !hasCheck(scanner{profile: ProfileProse}.scanProse("b.md", []string{line}), checkBold) {
 		t.Error("the prose profile did not report a bold span")
@@ -260,8 +253,8 @@ func TestAnInlineCodeSpanIsNotReadAsProse(t *testing.T) {
 }
 
 func TestAFindingEchoesTheLineAsItWasTyped(t *testing.T) {
-	line := "// Guarded with `hasOwnProperty` rather than indexed directly."
-	found := voiceScanner().scanSource("f.ts", []string{line}, nil, nil)
+	line := "Guarded with `hasOwnProperty` rather than indexed directly."
+	found := voiceScanner().scanProse("f.md", []string{line})
 	if !hasCheck(found, checkNoSubject) {
 		t.Fatal("the participial opener was not reported, so this case measures nothing")
 	}
@@ -277,13 +270,10 @@ func TestAFindingEchoesTheLineAsItWasTyped(t *testing.T) {
 
 func TestASentenceThatWrapsAcrossTwoLinesIsReadWhole(t *testing.T) {
 	wrapped := []string{
-		"/**",
-		" * Read the book's own attribute",
-		" * alone and a book shaped the other way wins.",
-		" */",
-		"export function f() {}",
+		"Read the book's own attribute",
+		"alone and a book shaped the other way wins.",
 	}
-	found := voiceScanner().scanSource("f.ts", wrapped, nil, nil)
+	found := voiceScanner().scanProse("f.md", wrapped)
 	if !hasCheck(found, checkCounterfactal) {
 		t.Fatalf("the wrapped counterfactual was not read:\n%s", render(found))
 	}
@@ -291,8 +281,8 @@ func TestASentenceThatWrapsAcrossTwoLinesIsReadWhole(t *testing.T) {
 		if f.Check != checkCounterfactal {
 			continue
 		}
-		if f.Line != 2 {
-			t.Errorf("reported on line %d, want line 2 where the sentence starts", f.Line)
+		if f.Line != 1 {
+			t.Errorf("reported on line %d, want line 1 where the sentence starts", f.Line)
 		}
 		if !strings.Contains(f.Text, "alone and") {
 			t.Errorf("the echoed text stops at the line break: %q", f.Text)
@@ -327,332 +317,6 @@ func TestABlankLineEndsAParagraph(t *testing.T) {
 	}
 }
 
-func TestADocTagLineIsNotProse(t *testing.T) {
-	tagged := []string{
-		"const a = 1;",
-		"/**",
-		" * Returns the book's total.",
-		" * @param book the book to total",
-		" * @param currency the currency to total in",
-		" * @returns the total",
-		" * @throws when two currencies are declared",
-		" */",
-		"export function totalBook() {}",
-	}
-	found := voiceScanner().scanSource("f.ts", tagged, nil, nil)
-	if hasCheck(found, checkLongBlock) {
-		t.Errorf("a one-sentence summary over a tag list was reported long:\n%s", render(found))
-	}
-	prose := []string{"const a = 1;", "/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */", "const b = 2;"}
-	if !hasCheck(voiceScanner().scanSource("f.ts", prose, nil, nil), checkLongBlock) {
-		t.Error("five lines of prose were not reported long, so the tag rule cut too much")
-	}
-}
-
-func TestAUsageLineIsNotProse(t *testing.T) {
-	// Below a line of code, so the block is no file header, as a branch scan reads a header it changed.
-	header := []string{
-		"set -e",
-		"# Removes a file's comment blocks.",
-		"#",
-		"#   usage: toy.sh --facts=<dir> [--archive=<dir>] [--lines=<n,...>] <path> and more words here",
-		"#   usage: toy.sh --archive=<dir> --contradict=<run> <path> <claim> <review sentence> and more",
-		"#",
-		"# One.",
-		"# Two.",
-		"# Three.",
-		"set -e",
-	}
-	found := voiceScanner().scanSource("toy.sh", header, nil, nil)
-	if hasCheck(found, checkLongBlock) || hasCheck(found, checkLongSentence) {
-		t.Errorf("two usage lines were read as prose:\n%s", render(found))
-	}
-}
-
-func TestADocTagLineDoesNotJoinTheSentenceAroundIt(t *testing.T) {
-	lines := []string{
-		"/**",
-		" * Totals the book.",
-		" * @param book counted across the whole ledger",
-		" */",
-		"export function f() {}",
-	}
-	if found := voiceScanner().scanSource("f.ts", lines, nil, nil); len(found) != 0 {
-		t.Fatalf("a tag line was read as prose:\n%s", render(found))
-	}
-}
-
-// Two things are scoped by the diff, and a test that moved only one of them would leave the other
-// free: a block the diff did not touch at all, and a line the diff did not touch inside a block it
-// did. The second is what makes a reworded sentence the change set's and the line above it not.
-func TestTheCommentProfileReportsOnlyWhatADiffAdded(t *testing.T) {
-	lines := []string{
-		"// Counted across the whole ledger.",
-		"// Guarded with a flag.",
-		"const a = 1;",
-		"",
-		"// Matched by namespace.",
-		"const b = 2;",
-		"",
-		"/**",
-		" * One.",
-		" * Two.",
-		" * Three.",
-		" * Four.",
-		" * Five.",
-		" */",
-		"const c = 3;",
-	}
-	s := voiceScanner()
-	all := s.scanSource("f.ts", lines, nil, nil)
-	if len(all) != 4 {
-		t.Fatalf("want three sentences and one long block when nothing scopes the scan; got %s", render(all))
-	}
-	// Line 2 alone: the untouched blocks go, the untouched long block with them, and so does the
-	// untouched line of the block the diff did touch.
-	added := s.scanSource("f.ts", lines, map[int]bool{2: true}, nil)
-	if len(added) != 1 || added[0].Line != 2 {
-		t.Fatalf("want only the added line of the touched block; got %s", render(added))
-	}
-}
-
-func TestAnUnknownProfileRefusesTheRun(t *testing.T) {
-	var out, errs strings.Builder
-	dir := t.TempDir()
-	code := Run("voice-check.sh", []string{"--profile=loud"}, dir,
-		repotest.New(dir), Config{MaxFileBytes: 1 << 18}, &out, &errs)
-	if code != exitDidNotRun {
-		t.Fatalf("exit %d, want %d", code, exitDidNotRun)
-	}
-	if !strings.Contains(errs.String(), "no profile") {
-		t.Fatalf("stderr %q names no refused profile", errs.String())
-	}
-}
-
-// The check against a labelled corpus held outside this repository, read only when VOICE_CORPUS names
-// a directory. A corpus a human has labelled is the only thing that says whether the check finds what
-// a reader finds, and it is not always shareable, so it is named rather than committed.
-//
-// VOICE_CORPUS_LABELS names the blocks that were labelled, as `<path>:<line>` relative to that
-// directory, separated by commas. Both are set together or neither is: a corpus with no labels would
-// run and measure nothing.
-func TestTheLabelledReviewStillProducesAFindingInEveryFlaggedBlock(t *testing.T) {
-	corpus := os.Getenv("VOICE_CORPUS")
-	if corpus == "" {
-		t.Skip("VOICE_CORPUS is unset; the labelled material is private and lives outside this repository")
-	}
-	labels := os.Getenv("VOICE_CORPUS_LABELS")
-	if labels == "" {
-		t.Fatal("VOICE_CORPUS is set and VOICE_CORPUS_LABELS is not, so this run would measure nothing")
-	}
-	s := voiceScanner()
-	for _, label := range strings.Split(labels, ",") {
-		label = strings.TrimSpace(label)
-		where, number, ok := strings.Cut(label, ":")
-		if !ok {
-			t.Fatalf("label %q is not `<path>:<line>`", label)
-		}
-		at, err := strconv.Atoi(number)
-		if err != nil {
-			t.Fatalf("label %q names no line", label)
-		}
-		body, err := os.ReadFile(filepath.Join(corpus, where))
-		if err != nil {
-			t.Fatalf("label %q names a file the corpus does not hold: %v", label, err)
-		}
-		lines := shell.SplitLines(string(body))
-		b, found := blockAt(lines, at)
-		if !found {
-			t.Errorf("%s has no comment block at or above it", label)
-			continue
-		}
-		reported := false
-		for _, f := range s.scanSource(where, lines, nil, nil) {
-			if b.start <= f.Line && f.Line <= b.end {
-				reported = true
-			}
-		}
-		if !reported {
-			t.Errorf("%s is labelled and the check reports nothing in its block (lines %d-%d)",
-				label, b.start, b.end)
-		}
-	}
-}
-
-// blockAt resolves a flagged line to the block it concerns: the block holding the line, or, where the
-// note hangs on a declaration, the block above it. A note on a member is a note about its docstring.
-func blockAt(lines []string, at int) (block, bool) {
-	var above block
-	haveAbove := false
-	for _, b := range commentBlocks(lines) {
-		if b.start <= at && at <= b.end {
-			return b, true
-		}
-		if b.end < at {
-			above, haveAbove = b, true
-		}
-	}
-	return above, haveAbove
-}
-
-// The false-positive side of the same measurement: what the check says about a tree nobody asked it to
-// change. Gated the same way and for the same reason.
-//
-// VOICE_CORPUS_HOST names a directory holding that tree, VOICE_CORPUS_CEILING and
-// VOICE_CORPUS_LONG_CEILING the counts a rise past fails. VOICE_CORPUS_OURS is a comma-separated list
-// of path prefixes inside it whose comments were written under the register this check looks for, held
-// apart because a finding there is the check working rather than a false positive. Reported, never
-// asserted: the number belongs in the change's own account, and a threshold here would only teach the
-// next corpus to clear it.
-func TestWhatTheCheckSaysAboutAHostRepositoryThatDidNotAskForIt(t *testing.T) {
-	root := os.Getenv("VOICE_CORPUS_HOST")
-	if root == "" {
-		t.Skip("VOICE_CORPUS_HOST is unset; the tree it reads is private and lives outside this repository")
-	}
-	var ours []string
-	if named := os.Getenv("VOICE_CORPUS_OURS"); named != "" {
-		ours = strings.Split(named, ",")
-	}
-	s := voiceScanner()
-	counts := map[string]int{}
-	files := map[string]int{}
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
-		}
-		switch filepath.Ext(path) {
-		case ".ts", ".tsx", ".js":
-		default:
-			return nil
-		}
-		rel := filepath.ToSlash(strings.TrimPrefix(strings.TrimPrefix(path, root), "/"))
-		side := "host-authored"
-		for _, prefix := range ours {
-			if strings.HasPrefix(rel, strings.TrimSpace(prefix)) {
-				side = "ours"
-			}
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		files[side]++
-		for _, f := range s.scanSource(rel, shell.SplitLines(string(body)), nil, nil) {
-			if f.Check == checkLongBlock {
-				counts[side+"/long-block"]++
-				continue
-			}
-			counts[side]++
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if files["host-authored"] == 0 {
-		t.Fatal("no host-authored file was read, so this run says nothing about false positives")
-	}
-	t.Logf("host-authored: %d register finding(s) and %d long block(s) over %d files",
-		counts["host-authored"], counts["host-authored/long-block"], files["host-authored"])
-	t.Logf("ours:          %d register finding(s) and %d long block(s) over %d files",
-		counts["ours"], counts["ours/long-block"], files["ours"])
-
-	// Absolute ceilings, not a comparison between the two sides. "Louder on ours than on theirs"
-	// passes at twelve against eleven and says nothing about whether the check got noisier, which is
-	// the direction this measurement exists to catch. The numbers live with the corpus rather than
-	// here, because they are a property of that tree.
-	atMost(t, "register findings over host-authored files", counts["host-authored"], "VOICE_CORPUS_CEILING")
-	atMost(t, "long blocks over host-authored files", counts["host-authored/long-block"], "VOICE_CORPUS_LONG_CEILING")
-}
-
-// atMost holds a count to a ceiling the corpus carries. An unset ceiling fails rather than skips: the
-// caller named a corpus, so they asked for a measurement, and a measurement with no bound is a number
-// nobody can fail.
-func atMost(t *testing.T, what string, got int, variable string) {
-	t.Helper()
-	raw := os.Getenv(variable)
-	if raw == "" {
-		t.Fatalf("%s is unset, so %s (%d) is measured against nothing", variable, what, got)
-	}
-	ceiling, err := strconv.Atoi(raw)
-	if err != nil {
-		t.Fatalf("%s is %q, which is no whole number", variable, raw)
-	}
-	if got > ceiling {
-		t.Errorf("%d %s, over the ceiling of %d", got, what, ceiling)
-	}
-}
-
-func TestABlockInADiffDoesNotInheritTheFileHeadersAllowance(t *testing.T) {
-	// A five-prose-line block at lines 40-46 and nothing else added. Every line above it is a gap, so
-	// the array holds blanks there and the header test has only `held` to tell it this is not the top
-	// of a file.
-	lines := make([]string, 46)
-	body := []string{"/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */"}
-	for i, text := range body {
-		lines[39+i] = text
-	}
-	within := map[int]bool{}
-	for at := 40; at <= 46; at++ {
-		within[at] = true
-	}
-	found := voiceScanner().scanSource("f.ts", lines, within, nil)
-	if !hasCheck(found, checkLongBlock) {
-		t.Fatalf("a five-line block deep in a file was not reported long:\n%s", render(found))
-	}
-}
-
-// A five-line block at the top of a new file is a header and keeps the header's allowance, so the
-// long-block check still leaves a header its own bound.
-func TestARealFileHeaderInADiffKeepsItsAllowance(t *testing.T) {
-	lines := []string{"/**", " * One.", " * Two.", " * Three.", " * Four.", " * Five.", " */", "const a = 1;"}
-	within := map[int]bool{}
-	for at := 1; at <= len(lines); at++ {
-		within[at] = true
-	}
-	if found := voiceScanner().scanSource("f.ts", lines, within, nil); hasCheck(found, checkLongBlock) {
-		t.Fatalf("a six-line header at the top of a new file was reported long:\n%s", render(found))
-	}
-}
-
-func TestAStarRunDoesNotSwallowTheCommentsBelowAGap(t *testing.T) {
-	lines := make([]string, 20)
-	lines[9] = "/** Reworded opening."
-	for _, at := range []int{13, 15, 17, 19} {
-		lines[at-1] = "// A separate one-line note."
-	}
-	within := map[int]bool{10: true, 13: true, 15: true, 17: true, 19: true}
-	found := voiceScanner().scanSource("f.ts", lines, within, nil)
-	if hasCheck(found, checkLongBlock) {
-		t.Fatalf("four one-line notes below an unclosed opening were read as one long block:\n%s", render(found))
-	}
-	blocks := commentBlocksIn(lines, onlyAdded(within))
-	if len(blocks) != 5 {
-		t.Fatalf("want five blocks, one per added line; got %d: %v", len(blocks), blocks)
-	}
-}
-
-// A `**Bold**` opening a starless line inside a `/* */` block once lost its first star to the marker
-// strip. The bold check then read `*Bold**` and could not fire, and the echo was corrupt.
-func TestABoldSpanOpeningAStarlessLineSurvivesTheMarkerStrip(t *testing.T) {
-	if got := stripMarker("**Bold** and the rest."); got != "**Bold** and the rest." {
-		t.Fatalf("stripMarker returned %q, want the line untouched", got)
-	}
-	if got := stripMarker(" * A continuation."); got != "A continuation." {
-		t.Fatalf("stripMarker returned %q, want the continuation marker taken off", got)
-	}
-	lines := []string{"/*", "**Bold** opens this line.", " */", "const a = 1;"}
-	found := scanner{profile: ProfileComment}.scanSource("f.ts", lines, nil, nil)
-	if !hasCheck(found, checkBold) {
-		t.Fatalf("the bold span was not reported:\n%s", render(found))
-	}
-	for _, f := range found {
-		if f.Check == checkBold && f.Text != "**Bold**" {
-			t.Errorf("the echoed span is corrupt: %q", f.Text)
-		}
-	}
-}
-
 func TestACoinedWordOpeningOnAMultiByteRuneCompiles(t *testing.T) {
 	for _, word := range []string{"échelon", "über", "日本語", "rung"} {
 		pattern := coinedInIdentifier(word)
@@ -660,70 +324,9 @@ func TestACoinedWordOpeningOnAMultiByteRuneCompiles(t *testing.T) {
 			t.Errorf("%q produced no pattern", word)
 		}
 	}
-	s := scanner{profile: ProfileComment, coined: []string{"échelon"}}
-	if found := s.scanSource("f.ts", []string{"// Reads the échelon from the entry."}, nil, nil); !hasCheck(found, checkCoined) {
+	s := scanner{profile: ProfileProse, coined: []string{"échelon"}}
+	if found := s.scanProse("f.md", []string{"Reads the échelon from the entry."}); !hasCheck(found, checkCoined) {
 		t.Error("a coined word opening on a multi-byte rune was not reported")
-	}
-}
-
-func TestASecretNamedFileIsDeclinedUnreadAndSaidSo(t *testing.T) {
-	r := newRepo(t)
-	r.write("keep.go", "package fixture\n")
-	r.commit("base")
-	r.write("deploy.env", "# Otherwise the fallback key is used and nobody notices.\nKEY=redacted\n")
-	r.run()
-	r.expectStdoutLacks("nobody notices")
-	r.expectStdoutLacks("deploy.env:")
-	r.expectStderrHas("secret")
-}
-
-// A file with an ordinary name gets the finding the guard spares a named file. The guard spares it, and
-// the check stays awake.
-func TestTheSameSentenceInAnOrdinaryFileIsStillReported(t *testing.T) {
-	r := newRepo(t)
-	r.write("keep.go", "package fixture\n")
-	r.commit("base")
-	r.write("deploy.go", "// Otherwise the fallback key is used and nobody notices.\npackage fixture\n")
-	r.run()
-	r.expectCode(1)
-	r.expectStdoutHas("deploy.go")
-}
-
-// The untracked arm gets its guard from diffscan's Options. The diff arm has its own, and a diff is
-// where a branch somebody else wrote arrives — so it needs its own case or only half the guard is held.
-func TestASecretNamedFileInADiffIsDeclinedUnread(t *testing.T) {
-	diff := "diff --git a/deploy.env b/deploy.env\n--- a/deploy.env\n+++ b/deploy.env\n" +
-		"@@ -0,0 +1 @@\n+# Otherwise the fallback key is used and nobody notices.\n"
-	found, err := voiceScanner().scanDiff([]byte(diff))
-	if err != nil {
-		t.Fatalf("the scan refused the diff: %v", err)
-	}
-	if len(found) != 0 {
-		t.Fatalf("a secret-named file in a diff was read and echoed: %s", render(found))
-	}
-	ordinary := strings.ReplaceAll(diff, "deploy.env", "deploy.go")
-	found, err = voiceScanner().scanDiff([]byte(ordinary))
-	if err != nil || len(found) == 0 {
-		t.Fatalf("the same sentence in an ordinary file was not reported (%v): %s", err, render(found))
-	}
-}
-
-func TestAnAbsurdLineNumberInAHunkHeaderIsDropped(t *testing.T) {
-	diff := "diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n" +
-		"@@ -1,0 +2147483000,1 @@\n+// Otherwise the caller pays for it.\n"
-	s := voiceScanner()
-	found, err := s.scanDiff([]byte(diff))
-	if err != nil {
-		t.Fatalf("the scan refused the diff: %v", err)
-	}
-	if len(found) != 0 {
-		t.Fatalf("a line past the cap was scanned: %s", render(found))
-	}
-	within := "diff --git a/f.go b/f.go\n--- a/f.go\n+++ b/f.go\n" +
-		"@@ -1,0 +2,1 @@\n+// Otherwise the caller pays for it.\n"
-	found, err = s.scanDiff([]byte(within))
-	if err != nil || len(found) == 0 {
-		t.Fatalf("a line inside the cap was not scanned (%v): %s", err, render(found))
 	}
 }
 
@@ -739,19 +342,15 @@ func TestTheInstructionProfileDoesNotRunTheCoinedCheck(t *testing.T) {
 	if found := s.scanProse("b.md", []string{line}); !hasCheck(found, checkCoined) {
 		t.Error("the prose profile did not run the coined check, and a body about the work should")
 	}
-	s.profile = ProfileComment
-	if found := s.scanSource("f.ts", []string{"// " + line}, nil, nil); !hasCheck(found, checkCoined) {
-		t.Error("the comment profile did not run the coined check, which is its whole subject")
-	}
 }
 
-func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
-	s := scanner{coined: []string{"sprocket"}}
-	s.profile = ProfileComment
-	if found := s.scanSource("f.ts", []string{"// Reads `readSprocket` from the entry."}, nil, nil); !hasCheck(found, checkCoined) {
-		t.Error("a comment did not report a coined word inside an identifier")
+// A backticked identifier in a body is a quotation, so a coined word inside one is no finding. The
+// same identifier written bare is the coined word in the writer's own prose.
+func TestACoinedWordInsideBackticksIsAQuotation(t *testing.T) {
+	s := scanner{profile: ProfileProse, coined: []string{"sprocket"}}
+	if found := s.scanProse("b.md", []string{"The rename is readSprocket, landing next."}); !hasCheck(found, checkCoined) {
+		t.Error("a body did not report a coined word inside a bare identifier")
 	}
-	s.profile = ProfileProse
 	if found := s.scanProse("b.md", []string{"The rename is `readSprocket`, landing next."}); hasCheck(found, checkCoined) {
 		t.Error("a body reported a coined word inside a quoted identifier")
 	}
@@ -761,13 +360,12 @@ func TestOnlyACommentReadsACoinedWordInsideBackticks(t *testing.T) {
 // passive to pass. The idiom for an absent thing still draws the finding.
 func TestNamesNoOfAThingACallNamesIsPlain(t *testing.T) {
 	s := voiceScanner()
-	s.profile = ProfileComment
-	plain := "// A ledger that ignores the mode stalls, which is why the request names no scheme."
-	if found := s.scanSource("f.ts", []string{plain, "export const MODE = 0;"}, nil, nil); hasCheck(found, checkCoined) {
+	plain := "A ledger that ignores the mode stalls, which is why the request names no scheme."
+	if found := s.scanProse("f.md", []string{plain}); hasCheck(found, checkCoined) {
 		t.Errorf("%q reports a coined phrase", plain)
 	}
-	for _, idiom := range []string{"// The entry names no owner, so the walk skips it.", "// The entry names nothing the book holds."} {
-		if found := s.scanSource("f.ts", []string{idiom, "export const MODE = 0;"}, nil, nil); !hasCheck(found, checkCoined) {
+	for _, idiom := range []string{"The entry names no owner, so the walk skips it.", "The entry names nothing the book holds."} {
+		if found := s.scanProse("f.md", []string{idiom}); !hasCheck(found, checkCoined) {
 			t.Errorf("%q reports no coined phrase", idiom)
 		}
 	}
@@ -792,46 +390,10 @@ func TestAStreamOverTheCapIsRefusedRatherThanTruncated(t *testing.T) {
 	}
 }
 
-func TestALineNumberBelowOneIsRefusedLikeOneAboveTheCap(t *testing.T) {
-	for _, at := range []int{-1, 0, maxDiffLine + 1} {
-		added := newAddedLines()
-		var said []string
-		s := voiceScanner()
-		s.notice = func(line string) { said = append(said, line) }
-		var result diffscan.Result
-		if !s.skip(added, diffscan.AddedLine{File: "f.go", Line: at, Text: "// Otherwise."}, &result) {
-			t.Errorf("line %d was taken", at)
-		}
-		if at != 0 && len(said) == 0 {
-			t.Errorf("line %d was dropped with nothing said, so the run closes on `clean` over what it discarded", at)
-		}
-	}
-	added := newAddedLines()
-	s := voiceScanner()
-	var result diffscan.Result
-	if s.skip(added, diffscan.AddedLine{File: "f.go", Line: 1, Text: "// Otherwise."}, &result) {
-		t.Error("line 1 was refused, so the floor cuts real lines")
-	}
-}
-
-func TestADeclinedFileIsAnnouncedOnceNotPerLine(t *testing.T) {
-	added := newAddedLines()
-	said := 0
-	s := voiceScanner()
-	s.notice = func(string) { said++ }
-	var result diffscan.Result
-	for at := 1; at <= 5; at++ {
-		s.skip(added, diffscan.AddedLine{File: "deploy.env", Line: at, Text: "// Otherwise."}, &result)
-	}
-	if said != 1 {
-		t.Fatalf("a five-line decline said %d thing(s); want one", said)
-	}
-}
-
 func TestTwoCoinedWordsPartedByOneByteAreTwoFindings(t *testing.T) {
-	s := scanner{profile: ProfileComment, coined: []string{"rung"}}
-	for _, line := range []string{"// rung rung", "// The rung. Rung again."} {
-		found := s.scanSource("f.ts", []string{line}, nil, nil)
+	s := scanner{profile: ProfileProse, coined: []string{"rung"}}
+	for _, line := range []string{"rung rung", "The rung. Rung again."} {
+		found := s.scanProse("f.md", []string{line})
 		coined := 0
 		for _, f := range found {
 			if f.Check == checkCoined {
@@ -850,69 +412,40 @@ func TestTwoCoinedWordsPartedByOneByteAreTwoFindings(t *testing.T) {
 //
 // What tells them apart is whether the words before the conjunction already carry a negation.
 func TestTwoProhibitionsInOneSentenceAreNotTheSpine(t *testing.T) {
-	s := scanner{profile: ProfileComment}
+	s := scanner{profile: ProfileProse}
 	spine := []string{
-		"// It is logged and not believed.",
-		"// The string is thrown and not the object.",
-		"// It is a survey and no verdict.",
+		"It is logged and not believed.",
+		"The string is thrown and not the object.",
+		"It is a survey and no verdict.",
 	}
 	both := []string{
-		"// Use no nesting and no preamble above the items.",
-		"// Write no speculative abstraction and no flexibility the task did not ask for.",
-		"// Use no headings, and no bold lead-in restating its own line.",
+		"Use no nesting and no preamble above the items.",
+		"Write no speculative abstraction and no flexibility the task did not ask for.",
+		"Use no headings, and no bold lead-in restating its own line.",
 		// Neither half is a negation, so the conjunction joins two things the sentence names.
-		"// The string is thrown and the object is kept.",
+		"The string is thrown and the object is kept.",
 	}
 	for _, line := range spine {
-		if !hasCheck(s.scanSource("f.ts", []string{line}, nil, nil), checkContrast) {
+		if !hasCheck(s.scanProse("f.md", []string{line}), checkContrast) {
 			t.Errorf("%q is the spine and produced no finding", line)
 		}
 	}
 	for _, line := range both {
-		if hasCheck(s.scanSource("f.ts", []string{line}, nil, nil), checkContrast) {
+		if hasCheck(s.scanProse("f.md", []string{line}), checkContrast) {
 			t.Errorf("%q forbids two things and was read as the spine", line)
 		}
 	}
 }
 
-func TestAShebangIsNotPartOfTheFileHeader(t *testing.T) {
-	header := []string{"#!/usr/bin/env bash"}
-	for i := 1; i <= 8; i++ {
-		header = append(header, "# Line "+strconv.Itoa(i)+".")
-	}
-	header = append(header, "set -euo pipefail")
-	s := scanner{profile: ProfileComment}
-	if hasCheck(s.scanSource("stub.sh", header, nil, nil), checkLongBlock) {
-		t.Error("an eight-line header under a shebang was reported long")
-	}
-	nine := append(append([]string{}, header[:9]...), "# Line 9.", "set -euo pipefail")
-	if !hasCheck(s.scanSource("stub.sh", nine, nil, nil), checkLongBlock) {
-		t.Error("a nine-line header was not reported long, so the shebang rule cut too much")
-	}
-	// Only on line one. A `#!` further down is an ordinary comment.
-	if !isShebang(1, "#!/bin/sh") || isShebang(2, "#!/bin/sh") {
-		t.Error("the shebang rule does not hold to the first line")
-	}
-}
-
-// The bar counts whole files, so it has to agree: a shebang is not a comment line there either.
-func TestTheBarDoesNotCountAShebangAsAComment(t *testing.T) {
-	withBang := statsOf("#!/usr/bin/env bash\n# One.\ncode\n")
-	plain := statsOf("# One.\ncode\n")
-	if withBang.comments != plain.comments {
-		t.Fatalf("the shebang added %d comment line(s) to the count", withBang.comments-plain.comments)
-	}
-}
-
 // A threshold off by one here would report every note the rule asks for.
 func TestAConformingNoteIsNotAClauseDepthFinding(t *testing.T) {
-	s := scanner{profile: ProfileComment}
-	conforming := "// Some platforms reject a detached call, so the method is called on its object."
-	if hasCheck(s.scanSource("f.ts", []string{conforming}, nil, nil), checkClauseDepth) {
+	s := scanner{profile: ProfileProse}
+	conforming := "Some platforms reject a detached call, so the method is called on its object."
+	if hasCheck(s.scanProse("f.md", []string{conforming}), checkClauseDepth) {
 		t.Errorf("%q is the note pattern the rule asks for and it produced a clause-depth finding", conforming)
 	}
-	deep := "// The call is kept because the platform rejects it, which the older fleet does while it upgrades."
-	if !hasCheck(s.scanSource("f.ts", []string{deep}, nil, nil), checkClauseDepth) {
+	deep := "The call is kept because the platform rejects it, which the older fleet does while it upgrades."
+	if !hasCheck(s.scanProse("f.md", []string{deep}), checkClauseDepth) {
 		t.Errorf("%q holds four connectives and produced no clause-depth finding", deep)
 	}
 }
@@ -920,55 +453,55 @@ func TestAConformingNoteIsNotAClauseDepthFinding(t *testing.T) {
 // A term the rules ask to be said in the words of the code's condition takes "in which". That phrase
 // defines the term, and the act-first note it sits in passes.
 func TestATermDefinedWithInWhichIsNotAClauseDepthFinding(t *testing.T) {
-	s := scanner{profile: ProfileComment}
-	note := "// Drops a posting book in which no posting declares the currency, because narrowing would empty it."
-	if hasCheck(s.scanSource("f.ts", []string{note}, nil, nil), checkClauseDepth) {
+	s := scanner{profile: ProfileProse}
+	note := "Drops a posting book in which no posting declares the currency, because narrowing would empty it."
+	if hasCheck(s.scanProse("f.md", []string{note}), checkClauseDepth) {
 		t.Errorf("%q is the wording the Terms rule asks for and it produced a clause-depth finding", note)
 	}
 }
 
 func TestOneNegationIsNotADoubleNegativeFinding(t *testing.T) {
-	s := scanner{profile: ProfileComment}
-	single := "// The field is not set on an older export."
-	if hasCheck(s.scanSource("f.ts", []string{single}, nil, nil), checkDoubleNeg) {
+	s := scanner{profile: ProfileProse}
+	single := "The field is not set on an older export."
+	if hasCheck(s.scanProse("f.md", []string{single}), checkDoubleNeg) {
 		t.Errorf("%q carries one negation and produced a double-negative finding", single)
 	}
-	double := "// The code is not absent and it is not unknown."
-	if !hasCheck(s.scanSource("f.ts", []string{double}, nil, nil), checkDoubleNeg) {
+	double := "The code is not absent and it is not unknown."
+	if !hasCheck(s.scanProse("f.md", []string{double}), checkDoubleNeg) {
 		t.Errorf("%q carries two negations and produced no finding", double)
 	}
 }
 
-// A comment wraps, and the phrase then spans two lines. The check reads the joined block, so a wrapped
-// phrase is the same phrase.
+// A paragraph wraps, and the phrase then spans two lines. The check reads the joined paragraph, so a
+// wrapped phrase is the same phrase.
 func TestACoinedPhraseIsMatchedAcrossAWrappedLine(t *testing.T) {
-	s := scanner{profile: ProfileComment}
-	wrapped := []string{"// A pairing that cannot occur has no", "// name in the catalogue."}
-	if !hasCheck(s.scanSource("f.ts", wrapped, nil, nil), checkCoined) {
+	s := scanner{profile: ProfileProse}
+	wrapped := []string{"A pairing that cannot occur has no", "name in the catalogue."}
+	if !hasCheck(s.scanProse("f.md", wrapped), checkCoined) {
 		t.Errorf("a built-in coined phrase broken across two lines produced no finding")
 	}
-	plain := []string{"// A pairing that cannot occur is not listed in the catalogue."}
-	if hasCheck(s.scanSource("f.ts", plain, nil, nil), checkCoined) {
+	plain := []string{"A pairing that cannot occur is not listed in the catalogue."}
+	if hasCheck(s.scanProse("f.md", plain), checkCoined) {
 		t.Errorf("the plain form produced a coined finding")
 	}
 }
 
 func TestAStemEndingInEdIsNoParticiple(t *testing.T) {
-	s := scanner{profile: ProfileComment}
+	s := scanner{profile: ProfileProse}
 	for _, stem := range []string{
-		"// The gate holds, proceed to the next stage.",
-		"// The count rose, need for a second pass.",
-		"// One row was red, against a green tree.",
+		"The gate holds, proceed to the next stage.",
+		"The count rose, need for a second pass.",
+		"One row was red, against a green tree.",
 	} {
-		if hasCheck(s.scanSource("f.go", []string{stem}, nil, nil), checkNoSubject) {
+		if hasCheck(s.scanProse("f.md", []string{stem}), checkNoSubject) {
 			t.Errorf("%q was read as a dropped subject, and its `ed` is part of the stem", stem)
 		}
 	}
 	for _, participle := range []string{
-		"// The tree measures clean, fed by a scan nobody ran.",
-		"// The row stays, read against the baseline it carries.",
+		"The tree measures clean, fed by a scan nobody ran.",
+		"The row stays, read against the baseline it carries.",
 	} {
-		if !hasCheck(s.scanSource("f.go", []string{participle}, nil, nil), checkNoSubject) {
+		if !hasCheck(s.scanProse("f.md", []string{participle}), checkNoSubject) {
 			t.Errorf("%q dropped its subject and went unreported", participle)
 		}
 	}
@@ -977,20 +510,20 @@ func TestAStemEndingInEdIsNoParticiple(t *testing.T) {
 // The contrast spine defines a thing against what it is not. A comma before `and` opens a new clause,
 // so the same words carry a second fact. The instruction tree held ten of those.
 func TestACommaBeforeAndOpensAClauseAndNotTheSpine(t *testing.T) {
-	s := scanner{profile: ProfileComment}
+	s := scanner{profile: ProfileProse}
 	for _, clause := range []string{
-		"// The gates are green, and no requirement is left undelivered.",
-		"// The rule names its own model, and no worker is lowered to match.",
+		"The gates are green, and no requirement is left undelivered.",
+		"The rule names its own model, and no worker is lowered to match.",
 	} {
-		if hasCheck(s.scanSource("f.go", []string{clause}, nil, nil), checkContrast) {
+		if hasCheck(s.scanProse("f.md", []string{clause}), checkContrast) {
 			t.Errorf("%q states a second fact and was read as a contrast", clause)
 		}
 	}
 	for _, spine := range []string{
-		"// It is a survey and no verdict.",
-		"// It is a trailer and not a subject prefix.",
+		"It is a survey and no verdict.",
+		"It is a trailer and not a subject prefix.",
 	} {
-		if !hasCheck(s.scanSource("f.go", []string{spine}, nil, nil), checkContrast) {
+		if !hasCheck(s.scanProse("f.md", []string{spine}), checkContrast) {
 			t.Errorf("%q is the spine and went unreported", spine)
 		}
 	}
@@ -1087,20 +620,20 @@ func TestTheSameWordsOutsideATableAreRead(t *testing.T) {
 // written for a list, where a short tail is a field, and it let seventeen real joins through in the
 // instruction tree.
 func TestOneSemicolonJoinsTwoClausesWhateverItsTail(t *testing.T) {
-	s := scanner{profile: ProfileComment}
+	s := scanner{profile: ProfileProse}
 	for _, join := range []string{
-		"// This check is important; it never fails.",
-		"// Extend the hand-written tests; do not clobber them.",
+		"This check is important; it never fails.",
+		"Extend the hand-written tests; do not clobber them.",
 	} {
-		if !hasCheck(s.scanSource("f.go", []string{join}, nil, nil), checkSemicolon) {
+		if !hasCheck(s.scanProse("f.md", []string{join}), checkSemicolon) {
 			t.Errorf("%q joins two clauses and went unreported", join)
 		}
 	}
 	for _, list := range []string{
-		"// Reads three fields: owner; entry; book.",
-		"// The kinds are comment; commit; reply.",
+		"Reads three fields: owner; entry; book.",
+		"The kinds are comment; commit; reply.",
 	} {
-		if hasCheck(s.scanSource("f.go", []string{list}, nil, nil), checkSemicolon) {
+		if hasCheck(s.scanProse("f.md", []string{list}), checkSemicolon) {
 			t.Errorf("%q is a list and was read as a clause join", list)
 		}
 	}
@@ -1122,38 +655,21 @@ func TestOneSemicolonInACellSeparatesFields(t *testing.T) {
 }
 
 func TestEmphasisIsTheAdverbAndNotTheDeterminer(t *testing.T) {
-	s := scanner{profile: ProfileComment}
+	s := scanner{profile: ProfileProse}
 	for _, padding := range []string{
-		"// This is a very important check.",
-		"// The bound is crucially wrong.",
+		"This is a very important check.",
+		"The bound is crucially wrong.",
 	} {
-		if !hasCheck(s.scanSource("f.go", []string{padding}, nil, nil), checkIntensifier) {
+		if !hasCheck(s.scanProse("f.md", []string{padding}), checkIntensifier) {
 			t.Errorf("%q raises a claim without adding to it and went unreported", padding)
 		}
 	}
 	for _, naming := range []string{
-		"// A verify run that discovers this very case.",
-		"// It reads the directory from the very first entry.",
+		"A verify run that discovers this very case.",
+		"It reads the directory from the very first entry.",
 	} {
-		if hasCheck(s.scanSource("f.go", []string{naming}, nil, nil), checkIntensifier) {
+		if hasCheck(s.scanProse("f.md", []string{naming}), checkIntensifier) {
 			t.Errorf("%q names a thing and was read as padding", naming)
-		}
-	}
-}
-
-// The check asks whether the CODE spells the compound. A compound the prose invented on its own is
-// the `coined` check's, and reporting it here would name the rename lane for a word no identifier
-// carries.
-func TestACompoundTheCodeDoesNotSpellIsNoRenameFinding(t *testing.T) {
-	lines := []string{
-		"/** A scheme-blind claim settles the period. */",
-		"export function claimOf(book: Element): boolean {",
-		"  return Boolean(book);",
-		"}",
-	}
-	for _, f := range voiceScanner().scanSource("f.ts", lines, nil, nil) {
-		if f.Check == checkCoinedIdent {
-			t.Errorf("reported %q, and no identifier in that file spells it", f.Text)
 		}
 	}
 }
@@ -1219,16 +735,6 @@ func TestCountsRunPastTheDisplayCap(t *testing.T) {
 	}
 }
 
-// The comment profile is handed a diff, and this mode counts the paths it is given. The refusal names
-// the mismatch, and the run stops before the diff is read.
-func TestCountingIsRefusedWhereTheProfileTakesNoPaths(t *testing.T) {
-	r := newRepo(t)
-	r.run("--per-file", "HEAD")
-	r.expectCode(2)
-	r.expectStderrHas("--per-file")
-	r.expectNoStdout()
-}
-
 // A run given no path measured zero files, and exit 0 there would read as a clean tree.
 func TestCountingWithNoPathRefusesTheRun(t *testing.T) {
 	r := newRepo(t)
@@ -1240,251 +746,23 @@ func TestCountingWithNoPathRefusesTheRun(t *testing.T) {
 
 func TestTheBooleanCheckPassesOverAComparative(t *testing.T) {
 	lines := []string{
-		"// A bare fact is one sentence saying no more than itself.",
-		"export function readFact(book: Element): string {",
-		"  return '';",
-		"}",
+		"A bare fact is one sentence saying no more than itself.",
 	}
-	for _, f := range voiceScanner().scanSource("f.ts", lines, nil, nil) {
+	for _, f := range voiceScanner().scanProse("f.md", lines) {
 		if f.Check == checkAnthropo {
 			t.Errorf("reported %q, and that is the ordinary word before a comparative", f.Text)
 		}
 	}
 	saying := []string{
-		"// A device can say no to the entry type.",
-		"export function readClaim(book: Element): string {",
-		"  return '';",
-		"}",
+		"A device can say no to the entry type.",
 	}
 	found := false
-	for _, f := range voiceScanner().scanSource("f.ts", saying, nil, nil) {
+	for _, f := range voiceScanner().scanProse("f.md", saying) {
 		if f.Check == checkAnthropo {
 			found = true
 		}
 	}
 	if !found {
 		t.Errorf("the guard silenced a true finding, which is the control for it")
-	}
-}
-
-func TestABareIdentifierIsOnlyTheOneTheSiteDoesNotDeclare(t *testing.T) {
-	declared := []string{
-		"/** Drops a claim that dropStaleClaims no longer names. */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	for _, f := range voiceScanner().scanSource("f.ts", declared, nil, nil) {
-		if f.Check == checkBareIdent {
-			t.Errorf("reported %q, and the declaration under the block spells it", f.Text)
-		}
-	}
-	placed := []string{
-		"/** Drops a claim that preferredSettlements, the ledger's allowed schemes, no longer names. */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	for _, f := range voiceScanner().scanSource("f.ts", placed, nil, nil) {
-		if f.Check == checkBareIdent {
-			t.Errorf("reported %q, and an appositive places it", f.Text)
-		}
-	}
-	// Run 10 placed a name in backticks and the appositive after them, and the check read the closing
-	// backtick as the end of the phrase. The writer's third rewrite failed on it.
-	ticked := []string{
-		"/** Drops a claim that `preferredSettlements`, the ledger's allowed schemes, no longer names. */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	for _, f := range voiceScanner().scanSource("f.ts", ticked, nil, nil) {
-		if f.Check == checkBareIdent {
-			t.Errorf("reported %q, and an appositive after its backticks places it", f.Text)
-		}
-	}
-	bare := []string{
-		"/** Drops a claim that preferredSettlements no longer names. */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	found := false
-	for _, f := range voiceScanner().scanSource("f.ts", bare, nil, nil) {
-		if f.Check == checkBareIdent && f.Text == "preferredSettlements" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("a name from elsewhere with nothing placing it was not reported")
-	}
-}
-
-func TestTheDeclarationIsReadFromTheFileAndNotFromTheDiff(t *testing.T) {
-	whole := []string{
-		"/** Drops a claim that dropStaleClaims no longer names. */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	// The comment changed and the declaration did not, which is the ordinary shape of such a diff.
-	sparse := []string{whole[0], "", "", ""}
-	within := map[int]bool{1: true}
-	for _, f := range voiceScanner().scanSource("f.ts", sparse, within, whole) {
-		if f.Check == checkBareIdent {
-			t.Errorf("reported %q, and the declaration under the block spells it", f.Text)
-		}
-	}
-	// The control. A name the declaration does not spell is still reported over the same diff.
-	elsewhere := []string{
-		"/** Drops a claim that preferredSettlements no longer names. */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	found := false
-	for _, f := range voiceScanner().scanSource("f.ts", []string{elsewhere[0], "", "", ""}, within, elsewhere) {
-		if f.Check == checkBareIdent && f.Text == "preferredSettlements" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("a name from elsewhere went unreported, so the exemption swallowed the check")
-	}
-}
-
-func TestTheDeclarationIsFoundPastTheRestOfTheComment(t *testing.T) {
-	whole := []string{
-		"/** Drops a claim.",
-		" * Rounds what dropStaleClaims hands on, so a half cent lands alike.",
-		" * A third line the diff did not touch. */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	sparse := []string{"", whole[1], "", "", "", ""}
-	for _, f := range voiceScanner().scanSource("f.ts", sparse, map[int]bool{2: true}, whole) {
-		if f.Check == checkBareIdent {
-			t.Errorf("reported %q, and the declaration two lines under the block spells it", f.Text)
-		}
-	}
-	// The same shape with the block closing on a line of its own. The scoping ends the block one line
-	// earlier still.
-	closed := []string{
-		"/**",
-		" * Rounds what dropStaleClaims hands on, so a half cent lands alike.",
-		" */",
-		"export function dropStaleClaims(book: Element): Element[] {",
-		"  return [];",
-		"}",
-	}
-	for _, f := range voiceScanner().scanSource("f.ts", []string{"", closed[1], "", "", "", ""}, map[int]bool{2: true}, closed) {
-		if f.Check == checkBareIdent {
-			t.Errorf("reported %q, and the block closes above the declaration that spells it", f.Text)
-		}
-	}
-}
-
-func TestATermOfArtIsNoBareIdentifier(t *testing.T) {
-	lines := []string{
-		"/** A name in camelCase, on a display narrower than sRGB, on iOS. */",
-		"export function readName(book: Element): string {",
-		"  return '';",
-		"}",
-	}
-	for _, f := range voiceScanner().scanSource("f.ts", lines, nil, nil) {
-		if f.Check == checkBareIdent {
-			t.Errorf("reported %q, and a reader places that word already", f.Text)
-		}
-	}
-}
-
-func TestABlockReadAsSourceReachesTheChecksProseDoesNot(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "block.ts")
-	body := "/**\n * The ledger reads `preferredSettlements` on every call.\n * A source outside it is dropped.\n */\n" +
-		"export function postBatch(rows: LedgerRow[]): void {\n"
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	s := voiceScanner()
-	cfg := Config{MaxFileBytes: 1 << 18}
-	var asProse, asSource scanned
-	prose, err := s.scanPaths([]string{path}, dir, cfg, &asProse, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if named := findingsNamed(prose, checkBareIdent); len(named) != 0 {
-		t.Errorf("the prose read reported %s, so this fixture no longer shows the gap", render(named))
-	}
-	source, err := s.scanPaths([]string{path}, dir, cfg, &asSource, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if named := findingsNamed(source, checkBareIdent); len(named) != 1 {
-		t.Errorf("the source read reported %s, want the one bare identifier", render(source))
-	}
-}
-
-func findingsNamed(found []Finding, check string) []Finding {
-	var out []Finding
-	for _, f := range found {
-		if f.Check == check {
-			out = append(out, f)
-		}
-	}
-	return out
-}
-
-func TestTheToolingsDoubtIsReportedInAStringItAdds(t *testing.T) {
-	doubt := "'Unverified: carried over from an earlier comment and was not checked against a ledger.'"
-	source := []string{
-		"export const BOOK_REASON = " + doubt + ";",
-		"const PATTERN = /unverified|pending/;",
-		"var fates = regexp.MustCompile(`(shown by the body|unverified|none):`)",
-		"const KEY = 'unverified';",
-	}
-	var got []int
-	for _, f := range voiceScanner().scanSource("src/Catalogue.ts", source, nil, nil) {
-		if f.Check == checkToolingDoubt {
-			got = append(got, f.Line)
-		}
-	}
-	if len(got) == 0 || got[0] != 1 || slices.ContainsFunc(got, func(at int) bool { return at != 1 }) {
-		t.Fatalf("findings on lines %v, want line 1 alone: a pattern and a key read as no sentence", got)
-	}
-	for _, f := range voiceScanner().scanSource("src/Catalogue.test.ts", source, nil, nil) {
-		if f.Check == checkToolingDoubt {
-			t.Errorf("reported %q in a test file's fixture string", f.Text)
-		}
-	}
-	// Over a diff the scan holds only the added lines, and it leaves a string the change kept.
-	for _, f := range voiceScanner().scanSource("src/Catalogue.ts", source, map[int]bool{3: true}, nil) {
-		if f.Check == checkToolingDoubt {
-			t.Errorf("reported %q on a line the change did not add", f.Text)
-		}
-	}
-}
-
-func TestANameTheBodyUnderTheBlockSpellsIsPlaced(t *testing.T) {
-	lines := []string{
-		"// The book took a format before the probe, so getFormatClaim keeps bookClaim where probeClaim is unknown.",
-		"export function getFormatClaim(formatName: string): LedgerClaim {",
-		"  const bookClaim = getBookFormatClaim(formatName);",
-		"  const probeClaim = getProbeFormatClaim(formatName);",
-		"",
-		"  return probeClaim === LedgerClaim.Unknown ? bookClaim : probeClaim;",
-		"}",
-		"// waitsFor returns before laterHelper does its work.",
-		"export function waitsFor(): void {}",
-	}
-	var bare []string
-	for _, f := range voiceScanner().scanSource("f.ts", lines, nil, nil) {
-		if f.Check == checkBareIdent {
-			bare = append(bare, f.Text)
-		}
-	}
-	if len(bare) != 1 || bare[0] != "laterHelper" {
-		t.Fatalf("bare identifiers %v, want laterHelper alone", bare)
 	}
 }

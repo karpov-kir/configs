@@ -1,6 +1,7 @@
 package commentpass
 
 import (
+	modelpolicy "configs/ai/tools/model-policy"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -54,13 +55,21 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 	}
 	home, _ := lookup("HOME")
 	if pageFile == "" {
-		pageFile = filepath.Join(home, ".kk-flavor", "standards", "comment-page.md")
+		pageFile = filepath.Join(home, ".kk-flavor", "standards", "comments.md")
 	}
 	page, err := os.ReadFile(pageFile)
 	if err != nil && !list {
 		return refuse("cannot read the page at %s", pageFile)
 	}
 	page = []byte(withoutLayer(string(page)))
+	// The model is the `comment-pass` row of the flavor's model policy, where no --model names one.
+	if model == "" {
+		if policy, err := modelpolicy.Load(filepath.Join(home, ".kk-flavor", "configs", "models.json")); err == nil {
+			if decision, err := policy.Resolve(modelpolicy.Request{Client: "claude", Task: "comment-pass"}); err == nil {
+				model = decision.Dispatched.Model
+			}
+		}
+	}
 	notes, err := readNotes(notesFile)
 	if err != nil {
 		return refuse("%v", err)

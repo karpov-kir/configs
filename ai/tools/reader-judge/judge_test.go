@@ -21,11 +21,8 @@ func all(Unit) bool { return true }
 // A run that started to would panic here, because the case arranged no answer for it to read.
 var noRepository repo.Git
 
-const source = "// file header\n// second line\n\nfunc a() {}\n// on a()\n*ptr = 1\n// trailing\n"
-
-// A rule file, for the cases that need a kind reading units out of a named file. They read a source
-// file until the comment kind went, and what they drive — the numbers mode, idempotence, an empty
-// offer, an expiry — belongs to every kind.
+// A rule file, for the cases that need a kind reading units out of a named file. What they drive —
+// the numbers mode, idempotence, an empty offer, an expiry — belongs to every kind.
 const instructions = "One plain paragraph a reader follows without effort.\n\n" +
 	"A second paragraph, since a rule file's units are its paragraphs.\n\n" +
 	"A third, to leave the vote something it can pass over.\n"
@@ -72,7 +69,7 @@ func TestRunRefusesARollThatReachedNoVerdict(t *testing.T) {
 		"a model that never answers": func(string, string) (string, error) { return "", errors.New("down") },
 	} {
 		t.Run(name, func(t *testing.T) {
-			path := write(t, source)
+			path := write(t, instructions)
 			var out, errOut strings.Builder
 			if code := Run("reader-judge.sh", []string{"instruction", path}, noRepository, nil, &out, &errOut, call, nil); code != exitDidNotRun {
 				t.Fatalf("exit %d, want %d", code, exitDidNotRun)
@@ -294,14 +291,6 @@ func TestEveryLaneKindExists(t *testing.T) {
 			t.Errorf("no kind %q", name)
 		}
 	}
-}
-
-func spansOf(units []Unit) []int {
-	spans := make([]int, len(units))
-	for i, u := range units {
-		spans[i] = u.Span
-	}
-	return spans
 }
 
 // The message that prompted the block rule: hard-wrapped at 72 columns, so every line but the subject

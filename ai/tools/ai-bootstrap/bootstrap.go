@@ -231,6 +231,7 @@ func (run *invocation) install(found installer.SkillMounts) int {
 	run.registerAgentGuard()
 	run.sayCodexTakesNoGuard()
 	run.removeRetiredPrivateNameGuard()
+	run.removeRetiredCommentPipeline()
 	run.syncMcp()
 	run.verify()
 	run.checkModels()

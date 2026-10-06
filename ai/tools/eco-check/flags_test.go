@@ -156,8 +156,8 @@ func TestWhereAFlagCallSiteIsRead(t *testing.T) {
 		f.reports(flagFinding("--agent"))
 	})
 
-	// comment-strip.sh has two forms of its call, and a form wrapped under the first one read as prose to
-	// the register scan. Each form takes its own `usage:` line.
+	// A script with two forms of its call had the form wrapped under the first one read as prose by the
+	// register scan. Each form takes its own `usage:` line.
 	t.Run("and reads a second usage line as another form of the call", func(t *testing.T) {
 		f := newFlagScript(t, "#   usage: toy.sh [--gate]\n#   usage: toy.sh --agent=<name> <path>")
 		f.newCallSites("toy.sh --agent=claude", "toy.sh --loose")

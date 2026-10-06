@@ -1,6 +1,6 @@
 // Package readerjudge deletes prose by majority vote over independent rolls of the model.
 // --changed offers only blocks touched by the diff, while showing the model the whole file.
-// The model returns unit numbers; it cannot rewrite text or delete source code.
+// The model returns unit numbers; it cannot rewrite text.
 //
 // JUDGE_PROVIDER is required. Missing, unknown or unavailable providers fail with exit 2.
 // Model assignments come from kk-flavor/configs/models.json. JUDGE_MODEL is retired and refused.
@@ -11,8 +11,7 @@
 // a read-only sandbox. Built-in utility tools and apply_patch may remain exposed.
 //
 // Two obligations remain unimplemented:
-//   - Offer only agent-written units: changed source blocks on an agent-authored branch,
-//     and PR bodies or review comments only until a human's first edit.
+//   - Offer only agent-written units: PR bodies or review comments only until a human's first edit.
 //   - Carry the judged content's hash on the artifact, such as a Judged trailer or HTML comment,
 //     so another machine can recognize the verdict. Today memoization is machine-local,
 //     under $XDG_CACHE_HOME/kk-flavor/judged.
@@ -37,10 +36,9 @@ const (
 	exitDidNotRun = 2
 )
 
-// Kind names the reader the text is judged for. Source kinds offer only comment blocks as units.
+// Kind names the reader the text is judged for.
 type Kind struct {
 	Reader string
-	Source bool
 	// Trailers marks a kind whose closing block is machine-read metadata rather than prose. The
 	// prompt tells the model to delete provenance, and a `Co-Authored-By:` line is exactly that, so
 	// a kind that offered its trailers would be inviting the judge to eat the attribution the
@@ -52,20 +50,6 @@ type Kind struct {
 	// already see. Offered, it is the likeliest unit in the message to be cut, and cutting it leaves
 	// a message git will not take. Measured 2026-09-16 on this change's own commit message.
 	Subject bool
-	// Verdicts marks a kind that labels every block from a closed vocabulary, where a delete kind
-	// names the units to remove. Its caller counts verdict lines against blocks, so such a kind
-	// answers for every block, the ones it leaves alone included, and it prunes no block itself.
-	Verdicts bool
-}
-
-// candidates is where this kind's units come from, and the one place the source/prose split is
-// decided. On Kind rather than inside Split, because Kind is what already carries the distinction —
-// a flag passed down to Split would put the same branch at each of its callers instead.
-func (k Kind) candidates(lines []string) []Unit {
-	if k.Source {
-		return CommentBlocks(lines)
-	}
-	return proseBlocks(lines)
 }
 
 var kinds = map[string]Kind{
@@ -196,48 +180,13 @@ func RunIn(self string, args []string, cwd string, git repo.Git, stdin io.Reader
 		}
 		offer = NarrowToDiff(offer, added)
 	}
-	units, view := Split(lines, kind.candidates(lines), offer)
+	units, view := Split(lines, proseBlocks(lines), offer)
 	if len(units) == 0 {
-		// A delete kind's output is the artifact, so an empty verdict leaves the artifact unchanged.
-		// A verdict kind's output is one label line per block, and printing the artifact there hands
-		// its caller source code to read as verdicts.
-		if !numbersOnly && !kind.Verdicts {
+		// The output is the artifact, so an empty offer leaves the artifact unchanged.
+		if !numbersOnly {
 			io.WriteString(stdout, content)
 		}
 		return exitClean
-	}
-
-	if kind.Verdicts {
-		name := "-"
-		if len(args) == 2 {
-			name = shell.Echoable(args[1])
-		}
-		labelKey := kindName + "\n" + offeredKey(units)
-		labels, recorded := memo.lookupLabels(labelKey, content, len(units))
-		if !recorded {
-			reply, err := call(Prompt(kind), view)
-			if err != nil {
-				fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
-				return exitDidNotRun
-			}
-			labels, err = ParseLabels(reply, len(units))
-			if err != nil {
-				fmt.Fprintf(stderr, "%s: %v — the judge did NOT run\n", self, err)
-				return exitDidNotRun
-			}
-			memo.recordLabels(labelKey, content, labels)
-		}
-		flagged := 0
-		for _, n := range SortedUnits(labels) {
-			fmt.Fprintf(stdout, "%s:%d: %s\n", name, units[n-1].Line, labels[n])
-			if labels[n] != "keep" {
-				flagged++
-			}
-		}
-		if flagged == 0 {
-			return exitClean
-		}
-		return exitCut
 	}
 
 	// Judged output is final whatever scope produced it, so the unscoped record is looked up by content
@@ -296,9 +245,6 @@ func kindNames() string {
 // Prompt is part of the memo key, so every edit here invalidates every cached verdict with no version
 // bump to make. Say so in the commit that changes it.
 func Prompt(kind Kind) string {
-	if kind.Verdicts {
-		return verdictPrompt(kind)
-	}
 	return "You are " + kind.Reader + ". You read this once, quickly, and will not come back to it. " +
 		"Below is a text with some units numbered in the left margin; a `.` marks a line that continues the " +
 		"unit above it, and unnumbered lines are context you can see but may not delete. Reply with only " +
@@ -364,23 +310,4 @@ func repoRelative(git repo.Git, cwd, path string) (string, error) {
 		return filepath.ToSlash(rel), nil
 	}
 	return filepath.ToSlash(filepath.Clean(filepath.Join(prefix, path))), nil
-}
-
-// verdictPrompt asks for one label per block from the closed set. The vocabulary is spelled out with
-// what each label means, because a label the model reads differently from the eval is a label the
-// eval cannot score.
-func verdictPrompt(kind Kind) string {
-	return "You are " + kind.Reader + ". You read each comment block once, quickly, and will not come back to it. " +
-		"Below is a file with some comment blocks numbered in the left margin; a `.` marks a line that continues " +
-		"the block above it, and unnumbered lines are the code.\n\n" +
-		verdictPromptMark + ", `<number> <verdict>`, and nothing else. Every numbered block " +
-		"gets a line, including the ones you would leave alone.\n\n" +
-		"The verdicts:\n" +
-		"keep — states a fact the code beneath it cannot show, and you could restate it in one plain sentence.\n" +
-		"obvious — every sentence in it restates the name, the signature, or the lines beneath it.\n" +
-		"padded — one sentence says something the code cannot show, and the rest restates the code.\n" +
-		"unclear — you could not restate it in one plain sentence after reading it once.\n" +
-		"coined — leans on a word or phrase that is neither the domain's nor an identifier in the code.\n" +
-		"stale — contradicts the code beside it.\n\n" +
-		"Where more than one fits, answer the first of these that fits: " + VerdictNames() + "."
 }

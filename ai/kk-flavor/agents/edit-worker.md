@@ -1,6 +1,6 @@
 ---
 name: edit-worker
-description: A worker that reads, searches, runs commands and edits files — refactor, conform, build, an edit, and every pipeline stage worker but the comment writer and a drive that opens a UI, since each keeps a ledger. Holds Read, Grep, Glob, Bash, Edit and Write. Dispatch here for a task that writes any file and needs no other tool.
+description: A worker that reads, searches, runs commands and edits files — refactor, conform, build, an edit, and every pipeline stage worker but a drive that opens a UI, since each keeps a ledger. Holds Read, Grep, Glob, Bash, Edit and Write. Dispatch here for a task that writes any file and needs no other tool.
 tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
