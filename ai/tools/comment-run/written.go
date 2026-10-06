@@ -142,7 +142,8 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 			snapshot[file] = true
 			// The block answers every claim its site was offered, so its record settles each of them.
 			if err := r.settleOffered(runDir, path, archive, file, offeredSite, at); err != nil {
-				return r.refuse("%v", err)
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%d refused: the block is archived, and the claims it settles are not: %v\n", file, at, err)
 			}
 		}
 	}

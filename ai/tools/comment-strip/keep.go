@@ -333,7 +333,10 @@ func write(archive, run string, args []string, cwd string, refuse func(string, .
 		for _, w := range held {
 			if w.Decl != entry.Decl || w.Span != entry.Span || w.Block != entry.Block {
 				kept = append(kept, w)
+				continue
 			}
+			// A block archived again keeps the claims it settled, which a loop round's offer may not hold.
+			entry.Settles = w.Settles
 		}
 		body, err := json.MarshalIndent(append(kept, entry), "", " ")
 		if err != nil {
@@ -453,4 +456,10 @@ func settledClaims(archive, path string, lines []string) map[string]int {
 		}
 	}
 	return out
+}
+
+// SettledKey names a settled record by its declaration and its claims, so the same words at another
+// declaration are a record of their own.
+func SettledKey(decl, claims string) string {
+	return decl + "\x00" + claims
 }

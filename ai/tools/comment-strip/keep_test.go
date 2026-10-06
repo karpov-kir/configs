@@ -498,7 +498,7 @@ func TestABlockSettlesEveryRecordOfferedAtItsSite(t *testing.T) {
 	var settles []string
 	for _, r := range records {
 		if r.decl == "const AMOUNT_PLACES = 2" {
-			settles = append(settles, claimsSum(r.claims))
+			settles = append(settles, SettledKey(r.decl, claimsSum(r.claims)))
 		}
 	}
 	if len(settles) != 1 {
@@ -538,6 +538,36 @@ func TestABlockSettlesEveryRecordOfferedAtItsSite(t *testing.T) {
 	after := f.run("--archive=" + archive)
 	if strings.Contains(after.stdout, ":0 ") || !strings.Contains(after.stderr, "settled by the block standing at :1") {
 		t.Fatalf("the settled record: exit %d\n%s%s", after.code, after.stdout, after.stderr)
+	}
+}
+
+// A block archived again keeps the claims it settled. A loop round may archive a block again without
+// offering what it settled.
+func TestABlockArchivedAgainKeepsWhatItSettled(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.go", "// A ledger closes a book at midnight.\nconst CLOSE_HOUR = 0\n")
+	archive := filepath.Join(f.dir, "archive")
+	record := filepath.Join(f.dir, "record.txt")
+	if err := os.WriteFile(record, []byte("fact: a ledger closes a book at midnight\nbears_on: CLOSE_HOUR\ndoes: none\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	write := func() {
+		t.Helper()
+		var out, errOut strings.Builder
+		if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--written=run27", f.path, "2", record},
+			f.dir, noRepository, &out, &errOut); code != exitClean {
+			t.Fatalf("written: exit %d: %s", code, errOut.String())
+		}
+	}
+	write()
+	lines := strings.Split(string(mustRead(t, f.path)), "\n")
+	if err := SettleAt(archive, f.path, lines, 1, []string{SettledKey("const AMOUNT = 2", "abc")}); err != nil {
+		t.Fatal(err)
+	}
+	write()
+	held := readWritten(archive, f.path)
+	if len(held) != 1 || len(held[0].Settles) != 1 {
+		t.Fatalf("after archiving again: %+v", held)
 	}
 }
 
