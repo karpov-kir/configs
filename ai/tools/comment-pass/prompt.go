@@ -8,7 +8,7 @@ import (
 
 // userPrompt is one file's call: the file numbered, the material by id, the reviewer's notes on the
 // file, and the reply's grammar. The page goes in as the system prompt.
-func userPrompt(path string, lines []string, m material, notes []string) string {
+func userPrompt(path string, lines []string, m material, notes []string, width int) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "File %s, numbered:\n\n", path)
 	for n, line := range lines {
@@ -20,10 +20,10 @@ func userPrompt(path string, lines []string, m material, notes []string) string 
 		if c.decl > 0 {
 			on = fmt.Sprintf("line %d: %s", c.decl, strings.TrimSpace(lines[c.decl-1]))
 		}
-		fmt.Fprintf(&b, "%s  the comment on lines %d-%d, which sits on %s\n", c.id, c.first, c.last, on)
+		fmt.Fprintf(&b, "%s  the comment on lines %d-%d, which sits on %s (%d columns)\n", c.id, c.first, c.last, on, width-m.indents[c.id])
 	}
 	for _, p := range m.places {
-		fmt.Fprintf(&b, "%s  line %d, which has no comment: %s\n", p.id, p.line, strings.TrimSpace(lines[p.line-1]))
+		fmt.Fprintf(&b, "%s  line %d, which has no comment: %s (%d columns)\n", p.id, p.line, strings.TrimSpace(lines[p.line-1]), width-m.indents[p.id])
 	}
 	if len(notes) > 0 {
 		b.WriteString("\nThe reviewer's notes on this file, each to act on:\n")
@@ -32,6 +32,7 @@ func userPrompt(path string, lines []string, m material, notes []string) string 
 		}
 	}
 	b.WriteString(replyGrammar)
+	b.WriteString("Each comment line you write, its markers included, fits in the columns its id names.\n")
 	return b.String()
 }
 
