@@ -1088,3 +1088,33 @@ func TestANoneClearsNoDecline(t *testing.T) {
 		}
 	}
 }
+
+func TestTheCarriedStageSettlesTheLanesEdits(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts"))
+	c.write("ledger.ts", strings.Replace(string(body), "keys.canPost(scheme)", "keys.canPost(scheme) === true", 1))
+	lane := filepath.Join(t.TempDir(), "refactor.md")
+	if err := os.WriteFile(lane, []byte("Comment 1/1 ledger.ts:3 | stays: the code says it\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run("carried", "--run=run26", "--run-dir="+runDir, "--archive="+archive, lane); said.code != exitClean {
+		t.Fatalf("carried: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	head := c.commit("run 26")
+	next := filepath.Join(t.TempDir(), "run27")
+	if said := c.run("seed", "--run-dir="+next, "--archive="+archive, "--range="+c.base+".."+head); said.code != exitClean && said.code != exitFindings {
+		t.Fatalf("seed: exit %d %s", said.code, said.stderr)
+	}
+	listed, _ := os.ReadFile(filepath.Join(next, "settled.txt"))
+	if !strings.Contains(string(listed), "export function claimFor(scheme: string): boolean {, as run26 settled it") {
+		t.Fatalf("settled.txt:\n%s", listed)
+	}
+	body, _ = os.ReadFile(filepath.Join(c.top, "ledger.ts"))
+	c.write("ledger.ts", strings.Replace(string(body), "keys.canPost(scheme) === true", "Boolean(keys.canPost(scheme))", 1))
+	said := c.run("carried", "--run=run27", "--run-dir="+next, "--archive="+archive, lane)
+	if said.code != exitFindings || !strings.Contains(said.stdout, "the lane edited `export function claimFor(scheme: string): boolean {`, which run26 settled") {
+		t.Fatalf("a later lane's edit: exit %d\n%s%s", said.code, said.stdout, said.stderr)
+	}
+}

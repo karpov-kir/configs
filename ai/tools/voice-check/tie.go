@@ -12,7 +12,16 @@ import (
 
 const checkTieRepeated = "tie-opening-repeated"
 
-const maxBlocksPerTieOpening = 2
+// minBlocksPerTieOpening is the bound in a small file, and a larger file allows a quarter of its blocks.
+// Run 26's loop writer met the bound of two on "so" and "therefore" in a file of ten, and wrote the
+// sentence a reviewer had rejected. The scaled bound keeps run 26's two refusals in small files, and
+// both of run 20's.
+const minBlocksPerTieOpening = 2
+
+// tieBound is how many other blocks of a file of n blocks may open a tie alike.
+func tieBound(n int) int {
+	return max(minBlocksPerTieOpening, (n+3)/4)
+}
 
 // reConnector is a connector that claims the act follows from the fact.
 var reConnector = regexp.MustCompile(`\b(which is why|that is why|for that reason|therefore|because|so)\b`)
@@ -42,22 +51,25 @@ func fileBlocks(lines []string) []string {
 	return out
 }
 
-// TieFindings reports each tie opening of the block that stands in two other blocks of the file
-// already. A block the file already holds word for word is the block itself, and it is not counted.
+// TieFindings reports each tie opening of the block that stands in as many other blocks of the file as
+// its bound allows. A block the file already holds word for word is the block itself, and it is not
+// counted.
 func TieFindings(file string, block []string, fileLines []string) []Finding {
 	own := strings.TrimSpace(strings.Join(block, "\n"))
 	counts := map[string]int{}
+	n := 1
 	for _, other := range fileBlocks(fileLines) {
 		if strings.TrimSpace(other) == own {
 			continue
 		}
+		n++
 		for opening := range tieOpenings(other) {
 			counts[opening]++
 		}
 	}
 	var repeated []string
 	for opening := range tieOpenings(own) {
-		if counts[opening] >= maxBlocksPerTieOpening {
+		if counts[opening] >= tieBound(n) {
 			repeated = append(repeated, opening)
 		}
 	}

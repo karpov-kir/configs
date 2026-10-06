@@ -1,6 +1,7 @@
 package voicecheck
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -138,5 +139,41 @@ func TestOneCallChecksEveryBlockOfAFile(t *testing.T) {
 	text := out.String()
 	if strings.Contains(text, "#1:") || strings.Contains(text, "#2:") || !strings.Contains(text, "#3:1: "+checkTieRepeated) {
 		t.Fatalf("the third part alone should repeat the tie:\n%s%s", text, errOut.String())
+	}
+}
+
+// The bound scales with the file: max(2, a quarter of its blocks). Each of run 26's six refusals and run
+// 20's two is rebuilt as a file of its size, with two other blocks opening the tie alike. The four in
+// files of ten and eighteen clear, and the four in files of five to seven still fire.
+func TestTheTieBoundScalesWithTheFile(t *testing.T) {
+	for _, tc := range []struct {
+		run     string
+		blocks  int
+		opening string
+		fires   bool
+	}{
+		{"run26", 5, "so", true}, {"run26", 6, "therefore", true},
+		{"run26", 18, "so", false}, {"run26", 18, "this check", false},
+		{"run26", 10, "so", false}, {"run26", 10, "therefore", false},
+		{"run20", 5, "therefore", true}, {"run20", 7, "therefore", true},
+	} {
+		tie := func(i int) string {
+			if tc.opening == "this check" {
+				return fmt.Sprintf("// A ledger closes book %d, and this check reads it.", i)
+			}
+			return fmt.Sprintf("// A ledger closes book %d, %s the entry reads it.", i, tc.opening)
+		}
+		var file []string
+		for i := 1; i < tc.blocks; i++ {
+			note := fmt.Sprintf("// A ledger opens book %d.", i)
+			if i <= 2 {
+				note = tie(i)
+			}
+			file = append(file, note, fmt.Sprintf("export const BOOK_%d = %d;", i, i), "")
+		}
+		got := TieFindings("f.ts", []string{strings.TrimPrefix(tie(99), "// ")}, file)
+		if fired := len(got) > 0; fired != tc.fires {
+			t.Errorf("%s: %q in a file of %d blocks fires %v, want %v", tc.run, tc.opening, tc.blocks, fired, tc.fires)
+		}
 	}
 }

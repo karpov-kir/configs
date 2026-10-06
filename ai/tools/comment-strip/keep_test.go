@@ -570,3 +570,47 @@ func TestABlockArchivedAgainKeepsWhatItSettled(t *testing.T) {
 		t.Fatalf("after archiving again: %+v", held)
 	}
 }
+
+func TestACarryOfAWorldFactIsRefused(t *testing.T) {
+	rulesHome(t, "rules one ")
+	file := []string{"// A ledger posts entries oldest first.", "export function postBook(entries: Entry[]): void {", "  entries.forEach(post);", "}"}
+	for _, tc := range []struct {
+		fact    string
+		refused bool
+	}{
+		{"XMLLedger throws no error on a body it cannot parse, and returns a document holding an error element", true},
+		{"ISO writes a currency code as three letters", true},
+		{"In SWIFT a `valueDate` holds a date or a range of two dates", true},
+		{"on some platforms the bank refuses a deferred posting even where it holds the account", true},
+		{"the clearing vendor settles in one scheme and no other", true},
+		{"entries reach postBook oldest first, and postBook posts them in that order", false},
+	} {
+		archive := t.TempDir()
+		body, err := json.Marshal([]written{{Run: "run26", Rules: rulesSum(), Decl: strings.TrimSpace(file[1]),
+			Block: file[0], Record: "fact: " + tc.fact + "\nbears_on: postBook\ndoes: posts each entry\n"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(writtenName(archive, "ledger.ts"), body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		err = Carry(archive, "run26", "ledger.ts", file, 1, "the name postBook")
+		if refused := err != nil && strings.Contains(err.Error(), "a fact about the world stays at its site"); refused != tc.refused {
+			t.Errorf("%q: refused %v (%v), want %v", tc.fact, refused, err, tc.refused)
+		}
+		if !tc.refused && (err != nil || len(readCarried(archive, "ledger.ts")) != 1) {
+			t.Errorf("%q: the code fact was not carried: %v", tc.fact, err)
+		}
+	}
+}
+
+func TestACodeFactCitingTheFilesOwnNamesIsCarried(t *testing.T) {
+	file := "import { canPost } from './keys';\nexport class Book {\n  private readonly totalSum = 0;\n  static fromJson(text: string): Book { return new Book(); }\n}\n" +
+		"export function postBook({ valueDate }: Entry, entries: Entry[]): void {\n  if (entries.length === 0 && canPost(valueDate)) { return; }\n}\n"
+	for _, fact := range []string{"`entries` reach postBook oldest first", "`valueDate` decides the posting", "`canPost` answers for a scheme",
+		"`totalSum` and `fromJson` keep the book whole", "`entries.length === 0` ends the walk", "each entry's JSON holds its IDs and URL"} {
+		if got := worldNames(fact, file); got != "" {
+			t.Errorf("%q reads as a world fact by %s", fact, got)
+		}
+	}
+}
