@@ -64,6 +64,12 @@ func Carry(archive, run, path string, lines []string, at int, carrier string) er
 		if decl > len(lines) {
 			return fmt.Errorf("the block on line %d of %s sits on no code", u.Line, shell.Echoable(path))
 		}
+		if fact := writtenFact(archive, path, strings.TrimSpace(lines[decl-1]), blockText(lines, u)); fact != "" {
+			if outside := worldNames(fact, strings.Join(lines, "\n")); outside != "" {
+				return fmt.Errorf("the block's fact names %s, which this file does not declare: a name carries a fact "+
+					"about this code, and a fact about the world stays at its site; return `stays:` or rewrite the code", outside)
+			}
+		}
 		entry := carried{Run: run, Rules: rules, Decl: strings.TrimSpace(lines[decl-1]), ID: recordID(blockText(lines, u)),
 			Carrier: strings.TrimSpace(carrier)}
 		var kept []carried
@@ -291,3 +297,80 @@ func singleQuoted(text string) ([]string, string) {
 	}
 	return names, string(out)
 }
+
+// writtenFact is the fact line of the record the block was archived with: the record whose block is this
+// block, or else the latest under its declaration.
+func writtenFact(archive, path, decl, block string) string {
+	fact := ""
+	for _, w := range readWritten(archive, path) {
+		if w.Decl != decl && strings.TrimSpace(w.Block) != strings.TrimSpace(block) {
+			continue
+		}
+		if m := reFactSlot.FindStringSubmatch(w.Record); m != nil {
+			fact = strings.TrimSpace(m[1])
+			if strings.TrimSpace(w.Block) == strings.TrimSpace(block) {
+				return fact
+			}
+		}
+	}
+	return fact
+}
+
+var (
+	reFactSlot = regexp.MustCompile(`(?m)^\s*fact:\s*(.+)$`)
+	// reWorldWord is a word for the world outside the code.
+	reWorldWord = regexp.MustCompile(`(?i)\b(device|devices|browser|browsers|platform|platforms|spec|specification|vendor|library|firmware|webview|engine)\b`)
+	// reFactName is a name a fact cites: in backticks, camel or Pascal case, acronym-led, or an acronym.
+	reFactName = regexp.MustCompile("`([^`]+)`|\\b([A-Z]{2,}[a-z]\\w*|[a-z]+[A-Z]\\w*|[A-Z][a-z]+[A-Z]\\w*|[A-Z]{3,}[0-9]*)\\b")
+)
+
+// worldNames is what makes a fact one about the world, or empty for a fact about this code. It is a
+// name the fact cites that the file's code never spells, or a word for the world outside the code. A name
+// carries a fact about this code only. All five carries runs 20 and 26 recorded named a platform API, a file
+// format's rule or a vendor's key system, and each would have been refused.
+func worldNames(fact, file string) string {
+	code := codeWords(file)
+	for _, m := range reFactName.FindAllStringSubmatch(fact, -1) {
+		name := m[1] + m[2]
+		name, _, _ = strings.Cut(name, ".")
+		name, _, _ = strings.Cut(name, "(")
+		name = strings.TrimSpace(name)
+		if name == "" || code[name] || commonAcronyms[strings.TrimSuffix(strings.ToUpper(name), "S")] {
+			continue
+		}
+		return "`" + name + "`"
+	}
+	if w := reWorldWord.FindString(fact); w != "" {
+		return "the " + strings.ToLower(w)
+	}
+	return ""
+}
+
+// commonAcronyms are a programmer's own words. A vendor or a standard coins its acronyms, and a fact
+// citing a programmer's word is read by its other words.
+var commonAcronyms = map[string]bool{"ID": true, "URL": true, "URI": true, "JSON": true, "API": true,
+	"HTTP": true, "HTTPS": true, "HTML": true, "CSS": true, "UTF": true, "UUID": true, "SQL": true}
+
+// codeWords is every identifier the file's code spells, comments aside. A name the code spells is the
+// file's own, whether it declares it, takes it as a parameter or imports it.
+func codeWords(file string) map[string]bool {
+	lines := strings.Split(file, "\n")
+	comment := map[int]bool{}
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		for n := u.Line; n < u.Line+u.Span; n++ {
+			comment[n] = true
+		}
+	}
+	out := map[string]bool{}
+	for n, line := range lines {
+		if comment[n+1] {
+			continue
+		}
+		for _, w := range reCodeWord.FindAllString(line, -1) {
+			out[w] = true
+		}
+	}
+	return out
+}
+
+var reCodeWord = regexp.MustCompile(`[A-Za-z_$][\w$]*`)

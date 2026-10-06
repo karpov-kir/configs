@@ -80,6 +80,14 @@ func carriedStage(r *runner, opts options, returns []string) int {
 			fmt.Fprintf(r.stdout, "%s:%d carried by %s\n", file, at, carrier)
 		}
 	}
+	// The lane's own decisions are recorded, and an edit to a declaration an earlier lane settled is
+	// refused while the code under it held.
+	for file, ruled := range settleLane(runDir, archive, run, held["top"], returns) {
+		for _, edit := range ruled {
+			refused++
+			fmt.Fprintf(r.stdout, "%s refused: %s; revert the edit, or leave the declaration as it stood\n", file, edit)
+		}
+	}
 	// The lane changed code, and a later writer receives the tree it left.
 	if err := refreshDispatched(runDir, held["top"]); err != nil {
 		return r.refuse("%v", err)
@@ -108,4 +116,48 @@ func laneCommentEdits(snapshot, current string) ([]string, error) {
 		}
 	}
 	return edits, nil
+}
+
+// reStaysAt is a `stays:` verdict with its file and the line it names in the tree the writers left.
+var reStaysAt = regexp.MustCompile(`(?m)^\**Comment \d+/\d+ (\S+):(\d+) \| stays:`)
+
+// settleLane records the lane's decisions on each file of the change set and returns, by file, each
+// settled declaration the lane edited. The file as the lane received it is the writers' copy where
+// archive-written saved one, and the dispatched copy otherwise. The writers write comments only, so the
+// code under each declaration is the same in both.
+func settleLane(runDir, archive, run, top string, returns []string) map[string][]string {
+	stays := map[string][]int{}
+	for _, path := range returns {
+		body, _ := os.ReadFile(path)
+		for _, m := range reStaysAt.FindAllStringSubmatch(string(body), -1) {
+			at, _ := strconv.Atoi(m[2])
+			stays[filepath.Clean(m[1])] = append(stays[filepath.Clean(m[1])], at)
+		}
+	}
+	out := map[string][]string{}
+	// A run directory older than the dispatched copy holds only the writers' copy, as run 26's does.
+	root := dispatchedDir(runDir)
+	if _, err := os.Stat(root); err != nil {
+		root = writtenDir(runDir)
+	}
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		file, _ := filepath.Rel(root, path)
+		before, err := os.ReadFile(filepath.Join(writtenDir(runDir), file))
+		if err != nil {
+			before, _ = os.ReadFile(path)
+		}
+		after, err := os.ReadFile(filepath.Join(top, file))
+		if err != nil {
+			return nil
+		}
+		edits, err := commentstrip.Settle(archive, run, file, shell.SplitLines(string(before)), shell.SplitLines(string(after)), stays[file])
+		if err == nil && len(edits) > 0 {
+			out[file] = edits
+		}
+		return nil
+	})
+	return out
 }

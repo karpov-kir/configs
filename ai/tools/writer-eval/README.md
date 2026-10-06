@@ -389,3 +389,13 @@ Run 26 was the first full pass under the rules of item 44. It offered 172 sites 
 including those an earlier run had declined, and wrote 131 declined records again. Three writers,
 the lanes and one loop round read 41.9M tokens from cache and took 5,204 s. A change to the brief
 or to `comments.md` buys that pass, and a measurement here is what decides whether it is worth it.
+
+## Waiting for the next rules change
+
+A rules change reopens every block, so a change to the brief or to `comments.md` waits until one is
+due for another reason, and then lands with it.
+
+- A record slot naming what a fact is about, as in `about: world` or `about: code`. The carried stage
+  refuses a name carrying a fact about the world, and it reads that by the fact's words. It reads a
+  vendor or a format named in plain words as a fact about the code, so such a carry gets through. The
+  writer knows which kind of fact it wrote, and the slot would let the stage read it.

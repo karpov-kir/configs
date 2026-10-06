@@ -80,6 +80,18 @@ func seed(r *runner, opts options, _ []string) int {
 	if err := copyFiles(top, files, dispatchedDir(runDir)); err != nil {
 		return r.refuse("%v", err)
 	}
+	// The refactor lane's prompt carries the declarations an earlier lane settled, as ones to leave.
+	settled := settledHeader
+	for _, file := range files {
+		if body, err := os.ReadFile(filepath.Join(top, file)); err == nil {
+			for _, line := range commentstrip.SettledHolding(archive, file, shell.SplitLines(string(body))) {
+				settled += line + "\n"
+			}
+		}
+	}
+	if err := os.WriteFile(filepath.Join(runDir, "settled.txt"), []byte(settled), 0o644); err != nil {
+		return r.refuse("cannot write %s", shell.Echoable(filepath.Join(runDir, "settled.txt")))
+	}
 	kept := strings.Count(errs.String(), commentstrip.KeptLine)
 	run := fmt.Sprintf("top=%s\nbase=%s\nhead=%s\narchive=%s\n", top, base, headSha, archive)
 	for name, body := range map[string]string{"run.txt": run, "sites.txt": strings.Join(sites, ""), "strip.err": errs.String()} {
@@ -325,3 +337,7 @@ func copyTree(from, to string) error {
 	}
 	return nil
 }
+
+// settledHeader opens the list the refactor lane's prompt carries.
+const settledHeader = "# Declarations an earlier refactor lane settled, whose code still holds. Leave each as it stands;\n" +
+	"# the carried stage refuses an edit to one.\n"
