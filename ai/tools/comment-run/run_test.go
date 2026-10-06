@@ -805,7 +805,8 @@ func TestACarriedBlockStaysCarriedWhileItsCarrierStands(t *testing.T) {
 		t.Fatalf("the carried site was offered again: exit %d\n%s%s", said.code, said.stdout, said.stderr)
 	}
 	if said := c.run("keep-test", "--archive="+archive, "ledger.ts"); said.code != exitClean ||
-		!strings.Contains(said.stdout, "carried by `ASKS_ONCE_PER_SCHEME` as run16 left it") {
+		!strings.Contains(said.stdout, "carried by `ASKS_ONCE_PER_SCHEME` as run16 left it") ||
+		!strings.Contains(said.stderr, "0 of 0 block(s) kept, 0 to rewrite, 1 carried into code") {
 		t.Fatalf("keep-test: exit %d %s%s", said.code, said.stdout, said.stderr)
 	}
 	// With the carrier gone, the site is offered again.
@@ -993,6 +994,34 @@ func TestArchiveWrittenRefusesACommentInsideAFencedBody(t *testing.T) {
 	}
 	said := c.run("archive-written", "--run=run26", "--archive="+t.TempDir(), ret)
 	if said.code != exitFindings || !strings.Contains(said.stdout, "no comment line before the code") {
+		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
+	}
+}
+
+// Run 26's writer A answered a type's site as written and put the block on a constant. The site kept
+// no record of its own, and archive-written refuses that verdict with the shape a move takes.
+func TestArchiveWrittenRefusesABlockMovedOffItsSite(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	if said := c.run("prompts", "--run-dir="+runDir); said.code != exitClean {
+		t.Fatalf("prompts: exit %d %s%s", said.code, said.stdout, said.stderr)
+	}
+	sites, _ := os.ReadFile(filepath.Join(runDir, "sites.txt"))
+	site := regexp.MustCompile(`ledger\.ts:(\d+)`).FindStringSubmatch(string(sites))
+	if site == nil {
+		t.Fatalf("no ledger.ts site in %s", sites)
+	}
+	note := "// A ledger build answers for its own scheme only, so the other entry asks it once per scheme."
+	body, _ := os.ReadFile(filepath.Join(c.top, "ledger.ts"))
+	c.write("ledger.ts", strings.Replace(string(body), "export function other() {}", note+"\nexport function other() {}", 1))
+	if err := os.WriteFile(returnFile(runDir, "A"), []byte("Block 1/1 ledger.ts:"+site[1]+" | OK\n```ts\n"+note+"\nexport function other() {}\n```\n"+
+		"summary: none\nnote: written\nfact: a ledger build answers for its own scheme only\nbears_on: other\ndoes: none\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said := c.run("archive-written", "--run=run26", "--archive="+archive, "--run-dir="+runDir)
+	if said.code != exitFindings || !strings.Contains(said.stdout, "not on the declaration offered") ||
+		!strings.Contains(said.stdout, "moved to ledger.ts:1") {
 		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }

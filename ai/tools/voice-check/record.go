@@ -192,6 +192,11 @@ func RecordFindings(file string, lines []string) []Finding {
 	held := readSlots(record)
 	block, body := blockAndBody(under)
 	at := len(record) + 1
+	// A summary-only block's record says so in its summary and note lines, and reads clean. Run 26's
+	// loop writer met a slot finding on one, then checked it with --source and without its record.
+	if summaryOnly(record) {
+		return nil
+	}
 
 	var out []Finding
 	for _, slot := range recordSlots {
@@ -344,4 +349,16 @@ func spellsTheName(name, text string) bool {
 		}
 	}
 	return true
+}
+
+// summaryOnly says the record is a summary-only block's: `note: none` with `summary: written`, and no
+// fact.
+func summaryOnly(record []string) bool {
+	parts := map[string]string{}
+	for _, line := range record {
+		if name, value, cut := strings.Cut(line, ":"); cut {
+			parts[strings.ToLower(strings.TrimSpace(name))] = strings.ToLower(strings.TrimSpace(value))
+		}
+	}
+	return parts["note"] == "none" && parts["summary"] == "written" && (parts["fact"] == "" || parts["fact"] == "none")
 }

@@ -396,3 +396,54 @@ func TestACarrierOutsideGitStandsOnTheSourceFileAlone(t *testing.T) {
 		t.Fatal("a name a test file spells stood outside git")
 	}
 }
+
+// A possessive's apostrophe opens no quote. Run 27 read "the representation's value before the
+// adaptation set's" as citing a name between the two apostrophes, found it nowhere, and offered a site
+// whose carrier stood.
+func TestAPossessiveIsNoQuotedCarrierName(t *testing.T) {
+	names := carrierNames("the name inheritedAttribute and its one-line body, the representation's value before the adaptation set's; block deleted")
+	if len(names) != 1 || names[0] != "inheritedAttribute" {
+		t.Fatalf("names %q, want only inheritedAttribute", names)
+	}
+	if got := carrierNames("the check named 'refuses a cbcs posting' and `ASKS_ONCE`"); len(got) != 2 {
+		t.Fatalf("a quoted name and a code span read as %q", got)
+	}
+}
+
+// A carried claim the loop wrote again on the carrier's own declaration is named where it stands.
+func TestABlockOnTheCarrierIsNamed(t *testing.T) {
+	lines := []string{"// A ledger answers with an error element.", "const PARSE_FAILURE = 'parsererror';", "", "if (found(PARSE_FAILURE)) {", "}"}
+	if name, at := blockOnCarrier(lines, "the constant name PARSE_FAILURE, read by the failed-parse check; block deleted"); name != "PARSE_FAILURE" || at != 1 {
+		t.Fatalf("named %q at %d", name, at)
+	}
+	if _, at := blockOnCarrier(lines[1:], "the constant name PARSE_FAILURE"); at != 0 {
+		t.Fatalf("a declaration with no block read as one at %d", at)
+	}
+}
+
+// A declaration text a file repeats reads at the line whose code a decline of the record's claims
+// holds. Run 27 read a run 26 decline of one catalog row against another row with the same text.
+func TestARepeatedDeclarationReadsAtItsDeclinedRow(t *testing.T) {
+	lines := []string{"const catalog = {", "  avc: {", "    [Scheme.Cbcs]: {", "      source: 'avc',", "    },", "  },",
+		"  vp9: {", "    [Scheme.Cbcs]: {", "      source: 'vp9',", "    },", "  },", "};"}
+	record := archived{name: "r", line: 8, decl: "[Scheme.Cbcs]: {", claims: "A ledger posts no cbcs avc.\n"}
+	if at := placeRecord(lines, record, nil, "rules", 8); at != 8 {
+		t.Fatalf("with no decline the nearest row reads %d, want 8", at)
+	}
+	declines := []declined{{Run: "run26", Rules: "rules", Decl: record.decl, Span: siteSpan(lines, 3), Claims: claimsSum(record.claims)}}
+	if at := placeRecord(lines, record, declines, "rules", 8); at != 3 {
+		t.Fatalf("the declined row reads %d, want 3", at)
+	}
+}
+
+// A declaration rewritten under its name reads at the new declaration. A member folded into another
+// type reads at the file level.
+func TestARewrittenDeclarationReadsAtItsName(t *testing.T) {
+	lines := []string{"import { a } from './a';", "", "export type Played = Pick<Config, 'width'>;"}
+	if at := placeRecord(lines, archived{decl: "export interface Played extends Pick<Config, 'width'> {", line: 5}, nil, "rules", 1); at != 3 {
+		t.Fatalf("the interface's record reads %d, want 3", at)
+	}
+	if at := placeRecord(lines, archived{decl: "width: number;", line: 6}, nil, "rules", 1); at != fileLevel {
+		t.Fatalf("the member's record reads %d, want the file level", at)
+	}
+}

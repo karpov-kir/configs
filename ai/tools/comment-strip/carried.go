@@ -85,8 +85,11 @@ func Carry(archive, run, path string, lines []string, at int, carrier string) er
 }
 
 var (
-	reCarrierSpan  = regexp.MustCompile("`([^`]+)`")
-	reCarrierQuote = regexp.MustCompile(`'([^']{3,})'|"([^"]{3,})"`)
+	reCarrierSpan = regexp.MustCompile("`([^`]+)`")
+	// A quote opens after a space or a mark and closes before one, so the apostrophes of
+	// "representation's value before the adaptation set's" are no quote. Run 27 read that carrier as
+	// citing "s value before the adaptation set", found it nowhere, and offered the carried site.
+	reCarrierQuote = regexp.MustCompile(`(?:^|[^\w'])'([^']{3,})'(?:[^\w]|$)|"([^"]{3,})"`)
 	reCarrierName  = regexp.MustCompile(`\b[A-Za-z_$][\w$]*(?:[A-Z_][\w$]*|\.[A-Za-z_$][\w$]*)\b`)
 )
 
@@ -239,4 +242,20 @@ func Withdraw(archive, run, path string) (int, error) {
 		return 0, err
 	}
 	return removed, os.WriteFile(carriedName(archive, path), append(body, '\n'), 0o644)
+}
+
+// blockOnCarrier is a name the carrier cites whose declaration in the file has a block on it, and that
+// block's first line. Run 26's loop wrote a block on the constant a carried claim had moved into, and
+// the strip went on saying the block was deleted. The strip names that block where it stands. A
+// carrier may cite several names, so the block is not read as the carried claim.
+func blockOnCarrier(lines []string, carrier string) (string, int) {
+	for _, name := range carrierNames(carrier) {
+		declares := regexp.MustCompile(`^\s*(?:export\s+)?(?:const|let|var|function|class|type|interface|enum)\s+` + regexp.QuoteMeta(name) + `\b`)
+		for _, u := range readerjudge.CommentBlocks(lines) {
+			if decl := declarationUnder(lines, u); decl <= len(lines) && declares.MatchString(lines[decl-1]) {
+				return name, u.Line
+			}
+		}
+	}
+	return "", 0
 }

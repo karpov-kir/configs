@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	commentstrip "configs/ai/tools/comment-strip"
 	readerjudge "configs/ai/tools/reader-judge"
 )
 
@@ -87,4 +88,50 @@ func refreshDispatched(runDir, top string) error {
 		return err
 	}
 	return copyFiles(top, files, root)
+}
+
+// movedFrom is the declaration under the block at `at` where the site the verdict names was offered on
+// another declaration. It reads only a site the round offered on a declaration, with its offered
+// records beside its facts.
+func (r *runner) movedFrom(runDir, ret, file, site string, at int) (string, bool) {
+	if runDir == "" || site == "0" {
+		return "", false
+	}
+	facts, err := factsBySite(runDir, ret)
+	if err != nil {
+		return "", false
+	}
+	factsPath, found := facts[file+":"+site]
+	if !found {
+		return "", false
+	}
+	offered := commentstrip.ReadOffered(factsPath)
+	if len(offered) == 0 {
+		return "", false
+	}
+	read := file
+	r.absolute(&read)
+	raw, err := os.ReadFile(read)
+	if err != nil {
+		return "", false
+	}
+	lines := strings.Split(string(raw), "\n")
+	decl := ""
+	for _, u := range readerjudge.CommentBlocks(lines) {
+		if u.Line != at {
+			continue
+		}
+		for n := u.Line + u.Span; n <= len(lines); n++ {
+			if text := strings.TrimSpace(lines[n-1]); text != "" {
+				decl = text
+				break
+			}
+		}
+	}
+	for _, o := range offered {
+		if o.Decl == decl {
+			return "", false
+		}
+	}
+	return decl, decl != ""
 }

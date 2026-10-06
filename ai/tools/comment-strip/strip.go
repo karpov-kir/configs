@@ -336,10 +336,25 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 				continue
 			}
 			if _, gone := carriedAt[record.decl]; record.decl != "" && gone {
-				fmt.Fprintf(stderr, "%s: %s carried by %s, so its site is not offered\n", path, record.decl, carriedAt[record.decl].Carrier)
+				carrier := carriedAt[record.decl].Carrier
+				if name, at := blockOnCarrier(lines, carrier); at > 0 {
+					fmt.Fprintf(stderr, "%s: %s carried by %s; a block stands on %s at :%d, a name the carrier cites, so its site is not offered\n",
+						path, record.decl, carrier, name, at)
+					continue
+				}
+				fmt.Fprintf(stderr, "%s: %s carried by %s, so its site is not offered\n", path, record.decl, carrier)
 				continue
 			}
-			at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(height, 1)))
+			at := placeRecord(lines, record, declines, rules, min(max(record.line, 1), max(height, 1)))
+			// A record whose declaration was rewritten under the same name reads at the new declaration.
+			// Where a block stands there, that block was written for the claim and the record is spent.
+			// Run 26's lane turned `interface PlayedRepresentation` into a type alias, the loop wrote the
+			// alias's block, and run 27 offered the interface's records at the file's head.
+			if only == nil && at > 0 && at <= height && strings.TrimSpace(lines[at-1]) != record.decl &&
+				keptDecls[strings.TrimSpace(lines[at-1])] {
+				fmt.Fprintf(stderr, "%s:%d: %s%s\n", path, at, record.decl, SupersededLine)
+				continue
+			}
 			if only != nil && !only[at] {
 				continue
 			}
@@ -570,27 +585,66 @@ func recordSites(records []archived, sites []site, shared map[string]bool, narro
 	return at
 }
 
-// declarationLine is where a record's declaration stands in the file now. A record keeping no
-// declaration gives up `fallback`, its recorded line. Where the file holds the declaration nowhere, it
-// gives up fileLevel, the site line meaning none. The recorded line of a renamed declaration is a
-// brace, a blank or another declaration by then, and run 8 put 30 records there.
-func declarationLine(lines []string, decl string, recorded, fallback int) int {
-	if decl == "" {
+// SupersededLine closes the strip's line for a record whose declaration the lane rewrote under its
+// name. A block stands on the new declaration.
+const SupersededLine = " now reads as the declaration here, and the block standing on it supersedes the record"
+
+// placeRecord is the line a record's site reads at. A catalog repeats a row's text under each codec, so
+// a repeated text reads at the row a decline of the record's claims holds, then at the nearest row. Run
+// 27 read a run 26 decline against the wrong row. A vanished text reads at a declaration of its name,
+// then at the file level.
+func placeRecord(lines []string, record archived, declines []declined, rules string, fallback int) int {
+	if record.decl == "" {
 		return fallback
 	}
-	at := 0
+	var candidates []int
 	for n, line := range lines {
-		if strings.TrimSpace(line) != decl {
-			continue
-		}
-		if at == 0 || abs(n+1-recorded) < abs(at-recorded) {
-			at = n + 1
+		if strings.TrimSpace(line) == record.decl {
+			candidates = append(candidates, n+1)
 		}
 	}
-	if at == 0 {
+	// A record a file-level decline holds stays at the file level, where it was decided.
+	if len(candidates) == 0 && declinedBy(declines, record, siteSpan(lines, fileLevel), rules) != "" {
 		return fileLevel
 	}
+	if len(candidates) == 0 {
+		if name := declaredNameOf(record.decl); name != "" {
+			for n, line := range lines {
+				if declaredNameOf(strings.TrimSpace(line)) == name {
+					candidates = append(candidates, n+1)
+				}
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return fileLevel
+	}
+	if len(candidates) > 1 {
+		for _, at := range candidates {
+			if declinedBy(declines, record, siteSpan(lines, at), rules) != "" {
+				return at
+			}
+		}
+	}
+	at := candidates[0]
+	for _, n := range candidates {
+		if abs(n-record.line) < abs(at-record.line) {
+			at = n
+		}
+	}
 	return at
+}
+
+// reDeclares is a top declaration and the name it declares.
+var reDeclares = regexp.MustCompile(`^(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?` +
+	`(?:function\*?|class|const|let|var|type|interface|enum)\s+([A-Za-z_$][\w$]*)`)
+
+// declaredNameOf is the name a top declaration declares, or empty for any other line.
+func declaredNameOf(decl string) string {
+	if m := reDeclares.FindStringSubmatch(decl); m != nil {
+		return m[1]
+	}
+	return ""
 }
 
 // fileLevel is the site line of a claim whose declaration left the file. The writer places such a

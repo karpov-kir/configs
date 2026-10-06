@@ -274,3 +274,15 @@ func TestAStemInsideABacktickedPathIsNoBareName(t *testing.T) {
 		t.Error("a humped name inside a member access passes as a path")
 	}
 }
+
+// A summary-only block's record reads clean. Run 26's loop writer met a slot finding on one, then
+// checked it with --source and without its record.
+func TestASummaryOnlyRecordReadsClean(t *testing.T) {
+	part := "summary: written\nnote: none\n---\n// Tells whether a ledger posts in the scheme.\nexport function posts(scheme: string): boolean {\n  return true;\n}"
+	if got := RecordFindings("-", shell.SplitLines(part)); len(got) != 0 {
+		t.Fatalf("a summary-only record reports %v", checksOf(got))
+	}
+	if got := checksOf(RecordFindings("-", shell.SplitLines("note: written\n---\n// A ledger posts.\nexport const X = 1;"))); !slices.Contains(got, checkRecordSlot) {
+		t.Fatalf("a note's record with no slots reports %v", got)
+	}
+}
