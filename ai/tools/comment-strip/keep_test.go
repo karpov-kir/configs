@@ -483,3 +483,61 @@ func TestADeclineHoldsARecordWhoseDeclarationLeft(t *testing.T) {
 		t.Fatalf("a decline under other rules held by %q", run)
 	}
 }
+
+// A written block settles every record offered at its site. A writer weighs each claim in front of it,
+// so a claim it neither wrote nor declined is answered by the block it wrote. A record whose declaration
+// left the file, settled so, is held and offered no more.
+func TestABlockSettlesEveryRecordOfferedAtItsSite(t *testing.T) {
+	rulesHome(t, "rules one ")
+	f := newFixture(t, "f.go", "// A ledger posts each amount in cents.\nconst AMOUNT_PLACES = 2\n\n// A ledger closes a book at midnight.\nconst CLOSE_HOUR = 0\n")
+	archive := filepath.Join(f.dir, "archive")
+	f.cut("--archive=" + archive)
+	records, err := readArchive(archive, f.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var settles []string
+	for _, r := range records {
+		if r.decl == "const AMOUNT_PLACES = 2" {
+			settles = append(settles, claimsSum(r.claims))
+		}
+	}
+	if len(settles) != 1 {
+		t.Fatalf("no record on amount: %+v", records)
+	}
+	// The lane folds the amount constant away, and the writer answers its claim in the block on the hour.
+	f.write("// A ledger closes a book at midnight, in cents.\nconst CLOSE_HOUR = 0\n")
+	record := filepath.Join(f.dir, "record.txt")
+	if err := os.WriteFile(record, []byte("fact: a ledger closes a book at midnight\nbears_on: CLOSE_HOUR\ndoes: none\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut strings.Builder
+	if code := Strip("comment-strip.sh", []string{"--archive=" + archive, "--written=run26", f.path, "2", record},
+		f.dir, noRepository, &out, &errOut); code != exitClean {
+		t.Fatalf("written: exit %d: %s", code, errOut.String())
+	}
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	// The strip records what it offers in the archive it reads, so the run without the settling reads a
+	// copy.
+	copied := filepath.Join(f.dir, "archive-copy")
+	if out, err := exec.Command("cp", "-R", archive, copied).CombinedOutput(); err != nil {
+		t.Fatalf("cp: %v %s", err, out)
+	}
+	before := f.run("--archive=" + copied)
+	if !strings.Contains(before.stdout, ":0 ") {
+		t.Fatalf("without the settling, the amount record is offered at the file level: exit %d\n%s%s", before.code, before.stdout, before.stderr)
+	}
+	f.write("// A ledger closes a book at midnight, in cents.\nconst CLOSE_HOUR = 0\n")
+	if err := os.RemoveAll(f.facts); err != nil {
+		t.Fatal(err)
+	}
+	if err := SettleAt(archive, f.path, strings.Split(string(mustRead(t, f.path)), "\n"), 1, settles); err != nil {
+		t.Fatal(err)
+	}
+	after := f.run("--archive=" + archive)
+	if strings.Contains(after.stdout, ":0 ") || !strings.Contains(after.stderr, "settled by the block standing at :1") {
+		t.Fatalf("the settled record: exit %d\n%s%s", after.code, after.stdout, after.stderr)
+	}
+}

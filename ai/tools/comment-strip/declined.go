@@ -77,8 +77,8 @@ func declinedBy(held []declined, record archived, span, rules string) string {
 
 // OfferedRecords names the archived records of path whose claims a facts file carried, and of those the
 // records holding the site's own claims, its first block. A `none` declines every claim the writer
-// weighed there. A block written settles only the site's own claims: a claim offered beside them as an
-// earlier run's belongs to a declaration of its own.
+// weighed there, and a block written settles every one of them too: the writer weighed each claim in
+// front of it, and the block is its answer.
 func OfferedRecords(archive, path, facts string) (all, own []string, err error) {
 	records, err := readArchive(archive, path)
 	if err != nil {
