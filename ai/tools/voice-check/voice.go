@@ -529,7 +529,7 @@ func isProseLine(stripped string) bool {
 // scanner holds one run's settings so every profile reaches the same checks.
 type scanner struct {
 	profile Profile
-	// private is the owner's private-name list, read in every profile.
+	// private is the owner's private-name list. Every profile reads it.
 	private privateNames
 	// coined is words a caller names beside the built-in ones. No run names any: a repository keeps no
 	// word list. The suite does, to reach the checks with a word of its own.
@@ -867,7 +867,7 @@ func (s scanner) scanSegment(file string, seg segment) []Finding {
 		found = append(found, Finding{File: file, Line: first, Check: check,
 			Text: strings.TrimSpace(text[from:to])})
 	}
-	// A private name is reported by the entry's line in the list, never by the words it matched.
+	// A private name is reported by the entry's line in the list. The finding holds none of its words.
 	for _, name := range s.private {
 		if at := name.re.FindStringIndex(text); at != nil {
 			first, _ := seg.lineSpan(at[0], at[1])

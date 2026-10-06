@@ -72,7 +72,7 @@ func (c console) refuseArguments(err error) int {
 
 type Config struct {
 	MaxFileBytes int64
-	// PrivateNames is the owner's list of names no public text may hold, outside every repository.
+	// PrivateNames is the owner's list of names kept out of public text, outside every repository.
 	PrivateNames string
 }
 

@@ -33,7 +33,7 @@ func TestTheOwnerRunCreatesTheListAndSetsTheHooks(t *testing.T) {
 	f.ExpectFileBody(list, filled)
 }
 
-// The commit-msg hook refuses a message holding an entry, and names the entry's line, not its text.
+// The commit-msg hook refuses a message holding an entry, and names the entry by its line in the list.
 func TestTheCommitMessageHookRefusesAPrivateName(t *testing.T) {
 	top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
 	if err != nil {

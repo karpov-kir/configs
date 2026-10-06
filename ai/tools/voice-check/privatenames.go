@@ -12,17 +12,17 @@ import (
 )
 
 // A public repository was handed a private codebase's file names and identifiers in a pull request's
-// commits, tests and body, and no check read them. The owner keeps a list of names that must never
-// leave the machine, outside every repository, and this scan refuses any text holding one. A finding
-// names the entry by its line in the list and the place, and never the text, so it leaks nothing.
+// commits, tests and body, and every check passed them. The owner keeps a list of names that stay on
+// the machine, outside every repository, and this scan refuses any text holding one. A finding names
+// the entry by its line in the list and the place, so the report holds none of the words.
 
 const checkPrivateName = "private-name"
 
 // privateNamesEnv names a list in place of the owner's, for a test or a second list.
 const privateNamesEnv = "KK_PRIVATE_NAMES"
 
-// PrivateNamesPath is where the owner's list lives: under the user's config directory and never inside
-// a repository, so no commit can carry it.
+// PrivateNamesPath is where the owner's list lives. It sits under the user's config directory, outside
+// every repository, so a commit has it out of reach.
 func PrivateNamesPath(lookup func(string) (string, bool)) string {
 	if path, ok := lookup(privateNamesEnv); ok && path != "" {
 		return path
@@ -36,12 +36,9 @@ func PrivateNamesPath(lookup func(string) (string, bool)) string {
 }
 
 // PrivateNamesHeader opens a new list. The list starts with no entries, and its owner fills it.
-const PrivateNamesHeader = `# Names that must never reach a public repository: file names, identifiers, product and package
-# names of private work. One entry per line. A plain entry matches as a whole word, in any case.
-# An entry opening on "re:" is a regular expression. Lines opening on "#" are comments.
-#
-# The register scan, the gate and the configs checkout's commit-msg and pre-push hooks read this
-# file. A match is reported by the entry's line here and the place it was found, never by its text.
+const PrivateNamesHeader = `# Private names kept out of public repositories, one per line: a whole word in any case, or
+# "re:" and a regular expression. Lines opening on "#" are comments. The register scan, the gate
+# and the configs hooks read this file, and a match is reported by the entry's line here.
 `
 
 // privateName is one entry of the owner's list, compiled, with the line it stands on.
@@ -97,7 +94,7 @@ func (names privateNames) hits(text string) []int {
 	return out
 }
 
-// privateNameText is a finding's text: the entry's line in the list and nothing of its words.
+// privateNameText is a finding's text: the entry's line in the list, with none of its words.
 func privateNameText(line int) string {
 	return fmt.Sprintf("the entry on line %d of the private-name list", line)
 }
@@ -168,7 +165,7 @@ func privateRange(cwd, revisions string, names privateNames) ([]string, []string
 			at++
 		}
 	}
-	// A bare revision is the work not yet committed, and it has no message of its own.
+	// A bare revision is the work not yet committed, and its diff is all there is to read.
 	if !strings.Contains(revisions, "..") {
 		return lines, nil, nil
 	}

@@ -500,8 +500,8 @@ func (g *gate) quote(line string) {
 	fmt.Fprintf(g.out, "              %s\n", line)
 }
 
-// privateNamesCmd reads the branch against main and then the uncommitted work. A branch with no main to
-// diff against reads its uncommitted work alone.
+// privateNamesCmd reads the branch against main and then the uncommitted work. Where main is missing it
+// reads the uncommitted work.
 const privateNamesCmd = `scan=ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh; ` +
 	`if git rev-parse --verify -q origin/main >/dev/null; then "$scan" --private-names origin/main...HEAD || exit; fi; ` +
 	`"$scan" --private-names HEAD`

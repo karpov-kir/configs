@@ -3,8 +3,8 @@
 # commit message it holds. A commit-msg hook reads a message once, and a message amended after it
 # or a commit made elsewhere is read here.
 #
-#   usage: pre-push <remote> <url>   (git calls it, with the refs on stdin; bootstrap sets
-#          core.hooksPath to ai/hooks)
+#   usage: pre-push <remote> <url>   (git calls it, with the refs on stdin. Bootstrap points the
+#          checkout's hooks at ai/hooks)
 #
 # tested by: the Go suite in ai/tools/ai-bootstrap/.
 set -euo pipefail

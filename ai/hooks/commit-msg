@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Refuse a commit whose message holds a name from the owner's private-name list. The list lives
-# outside every repository (`${XDG_CONFIG_HOME:-~/.config}/kk-flavor/private-names.txt`), and a
-# refusal names the entry's line there, never its text.
+# outside every repository (`${XDG_CONFIG_HOME:-~/.config}/kk-flavor/private-names.txt`). A refusal
+# names the entry by its line there, so the refusal itself holds none of the words.
 #
 #   usage: commit-msg <message file>   (git calls it; bootstrap sets core.hooksPath to ai/hooks)
 #

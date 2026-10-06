@@ -24,7 +24,7 @@ func (run *invocation) privateNamesList() string {
 // guardPrivateNames creates the owner's private-name list where none stands and points this checkout's
 // git hooks at the ones that read it. The configs repository is public, and a pull request once carried
 // a private codebase's names that no check read. The register scan and the gate read the list on their
-// own; the hooks reach the commit message the gate runs before and a push of commits made elsewhere.
+// own. The hooks reach a commit's message, which the gate runs before, and commits made elsewhere.
 func (run *invocation) guardPrivateNames() {
 	if !run.isOwner {
 		return
