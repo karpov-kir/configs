@@ -88,6 +88,7 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 				end = starts[n+1][0]
 			}
 			file, site := text[m[2]:m[3]], text[m[4]:m[5]]
+			offeredSite := site
 			if file == "" {
 				file = lastFile
 			}
@@ -115,6 +116,14 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 			if why != "" {
 				refused++
 				fmt.Fprintf(r.stdout, "%s:%s refused: %s\n", file, site, why)
+				continue
+			}
+			// Run 26's writer A answered a type's site as written and put the block on a constant, and the
+			// offered site kept no record of its own.
+			if decl, moved := r.movedFrom(runDir, path, file, offeredSite, at); moved {
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%s refused: the block stands at :%d on `%s`, not on the declaration offered; %s\n",
+					file, offeredSite, at, shell.CutBytesMarked(decl, 80), movedShape(file, at))
 				continue
 			}
 			record := filepath.Join(records, fmt.Sprintf("%d-%d.record", n, archived))
@@ -181,6 +190,13 @@ func writtenDir(runDir string) string {
 // block, and each member is an entry of its own. The members check's finding says it in these words.
 const membersShape = "where a note moves onto the members it tells apart, the offered site returns `none` with the line " +
 	"`moved to its members`, and each member is an entry of its own, with its own line, block and record"
+
+// movedShape is the return for a block moved to the declaration its claim is about. The offered site
+// returns `none` with a line naming where the block went, and the new site is an entry of its own.
+func movedShape(file string, at int) string {
+	return fmt.Sprintf("return the offered site as `none` with the line `moved to %s:%d`, and give :%d an entry of its own, "+
+		"with its own line, block and record", file, at, at)
+}
 
 const verdictShape = "`Block N/M <path>:<offered line> | OK`, as in `Block 2/16 src/ledger.ts:64 | OK`"
 

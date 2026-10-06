@@ -170,7 +170,7 @@ func Decide(archive, run, tree, path string, names []string, isDeclined bool) (i
 			}
 			continue
 		}
-		at := declarationLine(lines, record.decl, record.line, min(max(record.line, 1), max(len(lines), 1)))
+		at := placeRecord(lines, record, readDeclined(archive, path), rules, min(max(record.line, 1), max(len(lines), 1)))
 		if at > len(lines) {
 			continue
 		}
@@ -322,9 +322,10 @@ func RecordsAtSite(archive, path string, stripped []string, line int) ([]string,
 	if err != nil {
 		return nil, err
 	}
+	declines, rules := readDeclined(archive, path), rulesSum()
 	var names []string
 	for _, record := range records {
-		if declarationLine(stripped, record.decl, record.line, min(max(record.line, 1), max(len(stripped), 1))) == line {
+		if placeRecord(stripped, record, declines, rules, min(max(record.line, 1), max(len(stripped), 1))) == line {
 			names = append(names, record.name)
 		}
 	}

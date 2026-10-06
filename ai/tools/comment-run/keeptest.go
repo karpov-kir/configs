@@ -21,7 +21,7 @@ func keepTest(r *runner, opts options, paths []string) int {
 	if top, err := git(r.cwd, "rev-parse", "--show-toplevel"); err == nil {
 		root = top
 	}
-	kept, total := 0, 0
+	kept, total, carried := 0, 0, 0
 	for _, path := range paths {
 		read := path
 		r.absolute(&read)
@@ -30,9 +30,10 @@ func keepTest(r *runner, opts options, paths []string) int {
 			return r.refuse("cannot read %s", shell.Echoable(path))
 		}
 		lines := shell.SplitLines(string(raw))
+		// A carried block stands nowhere, so it counts apart from the blocks kept. Run 26's final keep
+		// test counted its two carried deletions as kept blocks.
 		for _, c := range commentstrip.CarriedVerdicts(archive, path, root, read, lines) {
-			total++
-			kept++
+			carried++
 			fmt.Fprintf(r.stdout, "%s: %s carried by %s as %s left it\n", path, c.Decl, c.Carrier, c.Run)
 		}
 		for _, v := range commentstrip.KeepVerdicts(archive, path, lines) {
@@ -45,7 +46,7 @@ func keepTest(r *runner, opts options, paths []string) int {
 			fmt.Fprintf(r.stdout, "%s:%d rewrite: %s\n", path, v.Line, v.Reopened)
 		}
 	}
-	fmt.Fprintf(r.stderr, "%s: %d of %d block(s) kept, %d to rewrite\n", r.self, kept, total, total-kept)
+	fmt.Fprintf(r.stderr, "%s: %d of %d block(s) kept, %d to rewrite, %d carried into code\n", r.self, kept, total, total-kept, carried)
 	if kept < total {
 		return exitFindings
 	}
