@@ -366,7 +366,7 @@ func Strip(self string, args []string, cwd string, git repo.Git, stdout, stderr 
 			// `--lines` strip is a review sending the site back, and it offers the site whatever was declined.
 			// The record stays held at its line, so a site offered there still carries its claims.
 			if only == nil && at <= height {
-				if run := declinedBy(declines, record, siteSpan(lines, at), rules); run != "" {
+				if run := heldDecline(declines, record, lines, at, rules); run != "" {
 					fmt.Fprintf(stderr, "%s:%d: declined as %s%s\n", path, at, run, DeclinedLine)
 					continue
 				}

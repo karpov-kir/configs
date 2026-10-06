@@ -352,3 +352,25 @@ func RulesOfRun(archive, run string) string {
 	}
 	return ""
 }
+
+// heldDecline is the run whose decline holds the record at line `at`. A record whose declaration left
+// the file reads at the file level. A decline of its claims on that declaration then holds it at any
+// span, since the code that decline weighed is gone. Run 26 declined
+// two member records, the lane folded the member into another type, and run 28 offered them again.
+func heldDecline(held []declined, record archived, lines []string, at int, rules string) string {
+	if run := declinedBy(held, record, siteSpan(lines, at), rules); run != "" || at != fileLevel || record.decl == "" {
+		return run
+	}
+	for _, line := range lines {
+		if strings.TrimSpace(line) == record.decl {
+			return ""
+		}
+	}
+	claims := claimsSum(record.claims)
+	for _, d := range held {
+		if sameRules(d.Rules, rules) && d.Decl == record.decl && d.Claims == claims {
+			return d.Run
+		}
+	}
+	return ""
+}

@@ -464,3 +464,22 @@ func TestANameIsReadFromATopDeclaration(t *testing.T) {
 		t.Fatalf("two quoted names read as %q", got)
 	}
 }
+
+// A record whose declaration the file no longer holds is held by a decline of its claims at any span.
+// Run 26 declined two member records, the lane folded the member into another type, and run 28 offered
+// them again at the file level.
+func TestADeclineHoldsARecordWhoseDeclarationLeft(t *testing.T) {
+	lines := []string{"export type Posted = Pick<Entry, 'amount'>;"}
+	record := archived{name: "r", line: 3, decl: "amount: number;", claims: "A ledger posts amounts in cents.\n"}
+	declines := []declined{{Run: "run26", Rules: "rules", Decl: record.decl, Span: "member-span", Claims: claimsSum(record.claims)}}
+	if run := heldDecline(declines, record, lines, fileLevel, "rules"); run != "run26" {
+		t.Fatalf("held by %q, want run26", run)
+	}
+	// Where the declaration still stands, its span decides.
+	if run := heldDecline(declines, record, append(lines, "amount: number;"), fileLevel, "rules"); run != "" {
+		t.Fatalf("a standing declaration held by %q at another span", run)
+	}
+	if run := heldDecline(declines, record, lines, fileLevel, "other"); run != "" {
+		t.Fatalf("a decline under other rules held by %q", run)
+	}
+}
