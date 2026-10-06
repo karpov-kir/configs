@@ -1,12 +1,16 @@
 package commentpass
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // The gate checks what takes no judgement. A line fits the repository's print width. A block holds at
@@ -72,8 +76,22 @@ func commentBody(line string) string {
 	return strings.TrimSpace(strings.TrimSuffix(body, "*/"))
 }
 
-// printWidth is the repository's prettier printWidth, or prettier's default where it sets none.
+// printWidth is the width the repository's prettier resolves. A config can take its width from a
+// shared package it requires, which no file here spells, so the repository's own prettier is asked
+// first. Where node or prettier is missing, the config files are read, and prettier's default stands
+// where they set none.
 func printWidth(root string) int {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "node", "-e",
+		"require('prettier').resolveConfig(process.argv[1]).then(c=>console.log((c&&c.printWidth)||''))",
+		filepath.Join(root, "package.json"))
+	cmd.Dir = root
+	if out, err := cmd.Output(); err == nil {
+		if width, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && width > 0 {
+			return width
+		}
+	}
 	for _, name := range []string{".prettierrc", ".prettierrc.json"} {
 		body, err := os.ReadFile(filepath.Join(root, name))
 		if err != nil {
