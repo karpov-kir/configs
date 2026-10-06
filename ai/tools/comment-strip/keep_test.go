@@ -572,6 +572,7 @@ func TestABlockArchivedAgainKeepsWhatItSettled(t *testing.T) {
 }
 
 func TestACarryOfAWorldFactIsRefused(t *testing.T) {
+	rulesHome(t, "rules one ")
 	file := []string{"// A ledger posts entries oldest first.", "export function postBook(entries: Entry[]): void {", "  entries.forEach(post);", "}"}
 	for _, tc := range []struct {
 		fact    string
