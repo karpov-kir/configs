@@ -148,3 +148,30 @@ func (r *runner) movedFrom(runDir, ret, file, site string, at int) (string, bool
 	}
 	return decl, decl != ""
 }
+
+// settleOffered records on the block archived at `at` the claims of every record the verdict's site was
+// offered. It reads the site's offered records beside its facts, where the round recorded them.
+func (r *runner) settleOffered(runDir, ret, archive, file, site string, at int) error {
+	if runDir == "" {
+		return nil
+	}
+	facts, err := factsBySite(runDir, ret)
+	if err != nil {
+		return nil
+	}
+	factsPath, found := facts[file+":"+site]
+	if !found {
+		return nil
+	}
+	var claims []string
+	for _, o := range commentstrip.ReadOffered(factsPath) {
+		claims = append(claims, commentstrip.SettledKey(o.Decl, o.Claims))
+	}
+	read := file
+	r.absolute(&read)
+	raw, err := os.ReadFile(read)
+	if err != nil {
+		return nil
+	}
+	return commentstrip.SettleAt(archive, file, strings.Split(string(raw), "\n"), at, claims)
+}
