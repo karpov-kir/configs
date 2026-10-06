@@ -101,11 +101,14 @@ func parseReply(reply string, m material) ([]decision, error) {
 			}
 			return nil, fmt.Errorf("%s %s carries text, which only rewrite and add take", last.id, last.verb)
 		}
-		// A text line is comment syntax, or inside a `/* */` block, so no code reaches the file.
+		// A text line is the file's own comment syntax, so no code and no foreign marker reaches the
+		// file. A blank line inside a comment would split it in two, so it is dropped.
 		trimmed := strings.TrimLeft(line, " \t")
-		inStar := len(last.text) > 0 && openStar(last.text)
-		if trimmed != "" && !isComment(trimmed) && !inStar {
-			return nil, fmt.Errorf("%s %s carries a line that is no comment: %s", last.id, last.verb, line)
+		if trimmed == "" {
+			continue
+		}
+		if !commentLine(trimmed, len(last.text) > 0 && openStar(last.text), m.hashComments) {
+			return nil, fmt.Errorf("%s %s carries a line that is no comment in this file: %s", last.id, last.verb, line)
 		}
 		last.text = append(last.text, line)
 	}
@@ -120,6 +123,9 @@ func parseReply(reply string, m material) ([]decision, error) {
 		}
 		if (out[i].verb == "rewrite" || out[i].verb == "add") && len(out[i].text) == 0 {
 			return nil, fmt.Errorf("%s %s carries no comment text", out[i].id, out[i].verb)
+		}
+		if openStar(out[i].text) {
+			return nil, fmt.Errorf("%s %s leaves a /* block open", out[i].id, out[i].verb)
 		}
 	}
 	return out, nil
@@ -150,4 +156,19 @@ func openStar(text []string) bool {
 		}
 	}
 	return open
+}
+
+// commentLine says the line is a comment in the file's syntax: `#` where the file comments so, and
+// otherwise `//`, an opening `/*`, or a `*` line inside a block it opened.
+func commentLine(line string, inBlock, hash bool) bool {
+	if hash {
+		return strings.HasPrefix(line, "#")
+	}
+	switch {
+	case strings.HasPrefix(line, "//"), strings.HasPrefix(line, "/*"):
+		return true
+	case inBlock:
+		return true
+	}
+	return false
 }

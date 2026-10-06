@@ -44,7 +44,7 @@ func TestAReplyCarryingCodeIsRefused(t *testing.T) {
 // package doc is a header, and a Python def's indented body is its span.
 func TestTheMaterialReadsStringsDecoratorsPackageDocsAndPython(t *testing.T) {
 	lines := []string{"// The book's opening mark.", `const open = "{";`, "", "export function post() {", "  write();", "}"}
-	if got := declarationSpan(lines, 2); len(got) != 1 {
+	if got := declarationSpan(lines, 2, false); len(got) != 1 {
 		t.Fatalf("a string's brace opened a span: %v", got)
 	}
 	if m := findMaterial("f.ts", lines, map[int]bool{5: true}); len(m.candidates) != 0 {
@@ -59,7 +59,7 @@ func TestTheMaterialReadsStringsDecoratorsPackageDocsAndPython(t *testing.T) {
 		t.Fatalf("a package doc: %+v", m.candidates)
 	}
 	python := []string{"# Posts each entry.", "def post(entries):", "    for e in entries:", "        write(e)", "", "def close():", "    pass"}
-	if got := declarationSpan(python, 2); len(got) != 4 {
+	if got := declarationSpan(python, 2, false); len(got) != 4 {
 		t.Fatalf("a def's span: %v", got)
 	}
 	if m := findMaterial("l.py", python, map[int]bool{4: true, 7: true}); len(m.candidates) != 1 || len(m.places) != 1 {

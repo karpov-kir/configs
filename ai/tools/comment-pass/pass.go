@@ -15,6 +15,9 @@ import (
 
 const usage = "usage: comment-pass.sh --base=<rev> [--notes=<file>] [--list | --dry-run] [--page=<file>] [--model=<name>] [<path>...]"
 
+// maxFileBytes bounds the file one call reads, beside the page, inside the model's context.
+const maxFileBytes = 200_000
+
 // sourceExtensions are the files whose comment syntax the block finder reads.
 var sourceExtensions = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true,
 	".cjs": true, ".go": true, ".py": true, ".sh": true, ".java": true, ".kt": true, ".swift": true, ".rs": true}
@@ -62,6 +65,9 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		return refuse("cannot read the page at %s", pageFile)
 	}
 	page = []byte(withoutLayer(string(page)))
+	if !list && strings.TrimSpace(string(page)) == "" {
+		return refuse("the page at %s is empty", pageFile)
+	}
 	// The model is the `comment-pass` row of the flavor's model policy, where no --model names one.
 	if model == "" {
 		if policy, err := modelpolicy.Load(filepath.Join(home, ".kk-flavor", "configs", "models.json")); err == nil {
@@ -105,8 +111,13 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if err != nil {
 			continue
 		}
+		if len(body) > maxFileBytes {
+			failed++
+			fmt.Fprintf(stdout, "%s: %d bytes, over the %d one call reads; its comments were left as they were\n", path, len(body), maxFileBytes)
+			continue
+		}
 		// A file with CRLF line ends is read without them and written with them again.
-		crlf := strings.Contains(string(body), "\r\n")
+		crlf := strings.Count(string(body), "\r\n") > 0 && strings.Count(string(body), "\r\n") == strings.Count(string(body), "\n")
 		text := strings.ReplaceAll(string(body), "\r\n", "\n")
 		lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 		m := findMaterial(path, lines, changedByFile[path])

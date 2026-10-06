@@ -31,7 +31,8 @@ func applyDecisions(lines []string, m material, decisions []decision) []string {
 	}
 	for _, p := range m.places {
 		if d := byID[p.id]; d.verb == "add" {
-			edits = append(edits, edit{first: p.line, last: p.line - 1, text: indent(d.text, indentOf(lines, p.line))})
+			at := aboveDecorators(lines, p.line)
+			edits = append(edits, edit{first: at, last: at - 1, text: indent(d.text, indentOf(lines, p.line))})
 		}
 	}
 	sort.Slice(edits, func(i, j int) bool { return edits[i].first > edits[j].first })
@@ -62,4 +63,12 @@ func indent(text []string, prefix string) []string {
 		}
 	}
 	return out
+}
+
+// aboveDecorators is the first line of the decorators a declaration carries, where its comment goes.
+func aboveDecorators(lines []string, line int) int {
+	for line > 1 && strings.HasPrefix(strings.TrimSpace(lines[line-2]), "@") {
+		line--
+	}
+	return line
 }
