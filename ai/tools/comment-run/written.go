@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -23,6 +24,7 @@ var (
 	reFence          = regexp.MustCompile("(?s)```[A-Za-z]*\n(.*?)```")
 	reRecordSlot     = regexp.MustCompile(`^\s*(?:-\s*)?(fact|bears_on|does):\s*(.*)$`)
 	reCommentLine    = regexp.MustCompile(`^\s*(/\*|\*|//|#)`)
+	reOpensBody      = regexp.MustCompile(`[{(\[]\s*$`)
 )
 
 // archiveWritten reads each writer's return, finds each block it wrote in the file as the file stands
@@ -138,6 +140,17 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 		for file := range snapshot {
 			files = append(files, file)
 		}
+		sort.Strings(files)
+		for _, file := range files {
+			at, err := codeChanged(runDir, r.cwd, file)
+			if err != nil {
+				return r.refuse("cannot read %s as its writer received it: %v", shell.Echoable(file), err)
+			}
+			if at > 0 {
+				refused++
+				fmt.Fprintf(r.stdout, "%s:%d code changed: a writer's edit changed this code line, and a writer writes comment lines only\n", file, at)
+			}
+		}
 		if err := copyFiles(r.cwd, files, writtenDir(runDir)); err != nil {
 			return r.refuse("%v", err)
 		}
@@ -196,12 +209,18 @@ func (r *runner) locate(file, site, segment string) (int, string) {
 	if fence == nil {
 		return 0, "the verdict fences no block"
 	}
+	// A writer may fence a block together with the code line that precedes it, as run 26's loop writer
+	// did for two summary-only blocks. The block is the fence's first run of comment lines. A code line
+	// before it that opens a body puts the run inside that body, and the fence is refused.
 	var block []string
 	for _, line := range strings.Split(fence[1], "\n") {
-		if strings.TrimSpace(line) == "" && len(block) == 0 {
-			continue
-		}
 		if !reCommentLine.MatchString(line) {
+			if len(block) == 0 {
+				if reOpensBody.MatchString(line) {
+					return 0, "the fenced block holds no comment line before the code"
+				}
+				continue
+			}
 			break
 		}
 		block = append(block, strings.TrimSpace(line))

@@ -378,3 +378,14 @@ rejected, and the case reads what the writer does after the refusal.
 
 l40 barred "therefore", and the brief's model notes tie with it twice. The bar was dropped. On the
 same rolls, l40 reads 13 of 15 without it.
+
+## What a rules change costs
+
+A block's record holds the rules sum it was written under, and a run under another sum offers every
+site again. That holds for a declined site too. Kirill ruled on 2026-10-06 that a rules change
+rewrites every block: "It should, we have to see the full picture."
+
+Run 26 was the first full pass under the rules of item 44. It offered 172 sites at e18295bef,
+including those an earlier run had declined, and wrote 131 declined records again. Three writers,
+the lanes and one loop round read 41.9M tokens from cache and took 5,204 s. A change to the brief
+or to `comments.md` buys that pass, and a measurement here is what decides whether it is worth it.

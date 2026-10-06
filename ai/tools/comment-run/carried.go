@@ -80,6 +80,10 @@ func carriedStage(r *runner, opts options, returns []string) int {
 			fmt.Fprintf(r.stdout, "%s:%d carried by %s\n", file, at, carrier)
 		}
 	}
+	// The lane changed code, and a later writer receives the tree it left.
+	if err := refreshDispatched(runDir, held["top"]); err != nil {
+		return r.refuse("%v", err)
+	}
 	fmt.Fprintf(r.stderr, "%s: %d carried block(s) recorded, %d refused, %d stays\n", r.self, recorded, refused, stays)
 	if refused > 0 {
 		return exitFindings

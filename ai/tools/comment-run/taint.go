@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -199,7 +200,24 @@ var (
 	// reScriptEdit is a shell command that edits a file it names in place: sed or perl with -i, tee, or
 	// a script that writes. Writes go through the Edit tool, and run 18b's writer wrote by script once
 	// and one insert slipped.
-	reScriptEdit = regexp.MustCompile(`\bsed\s+(-\w+\s+)*-i|\bperl\s+-\w*i|\btee\b|\b(python3?|node|ruby)\b[^|]*\b(write|writeFile|open\([^)]*['"]w)`)
+	reScriptEdit = regexp.MustCompile(`\bsed\s+(-\w+\s+)*-i|\bperl\s+-\w*i|\btee\b`)
+	// A script runs under an interpreter, and a write call in it holds its target in the first group.
+	// A script names files it only reads, and run 26's writer named six source files in a script that
+	// appended its ledger. A write counts against the file its target names.
+	reIdentifier = regexp.MustCompile(`^[A-Za-z_]\w*$`)
+	reArgv       = regexp.MustCompile(`\b(sys\.argv|process\.argv|ARGV)\[(\d+)(:?)`)
+	// reScriptRun is the line running a script on stdin or from a file, its flags before it and its
+	// arguments after.
+	reScriptRun   = regexp.MustCompile(`\b(python3?|node|ruby)\s+(?:-[\w-]+\s+)*(?:-|\S+\.(?:py|js|rb))\s+(.*)$`)
+	reInterpreter = regexp.MustCompile(`\b(?:python3?|node|ruby)\b`)
+	reWriteCall   = regexp.MustCompile(`\bopen\(\s*(?:file\s*=\s*)?([^,)]+),\s*(?:mode\s*=\s*)?['"][^'"]*[wa+]` +
+		`|\bwriteFile(?:Sync)?\(\s*((?:[^,()]|\([^)]*\))+)` +
+		`|\b\w+\(\s*([^)]+)\)\.write_(?:text|bytes)\(` +
+		`|\b(\w+)\.write_(?:text|bytes)\(` +
+		`|\bFile\.write\(\s*([^,)]+)` +
+		`|\bFile\.open\(\s*([^,)]+),\s*['"][wa]`)
+	// reJoin is two quoted parts a path join puts a separator between.
+	reJoin = regexp.MustCompile(`['"]\s*,\s*['"]`)
 	// A log's graph opens lines on `* `, so a log read counts only a line opening a block. Run 13's one
 	// log read flagged every file its writer held.
 	reBlockOpener = regexp.MustCompile(`(?m)^[+-]?\s*(\d+[:\t]\s*)?(//|/\*)`)
@@ -292,12 +310,15 @@ func named(command string, files []string) []string {
 }
 
 // scriptWrites says the shell command writes the file: an in-place edit naming it other than as a flag's
-// value, or a redirect into it.
+// value, a script write whose target is the file, or a redirect into it.
 func scriptWrites(command, file string) bool {
 	if !strings.Contains(command, file) {
 		return false
 	}
 	if reScriptEdit.MatchString(command) && strings.Contains(reFlagValue.ReplaceAllString(command, ""), file) {
+		return true
+	}
+	if reInterpreter.MatchString(command) && interpreterWrites(command, file) {
 		return true
 	}
 	for _, m := range reRedirectTarget.FindAllStringSubmatch(command, -1) {
@@ -306,4 +327,61 @@ func scriptWrites(command, file string) bool {
 		}
 	}
 	return false
+}
+
+// interpreterWrites says a script writes the file. Its write call names the file, or names a variable
+// that a string, a loop over strings or an argument binds to the file.
+func interpreterWrites(command, file string) bool {
+	for _, m := range reWriteCall.FindAllStringSubmatch(command, -1) {
+		target := strings.TrimSpace(strings.Join(m[1:], ""))
+		if pathEndsIn(target, file) {
+			return true
+		}
+		if !reIdentifier.MatchString(target) {
+			continue
+		}
+		bound := regexp.MustCompile(`\b` + regexp.QuoteMeta(target) + `\s*=\s*([^\n;]+)|\bfor\s+` +
+			regexp.QuoteMeta(target) + `\s+in\s+([^\n]+?):(?:\s|$)`)
+		for _, a := range bound.FindAllStringSubmatch(command, -1) {
+			value := a[1] + a[2]
+			if pathEndsIn(value, file) {
+				return true
+			}
+			if n := reArgv.FindStringSubmatch(value); n != nil && argNames(command, n[1], n[2], n[3] == ":", file) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// argNames says the script's argument at the index names the file, or any from it on where the index
+// opens a slice. Python's argv carries the script before the arguments, and Node's the interpreter
+// too. A script reads its arguments from the line that runs it, up to a heredoc.
+func argNames(command, vector, index string, slice bool, file string) bool {
+	at, err := strconv.Atoi(index)
+	if err != nil {
+		return false
+	}
+	at -= map[string]int{"sys.argv": 1, "process.argv": 2, "ARGV": 0}[vector]
+	for _, line := range strings.Split(command, "\n") {
+		run := reScriptRun.FindStringSubmatch(line)
+		if run == nil {
+			continue
+		}
+		args := strings.Fields(strings.Split(run[2], "<<")[0])
+		for i, arg := range args {
+			if (i == at || (slice && i >= at)) && strings.Contains(arg, file) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// pathEndsIn says the text holds a path that ends in the file, with a path join's parts joined. A
+// scratch file named after its source, such as `/tmp/src/x.ts.txt`, is a path of its own.
+func pathEndsIn(text, file string) bool {
+	return regexp.MustCompile(`(?:^|['"/\s(\[])` + regexp.QuoteMeta(file) + `(?:['"\s)\],]|$)`).
+		MatchString(reJoin.ReplaceAllString(text, "/"))
 }

@@ -396,7 +396,9 @@ func TestArchiveWrittenReadsTheVerdictShapesWritersReturn(t *testing.T) {
 	}
 	ret := filepath.Join(t.TempDir(), "writer-C-results.md")
 	body := "Block 1/4 book.ts:1 (landed on line 1) | OK\n" + block("// A ledger closes a book at midnight, so this constant holds the hour.", "export const CLOSE_HOUR = 0;") +
-		"Block 2/4 :3 (landed on line 4) | OK\n" + block("// A ledger rounds to cents, so this constant holds two places.", "export const CENT_PLACES = 2;") +
+		// Run 26's loop writer fenced a block together with the code line that precedes it.
+		"Block 2/4 :3 (landed on line 4) | OK\n" + strings.Replace(block("// A ledger rounds to cents, so this constant holds two places.", "export const CENT_PLACES = 2;"),
+		"```ts\n", "```ts\nexport const CLOSE_HOUR = 0;\n\n", 1) +
 		"Block 3/4 book.ts:7 [site :6] | OK\n" + block("// A ledger names its schemes in lower case, so this constant holds the casing.", "export const SCHEME_CASE = 'lower';") +
 		"Block 4/4 the header | OK\n"
 	if err := os.WriteFile(ret, []byte(body), 0o644); err != nil {
@@ -535,7 +537,8 @@ func TestLoopTakesTheSitesOfTwoFilesAsOneRound(t *testing.T) {
 	}
 	prompt, _ := os.ReadFile(strings.TrimSpace(said.stdout))
 	for _, want := range []string{"ledger.ts:1 ledger.ts/2/1.facts", "book.ts:1 book.ts/2/1.facts", "return-writer-loop-round-1.md", readSentence,
-		"keep what it already states correctly", "the voice-check input among them, goes in `" + runDir + "`"} {
+		"keep what it already states correctly", "the voice-check input among them, goes in `" + runDir + "`",
+		"the code line under a block keeps its spacing"} {
 		if !strings.Contains(string(prompt), want) {
 			t.Errorf("the round's prompt lacks %q:\n%s", want, prompt)
 		}
@@ -844,9 +847,152 @@ func TestAFlagValueIsNoWriteAndAQuotedFlagHidesNone(t *testing.T) {
 		{`python3 -c "s=src.replace('--mode=old','--mode=new');open('x.ts','w').write(s)"`, true},
 		{`node -e "s=s.replace('--a=1','--a=2');fs.writeFileSync('x.ts',s)"`, true},
 		{`sed -i '' 's/a/b/' x.ts --file=x.ts`, true},
+		// Run 26's writer appended its ledger from a script that named source files in strings.
+		{"python3 - \"$S/comment-writer-A-queue.md\" <<'EOF'\nF=\"x.ts\"\nopen(sys.argv[1],'a').write(F)\nEOF", false},
+		{"python3 - <<'EOF'\nF=\"x.ts\"\nopen(F,'w').write('')\nEOF", true},
+		{"python3 - \"$S/comment-writer-A-queue.md\" <<'EOF'\nopen('x.ts','w').write('')\nEOF", true},
+		{`python3 -c "print(open('x.ts').read())"`, false},
+		// Run 26's writer rewrote a scratch file named by its argument, the source path in its text.
+		{"python3 - \"$S/vc.txt\" <<'EOF'\np=sys.argv[1]; t=open(p).read()\nt=t.replace('in `x.ts` a','in `x.ts` b')\nopen(p,'w').write(t)\nEOF", false},
+		{"python3 - \"x.ts\" <<'EOF'\np=sys.argv[1]; t=open(p).read()\nopen(p,'w').write(t)\nEOF", true},
+		// Each write the review found missed, and the argument vectors of node and ruby.
+		{"node - x.ts <<'EOF'\nconst p = process.argv[2]\nfs.writeFileSync(p, s)\nEOF", true},
+		{"ruby - x.ts <<'EOF'\np = ARGV[0]; File.open(p,'w') { |f| f.write(s) }\nEOF", true},
+		{"python3 -u - x.ts <<'EOF'\np=sys.argv[1]\nopen(p,'w').write('')\nEOF", true},
+		{`python3 -c "open('x.ts', mode='w').write('')"`, true},
+		{`python3 -c "open(file='x.ts', mode='w').write('')"`, true},
+		{`python3 -c "open('x.ts','r+').write('')"`, true},
+		{"python3 - <<'EOF'\np=Path('x.ts'); p.write_text('')\nEOF", true},
+		{"python3 - <<'EOF'\nfrom pathlib import Path as P\nP('x.ts').write_text('')\nEOF", true},
+		{"python3 - <<'EOF'\nfor p in ['x.ts']: open(p,'w').write('')\nEOF", true},
+		{"python3 - a.ts x.ts <<'EOF'\nfor p in sys.argv[1:]: open(p,'w').write('')\nEOF", true},
+		{`ruby -e "File.write('x.ts', s)"`, true},
+		{`node -e "fs.writeFileSync(path.join('src','x.ts'), s)"`, true},
+		{"python3 - <<'EOF'\nout=Path('/tmp/x.ts.txt')\nout.write_text(open('x.ts').read())\nEOF", false},
+		{`python3 -c "open('/tmp/x.ts.txt','w').write(open('x.ts').read())"`, false},
+		{"node - x.ts <<'EOF'\nconst p = process.argv[1]\nfs.writeFileSync(p, s)\nEOF", false},
 	} {
 		if got := scriptWrites(tc.command, "x.ts"); got != tc.writes {
 			t.Errorf("%s: writes %v, want %v", tc.command, got, tc.writes)
 		}
+	}
+}
+
+// A writer writes comment lines only. Run 26's writers changed the spacing of code lines under their
+// blocks, and archive-written refuses that against the file as the writer received it.
+func TestArchiveWrittenRefusesAChangedCodeLine(t *testing.T) {
+	for _, tc := range []struct {
+		name, code string
+		refused    bool
+	}{
+		{"kept", "export function claimFor(scheme: string): boolean {", false},
+		{"respaced", "export function claimFor(scheme: string):  boolean {", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newChange(t)
+			runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+			c.seeded(runDir, archive)
+			body, err := os.ReadFile(filepath.Join(c.top, "ledger.ts"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			note := "// A ledger build answers for its own scheme only, so this function asks it once per scheme."
+			c.write("ledger.ts", strings.Replace(string(body), "export function claimFor(scheme: string): boolean {", note+"\n"+tc.code, 1))
+			if err := os.WriteFile(returnFile(runDir, "A"), []byte("Block 1/1 ledger.ts:4 | OK\n```ts\n"+note+"\n"+tc.code+"\n```\n"+
+				"summary: none\nnote: written\nfact: a ledger build answers for its own scheme only\nbears_on: claimFor\n"+
+				"does: returns keys.canPost(scheme)\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			said := c.run("archive-written", "--run=run26", "--archive="+archive, "--run-dir="+runDir)
+			if got := strings.Contains(said.stdout, "code changed"); got != tc.refused || (tc.refused && said.code != exitFindings) {
+				t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
+			}
+			if tc.refused {
+				return
+			}
+			// The refactor lane changes code, and the loop's archive-written reads every return again.
+			body, _ = os.ReadFile(filepath.Join(c.top, "ledger.ts"))
+			c.write("ledger.ts", strings.Replace(string(body), "keys.canPost(scheme)", "keys.canPost(scheme) === true", 1))
+			lane := filepath.Join(t.TempDir(), "refactor.md")
+			if err := os.WriteFile(lane, []byte("Comment 1/1 ledger.ts:4 | stays: the code says it\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if said := c.run("carried", "--run=run26", "--run-dir="+runDir, "--archive="+archive, lane); said.code != exitClean {
+				t.Fatalf("carried: exit %d:\n%s%s", said.code, said.stdout, said.stderr)
+			}
+			if said := c.run("archive-written", "--run=run26", "--archive="+archive, "--run-dir="+runDir); strings.Contains(said.stdout, "code changed") || !strings.Contains(said.stdout, "archived") {
+				t.Fatalf("the lane's code reads as a writer's:\n%s%s", said.stdout, said.stderr)
+			}
+		})
+	}
+}
+
+// The code check reads comment lines with the strip's grammar. A `#` header is comment, and so is a
+// `/* */` body line.
+func TestCodeLinesReadCommentsAsTheStripDoes(t *testing.T) {
+	dir := t.TempDir()
+	for _, tc := range []struct {
+		name, received, left string
+		changed              bool
+	}{
+		{"hash header", "set -e\necho hi\n", "set -e\n# Prints the greeting.\necho hi\n", false},
+		{"star body", "const x = 1;\n", "/*\n  A ledger rounds.\n*/\nconst x = 1;\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runDir := filepath.Join(dir, tc.name)
+			for path, body := range map[string]string{filepath.Join(runDir, "dispatched", "f.ts"): tc.received, filepath.Join(runDir, "tree", "f.ts"): tc.left} {
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			at, err := codeChanged(runDir, filepath.Join(runDir, "tree"), "f.ts")
+			if err != nil || (at > 0) != tc.changed {
+				t.Fatalf("changed at %d, err %v, want changed %v", at, err, tc.changed)
+			}
+		})
+	}
+}
+
+// A loop round's writer receives the tree after the refactor lane and the round's strip, and its
+// code is read against that. Here the code changed after the seed, as the lane changes it.
+func TestALoopRoundsWriterIsReadAgainstItsOwnStrip(t *testing.T) {
+	c := newChange(t)
+	runDir, archive := filepath.Join(t.TempDir(), "run"), filepath.Join(t.TempDir(), "archive")
+	c.seeded(runDir, archive)
+	changed := strings.Replace(claimForDecl, "keys.canPost(scheme)", "keys.canPost(scheme) === true", 1)
+	c.write("ledger.ts", "export function other() {}\n\n// A ledger build answers for every scheme, so this function asks it once.\n"+changed)
+	var out, errOut strings.Builder
+	if code := Run("comment-run.sh", []string{"loop", "--run-dir=" + runDir, "--archive=" + archive, "--run=run26",
+		"ledger.ts:4", "canPost answers for its own scheme only"}, t.TempDir(), repo.Exec{}, &out, &errOut); code != exitClean {
+		t.Fatalf("loop: exit %d: %s", code, errOut.String())
+	}
+	note := "// A ledger build answers for its own scheme only, so this function asks it once per scheme."
+	c.write("ledger.ts", "export function other() {}\n\n"+note+"\n"+changed)
+	if err := os.WriteFile(returnFile(runDir, "loop-round-1"), []byte("Block 1/1 ledger.ts:4 | OK\n```ts\n"+note+"\n"+
+		strings.SplitN(claimForDecl, "\n", 2)[0]+"\n```\nsummary: none\nnote: written\nfact: a ledger build answers for its own scheme only\n"+
+		"bears_on: claimFor\ndoes: returns keys.canPost(scheme)\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if said := c.run("archive-written", "--run=run26", "--archive="+archive, "--run-dir="+runDir); strings.Contains(said.stdout, "code changed") || !strings.Contains(said.stdout, "archived") {
+		t.Fatalf("the code before the round reads as the writer's:\n%s%s", said.stdout, said.stderr)
+	}
+}
+
+// A fence can open on a code line that opens a body. Its first comment then sits inside the body, and
+// archive-written refuses it.
+func TestArchiveWrittenRefusesACommentInsideAFencedBody(t *testing.T) {
+	c := newChange(t)
+	c.write("book.ts", "export function f() {\n  // A ledger rounds to cents.\n  return 1;\n}\n")
+	ret := filepath.Join(t.TempDir(), "writer-A.md")
+	if err := os.WriteFile(ret, []byte("Block 1/1 book.ts:1 | OK\n```ts\nexport function f() {\n  // A ledger rounds to cents.\n  return 1;\n}\n```\n"+
+		"fact: a ledger rounds to cents\nbears_on: f\ndoes: returns 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	said := c.run("archive-written", "--run=run26", "--archive="+t.TempDir(), ret)
+	if said.code != exitFindings || !strings.Contains(said.stdout, "no comment line before the code") {
+		t.Fatalf("exit %d:\n%s%s", said.code, said.stdout, said.stderr)
 	}
 }
