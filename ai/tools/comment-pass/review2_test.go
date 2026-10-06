@@ -74,3 +74,23 @@ func TestAnAddedCommentGoesAboveTheDecorators(t *testing.T) {
 		t.Fatalf("got:\n%s", strings.Join(out, "\n"))
 	}
 }
+
+// A removed block leaves no blank line at the file's top and no doubled gap. Inside code, the blank
+// line after it stays.
+func TestARemovedBlockTakesTheGapItLeaves(t *testing.T) {
+	remove := []decision{{id: "c1", verb: "remove"}}
+	for _, tc := range []struct {
+		lines       []string
+		first, last int
+		want        string
+	}{
+		{[]string{"/**", " * The book.", " */", "", "import x from 'x';"}, 1, 3, "import x from 'x';"},
+		{[]string{"a();", "", "// Old.", "", "b();"}, 3, 3, "a();\n\nb();"},
+		{[]string{"a();", "// Old.", "", "b();"}, 2, 2, "a();\n\nb();"},
+	} {
+		m := material{candidates: []candidate{{id: "c1", first: tc.first, last: tc.last}}, indents: map[string]int{}}
+		if got := strings.Join(applyDecisions(tc.lines, m, remove), "\n"); got != tc.want {
+			t.Errorf("got:\n%s\nwant:\n%s", got, tc.want)
+		}
+	}
+}

@@ -24,7 +24,13 @@ func applyDecisions(lines []string, m material, decisions []decision) []string {
 		d := byID[c.id]
 		switch d.verb {
 		case "remove":
-			edits = append(edits, edit{first: c.first, last: c.last})
+			// A block removed from the file's top, or from between two blank lines, takes the blank
+			// line after it, so the file opens on code and no gap doubles.
+			last := c.last
+			if last < len(lines) && strings.TrimSpace(lines[last]) == "" && (c.first == 1 || strings.TrimSpace(lines[c.first-2]) == "") {
+				last++
+			}
+			edits = append(edits, edit{first: c.first, last: last})
 		case "rewrite":
 			edits = append(edits, edit{first: c.first, last: c.last, text: indent(d.text, indentOf(lines, c.first))})
 		}
