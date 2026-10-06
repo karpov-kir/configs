@@ -74,6 +74,13 @@ func archiveWritten(r *runner, opts options, returns []string) int {
 		}
 		// A verdict this stage cannot place goes back by writer and line, with the shape it wants, so a
 		// runner never re-asks a writer by hand.
+		// A file-level site places its block anywhere in the file, so a block written for it answers it
+		// `OK`. Run 28's runner rewrote such an answer as `none` with `moved to`. That shape belongs to a
+		// moved block, and it left the site's claims to a decline when the block had answered them.
+		for _, m := range reFileLevelMove.FindAllStringSubmatch(text, -1) {
+			refused++
+			fmt.Fprintf(r.stdout, "%s:0 refused: %s\n", m[1], fileLevelShape)
+		}
 		for _, m := range reAnyVerdict.FindAllStringIndex(text, -1) {
 			if !placed[m[0]] {
 				refused++
@@ -207,7 +214,13 @@ const verdictShape = "`Block N/M <path>:<offered line> | OK`, as in `Block 2/16 
 
 // verdictSentence asks a writer for that shape in its prompt. A sentence in the brief changes the rules
 // sum, and every block a run wrote would reopen, so the prompt carries it.
-const verdictSentence = "Every verdict line holds the file and the site's line as offered, and only those, even where the block landed elsewhere: " + verdictShape + ". Each entry holds one block: " + membersShape + "."
+const verdictSentence = "Every verdict line holds the file and the site's line as offered, and only those, even where the block landed elsewhere: " + verdictShape + ". Each entry holds one block: " + membersShape + ". " + fileLevelShape + "."
+
+// fileLevelShape is the answer to a file-level site, `:0`, whose claim a block now carries.
+const fileLevelShape = "a file-level site, `:0`, whose claim a block you wrote carries is answered `OK` with that block, wherever in the file it landed, and never `none` with `moved to`"
+
+// reFileLevelMove is a file-level site answered `none` with a `moved to` line in its entry.
+var reFileLevelMove = regexp.MustCompile(`(?m)^\**Block \d+/\d+ (\S+):0\b[^\n]*\|\s*none\b[^\n]*\n(?:(?:[^B*\n][^\n]*)?\n)*?moved to `)
 
 // recordOf is the record lines a verdict's segment carries, or an empty string for a summary.
 func recordOf(segment string) string {
