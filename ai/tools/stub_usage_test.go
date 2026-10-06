@@ -47,6 +47,7 @@ import (
 	aibootstrap "configs/ai/tools/ai-bootstrap"
 	buildgate "configs/ai/tools/build-gate"
 	"configs/ai/tools/cadence"
+	commentpass "configs/ai/tools/comment-pass"
 	commentrun "configs/ai/tools/comment-run"
 	commentstrip "configs/ai/tools/comment-strip"
 	duplicates "configs/ai/tools/dup-literals"
@@ -233,6 +234,10 @@ var refusals = []refusal{
 	// path or reaches git. The refusal states the grammar, and it makes no claim about the tree.
 	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-strip.sh", call: func(i invocation) int {
 		return commentstrip.Strip(i.self(), i.args, i.cwd, repo.Exec{}, i.out, i.out)
+	}},
+	// No base named. The tool refuses before it reads a path or reaches git or a model.
+	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-pass.sh", call: func(i invocation) int {
+		return commentpass.Run(i.self(), i.args, i.cwd, os.LookupEnv, commentpass.CLICaller, i.out, i.out)
 	}},
 	// No stage named. The tool refuses before it reads a path or reaches git.
 	{stub: "ai/kk-flavor/skills/kk-edit/scripts/comment-run.sh", call: func(i invocation) int {

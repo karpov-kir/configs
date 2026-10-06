@@ -8,6 +8,7 @@ dist/
 /cmd/cadence/cadence
 /cmd/comment-strip/comment-strip
 /cmd/comment-run/comment-run
+/cmd/comment-pass/comment-pass
 /cmd/voice-check/voice-check
 /cmd/eco-check/eco-check
 /cmd/reader-judge/reader-judge
