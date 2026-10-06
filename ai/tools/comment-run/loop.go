@@ -110,6 +110,10 @@ func loop(r *runner, opts options, _ []string) int {
 			}
 		}
 	}
+	if err := copyFiles(tree, paths, dispatchedDir(runDir)); err != nil {
+		undo()
+		return r.refuse("%v; no file of the round was stripped", err)
+	}
 	fingerprint, err := treefingerprint.Fingerprint(tree)
 	if err != nil {
 		undo()

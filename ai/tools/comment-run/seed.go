@@ -77,6 +77,9 @@ func seed(r *runner, opts options, _ []string) int {
 	if err := copyFiles(top, files, filepath.Join(runDir, "post-strip")); err != nil {
 		return r.refuse("%v", err)
 	}
+	if err := copyFiles(top, files, dispatchedDir(runDir)); err != nil {
+		return r.refuse("%v", err)
+	}
 	kept := strings.Count(errs.String(), commentstrip.KeptLine)
 	run := fmt.Sprintf("top=%s\nbase=%s\nhead=%s\narchive=%s\n", top, base, headSha, archive)
 	for name, body := range map[string]string{"run.txt": run, "sites.txt": strings.Join(sites, ""), "strip.err": errs.String()} {

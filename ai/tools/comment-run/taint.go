@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -199,7 +200,16 @@ var (
 	// reScriptEdit is a shell command that edits a file it names in place: sed or perl with -i, tee, or
 	// a script that writes. Writes go through the Edit tool, and run 18b's writer wrote by script once
 	// and one insert slipped.
-	reScriptEdit = regexp.MustCompile(`\bsed\s+(-\w+\s+)*-i|\bperl\s+-\w*i|\btee\b|\b(python3?|node|ruby)\b[^|]*\b(write|writeFile|open\([^)]*['"]w)`)
+	reScriptEdit = regexp.MustCompile(`\bsed\s+(-\w+\s+)*-i|\bperl\s+-\w*i|\btee\b`)
+	// A script runs under an interpreter, and a write call in it holds its target in the first group.
+	// A script names files it only reads, and run 26's writer named six source files in a script that
+	// appended its ledger. A write counts against the file its target names.
+	reIdentifier = regexp.MustCompile(`^[A-Za-z_]\w*$`)
+	reArgv       = regexp.MustCompile(`\b(?:sys\.argv|process\.argv|ARGV)\[(\d+)\]`)
+	// reScriptRun is the line running a script on stdin or from a file, with its arguments after.
+	reScriptRun   = regexp.MustCompile(`\b(?:python3?|node|ruby)\s+(?:-|\S+\.(?:py|js|rb))\s+(.*)$`)
+	reInterpreter = regexp.MustCompile(`\b(?:python3?|node|ruby)\b`)
+	reWriteCall   = regexp.MustCompile(`\bopen\(\s*([^,)]+),\s*['"][wa]|\bwriteFile(?:Sync)?\(\s*([^,)]+)|\bPath\(\s*([^)]+)\)\.write_(?:text|bytes)`)
 	// A log's graph opens lines on `* `, so a log read counts only a line opening a block. Run 13's one
 	// log read flagged every file its writer held.
 	reBlockOpener = regexp.MustCompile(`(?m)^[+-]?\s*(\d+[:\t]\s*)?(//|/\*)`)
@@ -292,7 +302,7 @@ func named(command string, files []string) []string {
 }
 
 // scriptWrites says the shell command writes the file: an in-place edit naming it other than as a flag's
-// value, or a redirect into it.
+// value, a script write whose target is the file, or a redirect into it.
 func scriptWrites(command, file string) bool {
 	if !strings.Contains(command, file) {
 		return false
@@ -300,8 +310,55 @@ func scriptWrites(command, file string) bool {
 	if reScriptEdit.MatchString(command) && strings.Contains(reFlagValue.ReplaceAllString(command, ""), file) {
 		return true
 	}
+	if reInterpreter.MatchString(command) && interpreterWrites(command, file) {
+		return true
+	}
 	for _, m := range reRedirectTarget.FindAllStringSubmatch(command, -1) {
 		if strings.Contains(m[1], file) {
+			return true
+		}
+	}
+	return false
+}
+
+// interpreterWrites says a script writes the file: a write whose target names it, or a write to a
+// variable assigned a string naming it or an argument naming it.
+func interpreterWrites(command, file string) bool {
+	for _, m := range reWriteCall.FindAllStringSubmatch(command, -1) {
+		target := strings.TrimSpace(m[1] + m[2] + m[3])
+		if strings.Contains(target, file) {
+			return true
+		}
+		if !reIdentifier.MatchString(target) {
+			continue
+		}
+		for _, a := range regexp.MustCompile(`\b`+regexp.QuoteMeta(target)+`\s*=\s*([^\n;]+)`).FindAllStringSubmatch(command, -1) {
+			value := a[1]
+			if strings.Contains(value, file) {
+				return true
+			}
+			if n := reArgv.FindStringSubmatch(value); n != nil && argNames(command, n[1], file) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// argNames says the script's argument at the index names the file. A script reads its arguments
+// from the line that runs it, up to a heredoc or the end of the line.
+func argNames(command, index, file string) bool {
+	at, err := strconv.Atoi(index)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(command, "\n") {
+		run := reScriptRun.FindStringSubmatch(line)
+		if run == nil {
+			continue
+		}
+		args := strings.Fields(strings.Split(run[1], "<<")[0])
+		if at >= 1 && at <= len(args) && strings.Contains(args[at-1], file) {
 			return true
 		}
 	}
