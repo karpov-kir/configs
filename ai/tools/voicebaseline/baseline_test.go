@@ -203,6 +203,26 @@ func TestRegenerateRewritesTheBaselineFromWhatTheTreeMeasures(t *testing.T) {
 	}
 }
 
+// In a checkout, a file git ignores is a skill's local output and no instruction, so it needs no
+// baseline line. The control is the same file unignored: a new file nobody has added yet still counts.
+func TestAFileGitIgnoresIsNoInstruction(t *testing.T) {
+	t.Parallel()
+	const local = "local.md"
+	root := newRoot(t, measurement{alpha, 1}, measurement{local, 12})
+	writeBaseline(t, root, baselineLine(1, alpha))
+	runtest.WriteFile(t, filepath.Join(root, ".gitignore"), standardsInRoot+"/"+local+"\n", 0o644)
+	if out, err := exec.Command("git", "-C", root, "init", "-q").CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v %s", err, out)
+	}
+	if held := runOver(t, root); held.Code != 0 {
+		t.Errorf("an ignored file was measured as an instruction\n%v", held)
+	}
+	runtest.WriteFile(t, filepath.Join(root, ".gitignore"), "", 0o644)
+	if shown := runOver(t, root); shown.Code != 1 || !shown.Said(local) {
+		t.Errorf("an untracked file that is not ignored went unmeasured\n%v", shown)
+	}
+}
+
 // One run reports every file, and the script pairs each line with the file it asked for at that
 // position. Every file here reports a count no other file reports. A line read back against the wrong
 // file lands on a number that file is not recorded at, and the run turns from a pass into a refusal.

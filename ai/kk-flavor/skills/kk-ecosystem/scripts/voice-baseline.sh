@@ -27,11 +27,17 @@ check="$root/ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh"
 cd "$root"
 # An indexed array filled by a read loop, and a second one beside it. macOS ships bash 3.2, which has
 # `mapfile` and `declare -A` in neither, and every other script here already runs on it.
+# A checkout lists what it carries, so a file git ignores, such as a skill's local output, is no
+# instruction. A fixture root is no checkout, and every file in it counts.
+dirs=(ai/kk-flavor/standards ai/kk-flavor/workers ai/kk-flavor/skills ai/kk-flavor/templates)
 files=()
 while IFS= read -r f; do
   files+=("$f")
-done < <(find ai/kk-flavor/standards ai/kk-flavor/workers ai/kk-flavor/skills ai/kk-flavor/templates \
-  -name '*.md' 2>/dev/null | sort)
+done < <(if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git ls-files -co --exclude-standard -- "${dirs[@]}" | grep '\.md$'
+else
+  find "${dirs[@]}" -name '*.md' 2>/dev/null
+fi | sort -u)
 [ "${#files[@]}" -gt 0 ] || { echo "voice-baseline: no instruction file was found — exit 2" >&2; exit 2; }
 
 # One run reads every file and prints a count for each. One run per file was the gate's slowest check
