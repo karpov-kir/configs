@@ -13,7 +13,7 @@
 // what replaced it: the whole suite runs cold in under 100 seconds, and the gate fails a run over
 // that. A cache that hides a slow suite hides it from the check that would have forced the fix.
 
-// Six checks. They print in this order because each costs less than the check after it, and a
+// Seven checks. They print in this order because each costs less than the check after it, and a
 // failure in an earlier one makes a later one's output hard to read. They run concurrently all the
 // same: the order is what gets printed, and the machine has cores to spare while `go test` waits
 // on I/O.
@@ -46,7 +46,7 @@ type Env struct {
 	// Budget replaces budgetSeconds, so the suite can drive the refusal a slow run gets without
 	// spending a hundred seconds to reach it. GATE_BUDGET_SECONDS.
 	Budget int
-	// Checks replaces the six real ones with a table read from a file: id, command, one per line,
+	// Checks replaces the seven real ones with a table read from a file: id, command, one per line,
 	// tab-separated. GATE_CHECKS_FILE. The suite uses it to reach the run loop, the report and every
 	// refusal in milliseconds, so it never pays for the real checks a second time.
 	Checks string
@@ -193,7 +193,7 @@ func (g *gate) resolveRoot(root string) int {
 // `-count=1`, and `./...` then paid for that package a second time out of the cache. With no package
 // forced there is one run and one duration for the slowest-first report to name.
 
-// The six, or a table a suite handed over.
+// The seven, or a table a suite handed over.
 func (g *gate) plan(env Env, full bool) ([]check, int) {
 	if env.Checks != "" {
 		return g.checksFromFile(env.Checks)
@@ -222,6 +222,10 @@ func (g *gate) plan(env Env, full bool) ([]check, int) {
 		// before it had a job: a sentence in a skill telling an agent to look at it, which is a
 		// document and never a gate.
 		{id: "baseline", cmd: "ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh"},
+		// The owner's private-name list over every line the branch adds, its commit messages, and the
+		// work not yet committed. A public repository took a private codebase's names in a pull request
+		// that no check read.
+		{id: "private-names", cmd: privateNamesCmd},
 	}, 0
 }
 
@@ -495,3 +499,9 @@ func outputLines(output string) []string {
 func (g *gate) quote(line string) {
 	fmt.Fprintf(g.out, "              %s\n", line)
 }
+
+// privateNamesCmd reads the branch against main and then the uncommitted work. A branch with no main to
+// diff against reads its uncommitted work alone.
+const privateNamesCmd = `scan=ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh; ` +
+	`if git rev-parse --verify -q origin/main >/dev/null; then "$scan" --private-names origin/main...HEAD || exit; fi; ` +
+	`"$scan" --private-names HEAD`

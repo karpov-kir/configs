@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Refuse a push that carries a name from the owner's private-name list, in any line it adds or any
+# commit message it holds. A commit-msg hook reads a message once, and a message amended after it
+# or a commit made elsewhere is read here.
+#
+#   usage: pre-push <remote> <url>   (git calls it, with the refs on stdin; bootstrap sets
+#          core.hooksPath to ai/hooks)
+#
+# tested by: the Go suite in ai/tools/ai-bootstrap/.
+set -euo pipefail
+top="$(git rev-parse --show-toplevel)"
+zero=0000000000000000000000000000000000000000
+status=0
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  base="$remote_sha"
+  if [ "$base" = "$zero" ]; then
+    base="$(git merge-base origin/main "$local_sha" 2>/dev/null || git rev-list --max-parents=0 "$local_sha" | tail -1)"
+  fi
+  "$top/ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh" --private-names "$base..$local_sha" || status=$?
+done
+exit "$status"

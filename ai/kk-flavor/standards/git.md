@@ -37,3 +37,5 @@ Match the recent style on the branch (`git log` first). Use semantic prefixes (`
 ## Pull requests
 
 Open as drafts; follow the repo's PR template if it has one. Keep them drafts until the human explicitly authorizes marking them ready for review. That transition can notify CODEOWNERS and assign reviewers automatically. Permission to commit, push, ship or merge does not authorize review notifications. Requesting or re-requesting reviewers also needs explicit authorization.
+
+Write a PR's body to a file and run `~/.kk-flavor/skills/kk-edit/scripts/voice-check.sh --private-names --message=<the file>` before `gh pr create` or `gh pr edit` sends it. A finding stops the call. The owner keeps a list of private names outside every repository, and no hook sees a body `gh` sends. The commit-msg and pre-push hooks cover commits, and this step covers the body.

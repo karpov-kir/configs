@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Refuse a commit whose message holds a name from the owner's private-name list. The list lives
+# outside every repository (`${XDG_CONFIG_HOME:-~/.config}/kk-flavor/private-names.txt`), and a
+# refusal names the entry's line there, never its text.
+#
+#   usage: commit-msg <message file>   (git calls it; bootstrap sets core.hooksPath to ai/hooks)
+#
+# tested by: the Go suite in ai/tools/ai-bootstrap/.
+set -euo pipefail
+top="$(git rev-parse --show-toplevel)"
+exec "$top/ai/kk-flavor/skills/kk-edit/scripts/voice-check.sh" --private-names --message="$1"
