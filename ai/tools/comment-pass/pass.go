@@ -70,7 +70,7 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		return refuse("%s is no git checkout", cwd)
 	}
 	if len(paths) == 0 {
-		names, err := gitOut(top, "diff", "--name-only", "--diff-filter=AM", base)
+		names, err := gitOut(top, "diff", "--name-only", "--diff-filter=AMR", "-M", base)
 		if err != nil {
 			return refuse("git cannot list the files changed since %s", base)
 		}
@@ -82,6 +82,10 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 	}
 	repoKey := repositoryKey(top)
 	width := printWidth(top)
+	changedByFile, err := changedLines(top, base)
+	if err != nil {
+		return refuse("%v", err)
+	}
 	failed := 0
 	sort.Strings(paths)
 	for _, path := range paths {
@@ -92,12 +96,11 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if err != nil {
 			continue
 		}
-		lines := strings.Split(strings.TrimSuffix(string(body), "\n"), "\n")
-		changed, err := changedLines(top, base, path)
-		if err != nil {
-			return refuse("%v", err)
-		}
-		m := findMaterial(path, lines, changed)
+		// A file with CRLF line ends is read without them and written with them again.
+		crlf := strings.Contains(string(body), "\r\n")
+		text := strings.ReplaceAll(string(body), "\r\n", "\n")
+		lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+		m := findMaterial(path, lines, changedByFile[path])
 		if len(m.candidates) == 0 && len(m.places) == 0 {
 			continue
 		}
@@ -112,7 +115,7 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			}
 			continue
 		}
-		key := inputKey(string(page), string(body), notes[path])
+		key := inputKey(string(page), prompt, model)
 		store := cachePath(stateHome, repoKey, path)
 		reply, source := cachedReply(store, key), "kept"
 		if reply == "" {
@@ -122,9 +125,6 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 				continue
 			}
 			source = "called"
-			if err := keepReply(store, key, reply); err != nil {
-				fmt.Fprintf(stderr, "%s: cannot keep the reply for %s: %v\n", self, path, err)
-			}
 		}
 		if dry {
 			fmt.Fprintf(stdout, "=== %s (%s)\n--- system\n%s\n--- user\n%s\n--- reply\n%s\n", path, source, page, prompt, reply)
@@ -135,10 +135,16 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			fmt.Fprintf(stdout, "%s: the reply does not parse: %v\n%s\n", path, err, reply)
 			continue
 		}
-		if found := gateFindings(m, decisions, width); len(found) > 0 {
+		if found := gateFindings(m, decisions, widthFor(path, width)); len(found) > 0 {
 			failed++
 			fmt.Fprintf(stdout, "%s: the gate refused the file, which is left as it was:\n%s\n", path, strings.Join(found, "\n"))
 			continue
+		}
+		// A reply is kept only once it parsed and passed the gate, so a refused one is asked again.
+		if source == "called" {
+			if err := keepReply(store, key, reply); err != nil {
+				fmt.Fprintf(stderr, "%s: cannot keep the reply for %s: %v\n", self, path, err)
+			}
 		}
 		written := 0
 		for _, d := range decisions {
@@ -151,6 +157,9 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			continue
 		}
 		out := strings.Join(applyDecisions(lines, m, decisions), "\n") + "\n"
+		if crlf {
+			out = strings.ReplaceAll(out, "\n", "\r\n")
+		}
 		if err := os.WriteFile(filepath.Join(top, path), []byte(out), 0o644); err != nil {
 			return refuse("cannot write %s", path)
 		}

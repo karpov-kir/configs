@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// A rerun calls the model only for a file whose input changed. The page, the file as the change left
-// it and the reviewer's notes on it are hashed together. A file with its last call's hash reuses that
+// A rerun calls the model only for a file whose input changed. The page, the prompt and the model are
+// hashed together, and the prompt holds the file, its changed lines and the reviewer's notes. A file with its last call's hash reuses that
 // call's reply, and a comment the reviewer accepted stays as it was. The cache holds one reply per
 // file.
 
@@ -20,10 +20,11 @@ type cacheEntry struct {
 	Reply string `json:"reply"`
 }
 
-// inputKey is the hash of everything one file's call reads.
-func inputKey(page, file string, notes []string) string {
+// inputKey is the hash of everything one file's call reads: the page, the prompt, which holds the file,
+// its changed lines and the reviewer's notes, and the model.
+func inputKey(page, prompt, model string) string {
 	h := sha256.New()
-	for _, part := range []string{page, file, strings.Join(notes, "\n")} {
+	for _, part := range []string{page, prompt, model} {
 		h.Write([]byte(part))
 		h.Write([]byte{0})
 	}

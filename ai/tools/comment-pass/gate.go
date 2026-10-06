@@ -20,7 +20,8 @@ const (
 	defaultWidth = 80
 )
 
-var reMarkdown = regexp.MustCompile(`\*\*[^*]+\*\*|^\s*(?:[-*]|\d+\.)\s+\S|^\s*#{1,6}\s+\S`)
+// reMarkdown is bold or a heading. A list marker is left alone: "- 1 is returned" reads as prose.
+var reMarkdown = regexp.MustCompile(`(?:^|\s)\*\*[^*\s][^*]*[^*\s]\*\*(?:\s|$|[.,;:])|^#{1,6}\s+\S`)
 
 // gateFindings is each way the written comments fail the gate, by the comment's id.
 func gateFindings(m material, decisions []decision, width int) []string {
@@ -45,7 +46,7 @@ func gateFindings(m material, decisions []decision, width int) []string {
 			if body != "" {
 				prose++
 			}
-			if len([]rune(line))+indentWidth(m, d.id) > width {
+			if columns(line)+indentWidth(m, d.id) > width {
 				out = append(out, fmt.Sprintf("%s: a line is wider than %d: %s", d.id, width, line))
 			}
 			if reMarkdown.MatchString(body) {
@@ -97,4 +98,33 @@ func printWidth(root string) int {
 		}
 	}
 	return defaultWidth
+}
+
+// tabColumns is how wide a tab is read.
+const tabColumns = 4
+
+// columns is how wide the line prints, a tab taken at tabColumns.
+func columns(line string) int {
+	n := 0
+	for _, r := range line {
+		if r == '\t' {
+			n += tabColumns
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+// otherWidth bounds a line in a file prettier does not format.
+const otherWidth = 100
+
+// widthFor is the width a file's lines print within: the repository's prettier width for a file
+// prettier formats, and otherWidth for the rest.
+func widthFor(path string, prettier int) int {
+	switch filepath.Ext(path) {
+	case ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs":
+		return prettier
+	}
+	return otherWidth
 }

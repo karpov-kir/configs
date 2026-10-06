@@ -101,6 +101,12 @@ func parseReply(reply string, m material) ([]decision, error) {
 			}
 			return nil, fmt.Errorf("%s %s carries text, which only rewrite and add take", last.id, last.verb)
 		}
+		// A text line is comment syntax, or inside a `/* */` block, so no code reaches the file.
+		trimmed := strings.TrimLeft(line, " \t")
+		inStar := len(last.text) > 0 && openStar(last.text)
+		if trimmed != "" && !isComment(trimmed) && !inStar {
+			return nil, fmt.Errorf("%s %s carries a line that is no comment: %s", last.id, last.verb, line)
+		}
 		last.text = append(last.text, line)
 	}
 	for id := range want {
@@ -129,4 +135,19 @@ func stripFence(reply string) string {
 		text = strings.TrimSuffix(strings.TrimSpace(text), "```")
 	}
 	return text
+}
+
+// openStar says the text so far has opened a `/*` block it has not closed.
+func openStar(text []string) bool {
+	open := false
+	for _, line := range text {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "/*") {
+			open = true
+		}
+		if strings.Contains(trimmed, "*/") {
+			open = false
+		}
+	}
+	return open
 }

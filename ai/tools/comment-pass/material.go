@@ -10,8 +10,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-
-	readerjudge "configs/ai/tools/reader-judge"
 )
 
 // candidate is a comment block the change touched: a line of the block or of the declaration under it
@@ -39,16 +37,23 @@ type material struct {
 	indents map[string]int
 }
 
-// changedLines is each line of the file at head that the change added or changed, from base.
-func changedLines(dir, base, path string) (map[int]bool, error) {
-	out, err := exec.Command("git", "-C", dir, "diff", "--no-color", "--unified=0", base, "--", path).Output()
+// changedLines is, for each file at head, the lines the change added or changed since base. Renames
+// are followed, so a renamed file's unchanged lines are context.
+func changedLines(dir, base string) (map[string]map[int]bool, error) {
+	out, err := exec.Command("git", "-C", dir, "diff", "--no-color", "--unified=0", "-M", base).Output()
 	if err != nil {
-		return nil, fmt.Errorf("git cannot diff %s from %s", path, base)
+		return nil, fmt.Errorf("git cannot diff the tree from %s", base)
 	}
-	changed := map[int]bool{}
+	changed := map[string]map[int]bool{}
+	file := ""
 	for _, line := range strings.Split(string(out), "\n") {
+		if name, found := strings.CutPrefix(line, "+++ b/"); found {
+			file = name
+			changed[file] = map[int]bool{}
+			continue
+		}
 		m := reHunk.FindStringSubmatch(line)
-		if m == nil {
+		if m == nil || file == "" {
 			continue
 		}
 		start, _ := strconv.Atoi(m[1])
@@ -57,7 +62,7 @@ func changedLines(dir, base, path string) (map[int]bool, error) {
 			count, _ = strconv.Atoi(m[2])
 		}
 		for n := start; n < start+count; n++ {
-			changed[n] = true
+			changed[file][n] = true
 		}
 	}
 	return changed, nil
@@ -68,7 +73,7 @@ var reHunk = regexp.MustCompile(`^@@ -\S+ \+(\d+)(?:,(\d+))? @@`)
 // reDeclaration opens a declaration: a top-level one, a class member, a typed field, or a row of a
 // table that opens on its key.
 var reDeclaration = regexp.MustCompile(`^\s*(?:export\s+)?(?:default\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?` +
-	`(?:function\*?|class|const|let|var|type|interface|enum|func)\s+[A-Za-z_$]` +
+	`(?:function\*?|class|const|let|var|type|interface|enum|func|def|fn|fun|pub\s+fn)\s+[A-Za-z_$]` +
 	`|^\s+(?:(?:public|private|protected|static|readonly|async|get|set|override)\s+)*[A-Za-z_$][\w$]*\??\s*(?:<[^>]*>)?\s*\(.*\{\s*$` +
 	`|^\s+(?:(?:public|private|protected|static|readonly)\s+)+[A-Za-z_$][\w$]*\??\s*[:=]` +
 	`|^\s+\[?[A-Za-z_$][\w$.]*\]?\??\s*:\s*[{\[]\s*$` +
@@ -86,7 +91,7 @@ var reUnitTest = regexp.MustCompile(`\.(?:test|spec)\.[a-z]+$|_test\.go$`)
 func findMaterial(path string, lines []string, changed map[int]bool) material {
 	m := material{indents: map[string]int{}}
 	commented := map[int]bool{}
-	for n, u := range readerjudge.CommentBlocks(lines) {
+	for n, u := range commentBlocks(lines) {
 		last := u.Line + u.Span - 1
 		decl := declarationAfter(lines, last)
 		commented[decl] = true
@@ -103,7 +108,8 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 		block := strings.Join(lines[u.Line-1:last], "\n")
 		m.indents["c"+strconv.Itoa(n+1)] = len(indentOf(lines, u.Line))
 		m.candidates = append(m.candidates, candidate{id: "c" + strconv.Itoa(n+1), first: u.Line, last: last,
-			decl: decl, text: block, isHeader: u.Line == firstContentLine(lines) && last < len(lines) && strings.TrimSpace(lines[last]) == ""})
+			decl: decl, text: block, isHeader: u.Line == firstContentLine(lines) && last < len(lines) &&
+				(strings.TrimSpace(lines[last]) == "" || strings.HasPrefix(lines[last], "package "))})
 	}
 	n := 0
 	if reUnitTest.MatchString(path) {
@@ -111,7 +117,14 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 	}
 	for line := 1; line <= len(lines); line++ {
 		text := lines[line-1]
-		if !changed[line] || commented[line] || !reDeclaration.MatchString(text) || notDeclaration.MatchString(text) {
+		if commented[line] || !reDeclaration.MatchString(text) || notDeclaration.MatchString(text) {
+			continue
+		}
+		touched := false
+		for _, n := range declarationSpan(lines, line) {
+			touched = touched || changed[n]
+		}
+		if !touched {
 			continue
 		}
 		n++
@@ -121,10 +134,11 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 	return m
 }
 
-// declarationAfter is the first code line after the block's last line, or 0 where the file ends first.
+// declarationAfter is the first code line after the block's last line, past any decorator, or 0 where
+// the file ends first.
 func declarationAfter(lines []string, last int) int {
 	for n := last + 1; n <= len(lines); n++ {
-		if strings.TrimSpace(lines[n-1]) != "" {
+		if text := strings.TrimSpace(lines[n-1]); text != "" && !strings.HasPrefix(text, "@") {
 			return n
 		}
 	}
@@ -143,28 +157,63 @@ func firstContentLine(lines []string) int {
 }
 
 // declarationSpan is the lines of the declaration opening on line `at`, up to the bracket that closes
-// what it opens. A declaration that opens no bracket is its own line. A change to a body changes the
-// declaration, and the comment on it is the pass's material.
+// what it opens. A bracket inside a string is no bracket. A brace-less body, as in Python, runs while
+// its lines are indented past the declaration. The span stops before the next declaration at the
+// declaration's own indent, which bounds a bracket the count misreads.
 func declarationSpan(lines []string, at int) []int {
 	if at < 1 || at > len(lines) {
 		return nil
 	}
-	depth, opened := 0, false
-	var out []int
+	own := len(indentOf(lines, at))
+	out := []int{at}
+	if strings.HasSuffix(strings.TrimSpace(lines[at-1]), ":") {
+		for n := at + 1; n <= len(lines); n++ {
+			if text := strings.TrimSpace(lines[n-1]); text != "" && len(indentOf(lines, n)) <= own {
+				break
+			}
+			out = append(out, n)
+		}
+		return out
+	}
+	depth := 0
 	for n := at; n <= len(lines); n++ {
-		out = append(out, n)
-		for _, r := range lines[n-1] {
+		if n > at {
+			if reDeclaration.MatchString(lines[n-1]) && len(indentOf(lines, n)) <= own {
+				return out
+			}
+			out = append(out, n)
+		}
+		bracketed := false
+		for _, r := range withoutStrings(lines[n-1]) {
 			switch r {
 			case '{', '(', '[':
 				depth++
-				opened = true
+				bracketed = true
 			case '}', ')', ']':
 				depth--
+				bracketed = true
 			}
 		}
-		if !opened || depth <= 0 {
+		if depth <= 0 && (bracketed || n == at) {
 			return out
 		}
 	}
 	return out
+}
+
+// withoutStrings is the line with its quoted strings blanked, so their brackets go uncounted.
+func withoutStrings(line string) string {
+	out := []rune(line)
+	var quote rune
+	for i, r := range out {
+		switch {
+		case quote != 0 && r == quote && (i == 0 || out[i-1] != '\\'):
+			quote = 0
+		case quote != 0:
+			out[i] = ' '
+		case r == '"' || r == '\'' || r == '`':
+			quote = r
+		}
+	}
+	return string(out)
 }

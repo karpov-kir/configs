@@ -11,8 +11,7 @@ import (
 )
 
 // Caller sends one file's call: the page as the system prompt and the file's prompt as the message.
-// It returns the reply's text. The CLI caller runs today. An API caller at temperature 0 takes the
-// same shape, once an API key is added.
+// It returns the reply's text. The pass calls the model through the CLI, and a suite hands it a fake.
 type Caller func(system, user string) (string, error)
 
 // callTimeout bounds one file's call. A file and the page fit in one turn with no tools.
