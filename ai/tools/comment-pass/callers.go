@@ -87,28 +87,44 @@ func callersSection(top, path string, lines []string, m material) string {
 // declaration's comment and the lines around it. A unit test is no caller a reader learns a purpose
 // from, and an import names without calling.
 func callSites(top, path, name string) []string {
-	out, err := gitOut(top, "grep", "--untracked", "-n", "-w", "-F", "-I", "-e", name, "--", ".")
+	// -z puts a NUL after the path and the line number, so a path holding a colon stays whole.
+	out, err := gitOut(top, "grep", "--untracked", "-z", "-n", "-w", "-F", "-I", "-e", name, "--", ".")
 	if err != nil {
 		return nil
 	}
 	type hit struct {
 		file string
 		line int
+		call bool
 	}
+	word := regexp.MustCompile(`(?:^|[^\w$])` + regexp.QuoteMeta(name) + `(?:[^\w$]|$)`)
+	call := regexp.MustCompile(`(?:^|[^\w$])` + regexp.QuoteMeta(name) + `\s*(?:<[^>]*>)?\(`)
 	var hits []hit
 	for _, row := range strings.Split(strings.TrimSpace(out), "\n") {
-		file, rest, ok := strings.Cut(row, ":")
-		if !ok || file == path || !sourceExtensions[filepath.Ext(file)] || reUnitTest.MatchString(file) {
+		fields := strings.SplitN(row, "\x00", 3)
+		if len(fields) != 3 {
 			continue
 		}
-		number, text, ok := strings.Cut(rest, ":")
-		n, err := strconv.Atoi(number)
-		if !ok || err != nil || reImport.MatchString(text) || isComment(strings.TrimSpace(text)) {
+		file, text := fields[0], strings.TrimSuffix(fields[2], "\r")
+		n, err := strconv.Atoi(fields[1])
+		if err != nil || file == path || !sourceExtensions[filepath.Ext(file)] || reUnitTest.MatchString(file) ||
+			reImport.MatchString(text) || isComment(strings.TrimSpace(text)) {
 			continue
 		}
-		hits = append(hits, hit{file, n})
+		// A name inside a string literal is a word, not a use.
+		code := withoutStrings(text, false)
+		if !word.MatchString(code) {
+			continue
+		}
+		hits = append(hits, hit{file, n, call.MatchString(code)})
 	}
-	sort.SliceStable(hits, func(i, j int) bool { return hits[i].file < hits[j].file })
+	// A call shows what a caller relies on better than a reference does, so calls come first.
+	sort.SliceStable(hits, func(i, j int) bool {
+		if hits[i].call != hits[j].call {
+			return hits[i].call
+		}
+		return hits[i].file < hits[j].file
+	})
 	var sites []string
 	for _, h := range hits {
 		if len(sites) == sitesPerName {
@@ -118,7 +134,7 @@ func callSites(top, path, name string) []string {
 		if err != nil {
 			continue
 		}
-		lines := strings.Split(string(body), "\n")
+		lines := strings.Split(strings.TrimSuffix(strings.ReplaceAll(string(body), "\r\n", "\n"), "\n"), "\n")
 		if inImport(lines, h.line) {
 			continue
 		}
@@ -161,6 +177,9 @@ func enclosingDeclaration(lines []string, at int) int {
 		if reDeclaration.MatchString(line) && !notDeclaration.MatchString(line) {
 			return n
 		}
+		// A shallower line that is no declaration, such as an if, encloses the site too, so only a line
+		// shallower still can be the declaration around it.
+		indent = columns(indentOf(lines, n))
 	}
 	return 0
 }
@@ -183,7 +202,8 @@ func inImport(lines []string, at int) bool {
 		t := strings.TrimSpace(lines[n-1])
 		switch {
 		case strings.HasPrefix(t, "import ") || strings.HasPrefix(t, "import{") || strings.HasPrefix(t, "export {"):
-			return !strings.Contains(t, "}")
+			// Only a list left open on its own line runs on to the lines below it.
+			return strings.HasSuffix(t, "{")
 		case t == "" || strings.HasSuffix(t, ";") || strings.Contains(t, "}") || strings.HasSuffix(t, "{"):
 			return false
 		}

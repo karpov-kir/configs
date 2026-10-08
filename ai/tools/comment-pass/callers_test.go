@@ -75,3 +75,49 @@ func TestExportedNames(t *testing.T) {
 		}
 	}
 }
+
+// The review's inputs: the declaration around a call nested in an if, a call after a default import, a
+// path with a colon, a name inside a string, a CRLF caller, and a site at the file's end.
+func TestCallSitesReadAsTheyAre(t *testing.T) {
+	nested := []string{"export function b() {", "  const helper = () => 1;", "  if (ok) {", "    post(x);", "  }", "}"}
+	if got := enclosingDeclaration(nested, 4); got != 1 {
+		t.Errorf("the declaration around a call in an if is line %d, want 1", got)
+	}
+	if inImport([]string{"import post from './ledger'", "post([])"}, 2) {
+		t.Error("a call after a default import read as an import")
+	}
+	if !inImport([]string{"import {", "  post,", "} from './ledger';"}, 2) {
+		t.Error("a name in an open import list read as a call")
+	}
+
+	dir, _ := fixture(t)
+	write(t, dir, "a:b.ts", "export function x(): void {\n  post(2);\n}\n")
+	write(t, dir, "api.ts", "export function send(url: string): void {\n  fetch(url, { method: \"post\" });\n}\n")
+	write(t, dir, "crlf.ts", "/** Closes. */\r\nexport function c(): void {\r\n  post(3);\r\n}\r\n")
+	sites := strings.Join(callSites(dir, "ledger.ts", "post"), "")
+	for _, want := range []string{"post is used in a:b.ts at line 2", "post is used in crlf.ts at line 3"} {
+		if !strings.Contains(sites, want) {
+			t.Errorf("missing %q in:\n%s", want, sites)
+		}
+	}
+	if strings.Contains(sites, "api.ts") {
+		t.Errorf("a name in a string read as a use:\n%s", sites)
+	}
+	if strings.Contains(sites, "\r") {
+		t.Errorf("a carriage return reached the prompt:\n%q", sites)
+	}
+	if strings.Contains(sites, "     5  \n") {
+		t.Errorf("a line past the file's end:\n%s", sites)
+	}
+}
+
+// A call ranks ahead of a reference, whatever the file names.
+func TestACallRanksAheadOfAReference(t *testing.T) {
+	dir, _ := fixture(t)
+	write(t, dir, "a.ts", "export const handlers = [post];\n")
+	write(t, dir, "z.ts", "export function run(): void {\n  post([]);\n}\n")
+	sites := callSites(dir, "ledger.ts", "post")
+	if len(sites) == 0 || !strings.Contains(sites[0], "z.ts") {
+		t.Fatalf("the call did not come first:\n%s", strings.Join(sites, ""))
+	}
+}
