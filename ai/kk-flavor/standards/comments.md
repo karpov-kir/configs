@@ -22,6 +22,7 @@ Write so the comment is understood from itself and its line alone:
 - Say what the act prevents or gives, not how it is computed.
 - Give each sentence a subject a reader can picture, never "whatever" or "anything". Write each sentence to be read once.
 - Name an identifier only where the reader would look it up anyway.
+- Where a comment leans on a mechanism elsewhere, such as a warm-up or a cache, say in a few words what it is for. The reader then follows the sentence without a second file.
 - Write plain text: drop markdown, hedges and pointers to other comments. Say "this function" only where it is the clearest subject.
 
 A comment sits on the declaration it is about. Siblings, such as enum members or table rows, take one form.
