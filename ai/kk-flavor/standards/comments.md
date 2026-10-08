@@ -4,7 +4,7 @@
 
 Write a comment only where a reader of this line needs something the code cannot show.
 
-Keep or add a comment only where its absence leaves the reader wrong or stuck: a fact from outside the code, or what the name and signature leave unsaid. When in doubt, write none: a reader who gets it from the next few lines of code needs no comment. Inside a body, a comment earns its place only where an outside fact decides that line. Keep a comment only when it already follows every rule on this page. Otherwise rewrite it.
+Keep or add a comment only where its absence leaves the reader wrong or stuck: a fact from outside the code, or what the name and signature leave unsaid. When in doubt, write none: a reader who gets it from the next few lines of code needs no comment. Inside a body, a comment earns its place only where an outside fact decides that line. Keep a comment only when it already follows every rule on this page, and rewrite every other one.
 
 Write in the style of ASD-STE100, about 80% of the way: short sentences, one idea each, active voice, plain words.
 
