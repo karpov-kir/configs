@@ -25,6 +25,9 @@ const (
 	linesBelow = 3
 	// maxBodyLines is the longest enclosing body a first-level site shows whole.
 	maxBodyLines = 30
+	// maxEdgeLines bounds the comment shown above a window, so a long header or a commented-out block
+	// does not take the section.
+	maxEdgeLines = 10
 	// maxCallersBytes bounds the whole section, so a widely called file does not crowd out its own text.
 	maxCallersBytes = 20_000
 )
@@ -71,14 +74,19 @@ func callersSection(top, path string, lines []string, m material) string {
 	for _, p := range m.places {
 		add(p.line)
 	}
-	var b strings.Builder
+	// Every name's direct callers come before any caller one call further out, so a file with several
+	// exports keeps its later exports' direct callers inside the cap.
+	var first, second []string
 	for _, name := range names {
-		for _, site := range callSites(top, path, name) {
-			if b.Len()+len(site) > maxCallersBytes {
-				break
-			}
-			b.WriteString(site)
+		direct, further := callSites(top, path, name)
+		first, second = append(first, direct...), append(second, further...)
+	}
+	var b strings.Builder
+	for _, site := range append(first, second...) {
+		if b.Len()+len(site) > maxCallersBytes {
+			continue
 		}
+		b.WriteString(site)
 	}
 	if b.Len() == 0 {
 		return ""
@@ -95,18 +103,20 @@ type site struct {
 }
 
 // callSites sets out up to sitesPerName places outside path that use name, each with the body or the
-// lines around it, and then up to sitesPerName places that use the declarations enclosing those.
-func callSites(top, path, name string) []string {
+// lines around it, and up to sitesPerName places that use the declarations enclosing those.
+func callSites(top, path, name string) (direct, further []string) {
 	first := findSites(top, name, func(file string, _ int) bool { return file == path })
-	var out []string
 	var second []site
 	followed := map[string]bool{}
 	for _, s := range first {
-		out = append(out, formatSite(name, s, true, ""))
+		direct = append(direct, formatSite(name, s, true, ""))
 		decl := enclosingDeclaration(s.lines, s.at)
 		outer := declarationName(s.lines, decl)
-		// Two sites inside one declaration share its callers, so they are followed once.
-		if outer == "" || followed[s.file+"\x00"+outer] || len(second) == sitesPerName {
+		// Two sites inside one declaration share its callers, so they are followed once. A wrapper of
+		// the same name would only find the first level again. A method is called through objects whose
+		// methods share its name, so only a top-level declaration is followed.
+		if outer == "" || outer == name || followed[s.file+"\x00"+outer] || len(second) == sitesPerName ||
+			columns(indentOf(s.lines, decl)) > 0 {
 			continue
 		}
 		followed[s.file+"\x00"+outer] = true
@@ -119,10 +129,10 @@ func callSites(top, path, name string) []string {
 				break
 			}
 			second = append(second, t)
-			out = append(out, formatSite(outer, t, false, fmt.Sprintf(" (which runs %s at %s line %d)", name, s.file, s.at)))
+			further = append(further, formatSite(outer, t, false, fmt.Sprintf(" (which runs %s at %s line %d)", name, s.file, s.at)))
 		}
 	}
-	return out
+	return direct, further
 }
 
 // findSites is up to sitesPerName places that use name, outside the lines skip names. A unit test is
@@ -191,6 +201,7 @@ func formatSite(name string, s site, whole bool, note string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n%s is used in %s at line %d%s", name, s.file, s.at, note)
 	from, to := max(1, s.at-linesAbove), min(len(s.lines), s.at+linesBelow)
+	body := false
 	if decl := enclosingDeclaration(s.lines, s.at); decl > 0 {
 		fmt.Fprintf(&b, ", inside line %d: %s\n", decl, strings.TrimSpace(s.lines[decl-1]))
 		if comment := commentAbove(s.lines, decl); len(comment) > 0 {
@@ -200,12 +211,13 @@ func formatSite(name string, s site, whole bool, note string) string {
 			}
 		}
 		if span := declarationSpan(s.lines, decl, false); whole && len(span) > 0 && len(span) <= maxBodyLines {
-			from, to = span[0], span[len(span)-1]
+			from, to, body = span[0], span[len(span)-1], true
 		}
 	} else {
 		b.WriteString("\n")
 	}
-	for from > 1 && isComment(strings.TrimSpace(s.lines[from-2])) {
+	// A whole body's own comment is already shown above it.
+	for edge := 0; !body && edge < maxEdgeLines && from > 1 && isComment(strings.TrimSpace(s.lines[from-2])); edge++ {
 		from--
 	}
 	for n := from; n <= to; n++ {
