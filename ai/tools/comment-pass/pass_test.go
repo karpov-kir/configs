@@ -171,7 +171,7 @@ func TestARerunOfAnUnchangedFileReusesItsReply(t *testing.T) {
 func TestTheNotesReachTheFilesCall(t *testing.T) {
 	lines := strings.Split(headLedger, "\n")
 	m := findMaterial("ledger.ts", lines, map[int]bool{3: true})
-	prompt := userPrompt("ledger.ts", lines, m, []string{"ledger.ts:1 the summary says nothing the name does not"}, 120)
+	prompt := userPrompt("ledger.ts", lines, m, []string{"ledger.ts:1 the summary says nothing the name does not"}, 120, "")
 	if !strings.Contains(prompt, "The reviewer's notes on this file") || !strings.Contains(prompt, "ledger.ts:1 the summary") {
 		t.Fatalf("prompt:\n%s", prompt)
 	}
@@ -181,7 +181,7 @@ func TestTheNotesReachTheFilesCall(t *testing.T) {
 func TestTheCallNamesEachIdsColumns(t *testing.T) {
 	lines := []string{"export class Book {", "\tclose(): void {", "\t\tshut();", "\t}", "}"}
 	m := findMaterial("ledger.ts", lines, map[int]bool{2: true})
-	prompt := userPrompt("ledger.ts", lines, m, nil, 120)
+	prompt := userPrompt("ledger.ts", lines, m, nil, 120, "")
 	if !strings.Contains(prompt, "export class Book { (120 columns)") || !strings.Contains(prompt, "close(): void { (116 columns)") {
 		t.Fatalf("prompt:\n%s", prompt)
 	}
