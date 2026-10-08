@@ -130,7 +130,6 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if len(m.candidates) == 0 && len(m.places) == 0 {
 			continue
 		}
-		prompt := userPrompt(path, lines, m, notes[path], widthFor(path, width))
 		if list {
 			fmt.Fprintf(stdout, "%s: %d comment(s), %d place(s)\n", path, len(m.candidates), len(m.places))
 			for _, c := range m.candidates {
@@ -141,6 +140,7 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			}
 			continue
 		}
+		prompt := userPrompt(path, lines, m, notes[path], widthFor(path, width), callersSection(top, path, lines, m))
 		key := inputKey(string(page), prompt, model)
 		store := cachePath(stateHome, repoKey, path)
 		reply, source := "", "kept"

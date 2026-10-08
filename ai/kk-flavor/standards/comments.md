@@ -23,6 +23,8 @@ Write so the comment is understood from itself and its line alone:
 - Give each sentence a subject a reader can picture, never "whatever" or "anything". Write each sentence to be read once.
 - Name an identifier only where the reader would look it up anyway.
 - Write for a reader who has only this file open. Where a comment relies on a name from outside this file, a test, a helper, a mode, say in the same sentence what that thing is for.
+- A caller's reason for calling is part of the fact, and the callers section shows it.
+- A reference to another file names its path.
 - Write plain text: drop markdown, hedges and pointers to other comments. Say "this function" only where it is the clearest subject.
 
 A comment sits on the declaration it is about. Siblings, such as enum members or table rows, take one form.
