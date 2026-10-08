@@ -121,3 +121,35 @@ func TestACallRanksAheadOfAReference(t *testing.T) {
 		t.Fatalf("the call did not come first:\n%s", strings.Join(sites, ""))
 	}
 }
+
+// A site's purpose is often stated one call further out, so the section follows the declaration
+// around each first-level site to its own callers, once each. A first-level site shows that
+// declaration's whole body where it is short, and a comment just above a window is shown whole.
+func TestTheSectionReachesOneCallFurtherOut(t *testing.T) {
+	dir, _ := fixture(t)
+	write(t, dir, "close.ts", "export function closeDay(entries: Entry[]): void {\n  audit(entries);\n  post(entries);\n"+
+		"  post(entries.slice(1));\n  a();\n  b();\n  c();\n  d();\n  // The whole job is to settle first.\n  settle();\n}\n")
+	write(t, dir, "night.ts", "export function runNight(): void {\n  open();\n  // The morning report reads a settled book,\n"+
+		"  // so the night closes the day first.\n  tidy();\n  check();\n  if (ready) {\n    closeDay(all);\n  }\n}\n")
+	sites := strings.Join(callSites(dir, "ledger.ts", "post"), "")
+	for _, want := range []string{
+		"The whole job is to settle first.",
+		"closeDay is used in night.ts at line 8 (which runs post at close.ts line 3)",
+		"// The morning report reads a settled book,",
+	} {
+		if !strings.Contains(sites, want) {
+			t.Errorf("missing %q in:\n%s", want, sites)
+		}
+	}
+	if n := strings.Count(sites, "closeDay is used in"); n != 1 {
+		t.Errorf("closeDay's callers shown %d times, want once:\n%s", n, sites)
+	}
+}
+
+// A call chain and a local holding a plain value enclose nothing a reader would name.
+func TestACallChainEnclosesNothing(t *testing.T) {
+	lines := []string{"function newCellTests() {", "  const name = format(cell);", "  list().forEach(cell => {", "    post(cell);", "  });", "}"}
+	if got := enclosingDeclaration(lines, 4); got != 1 {
+		t.Errorf("the declaration around the call is line %d, want 1", got)
+	}
+}
