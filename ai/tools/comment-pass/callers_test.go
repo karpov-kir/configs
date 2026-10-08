@@ -94,7 +94,8 @@ func TestCallSitesReadAsTheyAre(t *testing.T) {
 	write(t, dir, "a:b.ts", "export function x(): void {\n  post(2);\n}\n")
 	write(t, dir, "api.ts", "export function send(url: string): void {\n  fetch(url, { method: \"post\" });\n}\n")
 	write(t, dir, "crlf.ts", "/** Closes. */\r\nexport function c(): void {\r\n  post(3);\r\n}\r\n")
-	sites := strings.Join(callSites(dir, "ledger.ts", "post"), "")
+	direct, further := callSites(dir, "ledger.ts", "post")
+	sites := strings.Join(append(direct, further...), "")
 	for _, want := range []string{"post is used in a:b.ts at line 2", "post is used in crlf.ts at line 3"} {
 		if !strings.Contains(sites, want) {
 			t.Errorf("missing %q in:\n%s", want, sites)
@@ -116,8 +117,66 @@ func TestACallRanksAheadOfAReference(t *testing.T) {
 	dir, _ := fixture(t)
 	write(t, dir, "a.ts", "export const handlers = [post];\n")
 	write(t, dir, "z.ts", "export function run(): void {\n  post([]);\n}\n")
-	sites := callSites(dir, "ledger.ts", "post")
+	sites, _ := callSites(dir, "ledger.ts", "post")
 	if len(sites) == 0 || !strings.Contains(sites[0], "z.ts") {
 		t.Fatalf("the call did not come first:\n%s", strings.Join(sites, ""))
+	}
+}
+
+// A site's purpose is often stated one call further out, so the section follows the declaration
+// around each first-level site to its own callers, once each. A first-level site shows that
+// declaration's whole body where it is short, and a comment just above a window is shown whole.
+func TestTheSectionReachesOneCallFurtherOut(t *testing.T) {
+	dir, _ := fixture(t)
+	write(t, dir, "close.ts", "export function closeDay(entries: Entry[]): void {\n  audit(entries);\n  post(entries);\n"+
+		"  post(entries.slice(1));\n  a();\n  b();\n  c();\n  d();\n  // The whole job is to settle first.\n  settle();\n}\n")
+	write(t, dir, "night.ts", "export function runNight(): void {\n  open();\n  // The morning report reads a settled book,\n"+
+		"  // so the night closes the day first.\n  tidy();\n  check();\n  if (ready) {\n    closeDay(all);\n  }\n}\n")
+	direct, further := callSites(dir, "ledger.ts", "post")
+	sites := strings.Join(append(direct, further...), "")
+	for _, want := range []string{
+		"The whole job is to settle first.",
+		"closeDay is used in night.ts at line 8 (which runs post at close.ts line 3)",
+		"// The morning report reads a settled book,",
+	} {
+		if !strings.Contains(sites, want) {
+			t.Errorf("missing %q in:\n%s", want, sites)
+		}
+	}
+	if n := strings.Count(sites, "closeDay is used in"); n != 1 {
+		t.Errorf("closeDay's callers shown %d times, want once:\n%s", n, sites)
+	}
+}
+
+// A call chain and a local holding a plain value enclose nothing a reader would name.
+func TestACallChainEnclosesNothing(t *testing.T) {
+	lines := []string{"function newCellTests() {", "  const name = format(cell);", "  list().forEach(cell => {", "    post(cell);", "  });", "}"}
+	if got := enclosingDeclaration(lines, 4); got != 1 {
+		t.Errorf("the declaration around the call is line %d, want 1", got)
+	}
+}
+
+// The review's inputs: a long comment run above a window, a wrapper of the same name, a whole body's
+// own comment, and a method, which no second level follows.
+func TestTheSectionStaysBoundedAndFollowsOnlyWhatItShould(t *testing.T) {
+	dir, _ := fixture(t)
+	write(t, dir, "big.ts", strings.Repeat("// old line\n", 400)+"post(y);\n")
+	write(t, dir, "wrap.ts", "export function post(x) {\n  return api.post(x);\n}\n")
+	write(t, dir, "day.ts", "// Settles the day.\nexport function settleDay() {\n  post(x);\n}\n")
+	write(t, dir, "book.ts", "export class Book {\n  close() {\n    post(this);\n  }\n}\n")
+	write(t, dir, "shelf.ts", "export function shelve(b: Book): void {\n  b.close();\n}\n")
+	direct, further := callSites(dir, "ledger.ts", "post")
+	all := strings.Join(append(direct, further...), "")
+	if n := strings.Count(all, "// old line"); n > linesAbove+maxEdgeLines {
+		t.Errorf("%d comment lines at a window, over %d", n, linesAbove+maxEdgeLines)
+	}
+	if strings.Contains(all, "(which runs post at wrap.ts") {
+		t.Errorf("a same-named wrapper was followed:\n%s", all)
+	}
+	if n := strings.Count(all, "Settles the day."); n > 1 {
+		t.Errorf("a whole body's comment shown %d times:\n%s", n, all)
+	}
+	if strings.Contains(all, "close is used in") {
+		t.Errorf("a method was followed to a second level:\n%s", all)
 	}
 }
