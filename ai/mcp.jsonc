@@ -12,10 +12,12 @@
     // needs Chrome's remote debugging switched on; README.md carries that step and the warning
     // about leaving it on.
     // --autoConnect asks for the connection once per server process.
+    // --categoryExtensions opens chrome-extension:// pages and adds the extension tools, so an agent
+    // can drive an unpacked extension it is building.
     "chrome-devtools": {
       "type": "stdio",
       "command": "@CONFIGS@/mcp-env.sh",
-      "args": ["mise", "exec", "node@lts", "--", "npx", "-y", "chrome-devtools-mcp", "--autoConnect"]
+      "args": ["mise", "exec", "node@lts", "--", "npx", "-y", "chrome-devtools-mcp", "--autoConnect", "--categoryExtensions"]
     }
   }
 }
