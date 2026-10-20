@@ -180,3 +180,48 @@ func TestTheSectionStaysBoundedAndFollowsOnlyWhatItShould(t *testing.T) {
 		t.Errorf("a method was followed to a second level:\n%s", all)
 	}
 }
+
+// A comment rewritten in a caller asks no file again, since the key reads the callers' code only. A
+// change in the caller's code asks again.
+func TestACallersCommentEditKeepsTheReply(t *testing.T) {
+	dir, base := fixture(t)
+	t.Setenv("TEST_STATE", t.TempDir())
+	caller := func(comment, body string) {
+		write(t, dir, "close.ts", "// "+comment+"\nexport function closeDay(entries: Entry[]): void {\n  // "+comment+
+			"\n  "+body+"\n  post(entries);\n}\n")
+	}
+	reply := "c1 keep: fine\np1 skip: fine\n"
+	calls := 0
+	caller("Closes the day.", "audit(entries);")
+	if code, text := run(t, dir, base, reply, &calls); code != 0 || calls != 1 {
+		t.Fatalf("first run: exit %d, %d call(s)\n%s", code, calls, text)
+	}
+	caller("Settles the book before the morning report.", "audit(entries);")
+	if code, text := run(t, dir, base, reply, &calls); code != 0 || calls != 1 {
+		t.Fatalf("a caller's comment edit asked again: exit %d, %d call(s)\n%s", code, calls, text)
+	}
+	caller("Settles the book before the morning report.", "settle(entries);")
+	if code, text := run(t, dir, base, reply, &calls); code != 0 || calls != 2 {
+		t.Fatalf("a caller's code edit kept the reply: exit %d, %d call(s)\n%s", code, calls, text)
+	}
+}
+
+// The key's callers text drops the enclosing comments and every comment line in the context, and keeps
+// the rest.
+func TestCallersCodeDropsOnlyComments(t *testing.T) {
+	section := "\npost is used in close.ts at line 5, inside line 2: export function closeDay() {\n" +
+		"  whose comment reads:\n    // Closes the day.\n" +
+		"     1  // Closes the day.\n     2  export function closeDay() {\n     3    /**\n     4     * A note.\n" +
+		"     5     */\n     6    post(entries);\n"
+	got := callersCode(section)
+	for _, gone := range []string{"Closes the day", "A note", "whose comment reads", "/**"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("%q kept in:\n%s", gone, got)
+		}
+	}
+	for _, kept := range []string{"post is used in close.ts", "export function closeDay() {", "post(entries);"} {
+		if !strings.Contains(got, kept) {
+			t.Errorf("%q dropped from:\n%s", kept, got)
+		}
+	}
+}
