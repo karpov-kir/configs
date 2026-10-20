@@ -16,7 +16,7 @@ Remove a comment that restates the name, the signature or the body. Remove one t
 
 Write so the comment is understood from itself and its line alone:
 - Use the words of the domain and the code. Coin no term.
-- Name who acts in each sentence: the bank, the caller, this check. A value never acts.
+- Name who acts in each sentence: the bank, the caller, this check. A value never acts. Where "this code", "the code" or "this logic" would be the subject, name the actor instead: the test, the check, the caller or the function by its role.
 - At most four lines.
 - State the fact and the act. A fact alone leaves "and what?". An act alone leaves "why?".
 - Say what the act prevents or gives, not how it is computed.
