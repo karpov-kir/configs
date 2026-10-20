@@ -308,3 +308,37 @@ func inImport(lines []string, at int) bool {
 	}
 	return false
 }
+
+// reSiteLine is a numbered line of a call site's context, with the code after the number.
+var reSiteLine = regexp.MustCompile(`^  \s*\d+  (.*)$`)
+
+// callersCode is the callers section without its comments: the enclosing declarations' comments and
+// every comment line in the shown context. The cache key reads this, so a comment edited elsewhere
+// does not ask the file again.
+func callersCode(section string) string {
+	var out []string
+	inComment, inStar := false, false
+	for _, line := range strings.Split(section, "\n") {
+		if line == "  whose comment reads:" {
+			inComment = true
+			continue
+		}
+		if inComment && strings.HasPrefix(line, "    ") && !reSiteLine.MatchString(line) {
+			continue
+		}
+		inComment = false
+		if m := reSiteLine.FindStringSubmatch(line); m != nil {
+			code := strings.TrimSpace(m[1])
+			if inStar {
+				inStar = !strings.Contains(code, "*/")
+				continue
+			}
+			if isComment(code) {
+				inStar = opensStar(code)
+				continue
+			}
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}

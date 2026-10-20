@@ -140,8 +140,11 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			}
 			continue
 		}
-		prompt := userPrompt(path, lines, m, notes[path], widthFor(path, width), callersSection(top, path, lines, m))
-		key := inputKey(string(page), prompt, model)
+		callers := callersSection(top, path, lines, m)
+		prompt := userPrompt(path, lines, m, notes[path], widthFor(path, width), callers)
+		// The key reads the callers' code, not their comments: a comment rewritten in another file asks no
+		// file again, and a change in how a caller uses the file does.
+		key := inputKey(string(page), userPrompt(path, lines, m, notes[path], widthFor(path, width), callersCode(callers)), model)
 		store := cachePath(stateHome, repoKey, path)
 		reply, source := "", "kept"
 		if !ask {
