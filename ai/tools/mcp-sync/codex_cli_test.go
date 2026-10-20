@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -37,10 +38,16 @@ func TestARealCodexKeepsEveryArgumentBoundary(t *testing.T) {
 		t.Fatalf("syncing to a real Codex exited %d\n%s", code, said.String())
 	}
 
+	// The arguments are compared as values. Codex prints its registry as indented JSON in some releases,
+	// and the layout of that print says nothing about where one argument ends.
 	registered := codexEntry(t, "literal")
-	if got := string(registered.Transport.Args); got != `["a b","$(literal)","a\nb"]` {
-		t.Errorf("Codex holds the arguments as %s, and the declaration wrote [\"a b\",\"$(literal)\",\"a\\nb\"]. "+
-			"A boundary lost on the way in is a server launched with arguments the human never wrote.", got)
+	var args []string
+	if err := json.Unmarshal(registered.Transport.Args, &args); err != nil {
+		t.Fatalf("Codex holds the arguments as %s, which is no list of strings: %v", registered.Transport.Args, err)
+	}
+	if want := []string{"a b", "$(literal)", "a\nb"}; !slices.Equal(args, want) {
+		t.Errorf("Codex holds the arguments as %q, and the declaration wrote %q. "+
+			"A boundary lost on the way in is a server launched with arguments the human never wrote.", args, want)
 	}
 	if got := registered.Transport.Env["VALUE"]; got != "x=y z" {
 		t.Errorf("Codex holds VALUE as %q, want %q", got, "x=y z")
