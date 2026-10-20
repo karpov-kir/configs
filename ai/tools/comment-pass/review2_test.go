@@ -94,3 +94,26 @@ func TestARemovedBlockTakesTheGapItLeaves(t *testing.T) {
 		}
 	}
 }
+
+// Each block is bounded on its own. A four-line note above a two-line summary is the shape the page asks
+// of a declaration that needs both, and passes. A five-line note, or a doc block over two lines, does not.
+func TestTheGateBoundsEachBlockOnItsOwn(t *testing.T) {
+	m := material{candidates: []candidate{{id: "c1"}}, indents: map[string]int{}}
+	note := []string{"// One.", "// Two.", "// Three.", "// Four."}
+	summary := []string{"/**", " * Returns the posting, or undefined", " * when the book is closed.", " */"}
+	gate := func(text []string) []string {
+		return gateFindings(m, []decision{{id: "c1", verb: "rewrite", text: text}}, 120)
+	}
+	if found := gate(append(append([]string{}, note...), summary...)); len(found) != 0 {
+		t.Errorf("a four-line note above a two-line summary was refused: %v", found)
+	}
+	if found := gate(append(append([]string{}, note...), "// Five.")); len(found) != 1 {
+		t.Errorf("a five-line note passed: %v", found)
+	}
+	if found := gate([]string{"/**", " * One.", " * Two.", " * Three.", " */"}); len(found) != 1 {
+		t.Errorf("a three-line summary passed: %v", found)
+	}
+	if found := gate([]string{"/** Returns the posting. */"}); len(found) != 0 {
+		t.Errorf("a one-line summary was refused: %v", found)
+	}
+}

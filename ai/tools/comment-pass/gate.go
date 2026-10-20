@@ -13,14 +13,17 @@ import (
 	"time"
 )
 
-// The gate checks what takes no judgement. A line fits the repository's print width. A block holds at
-// most four prose lines, and a file header at most eight. A comment holds no markdown. A comment that
+// The gate checks what takes no judgement. A line fits the repository's print width. Each block of a
+// written comment is bounded on its own: a run of line comments at most four prose lines, a doc block,
+// which holds a one-sentence summary, at most two, and a file header at most eight. A note above a
+// summary is two blocks, the shape the page asks of a declaration that needs both. A comment holds no markdown. A comment that
 // fails the gate fails the pass, with its text shown, and the file is left as it was. A line past the
 // width is wrapped before the gate reads it.
 
 const (
-	maxBlockLines  = 4
-	maxHeaderLines = 8
+	maxBlockLines   = 4
+	maxSummaryLines = 2
+	maxHeaderLines  = 8
 	// defaultWidth is prettier's own default, for a repository that sets none.
 	defaultWidth = 80
 )
@@ -41,16 +44,26 @@ func gateFindings(m material, decisions []decision, width int) []string {
 		if d.verb != "rewrite" && d.verb != "add" {
 			continue
 		}
-		limit := maxBlockLines
-		if d.id == headerID {
-			limit = maxHeaderLines
+		for _, part := range commentParts(d.text) {
+			limit := maxBlockLines
+			switch {
+			case d.id == headerID:
+				limit = maxHeaderLines
+			case strings.HasPrefix(strings.TrimLeft(part[0], " \t"), "/**"):
+				limit = maxSummaryLines
+			}
+			prose := 0
+			for _, line := range part {
+				if commentBody(line) != "" {
+					prose++
+				}
+			}
+			if prose > limit {
+				out = append(out, fmt.Sprintf("%s: %d prose lines in one block, over %d:\n%s", d.id, prose, limit, strings.Join(part, "\n")))
+			}
 		}
-		prose := 0
 		for _, line := range d.text {
 			body := commentBody(line)
-			if body != "" {
-				prose++
-			}
 			if placedColumns(line)+indentWidth(m, d.id) > width {
 				out = append(out, fmt.Sprintf("%s: a line is wider than %d: %s", d.id, width, line))
 			}
@@ -58,11 +71,33 @@ func gateFindings(m material, decisions []decision, width int) []string {
 				out = append(out, fmt.Sprintf("%s: markdown in a comment: %s", d.id, line))
 			}
 		}
-		if prose > limit {
-			out = append(out, fmt.Sprintf("%s: %d prose lines, over %d:\n%s", d.id, prose, limit, strings.Join(d.text, "\n")))
-		}
 	}
 	return out
+}
+
+// commentParts splits a written comment into its blocks: each run of line comments, and each `/* */`
+// block from its opening line to the line that closes it.
+func commentParts(text []string) [][]string {
+	var parts [][]string
+	inStar, lastLine := false, false
+	for _, line := range text {
+		trimmed := strings.TrimLeft(line, " \t")
+		switch {
+		case inStar:
+			parts[len(parts)-1] = append(parts[len(parts)-1], line)
+			inStar = !strings.Contains(trimmed, "*/")
+		case strings.HasPrefix(trimmed, "/*"):
+			parts = append(parts, []string{line})
+			inStar = !strings.Contains(trimmed[2:], "*/")
+			lastLine = false
+		case lastLine:
+			parts[len(parts)-1] = append(parts[len(parts)-1], line)
+		default:
+			parts = append(parts, []string{line})
+			lastLine = true
+		}
+	}
+	return parts
 }
 
 // indentWidth is the indent the comment will take, which counts toward the line's width. The gate
