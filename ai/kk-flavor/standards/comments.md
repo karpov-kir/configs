@@ -2,34 +2,24 @@
 
 # Comments
 
-Write a comment only where a reader of this line needs something the code cannot show.
-
-Keep or add a comment only where its absence leaves the reader wrong or stuck: a fact from outside the code, or what the name and signature leave unsaid. When in doubt, write none: a reader who gets it from the next few lines of code needs no comment. Inside a body, a comment earns its place only where an outside fact decides that line. Keep a comment only when it already follows every rule on this page, and rewrite every other one.
-
-The reader knows the domain this code works in: the standards, protocols, formats and platform APIs it builds on. A fact any such reader knows is no reason for a comment. A note's outside fact is one that reader would not know, such as how a device, a vendor or a server actually behaves, or what a past failure showed.
-
-Write in the style of ASD-STE100, about 80% of the way: short sentences, one idea each, active voice, plain words.
+Keep or add a comment only where its absence leaves the reader wrong or stuck. The reader has only this file open. The reader knows the domain this code works in: the standards, protocols, formats and platform APIs it builds on. A fact any such reader knows is no reason for a comment. A reader who gets it from the next few lines of code needs no comment either. When in doubt, write none.
 
 A comment is one of two kinds.
 - A summary: one sentence on a declaration whose name and signature leave a case, a unit, an ordering, a side effect or a precondition unsaid. It opens on a verb: "Returns the posting, or undefined when the book is closed."
-- A note: a fact from outside the code that the code relies on, then what this code does because of it and what that gives its caller. "The bank refuses a posting after 17:00, so this check moves it to the next business day."
+- A note: what the declaration does and what that gives the reader, then the fact from outside the code behind it. The fact is one the reader would not know, such as how a device, a vendor or a server actually behaves, or what a past failure showed. A caller's reason for calling is part of the fact, and a callers section, where one is given, shows it. "This check moves a posting made after 17:00 to the next business day. The bank refuses a posting after 17:00."
 
-Remove a comment that restates the name, the signature or the body. Remove one that names a test, walks through the code line by line, or tells the story of the change.
+Inside a body, a comment earns its place only where an outside fact decides that line. Remove a comment that restates the name, the signature or the body. Remove one that points to a test as its evidence, walks through the code line by line, or tells the story of the change. Keep a comment only when it already follows every rule on this page, and rewrite every other one.
 
-Write so the comment is understood from itself and its line alone:
+Write each comment so it is understood from itself and its line alone:
+- Write in the style of ASD-STE100, about 80% of the way: short sentences, one idea each, active voice, plain words. Write each sentence to be read once.
 - Use the words of the domain and the code. Coin no term.
-- Name who acts in each sentence: the bank, the caller, this check. A value never acts. Where "this code", "the code" or "this logic" would be the subject, name the actor instead: the test, the check, the caller or the function by its role.
-- At most four lines.
-- State the fact and the act. A fact alone leaves "and what?". An act alone leaves "why?".
-- Say what the act prevents or gives, not how it is computed.
-- A chain of reasons runs past each mechanism and ends at what the reader gains or avoids: a test that runs to its end, a stale file left unread.
-- Give each sentence a subject a reader can picture, never "whatever" or "anything". Write each sentence to be read once.
-- Name an identifier only where the reader would look it up anyway.
-- Write for a reader who has only this file open. Where a comment relies on a name this codebase defines outside this file, a test, a helper, a mode, say in the same sentence what that thing is for.
-- A caller's reason for calling is part of the fact, and the callers section shows it.
-- A reference to another file names its path.
-- Write plain text: drop markdown, hedges and pointers to other comments. Say "this function" only where it is the clearest subject.
-- Identifiers and paths go in backticks.
-- Write line comments (`//`, `#`). A doc block (`/** */`) holds a summary of the declaration itself: what it returns, takes or means. A note on the surrounding context, such as why the code pairs one value with another, is a line comment even on an exported declaration.
+- Name who acts in each sentence, as a subject a reader can picture: the bank, the caller, this check. Never write "whatever" or "anything" as the subject. A value never acts. Where "this code", "the code" or "this logic" would be the subject, name the actor by its role: the test, the check, the caller or the function. Say "this function" only where it is the clearest subject.
+- State the act first and the fact behind it after. An act alone leaves "why?". A fact alone leaves "and what?".
+- Say what the act prevents or gives, not how it is computed. Follow a chain of reasons past each mechanism to what the reader gains or avoids: a test that runs to its end, a stale file left unread.
+- Name an identifier only where the reader would look it up anyway. Where the comment leans on a name another file defines, such as a test, a helper or a mode, say in the same sentence what it is for. A reference to another file names its path.
+- Write plain text: drop markdown, hedges and pointers to other comments. Put identifiers and paths in backticks, the mark plain text keeps.
+- Keep a comment to at most four lines, and a file header to at most eight.
+
+Write line comments (`//`, `#`). A doc block (`/** */`) holds only a summary of the declaration itself: what it returns, takes or means. A note on the surrounding context, such as why the code pairs one value with another, is a line comment even on an exported declaration.
 
 A comment sits on the declaration it is about. Siblings, such as enum members or table rows, take one form.
