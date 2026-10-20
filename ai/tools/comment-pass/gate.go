@@ -14,16 +14,15 @@ import (
 )
 
 // The gate checks what takes no judgement. A line fits the repository's print width. Each block of a
-// written comment is bounded on its own: a run of line comments at most four prose lines, a doc block,
-// which holds a one-sentence summary, at most two, and a file header at most eight. A note above a
-// summary is two blocks, the shape the page asks of a declaration that needs both. A comment holds no markdown. A comment that
+// written comment is bounded on its own, a run of line comments or a doc block alike: at most four prose
+// lines, and a file header at most eight. A note above a summary is two blocks, the shape the page asks
+// of a declaration that needs both. A comment holds no markdown. A comment that
 // fails the gate fails the pass, with its text shown, and the file is left as it was. A line past the
 // width is wrapped before the gate reads it.
 
 const (
-	maxBlockLines   = 4
-	maxSummaryLines = 2
-	maxHeaderLines  = 8
+	maxBlockLines  = 4
+	maxHeaderLines = 8
 	// defaultWidth is prettier's own default, for a repository that sets none.
 	defaultWidth = 80
 )
@@ -46,11 +45,8 @@ func gateFindings(m material, decisions []decision, width int) []string {
 		}
 		for _, part := range commentParts(d.text) {
 			limit := maxBlockLines
-			switch {
-			case d.id == headerID:
+			if d.id == headerID {
 				limit = maxHeaderLines
-			case strings.HasPrefix(strings.TrimLeft(part[0], " \t"), "/**"):
-				limit = maxSummaryLines
 			}
 			prose := 0
 			for _, line := range part {
