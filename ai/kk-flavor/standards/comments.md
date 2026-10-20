@@ -20,6 +20,6 @@ Write each comment so it is understood from itself and its line alone:
 - Write plain text: drop markdown, hedges and pointers to other comments. Put identifiers and paths in backticks, the mark plain text keeps.
 - Keep a comment to at most four lines, and a file header to at most eight.
 
-A summary of any declaration goes in a doc block (`/** */`), where editors and generated docs show it. The declaration can be a function, a type, a member or a value, and its summary says what it returns, takes or means. A note on the context around the code, such as why one value is paired with another, is a line comment (`//`, `#`), even on an exported declaration.
+A summary of any declaration goes in a doc block (`/** */`), where editors and generated docs show it. The declaration can be a function, a type, a member or a value, and its summary says what it returns, takes or means. A summary may carry the fact behind it and stays a doc block. A line comment (`//`, `#`) is only for a comment about the surrounding code, such as why one value is paired with another, even on an exported declaration.
 
 A comment sits on the declaration it is about. Siblings, such as enum members or table rows, take one form.
