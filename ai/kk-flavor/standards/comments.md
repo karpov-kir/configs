@@ -30,6 +30,6 @@ Write so the comment is understood from itself and its line alone:
 - A reference to another file names its path.
 - Write plain text: drop markdown, hedges and pointers to other comments. Say "this function" only where it is the clearest subject.
 - Identifiers and paths go in backticks.
-- Write line comments (`//`, `#`). Use a doc block (`/** */`) only where a tool shows the comment, as editor hover does for an exported declaration. A doc tag also needs one.
+- Write line comments (`//`, `#`). A doc block (`/** */`) holds a summary of the declaration itself: what it returns, takes or means. A note on the surrounding context, such as why the code pairs one value with another, is a line comment even on an exported declaration.
 
 A comment sits on the declaration it is about. Siblings, such as enum members or table rows, take one form.
