@@ -72,15 +72,26 @@ func wrapLine(line string, allowance int) []string {
 			}
 			lines := []string{strings.TrimSpace(single.open)}
 			lines = append(lines, fill("* ", body, allowance)...)
-			return append(lines, "*/")
+			return setIn(append(lines, "*/"))
 		}
 	}
 	for _, marker := range []string{"// ", "# ", "* "} {
 		if strings.HasPrefix(trimmed, marker) {
-			return fill(marker, strings.TrimPrefix(trimmed, marker), allowance)
+			return setIn(fill(marker, strings.TrimPrefix(trimmed, marker), allowance))
 		}
 	}
 	return []string{line}
+}
+
+// setIn sets a block's `*` lines one column in, under the opening `/**`, as they land in the file. A
+// refusal then shows the wrapped text as it would read.
+func setIn(lines []string) []string {
+	for i, line := range lines {
+		if strings.HasPrefix(line, "*") {
+			lines[i] = " " + line
+		}
+	}
+	return lines
 }
 
 // fill lays the words out after the marker, as many to a line as fit in allowance columns.

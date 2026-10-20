@@ -17,9 +17,9 @@ func TestAWideLineWrapsUnderItsOwnMarker(t *testing.T) {
 	}{
 		{"// one two three four", 12, []string{"// one two", "// three", "// four"}},
 		{"# one two three four", 11, []string{"# one two", "# three", "# four"}},
-		{"* one two three four", 11, []string{"* one two", "* three", "* four"}},
-		{"/** one two three */", 12, []string{"/**", "* one two", "* three", "*/"}},
-		{"/* one two three */", 12, []string{"/*", "* one two", "* three", "*/"}},
+		{"* one two three four", 11, []string{" * one two", " * three", " * four"}},
+		{"/** one two three */", 12, []string{"/**", " * one two", " * three", " */"}},
+		{"/* one two three */", 12, []string{"/*", " * one two", " * three", " */"}},
 		{"// fits", 12, []string{"// fits"}},
 		{"// " + strings.Repeat("w", 20), 12, []string{"// " + strings.Repeat("w", 20)}},
 	} {
@@ -103,5 +103,22 @@ func TestAskAsksAgain(t *testing.T) {
 	}
 	if code, _ := run(t, dir, base, "c1 keep: fine\np1 skip: fine\n", &calls, "--ask"); code != 0 || calls != 2 {
 		t.Fatalf("--ask: exit %d, %d call(s)", code, calls)
+	}
+}
+
+// A wrapped block lands in the file exactly as it reads in a refusal: its `*` lines one column in.
+func TestAWrappedBlockLandsAsItReads(t *testing.T) {
+	lines := []string{"export const KEYS = ['a'];"}
+	m := material{places: []place{{id: "p1", line: 1}}, indents: map[string]int{"p1": 0}}
+	long := "/** " + strings.Repeat("posts the entry ", 10) + "*/"
+	d := rewrap(m, []decision{{id: "p1", verb: "add", text: []string{long}}}, 60)
+	for _, line := range d[0].text[1:] {
+		if !strings.HasPrefix(line, " *") {
+			t.Errorf("a wrapped block line reads %q", line)
+		}
+	}
+	out := applyDecisions(lines, m, d)
+	if strings.Join(out[:len(d[0].text)], "\n") != strings.Join(d[0].text, "\n") {
+		t.Errorf("landed:\n%s\nread:\n%s", strings.Join(out, "\n"), strings.Join(d[0].text, "\n"))
 	}
 }
