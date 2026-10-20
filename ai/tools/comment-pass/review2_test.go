@@ -121,3 +121,34 @@ func TestTheGateBoundsEachBlockOnItsOwn(t *testing.T) {
 		t.Errorf("a one-line summary was refused: %v", found)
 	}
 }
+
+// A block that a blank line parts from its declaration is that declaration's comment, and a rewrite
+// puts it directly above. A file header above imports keeps its blank line.
+func TestARewrittenBlockGoesDirectlyAboveItsDeclaration(t *testing.T) {
+	rewrite := []decision{{id: "c1", verb: "rewrite", text: []string{"// Lists the keys in reading order."}}}
+	for _, tc := range []struct {
+		name   string
+		lines  []string
+		header bool
+		want   string
+	}{
+		{"line 1 above a declaration", []string{"// Old.", "", "const KEYS = ['a'];"}, false,
+			"// Lists the keys in reading order.\nconst KEYS = ['a'];"},
+		{"mid-file above a function", []string{"import x from 'x';", "", "// Old.", "", "export function f() {", "}"}, false,
+			"import x from 'x';\n\n// Lists the keys in reading order.\nexport function f() {\n}"},
+		{"a file header above imports", []string{"// Old.", "", "import x from 'x';", "", "const KEYS = ['a'];"}, true,
+			"// Lists the keys in reading order.\n\nimport x from 'x';\n\nconst KEYS = ['a'];"},
+	} {
+		changed := map[int]bool{}
+		for n := range tc.lines {
+			changed[n+1] = true
+		}
+		m := findMaterial("f.ts", tc.lines, changed)
+		if len(m.candidates) != 1 || m.candidates[0].isHeader != tc.header {
+			t.Fatalf("%s: material %+v", tc.name, m.candidates)
+		}
+		if got := strings.Join(applyDecisions(tc.lines, m, rewrite), "\n"); got != tc.want {
+			t.Errorf("%s: got:\n%s\nwant:\n%s", tc.name, got, tc.want)
+		}
+	}
+}

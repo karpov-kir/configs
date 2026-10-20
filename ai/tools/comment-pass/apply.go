@@ -32,7 +32,15 @@ func applyDecisions(lines []string, m material, decisions []decision) []string {
 			}
 			edits = append(edits, edit{first: c.first, last: last})
 		case "rewrite":
-			edits = append(edits, edit{first: c.first, last: c.last, text: indent(d.text, indentOf(lines, c.first))})
+			// A rewritten block that a blank line parts from its declaration goes directly above it, so it
+			// no longer reads as a file header by position. A file header keeps its blank line.
+			last := c.last
+			if !c.isHeader && c.decl > c.last {
+				for last+1 < aboveDecorators(lines, c.decl) && strings.TrimSpace(lines[last]) == "" {
+					last++
+				}
+			}
+			edits = append(edits, edit{first: c.first, last: last, text: indent(d.text, indentOf(lines, c.first))})
 		}
 	}
 	for _, p := range m.places {
