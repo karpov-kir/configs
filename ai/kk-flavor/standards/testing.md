@@ -4,7 +4,7 @@
 
 ## 1. Core philosophy
 
-1. **Test behaviour, not implementation.** Assert observable outcomes — returned values, stored state, messages sent outward — never which internal method was called. **Bind the test to the module's published surface** ([architecture/core.md](architecture/core.md) → **Module depth**).
+1. **Test behaviour, not implementation.** Assert observable outcomes — returned values, stored state, messages sent outward — never which internal method was called. **Bind the test to the module's published surface** ([architecture/core.md](architecture/core.md) → **Module depth**). Never export a function, constant or type only so a test can import it. Drive that behaviour through the surface. Where the surface cannot reach it, extract a module with a surface of its own.
 2. **Treat test code as production code**, doubles and helpers included.
 3. **No mocks.** Reach for fakes, drivers, and builders instead (§3).
 4. **Cheapest level first.** Push each behaviour down to the cheapest level that can prove it: edge cases and branches in fast unit tests; only wiring and real-infrastructure risk need the slow levels.
