@@ -6,6 +6,8 @@ Write a comment only where a reader of this line needs something the code cannot
 
 Keep or add a comment only where its absence leaves the reader wrong or stuck: a fact from outside the code, or what the name and signature leave unsaid. When in doubt, write none: a reader who gets it from the next few lines of code needs no comment. Inside a body, a comment earns its place only where an outside fact decides that line. Keep a comment only when it already follows every rule on this page, and rewrite every other one.
 
+The reader knows the domain this code works in: the standards, protocols, formats and platform APIs it builds on. A fact any such reader knows is no reason for a comment. A note's outside fact is one that reader would not know, such as how a device, a vendor or a server actually behaves, or what a past failure showed.
+
 Write in the style of ASD-STE100, about 80% of the way: short sentences, one idea each, active voice, plain words.
 
 A comment is one of two kinds.
@@ -23,10 +25,11 @@ Write so the comment is understood from itself and its line alone:
 - A chain of reasons runs past each mechanism and ends at what the reader gains or avoids: a test that runs to its end, a stale file left unread.
 - Give each sentence a subject a reader can picture, never "whatever" or "anything". Write each sentence to be read once.
 - Name an identifier only where the reader would look it up anyway.
-- Write for a reader who has only this file open. Where a comment relies on a name from outside this file, a test, a helper, a mode, say in the same sentence what that thing is for.
+- Write for a reader who has only this file open. Where a comment relies on a name this codebase defines outside this file, a test, a helper, a mode, say in the same sentence what that thing is for.
 - A caller's reason for calling is part of the fact, and the callers section shows it.
 - A reference to another file names its path.
 - Write plain text: drop markdown, hedges and pointers to other comments. Say "this function" only where it is the clearest subject.
 - Identifiers and paths go in backticks.
+- Write line comments (`//`, `#`). Use a doc block (`/** */`) only where a tool shows the comment, as editor hover does for an exported declaration. A doc tag also needs one.
 
 A comment sits on the declaration it is about. Siblings, such as enum members or table rows, take one form.
