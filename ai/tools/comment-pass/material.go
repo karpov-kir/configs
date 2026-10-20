@@ -121,8 +121,7 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 		block := strings.Join(lines[u.Line-1:last], "\n")
 		m.indents["c"+strconv.Itoa(n+1)] = columns(indentOf(lines, u.Line))
 		m.candidates = append(m.candidates, candidate{id: "c" + strconv.Itoa(n+1), first: u.Line, last: last,
-			decl: decl, text: block, isHeader: u.Line == firstContentLine(lines) && last < len(lines) &&
-				(strings.TrimSpace(lines[last]) == "" || strings.HasPrefix(lines[last], "package "))})
+			decl: decl, text: block, isHeader: isFileHeader(lines, u.Line, last, decl)})
 	}
 	n := 0
 	if reUnitTest.MatchString(path) {
@@ -157,6 +156,22 @@ func declarationAfter(lines []string, last int) int {
 		}
 	}
 	return 0
+}
+
+// isFileHeader says the block is the file's header: it opens the file, a blank line or a `package`
+// line follows it, and no declaration sits under it. A block on line 1 that a blank line parts from a
+// declaration is that declaration's comment.
+func isFileHeader(lines []string, first, last, decl int) bool {
+	if first != firstContentLine(lines) || last >= len(lines) {
+		return false
+	}
+	if strings.HasPrefix(lines[last], "package ") {
+		return true
+	}
+	if strings.TrimSpace(lines[last]) != "" {
+		return false
+	}
+	return decl == 0 || !reDeclaration.MatchString(lines[decl-1]) || notDeclaration.MatchString(lines[decl-1])
 }
 
 // firstContentLine is the file's first line holding anything. A file header opens on it and has a
