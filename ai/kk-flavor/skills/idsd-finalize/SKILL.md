@@ -15,7 +15,7 @@ The last stage of a ship: what its own records learned goes up into the project'
 
 **Finalizing is serial across the whole clone**, because it writes records every ship shares. Use `report.sh merge-slot` for record mutation and landing. Settle human decisions outside the slot; release it before a new question or a PR wait. Step 2 covers requalification while holding it.
 
-**The tool enforces that on the project records, not on `git merge`.** A `report.sh record project-*` write exits 4 while another worktree of this clone holds the slot, so the entries you merge upward cannot land beside another ship's. The merge itself is your own command and no slot reaches it — verify the target again before landing, as step 2 says.
+**The tool enforces that on the project records, not on `git merge`.** A `report.sh record` write to a `project-*` record, `record merge` included, exits 4 while another worktree of this clone holds the slot, so the entries you merge upward cannot land beside another ship's. The merge itself is your own command and no slot reaches it — verify the target again before landing, as step 2 says.
 
 ## 1. Clear what can still refuse or ask
 
@@ -47,20 +47,20 @@ Before retiring the report, preserve the report, stage evidence and active inten
 
 **Establishing that a holder is gone is not yours alone: ask your coordinator, or the human — whoever can see the live sessions.** Never infer it from the worktree's name or from a process list. **Release only a slot this run acquired.** A session that dies while holding it leaves one nobody else frees without checking the holder.
 
-**Revalidate the record inputs after acquiring the slot**, before any record mutation. If they changed, release the slot and settle the new merge outside it. Revalidate on every acquisition; retain completed record operations so a retry never bumps or appends them twice.
+**Revalidate the record inputs after acquiring the slot**, before any record mutation. If they changed, release the slot and settle the new merge outside it. Revalidate on every acquisition; retain completed record operations so a retry never bumps, appends or merges them twice.
 
 ## 3. Merge the three records upward
 
-`decisions`, `playbook` and `language`, each of the ship's own entries against the project's. Step 1 settles these rules; after step 2 revalidates their inputs, apply only those settled operations at step 4's mode-specific boundary. Write through `report.sh record`, naming `project-*` for the destination.
+`decisions`, `playbook` and `language`, each of the ship's own entries against the project's. Step 1 settles these rules; after step 2 revalidates their inputs, apply only those settled operations at step 4's mode-specific boundary. Write through `report.sh record`. Text you write to a `project-*` record yourself links relative to `.idsd/for-agents/`.
 
 - **It restates one already there** → `record bump` the project's entry. **That bump is the point of the whole split**: two ships independently needing one thing becomes a count, which `~/.kk-flavor/standards/records.md` → **Promotion is the exit upward** reads as a rule nobody has written down yet.
-- **It says something new** → `record append`.
+- **It says something new** → `record --intent <NNN-slug> merge local-<record> "<text>"`, with text that appears in exactly one of the ship's entries. It appends the entry to the project record and rebases its relative links to that record's folder, which a retyped `record append` does not.
 - **It contradicts one** — and that is never a write. Finalize has no authority to choose between a project truth and a ship's, so it goes to the human before taking the slot. The ship's entry stays unmerged until they settle it.
-- **The project record is full** → `~/.kk-flavor/standards/records.md` → **Reaching the cap**, whose four moves you work in its order. Judge the cap here, because this is the one place the whole batch is visible.
+- **The project record is full** → `~/.kk-flavor/standards/records.md` → **Reaching the cap**, whose four moves you work in its order. Judge the cap here, because this is the one place the whole batch is visible. An `admit` retypes the entry, so a promotion candidate it lands takes `record classify project-decisions "<text>" candidate` after it.
 
 **Language needs the distinction spelled out, because a term is not a command.** The same term in the same sense is a duplicate and bumps. The same term carrying a different meaning, or two terms for one thing, is a **contradiction** — the check the audit worker runs set-wide, firing here per ship and on two candidates rather than on the whole set.
 
-**Charter promotions are settled in step 1 through `idsd-charter`.** Preserve each decision’s candidate classification when merging it upward; resolve a classification disagreement with the other record questions before taking the slot.
+**Charter promotions are settled in step 1 through `idsd-charter`.** `record merge` keeps each decision's candidate classification. Resolve a classification disagreement with the other record questions before taking the slot.
 
 ## 4. Archive at the landing boundary
 

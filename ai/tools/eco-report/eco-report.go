@@ -81,7 +81,7 @@
 //	                 neither call. Same exit 4 and the same --force as finalize's own
 //	close [--force]  retire one landed ship's report and stage markers. Refuses while an open `- [ ]`
 //	                 stands, since nothing else keeps a copy
-//	record [--intent <NNN-slug>] <append|bump|revise|evict|admit> <record> "<text>" ["<new text>"]
+//	record [--intent <NNN-slug>] <append|bump|revise|evict|admit|classify|merge> <record> "<text>" ["<new text>"]
 //	                 the one way to write the records, which every worktree of the clone shares.
 //	                 Serialised under flock, so two agents writing at once both land; a hand edit is
 //	                 what silently drops one of them. records.go says why it locks as it does.
@@ -89,10 +89,12 @@
 //	                 way in, dropping the entry the new one beat.
 //	                 The project-* and local-* records are two files, never one addressed two ways: a
 //	                 ship writes its local one under its own folder, and finalize merges that upward,
-//	                 where an entry restating a project one becomes a bump. --intent names that ship,
-//	                 and is required for a local-* record and refused for the rest — a local write with
-//	                 no ship named would land at the project root and surface only when finalize found
-//	                 nothing to merge. Run `record` bare for the record names.
+//	                 where an entry restating a project one becomes a bump. `merge` carries one
+//	                 local entry up and rebases its relative links: the two files sit at two depths.
+//	                 --intent names that ship, and is required for a local-* record and refused for
+//	                 the rest — a local write with no ship named would land at the project root and
+//	                 surface only when finalize found nothing to merge. Run `record` bare for the
+//	                 record names.
 //	                 A project-* write is the mutation the merge slot exists to serialise, so it exits
 //	                 4 while another worktree of this clone holds the slot — the same code and the same
 //	                 named holder finalize gives. A local-* write is one ship's own and never waits

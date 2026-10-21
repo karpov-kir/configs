@@ -5,11 +5,10 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"configs/ai/tools/shell"
 )
@@ -31,243 +30,22 @@ import (
 // a sibling holding the lock would be holding it on a file no longer at that path, and the next
 // writer would take the lock on the new one and see nothing in the way.
 
-type recordKind struct {
-	name  string
-	file  string
-	bound int
-	// Where the file sits. A local record lives inside one ship's folder and needs that ship named; a
-	// project one sits in the project agent directory. Nothing infers this — every caller says which it writes,
-	// because the two are merged later and a write to the wrong one is invisible until then.
-	isLocal bool
-	header  string
-}
+var recordOperations = []string{"append", "bump", "revise", "evict", "admit", "classify", "merge"}
 
-// Every record is capped, because an uncapped one grows until nobody reads it. The cap is held here
-// rather than advised: `append` refuses on a full record, and the only way past a full one is `admit`,
-// which puts one entry out for every one it lets in. So no sequence of these subcommands can grow a
-// record past its number.
-//
-// What the tool never does is choose the loser. Which entry has stopped earning its place — and
-// whether the answer is to evict it, fold it into a neighbour or promote it — is a judgment
-// `records.md` gives the agent, not a count this tool may act on alone.
-const (
-	decisionsBound = 100
-	playbookBound  = 100
-	languageBound  = 100
-)
-
-// A local record covers one ship. Past a couple of dozen entries the thing to fix is the ship's scope,
-// not the record's size, so the cap is set where it surfaces that rather than where it would hold a
-// project's worth. The three are equal because nothing distinguishes what one entry costs at this
-// scale — they are read together, once, by the agent finishing that ship.
-const localBound = 25
-
-// The most one entry may hold, in bytes. The longest entry any of these records carries today runs to
-// about 800, so this clears real practice by more than double and never argues with an entry someone
-// meant. What it stops is the other order of magnitude: a whole ticket, or a file, pasted in as one
-// "decision".
-const entryBound = 2000
-
-// The standard behind every rule here, cited by the path it opens at rather than by its filename. An
-// agent told to work a file it cannot find works the message alone, and the message is the shorter of
-// the two. The notes name the judge by a full path for the same reason.
-const recordsStandard = "~/.kk-flavor/standards/records.md"
-
-// JudgeCommand is the judge command the cap's last step and an over-cap prune run — `records.md` says
-// what the cap evicts. A constant, because two notes quote it and must agree on the judge. Exported so
-// the repository-level suite can compare the standard's copy against it. That case reads a file outside
-// the module, and `go test` keys no cache on it, so it reports `ok (cached)` over a changed standard.
-const JudgeCommand = `JUDGE_PROVIDER="${JUDGE_PROVIDER:-codex}" ~/.kk-flavor/scripts/reader-judge.sh record-entry  # the new entry and every incumbent on stdin`
-
-// The moves at the cap that free a slot at no loss, in `records.md`'s order. A constant for the same
-// reason JudgeCommand is — the same two notes quote both.
-const capLadderRungs = "delete what is no longer true, promote what must not be lost, fold two entries carrying one idea together"
-
-// The judge rung both notes hand over: the command, and how to read each answer it can come back
-// with. Beside the two constants above for the reason they are constants — a rung quoted twice is a
-// rung two agents can read two ways.
-//
-// Exit 2 earns a line of its own because from where the agent stands it looks exactly like exit 0:
-// `reader-judge.sh` stays silent and exits 2 when the run failed — an unknown kind, a missed
-// deadline, an answer that was not numbers. An agent who reads that silence as exit 0 takes it for a
-// clean artifact under a cap that holds, which is a verdict no run produced.
-func judgeRung() []string {
-	return []string{
-		"    " + JudgeCommand,
-		"  It deletes what it names, and naming nothing (exit 0, output unchanged) is one of its answers.",
-		"  Exit 2 is not an answer: the judge did NOT run — an unknown kind, a missed deadline, an answer",
-		"  that was not numbers — so this rung is unmet. Nothing may go on it, and the append stays refused",
-		"  until a run of the judge answers.",
-	}
-}
-
-// The rule line every header carries, built from the bound rather than written out under each: four
-// hand-written copies are four records that can disagree about one cap. What it says past the cap is
-// what the refusal says, because the two are one file talking about one number — `records.md` →
-// **Reaching the cap** leaves an entry that frees no slot unrecorded, so no header may promise the
-// newcomer an incumbent's place.
-func fullAtLine(bound int) string {
-	return "Appended per `" + recordsStandard + "`. Full at " + strconv.Itoa(bound) +
-		" entries — past that an append refuses, and a new entry lands only if a move at the cap frees a slot.\n"
-}
-
-// The header a record is created with, so a first append lands a file that already states its own
-// bound. `records.md` → **The cap evicts by what the record can afford to lose** requires the file to
-// carry it, and a record created without one is a record nobody prunes. The number is read from the
-// constant rather than written out again: a header saying 40 over an append refusing at 30 is a drift
-// no reader of either could see.
-//
-// Each header also names who the file is written for and who owns its wording. These records sit side by
-// side under one directory and read alike, and a human who opens `decisions.md` expecting the charter's
-// register finds an agent talking to the next agent. What the line says is the audience, never a
-// prohibition: nothing here is secret, and a human is free to read any of it.
-//
-// The pruning point each header states. `records.md` → the record's own definition wants exactly one
-// per record, and six records under two roots cannot each be found by reading a skill — so each file
-// says its own, by the moment rather than by the skill that arrives at it.
-const (
-	prunedAtFinalize = "Pruned only when a ship is finalized, where this record and the finishing ship's are in hand together.\n"
-	prunedInShip     = "Pruned by the ship that owns it, when that ship reads it. Merged upward at finalize, and archived with the ship whether or not that merge lands.\n"
-)
-
-const decisionHeadings = "\n## Promotion candidates\n\n## Decisions\n\n"
-
-var recordKinds = []recordKind{
-	{
-		name:  "project-decisions",
-		file:  "decisions.md",
-		bound: decisionsBound,
-		header: "# Decisions\n\n" +
-			"Written for the next agent — never presented to a human, and no human maintains it.\n" +
-			fullAtLine(decisionsBound) + prunedAtFinalize + decisionHeadings,
-	},
-	{
-		name:  "project-playbook",
-		file:  "playbook.md",
-		bound: playbookBound,
-		header: "# Playbook\n\n" +
-			"How this repo is operated, written for the next agent — never presented to a human,\n" +
-			"and no human maintains it.\n" +
-			fullAtLine(playbookBound) + prunedAtFinalize + "\n",
-	},
-	{
-		name:  "project-language",
-		file:  "language.md",
-		bound: languageBound,
-		header: "# Language\n\n" +
-			"The project's ubiquitous language, written for the next agent — an agent keeps it current.\n" +
-			fullAtLine(languageBound) + prunedAtFinalize +
-			"A term no artifact uses is deleted, whatever its count.\n\n",
-	},
-	{
-		name:    "local-decisions",
-		file:    "decisions.md",
-		bound:   localBound,
-		isLocal: true,
-		header: "# Decisions — this ship's\n\n" +
-			"What this ship settled, written for the next agent. Merged into the project's own at finalize,\n" +
-			"where an entry restating one already there becomes a bump rather than a second line.\n" +
-			fullAtLine(localBound) + prunedInShip + decisionHeadings,
-	},
-	{
-		name:    "local-playbook",
-		file:    "playbook.md",
-		bound:   localBound,
-		isLocal: true,
-		header: "# Playbook — this ship's\n\n" +
-			"How this repo is operated, found while building this ship. Merged into the project's own at\n" +
-			"finalize, where an entry restating one already there becomes a bump rather than a second line.\n" +
-			fullAtLine(localBound) + prunedInShip + "\n",
-	},
-	{
-		name:    "local-language",
-		file:    "language.md",
-		bound:   localBound,
-		isLocal: true,
-		header: "# Language — this ship's\n\n" +
-			"Terms this ship coined or narrowed. Merged into the project's own at finalize: the same term in\n" +
-			"the same sense bumps, while the same term in another sense is a contradiction nothing merges.\n" +
-			fullAtLine(localBound) + prunedInShip + "\n",
-	},
-}
-
-func recordKindFor(name string) *recordKind {
-	for i := range recordKinds {
-		if recordKinds[i].name == name {
-			return &recordKinds[i]
-		}
-	}
-	return nil
-}
-
-func recordNames() string {
-	names := make([]string, 0, len(recordKinds))
-	for _, kind := range recordKinds {
-		names = append(names, kind.name)
-	}
-	return strings.Join(names, "|")
-}
-
-// One parsed line of a record, `<count>x | <date> | <the entry>`. A line that does not parse is not an
-// entry: the header, a blank line, and the multi-line block one record already carries are preserved
-// untouched and never counted, evicted or matched.
-type recordEntry struct {
-	line  int
-	count int
-	date  string
-	text  string
-}
-
-func (e recordEntry) String() string {
-	return strconv.Itoa(e.count) + "x | " + e.date + " | " + e.text
-}
-
-// The form an entry takes in a message, never the form it takes in the file. `entryText` collapses
-// control bytes on the way in, but a record is a plain file a skill's template seeds and a human edits
-// by hand, so a line no `record` op ever saw can hold an ESC — and every refusal and report here reads
-// one back to a terminal, where it erases the lines printed above it. Read text is collapsed at the
-// point it is printed, the same as `recordPath` does with a link target, and the stored bytes are left
-// alone: collapsing those would rewrite an entry nobody asked to change.
-func (e recordEntry) quoted() string {
-	return shell.Oneline(e.String())
-}
-
-func parseRecordEntry(index int, line string) (recordEntry, bool) {
-	parts := strings.SplitN(line, " | ", 3)
-	if len(parts) != 3 {
-		return recordEntry{}, false
-	}
-	count, err := strconv.Atoi(strings.TrimSuffix(parts[0], "x"))
-	if err != nil || !strings.HasSuffix(parts[0], "x") || count < 1 || parts[1] == "" {
-		return recordEntry{}, false
-	}
-	return recordEntry{line: index, count: count, date: parts[1], text: parts[2]}, true
-}
-
-func recordEntriesIn(lines []string) []recordEntry {
-	var entries []recordEntry
-	for i, line := range lines {
-		if entry, ok := parseRecordEntry(i, line); ok {
-			entries = append(entries, entry)
-		}
-	}
-	return entries
-}
-
-// Record mutations hold a file lock across reading and writing.
 func (r *run) cmdRecord(args []string) {
 	// The ship a local record belongs to, taken before the count below so the shapes stay comparable.
 	// A leading flag rather than a trailing argument: the last one is already the replacement text for
 	// revise and admit, and a slug there would be indistinguishable from a one-word entry.
 	args = r.takeRecordIntent(args)
 	if len(args) < 3 || len(args) > 4 {
-		r.refuse("usage: report.sh record [--intent <NNN-slug>] {append|bump|revise|evict|admit|classify} {"+recordNames()+"} \"<text>\" [\"<new text>\"]",
+		r.refuse("usage: report.sh record [--intent <NNN-slug>] {"+strings.Join(recordOperations, "|")+"} {"+recordNames()+"} \"<text>\" [\"<new text>\"]",
 			"  --intent names the ship a local-* record belongs to, and is required for those and refused for the rest.",
 			"  append adds `1x | <today> | <text>`; bump raises one entry's count and dates it today.",
 			"  revise replaces one entry's text, keeping its count; evict removes one.",
 			"  admit is the swap at a full record: it drops the entry named and lands the new one at 1x.",
 			"  classify moves a decision entry: classify {project-decisions|local-decisions} <selector> {candidate|decision}.",
-			"  bump, revise, evict, admit and classify take text that appears in exactly one entry, not a line number.")
+			"  merge appends one local-* entry to its project-* record, rebasing its relative links to that record's folder.",
+			"  bump, revise, evict, admit, classify and merge take text that appears in exactly one entry, not a line number.")
 	}
 	op, name, text := args[0], args[1], args[2]
 	kind := recordKindFor(name)
@@ -287,12 +65,19 @@ func (r *run) cmdRecord(args []string) {
 	// Before recordPath, which resolves and guards a path, and before the append that creates the
 	// scratch directory: an operation nobody spelled right should leave nothing behind at all, and a
 	// refusal that first made a directory is a command that did nothing and still wrote.
-	if op != "append" && op != "bump" && op != "revise" && op != "evict" && op != "admit" && op != "classify" {
-		r.refuse("error: '" + op + "' is not a record operation — they are append, bump, revise, evict, admit and classify.")
+	if !slices.Contains(recordOperations, op) {
+		last := len(recordOperations) - 1
+		r.refuse("error: '" + op + "' is not a record operation — they are " +
+			strings.Join(recordOperations[:last], ", ") + " and " + recordOperations[last] + ".")
 	}
-	// Reject stray arguments rather than silently dropping part of an entry.
+	if op == "merge" && !kind.isLocal {
+		r.refuse("error: merge takes the local-* record it carries an entry out of, never " + kind.name + " — nothing was written.")
+	}
+	// This check refuses a wrong argument count instead of ignoring the extra arguments.
+	// The shell splits an unquoted entry into several arguments, so dropping the rest stores a
+	// part.
 	if (op == "revise" || op == "admit" || op == "classify") != (len(args) == 4) {
-		r.refuse("error: revise and admit take selector and replacement; classify takes selector and candidate or decision; append, bump and evict take one text only.",
+		r.refuse("error: revise and admit take selector and replacement; classify takes selector and candidate or decision; append, bump, evict and merge take one text only.",
 			"  "+kind.file+" is unchanged.")
 	}
 	if op == "classify" && (kind.file != "decisions.md" || (args[3] != "candidate" && args[3] != "decision")) {
@@ -309,6 +94,8 @@ func (r *run) cmdRecord(args []string) {
 		r.recordClassify(kind, path, text, args[3])
 	case "append":
 		r.recordAppend(kind, path, text)
+	case "merge":
+		r.recordMerge(kind, path, text)
 	case "bump":
 		r.recordBump(kind, path, text)
 	case "revise":
@@ -351,6 +138,24 @@ func (r *run) entryText(kind *recordKind, text string) string {
 			"  A record entry is one line the next agent reads, not a document. Say it shorter, or put the long form where it belongs and record the pointer.")
 	}
 	return text
+}
+
+// `--intent <NNN-slug>` off the front of `record`'s arguments, leaving the rest for the shape check.
+// The slug is held on the run rather than threaded through, because recordPath is three calls deep and
+// every one of those signatures exists to describe the record rather than the invocation.
+//
+// Held to reportNameFor's charset for the reason every other slug here is: it is joined into a path,
+// and this one reaches a file the tool creates.
+func (r *run) takeRecordIntent(args []string) []string {
+	if len(args) < 2 || args[0] != "--intent" {
+		return args
+	}
+	slug := reportNameFor(args[1])
+	if slug == "" || slug == "review" {
+		r.refuse("error: '" + args[1] + "' names no ship — it must be a slug ([0-9A-Za-z._-]) and cannot start with a dot. Nothing was written.")
+	}
+	r.recordSlug = slug
+	return args[2:]
 }
 
 // Where the record lives, which is the resolved scratch directory in either repo mode. Refuses a
@@ -426,221 +231,6 @@ func (r *run) openLockedRecord(path string, creating bool) (*os.File, []string, 
 	return handle, strings.Split(strings.TrimSuffix(text, "\n"), "\n"), ended
 }
 
-func (r *run) recordAppend(kind *recordKind, path, text string) {
-	r.makeScratchDir()
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		r.refuse("error: could not create record directory: " + err.Error())
-	}
-	handle, lines, ended := r.openLockedRecord(path, true)
-	defer handle.Close()
-	r.assertDecisionSections(kind, path, lines)
-
-	// An exact restatement is `records.md` → **Every entry is dated and counted**: it bumps the entry
-	// already there rather than adding a line. Only identical text is caught here — a restatement in
-	// other words is a judgment, and stays the agent's.
-	//
-	// Ahead of the cap, because a restatement wants no slot: bumping it costs the file nothing, and
-	// sending the agent to the judge would put a live entry out for a copy of itself.
-	entries := recordEntriesIn(lines)
-	for _, entry := range entries {
-		if entry.text == text {
-			found := r.oneMatchingEntry(path, lines, text, "bumped")
-			found.count++
-			found.date = today()
-			lines[found.line] = found.String()
-			r.overwriteRecord(path, handle, lines)
-			r.line("bumped in %s: %s", kind.file, found.quoted())
-			r.noteBound(kind, path, lines)
-			return
-		}
-	}
-	if len(entries) >= kind.bound {
-		r.refuseFull(kind, path, len(entries), text)
-	}
-
-	var out strings.Builder
-	if len(lines) == 0 {
-		out.WriteString(kind.header)
-	} else if !ended {
-		out.WriteString("\n")
-	}
-	entry := recordEntry{count: 1, date: today(), text: text}
-	out.WriteString(entry.String() + "\n")
-	if _, err := handle.WriteString(out.String()); err != nil {
-		r.refuse("error: could not append to " + path + " (" + err.Error() + ")")
-	}
-	// No noteBound here. The cap guard above refuses at the bound, so an append that lands leaves the
-	// record at or under it and the note could never fire — an over-cap file is reachable only by a hand
-	// edit or a lowered cap, and the ops that grow or hold a record carry the note instead. `evict` is
-	// the exception among the rewriting ops: it only ever shortens the file, so it has none to report.
-	r.line("appended to %s: %s", kind.file, entry)
-}
-
-// A full record, refused at the append — the only op that can grow one. Nothing lands and nothing is
-// removed.
-//
-// The ladder comes first because each of its moves frees a slot at no loss (`records.md` → **Reaching
-// the cap**), and only under it the judge, which costs the record an entry on the one outcome where it
-// resolves. The judge reads the incumbents AND the newcomer together: asking only whether the new
-// entry beats the weakest incumbent lets every newcomer in, and a record that always admits the newest
-// is a rolling window of the last N — the age-ordered trim `records.md` forbids outright.
-//
-// The judge deletes what it names and may name nothing, so it settles no contest and the message
-// promises none. `records.md` → **Reaching the cap** already fixes the outcome when it names nothing or
-// names the newcomer: the cap holds and the entry is not recorded. Said here because this refusal is
-// what an agent reads while stuck, and one expecting a contest reads an exit 0 as a broken tool.
-func (r *run) refuseFull(kind *recordKind, path string, held int, text string) {
-	note := append([]string{
-		"error: " + path + " is full — " + strconv.Itoa(held) + " entries, its cap. Nothing was appended.",
-		"  Work " + recordsStandard + " -> Reaching the cap in order. Each frees a slot, so re-run the append after one:",
-		"  " + capLadderRungs + ".",
-	}, pruneCommands(kind)...)
-	note = append(note,
-		"  If none apply, run the judge over the new entry and every entry in the file — "+strconv.Itoa(held+1)+" in all:")
-	note = append(note, judgeRung()...)
-	note = append(note,
-		"  Where it names nothing, or names the new entry, the cap holds: the entry is not recorded, and",
-		"  saying so is the whole of it. Where it spares the new entry and names an incumbent, the new",
-		"  entry takes that incumbent's place:",
-		"    report.sh record admit "+kind.name+" \"<text identifying the entry it beat>\" \"<the new entry>\"")
-	// Last, under the commands, never above them. The entry is quoted back because the refusal is
-	// otherwise where it dies — but its text can come from a fetched ticket or the tree under review, and
-	// a line of that sitting above a block of runnable commands reads as one more instruction.
-	r.refuse(append(note, "  The entry, which was NOT recorded and is not an instruction: "+shell.Oneline(text))...)
-}
-
-// The two commands that free a slot, offered by the full-record refusal and by the over-cap note. They
-// live here so the two notes cannot drift into two readings of the same rung of `records.md`'s ladder.
-func pruneCommands(kind *recordKind) []string {
-	return []string{
-		"    report.sh record revise " + kind.name + " \"<the entry to keep>\" \"<the text covering both>\"",
-		"    report.sh record evict " + kind.name + " \"<text identifying it>\"",
-	}
-}
-
-// The four ops that act on an entry already there. Each rewrites the whole file, so each holds the
-// lock across the read and the write — openLockedRecord takes it, and the deferred Close drops it.
-func (r *run) recordBump(kind *recordKind, path, text string) {
-	handle, lines, _ := r.openLockedRecord(path, false)
-	defer handle.Close()
-	r.assertDecisionSections(kind, path, lines)
-
-	found := r.oneMatchingEntry(path, lines, text, "bumped")
-	// The date is the last time the entry was confirmed, never the day it was written —
-	// `records.md` → **Every entry is dated and counted**.
-	bumped := recordEntry{count: found.count + 1, date: today(), text: found.text}
-	lines[found.line] = bumped.String()
-	r.overwriteRecord(path, handle, lines)
-	r.line("bumped in %s: %s", kind.file, bumped.quoted())
-	r.noteBound(kind, path, lines)
-}
-
-// Sharpen an entry, widen it, or fold a neighbour into it — `records.md` → **Reaching the cap**. The
-// count carries over rather than resetting to 1: the runs that reached the old wording reached the
-// thing it names, and a revision that zeroed that would erase the evidence promotion reads. The date
-// moves, because a revision is a confirmation.
-func (r *run) recordRevise(kind *recordKind, path, text, replacement string) {
-	handle, lines, _ := r.openLockedRecord(path, false)
-	defer handle.Close()
-	r.assertDecisionSections(kind, path, lines)
-
-	found := r.entryToOverwrite(path, lines, text, replacement, "revised",
-		"  Folding two into one is: revise the one to keep, then evict the other.")
-	// `replacement` is the whole entry, not a fragment substituted into it. A caller that reads
-	// "revise" as an edit-in-place passes the part it wants changed, and every word it did not retype
-	// is gone from a record nothing else can remove text from. Containment is the exact shape of that
-	// mistake and needs no threshold to recognise: a genuine rewording is not a substring of what it
-	// replaces. A deliberate trim to an exact substring is refused too, and gets past this by saying
-	// so — one word different, or evict.
-	if replacement != found.text && strings.Contains(found.text, replacement) {
-		r.refuse("error: that replacement is contained in the entry it would overwrite — nothing was revised.",
-			"  "+found.quoted(),
-			"  revise takes the WHOLE new entry, never the fragment to substitute into it, so this would",
-			"  have dropped every word above that it does not repeat.",
-			"  Meant to shorten it: pass the full text you want, differing from the entry by more than a cut.",
-			"  Meant to remove it: report.sh record evict "+kind.name+" \"<text identifying it>\"")
-	}
-	revised := recordEntry{count: found.count, date: today(), text: replacement}
-	lines[found.line] = revised.String()
-	r.overwriteRecord(path, handle, lines)
-	r.line("revised in %s: %s", kind.file, revised.quoted())
-	// The replaced text, echoed under the new one. `replacement` is the WHOLE entry, not a fragment
-	// substituted into it, and a caller reading "revise" as an edit-in-place loses everything it did
-	// not retype — from an append-only record, with nothing on stdout saying so. Printing what stood
-	// there does not stop the wrong call; it stops the wrong call being silent, which is the whole of
-	// what made it cost a ship a restore-and-diff to find.
-	r.line("  it replaced: %s", found.quoted())
-	r.noteBound(kind, path, lines)
-}
-
-// The last resort at a full record, and the only way into one — `records.md` → **Reaching the cap**.
-// One entry out for one in, so the file cannot grow by it. The caller has already judged both sides;
-// this holds the arithmetic and the write.
-//
-// The entry lands at 1x where a revise would inherit the loser's count. The two ops look alike and
-// mean opposite things: a revision is the same ground said better, so the runs that reached the old
-// wording reached the new one; an admission is different ground, which no run has reached at all.
-// Inheriting there would hand a brand-new entry the reach of the one it displaced, and every later
-// prune would read that borrowed number as evidence.
-func (r *run) recordAdmit(kind *recordKind, path, text, entry string) {
-	handle, lines, _ := r.openLockedRecord(path, false)
-	defer handle.Close()
-	r.assertDecisionSections(kind, path, lines)
-
-	// Only at the cap. Below it the append works, and admitting there would throw a live entry away for
-	// a slot the file already had free.
-	if held := len(recordEntriesIn(lines)); held < kind.bound {
-		r.refuse("error: "+path+" is not full — "+strconv.Itoa(held)+" of its "+strconv.Itoa(kind.bound)+". Nothing was admitted and nothing dropped.",
-			"  admit is the swap at a full record. There is room, so append: report.sh record append "+kind.name+" \"<the new entry>\"")
-	}
-	found := r.entryToOverwrite(path, lines, text, entry, "admitted",
-		"  The record already holds that, so nothing has to be dropped for it: report.sh record bump "+kind.name+" \"<text identifying it>\"")
-	// entryToOverwrite excludes the target from its collision scan, so a revise may reword an entry into
-	// its own current text — harmless there, since revise keeps the count. Here it costs the entry every
-	// bit of reach it earned: admit lands at 1x. Refused rather than allowed, because the swap it looks
-	// like never happened.
-	if found.text == entry {
-		r.refuse("error: that is the text the entry already holds — nothing was admitted and nothing dropped.",
-			"  "+found.quoted(),
-			"  admit lands its entry at 1x, so this would drop that count for no new ground. Nothing has to be displaced for text the record already carries.")
-	}
-	admitted := recordEntry{count: 1, date: today(), text: entry}
-	lines[found.line] = admitted.String()
-	r.overwriteRecord(path, handle, lines)
-	r.line("admitted to %s: %s", kind.file, admitted.quoted())
-	// A swap reported by its winner alone is a record silently shortened, which `records.md` → **Reaching
-	// the cap** forbids: its next reader cannot tell a fold from a deletion.
-	r.line("in place of: %s", found.quoted())
-	r.noteBound(kind, path, lines)
-}
-
-// The one entry `text` names, checked ready to be overwritten by `replacement`. Shared by revise and
-// admit, which differ only in the count the line that lands carries.
-func (r *run) entryToOverwrite(path string, lines []string, text, replacement, verb, hint string) recordEntry {
-	found := r.oneMatchingEntry(path, lines, text, verb)
-	// Against the file minus the entry being overwritten, so rewording one to match its own current text
-	// is not reported as a collision with itself.
-	rest := append(append([]string{}, lines[:found.line]...), lines[found.line+1:]...)
-	for _, entry := range recordEntriesIn(rest) {
-		if entry.text == replacement {
-			r.refuse("error: "+path+" already holds another entry with that text — nothing was "+verb+".",
-				"  "+entry.quoted(), hint)
-		}
-	}
-	return found
-}
-
-func (r *run) recordEvict(kind *recordKind, path, text string) {
-	handle, lines, _ := r.openLockedRecord(path, false)
-	defer handle.Close()
-	r.assertDecisionSections(kind, path, lines)
-
-	found := r.oneMatchingEntry(path, lines, text, "evicted")
-	lines = append(lines[:found.line], lines[found.line+1:]...)
-	r.overwriteRecord(path, handle, lines)
-	r.line("evicted from %s: %s", kind.file, found.quoted())
-}
-
 // The new content over the old, on the locked handle. Written over first and trimmed second, never
 // truncated first: the file IS the record, there is no second copy anywhere, so a truncate that
 // succeeds and a write that then fails leaves nothing at all. This order fails visibly instead — the
@@ -656,161 +246,4 @@ func (r *run) overwriteRecord(path string, handle *os.File, lines []string) {
 		r.refuse("error: rewrote "+path+" but could not trim it ("+err.Error()+") — it may now end with stale bytes of the old copy, which repeat the lines above them.",
 			"  Every entry is intact, and the repeat can be a whole entry of its own: delete the repeated tail by hand.")
 	}
-}
-
-// The one entry the text names. Never a guess: bumping, revising or evicting the wrong entry rewrites
-// reasoning the next agent reads as settled, and nothing downstream would catch it. `verb` is what did
-// NOT happen, which every refusal here ends on.
-//
-// An exact hit wins outright over the substring pass. Matching only by substring, an entry whose text
-// contains another's whole text shadows the shorter one for good: every string identifying the short
-// entry also names the long one, so the ambiguity refusal below fires forever and no op can reach the
-// short entry again. Its date then rots, and the date is what says when the entry was last confirmed.
-// Entry text is seeded from tickets and from the tree under review, so an entry quoting another whole
-// is something a real run can write.
-func (r *run) oneMatchingEntry(path string, lines []string, text, verb string) recordEntry {
-	var matched, exact []recordEntry
-	for _, entry := range recordEntriesIn(lines) {
-		if entry.text == text {
-			exact = append(exact, entry)
-		}
-		if strings.Contains(entry.text, text) {
-			matched = append(matched, entry)
-		}
-	}
-	// Only when it resolves to one. Two entries holding identical text is a record already broken, and
-	// picking either would be the guess this function exists to refuse.
-	if len(exact) == 1 {
-		return exact[0]
-	}
-	switch len(matched) {
-	case 1:
-		return matched[0]
-	case 0:
-		// Two situations wear this one refusal, and on one of them it reads as a lie: text sitting on a
-		// line that is not an entry — indented, or half-formed — IS in the file the agent is looking at,
-		// so "no entry holds that text" sends them off to check what they typed. Say which it is.
-		// Parsing stays strict either way: an indented line is not an entry, and taking one for an entry
-		// would rewrite it into the first column on the next bump.
-		hint := "  Read the record first: the text must appear in exactly one entry."
-		for i, line := range lines {
-			// Entries are skipped. Without this, text matching an entry's `<count>x | <date> | ` prefix —
-			// a bare date, say — would report a line that IS an entry as "not inside an entry".
-			if _, isEntry := parseRecordEntry(i, line); isEntry {
-				continue
-			}
-			if strings.Contains(line, text) {
-				hint = "  That text IS in " + path + ", but not inside an entry — an entry begins at the line's first column, as `<count>x | <date> | `."
-				break
-			}
-		}
-		r.refuse("error: no entry in "+path+" holds that text — nothing was "+verb+".", hint)
-	}
-	quoted := make([]string, 0, len(matched))
-	for _, entry := range matched {
-		quoted = append(quoted, "  "+entry.quoted())
-	}
-	r.refuse(append([]string{"error: that text appears in " + strconv.Itoa(len(matched)) + " entries of " + path + " — nothing was " + verb + "."},
-		append(quoted, "  Name text that appears in exactly one of them.")...)...)
-	panic("unreachable")
-}
-
-// A record already past its cap. Nothing these subcommands do can put one there — the append refuses
-// at the cap and admit swaps one for one — so what this catches is a file edited by hand, or one whose
-// cap was lowered under it.
-//
-// Said out loud and never acted on, and the tool names no candidate. Which entry the record can afford
-// to lose is a judgement the agent takes over the whole file — `records.md` → **The cap evicts by what the
-// record can afford to lose**. One picked here by count would name the quiet, load-bearing entry
-// nearly every time: the count rises with how often the area is worked, not with how much the next
-// agent needs the line.
-func (r *run) noteBound(kind *recordKind, path string, lines []string) {
-	entries := recordEntriesIn(lines)
-	if len(entries) <= kind.bound {
-		return
-	}
-	note := append([]string{
-		"note: " + path + " holds " + strconv.Itoa(len(entries)) + " entries, over its cap of " + strconv.Itoa(kind.bound) + " — every append refuses until it is back down.",
-		"  Work " + recordsStandard + " -> Reaching the cap, in order:",
-		"  " + capLadderRungs + ", and only then evict what the judge names:",
-	}, judgeRung()...)
-	note = append(note,
-		"  Where it names nothing, the record stays over its cap — no entry may be evicted on that answer.")
-	note = append(note, pruneCommands(kind)...)
-	r.errLines(note...)
-}
-
-// The date an entry carries. Local, because the record is read by whoever is at this machine.
-func today() string {
-	return time.Now().Format("2006-01-02")
-}
-
-// `--intent <NNN-slug>` off the front of `record`'s arguments, leaving the rest for the shape check.
-// The slug is held on the run rather than threaded through, because recordPath is three calls deep and
-// every one of those signatures exists to describe the record rather than the invocation.
-//
-// Held to reportNameFor's charset for the reason every other slug here is: it is joined into a path,
-// and this one reaches a file the tool creates.
-func (r *run) takeRecordIntent(args []string) []string {
-	if len(args) < 2 || args[0] != "--intent" {
-		return args
-	}
-	slug := reportNameFor(args[1])
-	if slug == "" || slug == "review" {
-		r.refuse("error: '" + args[1] + "' names no ship — it must be a slug ([0-9A-Za-z._-]) and cannot start with a dot. Nothing was written.")
-	}
-	r.recordSlug = slug
-	return args[2:]
-}
-
-func (r *run) assertDecisionSections(kind *recordKind, path string, lines []string) {
-	if kind.file != "decisions.md" || len(lines) == 0 {
-		return
-	}
-	if err := decisionSectionsError(lines); err != nil {
-		r.refuse("error: " + path + ": " + err.Error() + " — nothing was written.")
-	}
-}
-
-func decisionSectionsError(lines []string) error {
-	candidate, decisions := -1, -1
-	for index, line := range lines {
-		switch {
-		case line == "## Promotion candidates" && candidate == -1 && decisions == -1:
-			candidate = index
-		case line == "## Decisions" && candidate >= 0 && decisions == -1:
-			decisions = index
-		case strings.HasPrefix(strings.TrimSpace(line), "##"):
-			return errors.New("decision headings out of shape: the file holds `## Promotion candidates` then `## Decisions`, once each, and no other heading of any level")
-		default:
-			if _, isEntry := parseRecordEntry(index, line); isEntry && candidate == -1 {
-				return errors.New("decision entry outside its sections")
-			}
-		}
-	}
-	if candidate == -1 || decisions == -1 {
-		return errors.New("needs ## Promotion candidates followed by ## Decisions")
-	}
-	return nil
-}
-
-func (r *run) recordClassify(kind *recordKind, path, text, classification string) {
-	handle, lines, _ := r.openLockedRecord(path, false)
-	defer handle.Close()
-	r.assertDecisionSections(kind, path, lines)
-	found := r.oneMatchingEntry(path, lines, text, "classified")
-	entryLine := lines[found.line]
-	lines = append(lines[:found.line], lines[found.line+1:]...)
-	insertion := len(lines)
-	if classification == "candidate" {
-		for index, line := range lines {
-			if line == "## Decisions" {
-				insertion = index
-				break
-			}
-		}
-	}
-	lines = append(lines[:insertion], append([]string{entryLine}, lines[insertion:]...)...)
-	r.overwriteRecord(path, handle, lines)
-	r.line("classified in %s as %s: %s", kind.file, classification, found.quoted())
 }

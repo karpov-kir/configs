@@ -26,10 +26,10 @@
 40 ai/kk-flavor/standards/records.md
 40 ai/kk-flavor/skills/kk-reduce/SKILL.md
 40 ai/kk-flavor/skills/kk-pr/review.md
-38 ai/kk-flavor/skills/idsd-finalize/SKILL.md
 36 ai/kk-flavor/standards/streaming.md
 36 ai/kk-flavor/standards/project.md
 36 ai/kk-flavor/standards/architecture/core.md
+36 ai/kk-flavor/skills/idsd-finalize/SKILL.md
 34 ai/kk-flavor/workers/idsd/audit.md
 31 ai/kk-flavor/skills/kk-build/SKILL.md
 30 ai/kk-flavor/skills/kk-qualify/SKILL.md
@@ -53,7 +53,6 @@
 14 ai/kk-flavor/skills/kk-reduce/stats.md
 13 ai/kk-flavor/workers/reduce/reconcile.md
 13 ai/kk-flavor/workers/reduce/arbitrate.md
-8 ai/kk-flavor/workers/refactor.md
 11 ai/kk-flavor/standards/git.md
 11 ai/kk-flavor/standards/code-style.md
 11 ai/kk-flavor/standards/building.md
@@ -62,6 +61,7 @@
 10 ai/kk-flavor/skills/idsd-qualify/stage-results.md
 9 ai/kk-flavor/workers/reduce/over-cut.md
 9 ai/kk-flavor/workers/reduce/converge.md
+8 ai/kk-flavor/workers/refactor.md
 8 ai/kk-flavor/skills/kk-build/technical-round.md
 8 ai/kk-flavor/skills/idsd-reactor/tests/role-routing.md
 7 ai/kk-flavor/skills/kk-pr/refine-description.md
@@ -73,9 +73,9 @@
 4 ai/kk-flavor/standards/live-systems.md
 4 ai/kk-flavor/skills/kk-edit/SKILL.md
 4 ai/kk-flavor/skills/idsd-finalize/pr.md
-0 ai/kk-flavor/standards/comments.md
 3 ai/kk-flavor/skills/idsd-intent/templates/ice-template.md
 2 ai/kk-flavor/standards/core-principles.md
 2 ai/kk-flavor/skills/idsd-charter/templates/charter-template.md
+0 ai/kk-flavor/standards/comments.md
 0 ai/kk-flavor/standards/browser.md
 0 ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md
