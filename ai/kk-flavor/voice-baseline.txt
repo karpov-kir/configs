@@ -27,10 +27,10 @@
 40 ai/kk-flavor/skills/kk-reduce/SKILL.md
 40 ai/kk-flavor/skills/kk-pr/review.md
 36 ai/kk-flavor/standards/streaming.md
-36 ai/kk-flavor/standards/project.md
 36 ai/kk-flavor/standards/architecture/core.md
 36 ai/kk-flavor/skills/idsd-finalize/SKILL.md
 34 ai/kk-flavor/workers/idsd/audit.md
+34 ai/kk-flavor/standards/project.md
 31 ai/kk-flavor/skills/kk-build/SKILL.md
 30 ai/kk-flavor/skills/kk-qualify/SKILL.md
 27 ai/kk-flavor/workers/drive.md

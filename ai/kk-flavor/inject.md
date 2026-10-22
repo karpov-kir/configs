@@ -22,7 +22,7 @@ Read a doc only when its trigger below matches what you're doing. **`project.md`
 | writing, running or reviewing tests, **or changing behaviour that should have one** | [standards/testing.md](standards/testing.md) |
 | turning a settled requirement — a ticket, an issue, an intent, an ask — into code | [standards/building.md](standards/building.md) |
 | writing outward text — anything a person reads as communication | [standards/human-writing.md](standards/human-writing.md) |
-| setting up env, scripts, local dev / Docker; **writing a schema migration; adding or upgrading a dependency** | [standards/project.md](standards/project.md) |
+| setting up env, scripts, local dev / Docker; **writing a schema migration; adding or upgrading a dependency; asking for a password** | [standards/project.md](standards/project.md) |
 | committing, pushing, opening a PR | [standards/git.md](standards/git.md) |
 | editing a skill, standard, prompt, template, agent instruction file, **or a script under `kk-flavor/`** | [standards/ecosystem.md](standards/ecosystem.md) |
 | invoking another skill, orchestrating a run of them, or **about to compact, clear or hand off your context** | [standards/skill-protocol.md](standards/skill-protocol.md) |
