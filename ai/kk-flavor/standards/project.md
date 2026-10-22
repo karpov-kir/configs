@@ -8,13 +8,15 @@ Starter configs: [`templates/`](../templates/) — match them closely; diverge o
 
 A service's own folders — `env/`, `docker/` — live beside its `src/`, inside the package in a monorepo (`packages/<service>/`), never the repo root. `env/` holds one file per environment (`.env.<env>`) — real, working values, never `.env.example` placeholders.
 
-- **Select by environment.** A build tool with mode support (Vite, wxt) reads `.env.<env>` itself; otherwise a small loader reads `.env.$ENV`, defaulting to `development`. Config reads that same selector (`ENV`, or the build tool's mode), never a second variable like `NODE_ENV`. Loading is the app's job (build tool or loader), never the task runner's — a go-task `dotenv:` bypasses the encrypt-at-rest flow.
+- **Select by environment.** A build tool with mode support (Vite, wxt) reads `.env.<env>` itself; otherwise a small loader reads `.env.$ENV`, defaulting to `development`. Config reads that same selector (`ENV`, or the build tool's mode), never a second variable like `NODE_ENV`. Loading is the app's job (build tool or loader), never the task runner's — a mise `[env] _.file` bypasses the encrypt-at-rest flow.
 
 - **Commit real env; encrypt only secrets.** Per file, by whether it holds a secret:
   - **No secrets** → committed plain and baked into the image (**Local dev & Docker**, below).
   - **Has secrets** → committed only as `.env.<env>.encrypted` (plaintext gitignored), never in the image; decrypted and injected at deploy.
 
-  Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each prompting for that environment's own password (never stored).
+  Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each asking for that environment's own password (never stored).
+
+- **Ask every password in a macOS dialog with hidden input** — env encryption, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
 
 ## Config
 
@@ -31,7 +33,7 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 
 ## Scripts
 
-Same names on every stack. Prefer the built-in runner (npm/bun scripts); reach for a **Taskfile** only with no runner (e.g. Go) or a task the runner can't express:
+**mise** runs the tasks (`mise.toml`, `mise run <task>`) and pins the tools, in place of any Taskfile. Use the same names on every stack:
 
 | Script | Does |
 |---|---|
@@ -44,9 +46,9 @@ Same names on every stack. Prefer the built-in runner (npm/bun scripts); reach f
 
 `<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply.
 
-Group related operations under a shared first segment (`docker:build`/`docker:publish`). Where a project has both a runner and a Taskfile, the runner is the entry point — it wraps Taskfile tasks (`"start:dev": "task start:dev"`) and keeps short commands inline.
+Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
-In a monorepo, the root re-exposes each package's commands as `<package>:<command>` (`backend:start:dev`, …); repo-wide aggregates (`test`, `lint`) stay bare. Each package owns its `Taskfile.yml` / `package.json`; the root keeps only the workspace config and these commands.
+In a monorepo, the root re-exposes each package's commands as `<package>:<command>` (`backend:start:dev`, …); repo-wide aggregates (`test`, `lint`) stay bare. The repo keeps one `mise.toml`, at the root, and each package keeps its own `package.json`.
 
 ## Local dev & Docker
 

@@ -1,0 +1,98 @@
+[tools]
+go = "<version>"
+
+[vars]
+# Asks in a macOS dialog (osascript) with hidden input and prints the answer. The text says which password
+# and what happens once it is given. It goes in as an osascript argument, so no text can break the quoting.
+# Cancel exits non-zero.
+ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv))' -e 'end run' "$1" "<app>"; }"""
+ssh = "<user>@<host>"
+
+[tasks."start:dev"]
+run = [
+  '"${DEV_INFRA:?set it to your dev-infra checkout}/register-traefik-route.sh" <app>',
+  'docker compose -f "$DEV_INFRA/docker-compose.yml" up -d --wait',
+  '"$DEV_INFRA/ensure-postgres-db.sh" <app>',
+  "mise run db:migrate",
+  "<watch>", # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
+]
+# A CLI tool only some tasks call sits on those tasks: in [tools], mise installs it before every task.
+tools = { "<go:module/of/the/watcher>" = "<version>" }
+
+[tasks."db:migrate"]
+run = "<the project's forward-only migrate command>"
+
+# mise refuses a task whose dir is missing, and dev-certs/ is gitignored, so the task makes it itself.
+[tasks."install:dev-certs"]
+run = [
+  "mkdir -p docker/dev-certs",
+  "mkcert -install",
+  'mkcert -cert-file docker/dev-certs/<app>.pem -key-file docker/dev-certs/<app>-key.pem "<app>.dev" "*.<app>.dev"',
+]
+
+# The password reaches openssl on stdin: an argument shows in the process list. Output goes to a .new
+# file that replaces the target only on success. A wrong password now and then passes the openssl padding
+# check, so decrypt also refuses output holding control bytes.
+[tasks."env:crypt"]
+hide = true
+dir = "env"
+usage = '''
+arg "<direction>" help="encrypt or decrypt"
+arg "<env>" help="development, staging or production"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+{{vars.ask}}
+file=.env.{{usage.env}}
+trap 'rm -f "$file.new" "$file.encrypted.new"' EXIT
+case "{{usage.direction}}" in
+  encrypt)
+    pass=$(ask "Password of env/$file — encrypts it into $file.encrypted")
+    again=$(ask "The same password again — checks the first before env/$file is encrypted")
+    [ -n "$pass" ] && [ "$pass" = "$again" ] || { echo "✕ empty or mismatched password" >&2; exit 1; }
+    printf '%s\n' "$pass" | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$file" -out "$file.encrypted.new" -pass stdin
+    mv "$file.encrypted.new" "$file.encrypted" ;;
+  decrypt)
+    (umask 077; ask "Password of env/$file.encrypted — decrypts it into $file" | openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$file.encrypted" -out "$file.new" -pass stdin)
+    [ "$(LC_ALL=C tr -d '\t\n\r\040-\176\200-\377' < "$file.new" | wc -c)" -eq 0 ] || { echo "✕ decrypted to garbage: wrong password?" >&2; exit 1; }
+    mv "$file.new" "$file" ;;
+  *) echo "✕ direction must be encrypt or decrypt" >&2; exit 2 ;;
+esac
+'''
+
+[tasks."env:encrypt:development"]
+run = "mise run env:crypt encrypt development"
+
+[tasks."env:decrypt:development"]
+run = "mise run env:crypt decrypt development"
+
+[tasks."env:encrypt:staging"]
+run = "mise run env:crypt encrypt staging"
+
+[tasks."env:decrypt:staging"]
+run = "mise run env:crypt decrypt staging"
+
+[tasks."env:encrypt:production"]
+run = "mise run env:crypt encrypt production"
+
+[tasks."env:decrypt:production"]
+run = "mise run env:crypt decrypt production"
+
+[tasks."docker:build"]
+run = "docker build -f docker/Dockerfile -t <app> ."
+
+[tasks."docker:publish"]
+run = ["docker tag <app> <registry>/<app>", "docker push <registry>/<app>"]
+
+# sudo on the server reads the password from stdin (-S) and prompts for nothing (-p ''). -k makes it ask
+# even with a cached login, so it consumes the password line. Under NOPASSWD it reads nothing and the line
+# reaches the command's stdin, so a command that reads stdin needs a `sudo -k -n true` guard first.
+[tasks.deploy]
+depends = ["docker:publish"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+{{vars.ask}}
+ask "sudo password on {{vars.ssh}} — rolls <stack>_<service> onto the image just published" | ssh {{vars.ssh}} "sudo -k -S -p '' docker service update --with-registry-auth --force --image <registry>/<app>:latest <stack>_<service>"
+'''
