@@ -156,23 +156,23 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 // attribute, or 0 where the file ends first.
 func declarationAfter(lines []string, last int, hash bool) int {
 	// Past a directive the comment goes on, so each part of a block it splits sits on one declaration.
-	directive := false
+	isPastDirective := false
 	for n := last + 1; n <= len(lines); n++ {
 		text := strings.TrimSpace(lines[n-1])
 		if text == "" {
 			// A blank line parts the next block from the one the directive split.
-			directive = false
+			isPastDirective = false
 			continue
 		}
 		if isDirective(text) {
-			directive = true
+			isPastDirective = true
 			continue
 		}
 		if end := decoratorEnd(lines, n, hash); end > 0 {
 			n = end
 			continue
 		}
-		if !directive || !isComment(text, hash) {
+		if !isPastDirective || !isComment(text, hash) {
 			return n
 		}
 	}

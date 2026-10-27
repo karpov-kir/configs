@@ -114,9 +114,9 @@ func codeChanges(before, after []string, path string) []string {
 			for n := bl.Line; n < bl.Line+bl.Span; n++ {
 				trimmed := strings.TrimSpace(lines[n-1])
 				inBlock[n], inStar[n] = true, isOpen
-				if !isOpen && strings.HasPrefix(trimmed, "/*") {
-					isOpen = !strings.Contains(trimmed[2:], "*/")
-				} else if isOpen && strings.Contains(trimmed, "*/") {
+				if !isOpen {
+					isOpen = opensStar(trimmed)
+				} else if strings.Contains(trimmed, "*/") {
 					isOpen = false
 				}
 			}
@@ -124,7 +124,7 @@ func codeChanges(before, after []string, path string) []string {
 		for n, line := range lines {
 			trimmed := strings.TrimSpace(line)
 			isCodeAttribute := isAttribute(trimmed, hash) && !inStar[n+1]
-			if trimmed != "" && (!inBlock[n+1] || isCodeAttribute || isDirective(trimmed) || codeAfterClose(trimmed, hash)) {
+			if trimmed != "" && (!inBlock[n+1] || isCodeAttribute || isDirective(trimmed) || codeAfterClose(trimmed, hash, inStar[n+1])) {
 				text, at = append(text, line), append(at, n+1)
 			}
 		}
@@ -145,14 +145,36 @@ func codeChanges(before, after []string, path string) []string {
 	return nil
 }
 
-// codeAfterClose says the line closes a `/* */` comment and holds code after it. A line comment's `*/`
-// is a word of its prose.
-func codeAfterClose(line string, hash bool) bool {
-	if strings.HasPrefix(line, "//") || hash && strings.HasPrefix(line, "#") {
+// codeAfterClose says the line closes a `/* */` comment and holds code after it. Read from the left,
+// past each closed `/* */` and the line comment that may end the line, anything left is code. Outside a
+// `/*` block a line comment's own `*/` is a word of its prose, and inside one it closes the block.
+func codeAfterClose(line string, hash, insideStar bool) bool {
+	if !insideStar && (strings.HasPrefix(line, "//") || hash && strings.HasPrefix(line, "#")) {
 		return false
 	}
-	at := strings.LastIndex(line, "*/")
-	return at >= 0 && strings.TrimSpace(line[at+2:]) != ""
+	// A line inside a block that opened above closes it at its first `*/`.
+	rest := line
+	if insideStar || !strings.HasPrefix(rest, "/*") {
+		_, after, found := strings.Cut(rest, "*/")
+		if !found {
+			return false
+		}
+		rest = after
+	}
+	for {
+		rest = strings.TrimSpace(rest)
+		switch {
+		case rest == "", strings.HasPrefix(rest, "//"):
+			return false
+		case !strings.HasPrefix(rest, "/*"):
+			return true
+		}
+		_, after, found := strings.Cut(rest[2:], "*/")
+		if !found {
+			return false
+		}
+		rest = after
+	}
 }
 
 var reCommentLead = regexp.MustCompile(`^\s*(?:/\*\*?|\*/|\*|//|#)\s?`)

@@ -149,6 +149,19 @@ func TestTheGateReadsWhatAToolReadsAndOnlyThat(t *testing.T) {
 	if found := codeChanges([]string{"/* x */ run();"}, []string{"/* y */"}, "a.ts"); len(found) == 0 {
 		t.Error("code after a closed block comment dropped")
 	}
+	// Code between two block comments, or before a `*/ //` inside a string, is code.
+	if found := codeChanges([]string{"/*", "// old: x */ foo();", "function f() {}"}, []string{"function f() {}"}, "a.ts"); len(found) == 0 {
+		t.Error("code after a block closing on a `//` line dropped")
+	}
+	for _, line := range []string{"/* a */ foo(); /* b */ // c", `/* a */ s = "x */ // y";`, "/* a */ foo(); /* b */"} {
+		if found := codeChanges([]string{line, "function f() {}"}, []string{"function f() {}"}, "a.ts"); len(found) == 0 {
+			t.Errorf("%q: dropping the code in it passed", line)
+		}
+	}
+	// A comment after a block's close is still comment.
+	if found := codeChanges([]string{"/* a */ // b", "// c", "fun f() {}"}, []string{"fun f() {}"}, "A.kt"); len(found) != 0 {
+		t.Errorf("removing a block whose line closes on a comment refused: %v", found)
+	}
 }
 
 // A decorator ending in a block comment is still a decorator, and a marker closing a region stays

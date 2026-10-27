@@ -80,8 +80,8 @@ func hashCommented(path string) bool {
 }
 
 // isDecorator says the line opens a decorator, an attribute or a directive on the line below it: `@`
-// and a directive in any file, and `#[` where `#` opens no comment. A directive closing a range opens
-// nothing.
+// and a directive in any file, and `#[` where `#` opens no comment. A directive a comment never goes
+// above opens nothing.
 func isDecorator(text string, hash bool) bool {
 	switch {
 	case isDirective(text):
