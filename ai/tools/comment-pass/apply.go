@@ -36,7 +36,7 @@ func applyDecisions(lines []string, m material, decisions []decision) []string {
 			// no longer reads as a file header by position. A file header keeps its blank line.
 			last := c.last
 			if !c.isHeader && c.decl > c.last {
-				for last+1 < aboveDecorators(lines, c.decl) && strings.TrimSpace(lines[last]) == "" {
+				for last+1 < aboveDecorators(m.code, c.decl, m.hashComments) && strings.TrimSpace(lines[last]) == "" {
 					last++
 				}
 			}
@@ -45,7 +45,7 @@ func applyDecisions(lines []string, m material, decisions []decision) []string {
 	}
 	for _, p := range m.places {
 		if d := byID[p.id]; d.verb == "add" {
-			at := aboveDecorators(lines, p.line)
+			at := aboveDecorators(m.code, p.line, m.hashComments)
 			edits = append(edits, edit{first: at, last: at - 1, text: indent(d.text, indentOf(lines, p.line))})
 		}
 	}
@@ -79,10 +79,17 @@ func indent(text []string, prefix string) []string {
 	return out
 }
 
-// aboveDecorators is the first line of the decorators a declaration carries, where its comment goes.
-func aboveDecorators(lines []string, line int) int {
-	for line > 1 && strings.HasPrefix(strings.TrimSpace(lines[line-2]), "@") {
-		line--
+// aboveDecorators is the first line of the decorators and attributes a declaration carries, where its
+// comment goes.
+func aboveDecorators(lines []string, line int, hash bool) int {
+	for opened := true; opened; {
+		opened = false
+		for at := line - 1; at >= 1 && at > line-1-maxDecoratorLines; at-- {
+			if decoratorEnd(lines, at, hash) == line-1 {
+				line, opened = at, true
+				break
+			}
+		}
 	}
 	return line
 }

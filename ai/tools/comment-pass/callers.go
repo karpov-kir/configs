@@ -135,9 +135,10 @@ func callSites(top, path, name string) (direct, further []string) {
 	return direct, further
 }
 
-// findSites is up to sitesPerName places that use name, outside the lines skip names. A unit test is
-// no caller a reader learns a purpose from, an import names without calling, and a name inside a
-// string is a word, not a use. A call ranks ahead of a reference.
+// findSites returns up to sitesPerName places that use name, in lines where skip is false. It drops
+// unit tests, imports and names inside strings. A unit test shows a reader no purpose, an import
+// names the declaration without calling it, and a name in a string is a word, not a use. It ranks a
+// call ahead of a reference.
 func findSites(top, name string, skip func(file string, line int) bool) []site {
 	// -z puts a NUL after the path and the line number, so a path holding a colon stays whole.
 	out, err := gitOut(top, "grep", "--untracked", "-z", "-n", "-w", "-F", "-I", "-e", name, "--", ".")
@@ -160,7 +161,7 @@ func findSites(top, name string, skip func(file string, line int) bool) []site {
 		file, text := fields[0], strings.TrimSuffix(fields[2], "\r")
 		n, err := strconv.Atoi(fields[1])
 		if err != nil || skip(file, n) || !sourceExtensions[filepath.Ext(file)] || reUnitTest.MatchString(file) ||
-			reImport.MatchString(text) || isComment(strings.TrimSpace(text)) {
+			reImport.MatchString(text) || isComment(strings.TrimSpace(text), hashCommented(file)) {
 			continue
 		}
 		code := withoutStrings(text, false)
@@ -200,11 +201,12 @@ func findSites(top, name string, skip func(file string, line int) bool) []site {
 func formatSite(name string, s site, whole bool, note string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n%s is used in %s at line %d%s", name, s.file, s.at, note)
+	hash, code := hashCommented(s.file), firstOf(codeView(s.lines, s.file))
 	from, to := max(1, s.at-linesAbove), min(len(s.lines), s.at+linesBelow)
 	body := false
 	if decl := enclosingDeclaration(s.lines, s.at); decl > 0 {
 		fmt.Fprintf(&b, ", inside line %d: %s\n", decl, strings.TrimSpace(s.lines[decl-1]))
-		if comment := commentAbove(s.lines, decl); len(comment) > 0 {
+		if comment := commentAbove(s.lines, decl, s.file); len(comment) > 0 {
 			b.WriteString("  whose comment reads:\n")
 			for _, line := range comment {
 				b.WriteString("    " + strings.TrimSpace(line) + "\n")
@@ -217,7 +219,7 @@ func formatSite(name string, s site, whole bool, note string) string {
 		b.WriteString("\n")
 	}
 	// A whole body's own comment is already shown above it.
-	for edge := 0; !body && edge < maxEdgeLines && from > 1 && isComment(strings.TrimSpace(s.lines[from-2])); edge++ {
+	for edge := 0; !body && edge < maxEdgeLines && from > 1 && isComment(strings.TrimSpace(code[from-2]), hash); edge++ {
 		from--
 	}
 	for n := from; n <= to; n++ {
@@ -283,9 +285,10 @@ func enclosingDeclaration(lines []string, at int) int {
 }
 
 // commentAbove is the comment block that ends just above the declaration, past its decorators.
-func commentAbove(lines []string, decl int) []string {
-	end := aboveDecorators(lines, decl) - 1
-	for _, bl := range commentBlocks(lines[:end]) {
+func commentAbove(lines []string, decl int, path string) []string {
+	hash, code := hashCommented(path), firstOf(codeView(lines, path))
+	end := aboveDecorators(code, decl, hash) - 1
+	for _, bl := range commentBlocks(code[:end], hash) {
 		if bl.Line+bl.Span-1 == end {
 			return lines[bl.Line-1 : end]
 		}
@@ -312,13 +315,19 @@ func inImport(lines []string, at int) bool {
 // reSiteLine is a numbered line of a call site's context, with the code after the number.
 var reSiteLine = regexp.MustCompile(`^  \s*\d+  (.*)$`)
 
-// callersCode is the callers section without its comments: the enclosing declarations' comments and
-// every comment line in the shown context. The cache key reads this, so a comment edited elsewhere
-// does not ask the file again.
+// reSiteHead opens a site and names its file, whose comment syntax its lines are read in.
+var reSiteHead = regexp.MustCompile(`^\S+ is used in (.+?) at line \d+`)
+
+// callersCode returns the callers section without its comments: the comments on the enclosing
+// declarations and every comment line in the shown context. The cache key reads this, so an edit to
+// a comment in a calling file does not send this file through the pass again.
 func callersCode(section string) string {
 	var out []string
-	inComment, inStar := false, false
+	inComment, inStar, hash := false, false, false
 	for _, line := range strings.Split(section, "\n") {
+		if head := reSiteHead.FindStringSubmatch(line); head != nil {
+			hash = hashCommented(head[1])
+		}
 		if line == "  whose comment reads:" {
 			inComment = true
 			continue
@@ -333,7 +342,7 @@ func callersCode(section string) string {
 				inStar = !strings.Contains(code, "*/")
 				continue
 			}
-			if isComment(code) {
+			if isComment(code, hash) {
 				inStar = opensStar(code)
 				continue
 			}

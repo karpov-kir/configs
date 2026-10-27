@@ -16,10 +16,9 @@ import (
 // The gate checks what takes no judgement. A line fits the repository's print width. Each block of a
 // written comment is bounded on its own, a run of line comments or a doc block alike: at most four prose
 // lines, and a file header at most eight. A note above a summary is two blocks, the shape the page asks
-// of a declaration that needs both. A comment holds no markdown. A comment that
-// fails the gate fails the pass, with its text shown, and the file is left as it was. A line past the
-// width is wrapped before the gate reads it.
-
+// of a declaration that needs both. A comment holds no markdown. The edit leaves every code line as it
+// was. A comment that fails the gate fails the pass, with its text shown, and the file is left as it
+// was. A line past the width is wrapped before the gate reads it.
 const (
 	maxBlockLines  = 4
 	maxHeaderLines = 8
@@ -99,6 +98,62 @@ func commentParts(text []string) [][]string {
 // indentWidth is the indent the comment will take, which counts toward the line's width. The gate
 // reads the text before it is placed, so the material carries each id's indent.
 func indentWidth(m material, id string) int { return m.indents[id] }
+
+// codeChanges reports the first code line the edit changes, drops, moves or adds. A comment edit
+// may do none of these. A blank line is no code line. The check counts an attribute, a tool
+// directive and a line with code after its `*/` as code even inside a comment block. A misread
+// block then cannot hide an edit to one.
+func codeChanges(before, after []string, path string) []string {
+	hash := hashCommented(path)
+	code := func(lines []string) (text []string, at []int) {
+		// Inside a `/* */` block a line opening on `@` is a doc tag, as `@param`, and no attribute.
+		inBlock, inStar := map[int]bool{}, map[int]bool{}
+		for _, bl := range commentBlocks(firstOf(codeView(lines, path)), hash) {
+			// A block may join `//` lines and `/* */` parts, so each part's inside is tracked on its own.
+			isOpen := false
+			for n := bl.Line; n < bl.Line+bl.Span; n++ {
+				trimmed := strings.TrimSpace(lines[n-1])
+				inBlock[n], inStar[n] = true, isOpen
+				if !isOpen && strings.HasPrefix(trimmed, "/*") {
+					isOpen = !strings.Contains(trimmed[2:], "*/")
+				} else if isOpen && strings.Contains(trimmed, "*/") {
+					isOpen = false
+				}
+			}
+		}
+		for n, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			isCodeAttribute := isAttribute(trimmed, hash) && !inStar[n+1]
+			if trimmed != "" && (!inBlock[n+1] || isCodeAttribute || isDirective(trimmed) || codeAfterClose(trimmed, hash)) {
+				text, at = append(text, line), append(at, n+1)
+			}
+		}
+		return text, at
+	}
+	was, lineOf := code(before)
+	now, _ := code(after)
+	for i := 0; i < len(was) || i < len(now); i++ {
+		switch {
+		case i >= len(now):
+			return []string{fmt.Sprintf("the edit would drop the code line at line %d: %s", lineOf[i], was[i])}
+		case i >= len(was):
+			return []string{fmt.Sprintf("the edit would add a code line: %s", now[i])}
+		case was[i] != now[i]:
+			return []string{fmt.Sprintf("the edit would change the code line at line %d: %s, to: %s", lineOf[i], was[i], now[i])}
+		}
+	}
+	return nil
+}
+
+// codeAfterClose says the line closes a `/* */` comment and holds code after it. A line comment's `*/`
+// is a word of its prose.
+func codeAfterClose(line string, hash bool) bool {
+	if strings.HasPrefix(line, "//") || hash && strings.HasPrefix(line, "#") {
+		return false
+	}
+	at := strings.LastIndex(line, "*/")
+	return at >= 0 && strings.TrimSpace(line[at+2:]) != ""
+}
 
 var reCommentLead = regexp.MustCompile(`^\s*(?:/\*\*?|\*/|\*|//|#)\s?`)
 

@@ -76,6 +76,18 @@ func TestWhatIsNoProseStaysWhole(t *testing.T) {
 	}
 }
 
+// Prose opening on a word a tool's directive also opens on wraps like any prose.
+func TestProseOnADirectivesWordWraps(t *testing.T) {
+	for _, line := range []string{
+		"// type: the kind of key the ledger stores for each entry it posts",
+		"# global settings are read once when the ledger first opens its book",
+	} {
+		if got := wrapLine(line, 40); len(got) < 2 {
+			t.Errorf("%q stayed whole", line)
+		}
+	}
+}
+
 // The lines of an @example and of a fence are code, and stay whole. Prose after the next tag wraps.
 func TestExampleCodeStaysWhole(t *testing.T) {
 	code := "* const result = compute(alpha, beta, gamma) // an example call that runs long here"
@@ -109,7 +121,7 @@ func TestAskAsksAgain(t *testing.T) {
 // A wrapped block lands in the file exactly as it reads in a refusal: its `*` lines one column in.
 func TestAWrappedBlockLandsAsItReads(t *testing.T) {
 	lines := []string{"export const KEYS = ['a'];"}
-	m := material{places: []place{{id: "p1", line: 1}}, indents: map[string]int{"p1": 0}}
+	m := material{places: []place{{id: "p1", line: 1}}, indents: map[string]int{"p1": 0}, code: lines}
 	long := "/** " + strings.Repeat("posts the entry ", 10) + "*/"
 	d := rewrap(m, []decision{{id: "p1", verb: "add", text: []string{long}}}, 60)
 	for _, line := range d[0].text[1:] {

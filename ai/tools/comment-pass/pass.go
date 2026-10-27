@@ -22,8 +22,9 @@ const maxFileBytes = 200_000
 var sourceExtensions = map[string]bool{".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true,
 	".cjs": true, ".go": true, ".py": true, ".sh": true, ".java": true, ".kt": true, ".swift": true, ".rs": true}
 
-// Run is the pass over a change: each changed source file in one call. Exit 0: every file passed.
-// Exit 1: a file's reply or gate failed. Exit 2: the pass did not run.
+// Run sends each source file changed since the base to the model, one call per file, and writes the
+// comments the model decides. It returns 0 when every file passed. It returns 1 when a file's call,
+// reply or gate failed, or the file was too large to send. It returns 2 when the pass did not run.
 func Run(self string, args []string, cwd string, lookup func(string) (string, bool), call func(model string) Caller,
 	stdout, stderr io.Writer) int {
 	refuse := func(format string, a ...any) int {
@@ -127,6 +128,10 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		text := strings.ReplaceAll(string(body), "\r\n", "\n")
 		lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 		m := findMaterial(path, lines, changedByFile[path])
+		if m.unclosed > 0 {
+			fmt.Fprintf(stderr, "%s: %s: the string opened on line %d never closes, so the lines after it were read as code "+
+				"and their comments left as they are\n", self, path, m.unclosed)
+		}
 		if len(m.candidates) == 0 && len(m.places) == 0 {
 			continue
 		}
@@ -179,7 +184,9 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			}
 		}
 		decisions = rewrap(m, decisions, widthFor(path, width))
-		if found := gateFindings(m, decisions, widthFor(path, width)); len(found) > 0 {
+		applied := applyDecisions(lines, m, decisions)
+		found := append(gateFindings(m, decisions, widthFor(path, width)), codeChanges(lines, applied, path)...)
+		if len(found) > 0 {
 			failed++
 			fmt.Fprintf(stdout, "%s: the gate refused the file, which is left as it was. Its reply is kept, and a rerun "+
 				"refuses it again until the file, notes, page or model change, or --ask is given:\n%s\n", path, strings.Join(found, "\n"))
@@ -197,7 +204,7 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if dry || written == 0 {
 			continue
 		}
-		out := strings.Join(applyDecisions(lines, m, decisions), "\n") + "\n"
+		out := strings.Join(applied, "\n") + "\n"
 		if crlf {
 			out = strings.ReplaceAll(out, "\n", "\r\n")
 		}

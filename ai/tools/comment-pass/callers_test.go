@@ -206,6 +206,17 @@ func TestACallersCommentEditKeepsTheReply(t *testing.T) {
 	}
 }
 
+// Each site's lines are read in its own file's comment syntax: a Python site's `#` line is a comment,
+// and a TypeScript site's `#private` field is code.
+func TestCallersCodeReadsEachSitesSyntax(t *testing.T) {
+	section := "\npost is used in close.py at line 2\n     1  # Closes the day.\n     2  post(entries)\n" +
+		"\npost is used in book.ts at line 2\n     1  #pending = [];\n     2  post(this.#pending);\n"
+	got := callersCode(section)
+	if strings.Contains(got, "Closes the day") || !strings.Contains(got, "#pending = [];") {
+		t.Fatalf("got:\n%s", got)
+	}
+}
+
 // The key's callers text drops the enclosing comments and every comment line in the context, and keeps
 // the rest.
 func TestCallersCodeDropsOnlyComments(t *testing.T) {

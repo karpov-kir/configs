@@ -33,6 +33,12 @@ export function reopen(book: Book): void {
 // fixture is a repository whose head changes post's body and adds reopen, beside an untouched constant.
 func fixture(t *testing.T) (dir, base string) {
 	t.Helper()
+	return repository(t, "ledger.ts", baseLedger, headLedger)
+}
+
+// repository commits one file at baseBody and leaves headBody in the tree.
+func repository(t *testing.T, name, baseBody, headBody string) (dir, base string) {
+	t.Helper()
 	dir = t.TempDir()
 	git := func(args ...string) string {
 		t.Helper()
@@ -44,11 +50,11 @@ func fixture(t *testing.T) (dir, base string) {
 	}
 	git("init", "-q", "-b", "main")
 	write(t, dir, ".prettierrc", `{"printWidth": 120}`)
-	write(t, dir, "ledger.ts", baseLedger)
+	write(t, dir, name, baseBody)
 	git("add", "-A")
 	git("commit", "-qm", "base")
 	base = git("rev-parse", "HEAD")
-	write(t, dir, "ledger.ts", headLedger)
+	write(t, dir, name, headBody)
 	return dir, base
 }
 
@@ -145,6 +151,29 @@ func TestTheGateRefusesWithTheTextShown(t *testing.T) {
 		if code != 1 || string(got) != headLedger || !strings.Contains(text, "the gate refused") {
 			t.Errorf("%q: exit %d\n%s", comment, code, text)
 		}
+	}
+}
+
+// A rewrite that would take code with the comment fails the file, which stays as it was, and the
+// refusal shows the code line.
+func TestAnEditThatWouldTakeCodeFailsTheFile(t *testing.T) {
+	head := "/** The limit. */ export const LIMIT = 2;\n"
+	dir, base := repository(t, "limit.ts", "/** The limit. */ export const LIMIT = 1;\n", head)
+	calls := 0
+	code, text := run(t, dir, base, "c1 rewrite: r\n/** The most a book holds. */\n", &calls)
+	got, _ := os.ReadFile(filepath.Join(dir, "limit.ts"))
+	if code != 1 || string(got) != head || !strings.Contains(text, "drop the code line at line 1: /** The limit. */ export const LIMIT = 2;") {
+		t.Fatalf("exit %d:\n%s\n%s", code, text, got)
+	}
+}
+
+// A file whose string never closes leaves the lines after it alone, and the run names the line it
+// opened on.
+func TestAStringThatNeverClosesIsReported(t *testing.T) {
+	dir, base := repository(t, "a.ts", "const a = 1;\n", "const a = 2;\nconst t = `\n// Runs it.\n")
+	calls := 0
+	if code, text := run(t, dir, base, "", &calls, "--list"); code != 0 || !strings.Contains(text, "a.ts: the string opened on line 2 never closes") {
+		t.Fatalf("exit %d:\n%s", code, text)
 	}
 }
 

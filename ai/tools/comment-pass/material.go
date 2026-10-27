@@ -7,7 +7,6 @@ package commentpass
 import (
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -40,6 +39,10 @@ type material struct {
 	hashComments bool
 	// lifetimes marks a file whose single quotes open no string, as Rust's lifetimes.
 	lifetimes bool
+	// code is the file with its strings blanked, which the comment finder reads.
+	code []string
+	// unclosed is the line of a string that never closes, past which code is blank, or 0.
+	unclosed int
 }
 
 // changedLines is, for each file at head, the lines the change added or changed since base. Renames
@@ -99,14 +102,15 @@ var reMemberArrow = regexp.MustCompile(`^\s*(?:export\s+)?(?:const|let|var)\s|^\
 // place for a fact, so the pass offers a test file only those comments.
 var reUnitTest = regexp.MustCompile(`\.(?:test|spec)\.[a-z]+$|_test\.go$`)
 
-// findMaterial reads the file's comment blocks and declarations against the changed lines.
+// findMaterial returns the comment blocks and the uncommented declarations that the change touched.
+// For a unit test's file it returns the comment blocks only.
 func findMaterial(path string, lines []string, changed map[int]bool) material {
-	ext := strings.ToLower(filepath.Ext(path))
-	m := material{indents: map[string]int{}, hashComments: ext == ".py" || ext == ".sh", lifetimes: ext == ".rs"}
+	m := material{indents: map[string]int{}, hashComments: hashCommented(path), lifetimes: familyOf(path) == familyRs}
+	m.code, m.unclosed = codeView(lines, path)
 	commented := map[int]bool{}
-	for n, u := range commentBlocks(lines) {
+	for n, u := range commentBlocks(m.code, m.hashComments) {
 		last := u.Line + u.Span - 1
-		decl := declarationAfter(lines, last)
+		decl := declarationAfter(m.code, last, m.hashComments)
 		commented[decl] = true
 		touched := false
 		for _, line := range declarationSpan(lines, decl, m.lifetimes) {
@@ -129,7 +133,8 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 	}
 	for line := 1; line <= len(lines); line++ {
 		text := lines[line-1]
-		if commented[line] || !reDeclaration.MatchString(text) || notDeclaration.MatchString(text) || reLocal.MatchString(text) ||
+		// Past a string that never closes the file was misread, and no line there takes a comment.
+		if commented[line] || m.unclosed > 0 && line > m.unclosed || !reDeclaration.MatchString(text) || notDeclaration.MatchString(text) || reLocal.MatchString(text) ||
 			strings.Contains(text, "=>") && !reMemberArrow.MatchString(text) {
 			continue
 		}
@@ -147,11 +152,27 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 	return m
 }
 
-// declarationAfter is the first code line after the block's last line, past any decorator, or 0 where
-// the file ends first.
-func declarationAfter(lines []string, last int) int {
+// declarationAfter is the first code line after the block's last line, past any decorator or
+// attribute, or 0 where the file ends first.
+func declarationAfter(lines []string, last int, hash bool) int {
+	// Past a directive the comment goes on, so each part of a block it splits sits on one declaration.
+	directive := false
 	for n := last + 1; n <= len(lines); n++ {
-		if text := strings.TrimSpace(lines[n-1]); text != "" && !strings.HasPrefix(text, "@") {
+		text := strings.TrimSpace(lines[n-1])
+		if text == "" {
+			// A blank line parts the next block from the one the directive split.
+			directive = false
+			continue
+		}
+		if isDirective(text) {
+			directive = true
+			continue
+		}
+		if end := decoratorEnd(lines, n, hash); end > 0 {
+			n = end
+			continue
+		}
+		if !directive || !isComment(text, hash) {
 			return n
 		}
 	}
