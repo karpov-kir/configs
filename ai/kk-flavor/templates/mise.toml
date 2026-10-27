@@ -1,5 +1,6 @@
 [tools]
 go = "<version>"
+node = "<version>"
 
 [vars]
 # Asks in a macOS dialog (osascript) with hidden input and prints the answer. The text says which password
@@ -7,6 +8,65 @@ go = "<version>"
 # Cancel exits non-zero.
 ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv))' -e 'end run' "$1" "<app>"; }"""
 ssh = "<user>@<host>"
+
+[tasks.setup]
+run = ["go mod download", "npm --prefix ui ci"]
+
+[tasks.check]
+depends = ["lint", "build", "test"]
+
+[tasks."check:ci"]
+depends = ["lint", "build", "test:ci"]
+
+[tasks.lint]
+depends = ["backend:lint:gofmt", "backend:lint:govet", "ui:lint"]
+
+[tasks.build]
+depends = ["backend:build", "ui:build"]
+
+[tasks.test]
+depends = ["backend:test", "ui:test"]
+
+[tasks."test:ci"]
+depends = ["backend:test:ci", "ui:test:ci"]
+
+# Name every dir holding Go code: gofmt walks what it is given, and `.` takes in ui/node_modules.
+[tasks."backend:lint:gofmt"]
+run = 'test -z "$(gofmt -l <go dirs> | tee /dev/stderr)"'
+
+[tasks."backend:lint:govet"]
+run = "go vet ./..."
+
+[tasks."backend:build"]
+run = "go build ./..."
+
+[tasks."backend:test"]
+run = "go test ./..."
+
+# go test refuses a coverprofile in a missing dir. The last line fails the run below 80% total coverage.
+[tasks."backend:test:ci"]
+run = [
+  "mkdir -p coverage",
+  "go test -coverpkg=./... -coverprofile=coverage/coverage.out ./...",
+  "go tool cover -func=coverage/coverage.out | awk '/^total:/ { t = $3 + 0; print } END { exit (t < 80) }'",
+]
+
+# ui/package.json holds the scripts: lint runs every linter, tsc included, and test:ci is `vitest run --coverage`.
+[tasks."ui:lint"]
+dir = "ui"
+run = "npm run lint"
+
+[tasks."ui:build"]
+dir = "ui"
+run = "npm run build"
+
+[tasks."ui:test"]
+dir = "ui"
+run = "npm test"
+
+[tasks."ui:test:ci"]
+dir = "ui"
+run = "npm run test:ci"
 
 [tasks."start:dev"]
 run = [

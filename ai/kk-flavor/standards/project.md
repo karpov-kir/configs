@@ -43,8 +43,12 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 | `test` / `test:<level>` | the test suites — see [testing.md](testing.md) |
 | `lint` / `lint:fix` | every linter / every linter's fix |
 | `lint:<type>` / `lint:<type>:fix` | one linter — `lint:eslint`, … |
+| `setup` | installs every dependency of the repo, and is the only way to install them |
+| `check` / `check:ci` | `lint`, `build` and `test` / the same with `test:ci`, which CI runs |
 
-`<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply.
+`<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply. Keep `setup` in every repo, empty where the repo installs none.
+
+Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `test` or `test:ci`, so a step added to one of those reaches both. Count a type check or a format check as a linter (`lint:tsc`, `lint:gofmt`, `lint:govet`). Where a repo has only `build:<env>`, `check` and `check:ci` depend on `build:production`.
 
 Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
