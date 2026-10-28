@@ -8,9 +8,6 @@ export PATH="/Users/kirill/.bun/bin:$PATH"
 # E.g. Claude Code native installation is here
 export PATH="$HOME/.local/bin:$PATH"
 
-# Shared local dev infra (one Traefik + Postgres for every service); task start:dev routes + creates its DB through it
-export DEV_INFRA="$HOME/Documents/WP/dev-infra"
-
 # https://stackoverflow.com/a/64351976
 # zmodload zsh/zprof
 
