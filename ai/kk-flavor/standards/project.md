@@ -18,7 +18,7 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 
 - **Ask every password in a macOS dialog with hidden input** — env encryption, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
 
-- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret one name in every repo and environment that holds it, and give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
+- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
 
 ## Config
 
@@ -54,17 +54,17 @@ Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `te
 
 Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
-In a monorepo, the root re-exposes each package's commands as `<package>:<command>` (`backend:start:dev`, …); repo-wide aggregates (`test`, `lint`) stay bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. The repo keeps one `mise.toml`, at the root, and each package keeps its own `package.json`.
+In a monorepo, re-expose each package's commands at the root as `<package>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. Keep one `mise.toml` at the repo root and its own `package.json` in each package.
 
 ## Local dev & Docker
 
-The service runs on the host. Its dependencies and its HTTP edge run in the service's own `docker/docker-compose.yml`, under its own `name:`. Its `start:dev` brings them up and stops them when the dev loop ends.
+Run the service on the host. Run its dependencies and its HTTP edge in the service's own `docker/docker-compose.yml`, under its own `name:`. Make its `start:dev` bring them up and stop them when the dev loop ends.
 
-- **Postgres** publishes only `127.0.0.1:5432`. Its password is the committed `env/database-password.development`, which the compose mounts as a secret (`POSTGRES_PASSWORD_FILE`) and the app reads through `DATABASE_PASSWORD_FILE`.
-- **Traefik** owns `:443` and TLS for the service's local domain, with the certs from `docker/dev-certs/`.
-- Run one service locally at a time: every service takes `:5432` and `:443`.
+- **Publish Postgres only on `127.0.0.1:5432`.** Commit its password as `env/database-password.development`. Have the compose mount it as a secret (`POSTGRES_PASSWORD_FILE`) and the app read it through `DATABASE_PASSWORD_FILE`.
+- **Let Traefik own `:443` and TLS** for the service's local domain, with the certs from `docker/dev-certs/`.
+- **Run one service locally at a time**, because every service takes `:5432` and `:443`.
 
-A service's `docker/` holds its own container setup: its compose, its Traefik route, its `dev-certs/` and its `Dockerfile`.
+Keep the service's container setup in its own `docker/`, which holds its compose, its Traefik route, its `dev-certs/` and its `Dockerfile`.
 
 - **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
 - **Give the service its own distinct host port** — not the template default, and not one already listening on this machine.
