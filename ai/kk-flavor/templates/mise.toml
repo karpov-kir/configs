@@ -9,8 +9,11 @@ node = "<version>"
 ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv))' -e 'end run' "$1" "<app>"; }"""
 ssh = "<user>@<host>"
 
+# The server sits at the repo root here, beside web/. Where it lives in backend/, give its tasks dir = "backend"
+# (env:crypt dir = "backend/env") and the backend: prefix, start:dev included.
+
 [tasks.setup]
-run = ["go mod download", "npm --prefix ui ci"]
+run = ["go mod download", "npm --prefix web ci"]
 
 [tasks.check]
 depends = ["lint", "build", "test"]
@@ -19,18 +22,18 @@ depends = ["lint", "build", "test"]
 depends = ["lint", "build", "test:ci"]
 
 [tasks.lint]
-depends = ["backend:lint:gofmt", "backend:lint:govet", "ui:lint"]
+depends = ["backend:lint:gofmt", "backend:lint:govet", "web:lint"]
 
 [tasks.build]
-depends = ["backend:build", "ui:build"]
+depends = ["backend:build", "web:build"]
 
 [tasks.test]
-depends = ["backend:test", "ui:test"]
+depends = ["backend:test", "web:test"]
 
 [tasks."test:ci"]
-depends = ["backend:test:ci", "ui:test:ci"]
+depends = ["backend:test:ci", "web:test:ci"]
 
-# Name every dir holding Go code: gofmt walks what it is given, and `.` takes in ui/node_modules.
+# Name every dir holding Go code: gofmt walks what it is given, and `.` takes in web/node_modules.
 [tasks."backend:lint:gofmt"]
 run = 'test -z "$(gofmt -l <go dirs> | tee /dev/stderr)"'
 
@@ -51,31 +54,37 @@ run = [
   "go tool cover -func=coverage/coverage.out | awk '/^total:/ { t = $3 + 0; print } END { exit (t < 80) }'",
 ]
 
-# ui/package.json holds the scripts: lint runs every linter, tsc included, and test:ci is `vitest run --coverage`.
-[tasks."ui:lint"]
-dir = "ui"
+# web/package.json holds the scripts: lint runs every linter, tsc included, and test:ci is `vitest run --coverage`.
+[tasks."web:lint"]
+dir = "web"
 run = "npm run lint"
 
-[tasks."ui:build"]
-dir = "ui"
+[tasks."web:build"]
+dir = "web"
 run = "npm run build"
 
-[tasks."ui:test"]
-dir = "ui"
+[tasks."web:test"]
+dir = "web"
 run = "npm test"
 
-[tasks."ui:test:ci"]
-dir = "ui"
+[tasks."web:test:ci"]
+dir = "web"
 run = "npm run test:ci"
 
+# docker/docker-compose.yml runs the service's own Postgres and Traefik under its own `name:`. The trap
+# stops them when the dev loop ends.
 [tasks."start:dev"]
-run = [
-  '"${DEV_INFRA:?set it to your dev-infra checkout}/register-traefik-route.sh" <app>',
-  'docker compose -f "$DEV_INFRA/docker-compose.yml" up -d --wait',
-  '"$DEV_INFRA/ensure-postgres-db.sh" <app>',
-  "mise run db:migrate",
-  "<watch>", # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
-]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+compose=(docker compose -f docker/docker-compose.yml)
+trap '"${compose[@]}" stop' EXIT
+# bash leaves SIGTERM (an IDE's stop button, kill) at its default, which skips the EXIT trap.
+trap 'exit 143' TERM
+"${compose[@]}" up -d --wait
+mise run db:migrate
+<watch> # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
+'''
 # A CLI tool only some tasks call sits on those tasks: in [tools], mise installs it before every task.
 tools = { "<go:module/of/the/watcher>" = "<version>" }
 
