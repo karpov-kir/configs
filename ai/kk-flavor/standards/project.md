@@ -16,7 +16,7 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 
   Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each asking for that environment's own password (never stored).
 
-- **Ask every password in a macOS dialog with hidden input** — env encryption, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
+- **Ask every password in a macOS dialog with hidden input** — env encryption, sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
 
 ## Config
 
@@ -63,6 +63,14 @@ A service's `docker/` holds its own container setup — its Traefik route slice,
 - **Give the service its own distinct host port** — not the template default, and not one already listening on this machine.
 - **Service-specific containers** go in the service's own `docker/docker-compose.yml` (brought up by its `start:dev`); common deps stay in the dev-infra.
 - **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
+- **Run a Go or Node build stage on `--platform=$BUILDPLATFORM`** and have it build for `$TARGETPLATFORM` ([`templates/docker/Dockerfile`](../templates/docker/Dockerfile)).
+
+## CI, images & deploys
+
+- **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
+- **CI builds and pushes every app image after each commit to the default branch that passes its checks**, through the shared release-image workflow. Its Release records each image's digest reference, `<registry>/<image>@sha256:<digest>`.
+- **Keep `docker:build` / `docker:publish` for trial builds.** `docker:publish` prints the pushed digest reference as its last line, taken from that push's own output: a later read of the tag could return another push's digest.
+- **Deploy only through the signed deploy a human approves**, passing the digest references from the Release. Pin every service to a digest reference. No CI job and no app-repo task rolls a service.
 
 ## Migrations
 

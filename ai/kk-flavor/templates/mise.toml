@@ -6,7 +6,6 @@ go = "<version>"
 # and what happens once it is given. It goes in as an osascript argument, so no text can break the quoting.
 # Cancel exits non-zero.
 ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv))' -e 'end run' "$1" "<app>"; }"""
-ssh = "<user>@<host>"
 
 [tasks."start:dev"]
 run = [
@@ -79,20 +78,19 @@ run = "mise run env:crypt encrypt production"
 [tasks."env:decrypt:production"]
 run = "mise run env:crypt decrypt production"
 
+# Trial builds: CI builds the images a deploy takes. <platform> is the servers' platform, e.g. linux/amd64.
 [tasks."docker:build"]
-run = "docker build -f docker/Dockerfile -t <app> ."
+run = "docker build --platform <platform> -f docker/Dockerfile -t <app> ."
 
+# The last line is the digest reference a deploy takes. The digest comes from this push's own output: a later
+# read of the tag could return the digest of another push made in between.
 [tasks."docker:publish"]
-run = ["docker tag <app> <registry>/<app>", "docker push <registry>/<app>"]
-
-# sudo on the server reads the password from stdin (-S) and prompts for nothing (-p ''). -k makes it ask
-# even with a cached login, so it consumes the password line. Under NOPASSWD it reads nothing and the line
-# reaches the command's stdin, so a command that reads stdin needs a `sudo -k -n true` guard first.
-[tasks.deploy]
-depends = ["docker:publish"]
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-{{vars.ask}}
-ask "sudo password on {{vars.ssh}} — rolls <stack>_<service> onto the image just published" | ssh {{vars.ssh}} "sudo -k -S -p '' docker service update --with-registry-auth --force --image <registry>/<app>:latest <stack>_<service>"
+docker tag <app> <registry>/<app>
+out=$(docker push <registry>/<app> | tee /dev/stderr)
+digest=$(awk '$2 == "digest:" { d = $3 } END { print d }' <<<"$out")
+[[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "✕ docker push reported no digest for <registry>/<app>" >&2; exit 1; }
+echo "<registry>/<app>@$digest"
 '''
