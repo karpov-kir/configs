@@ -22,6 +22,7 @@ commands below still matter when a step fails.
 - [Git](https://git-scm.com)
   - It's already installed by default on MacOS
   - `ln -s ~/Documents/WP/configs/env/git/.gitconfig ~/.gitconfig`
+  - `ln -s ~/Documents/WP/configs/env/git/kk-forge.gitconfig ~/.gitconfig-kk-forge` — the signing and deploy keys, which `.gitconfig` includes only in a repository with a remote in `karpov-kir` or `kk-forge-engineering`
 - [Mise](https://github.com/jdx/mise)
   - `brew install mise`
   - `mise use --global node@lts`
@@ -47,7 +48,7 @@ Everything this half puts in your home is a symlink into this repository, so del
 whole of it:
 
 ```sh
-rm -f ~/.zpreztorc ~/.zshrc ~/.gitconfig ~/.config/starship.toml
+rm -f ~/.zpreztorc ~/.zshrc ~/.gitconfig ~/.gitconfig-kk-forge ~/.config/starship.toml
 rm -f ~/.config/ghostty ~/.config/nvim
 ```
 

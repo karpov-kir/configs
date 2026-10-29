@@ -51,6 +51,7 @@ func (f *fixture) newCheckout(root string) {
 	f.Write(root+"/zsh/.zpreztorc", "the prezto config\n")
 	f.Write(root+"/zsh/.zshrc", "the shell config\n")
 	f.Write(root+"/git/.gitconfig", "the git identity\n")
+	f.Write(root+"/git/kk-forge.gitconfig", "the signing keys\n")
 	f.Write(root+"/ghostty/config", "the terminal\n")
 	f.Write(root+"/nvim/init.lua", "the editor config\n")
 	f.Write(root+"/starship/starship.toml", "the prompt\n")

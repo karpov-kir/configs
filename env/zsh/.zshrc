@@ -55,3 +55,5 @@ export HSTR_CONFIG=hicolor
 # Bind hstr to Ctrl-r (for Vi mode check doc)
 bindkey -s "\C-r" "\C-a hstr -- \C-j"
 export HSTR_TIOCSTI=y
+
+export SSH_AUTH_SOCK=$HOME/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh
