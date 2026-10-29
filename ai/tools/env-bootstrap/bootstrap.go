@@ -118,6 +118,7 @@ func declareMounts(run *installer.Run, repo, home string) {
 	run.AddConfig(repo+"/zsh/.zpreztorc", home+"/.zpreztorc")
 	run.AddConfig(repo+"/zsh/.zshrc", home+"/.zshrc")
 	run.AddConfig(repo+"/git/.gitconfig", home+"/.gitconfig")
+	run.AddConfig(repo+"/git/kk-forge.gitconfig", home+"/.gitconfig-kk-forge")
 	run.AddConfig(repo+"/ghostty", home+"/.config/ghostty")
 	run.AddConfig(repo+"/nvim", home+"/.config/nvim")
 	run.AddConfig(repo+"/starship/starship.toml", home+"/.config/starship.toml")
