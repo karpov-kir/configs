@@ -1,5 +1,6 @@
 [tools]
 go = "<version>"
+sops = "<version>"
 
 [vars]
 # Asks in a macOS dialog (osascript) with hidden input and prints the answer. The text says which password
@@ -29,34 +30,33 @@ run = [
   'mkcert -cert-file docker/dev-certs/<app>.pem -key-file docker/dev-certs/<app>-key.pem "<app>.dev" "*.<app>.dev"',
 ]
 
-# The password reaches openssl on stdin: an argument shows in the process list. Output goes to a .new
-# file that replaces the target only on success. A wrong password now and then passes the openssl padding
-# check, so decrypt also refuses output holding control bytes.
+# Writes go to a .new file that replaces the target only on success, so a failed sops run leaves no truncated
+# file. --filename-override picks the .sops.yaml rule by the encrypted file's name. rekey runs updatekeys for
+# the recipient list and rotate for a new data key, so a removed person's old copy opens nothing written after.
 [tasks."env:crypt"]
 hide = true
 dir = "env"
 usage = '''
-arg "<direction>" help="encrypt or decrypt"
+arg "<direction>" help="encrypt, decrypt or rekey"
 arg "<env>" help="development, staging or production"
 '''
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-{{vars.ask}}
 file=.env.{{usage.env}}
+dotenv=(--input-type dotenv --output-type dotenv)
 trap 'rm -f "$file.new" "$file.encrypted.new"' EXIT
 case "{{usage.direction}}" in
   encrypt)
-    pass=$(ask "Password of env/$file — encrypts it into $file.encrypted")
-    again=$(ask "The same password again — checks the first before env/$file is encrypted")
-    [ -n "$pass" ] && [ "$pass" = "$again" ] || { echo "✕ empty or mismatched password" >&2; exit 1; }
-    printf '%s\n' "$pass" | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$file" -out "$file.encrypted.new" -pass stdin
+    sops encrypt "${dotenv[@]}" --filename-override "$file.encrypted" "$file" > "$file.encrypted.new"
     mv "$file.encrypted.new" "$file.encrypted" ;;
   decrypt)
-    (umask 077; ask "Password of env/$file.encrypted — decrypts it into $file" | openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$file.encrypted" -out "$file.new" -pass stdin)
-    [ "$(LC_ALL=C tr -d '\t\n\r\040-\176\200-\377' < "$file.new" | wc -c)" -eq 0 ] || { echo "✕ decrypted to garbage: wrong password?" >&2; exit 1; }
+    (umask 077; sops decrypt "${dotenv[@]}" "$file.encrypted" > "$file.new")
     mv "$file.new" "$file" ;;
-  *) echo "✕ direction must be encrypt or decrypt" >&2; exit 2 ;;
+  rekey)
+    sops updatekeys --yes --input-type dotenv "$file.encrypted"
+    sops rotate -i "${dotenv[@]}" "$file.encrypted" ;;
+  *) echo "✕ direction must be encrypt, decrypt or rekey" >&2; exit 2 ;;
 esac
 '''
 
@@ -66,17 +66,26 @@ run = "mise run env:crypt encrypt development"
 [tasks."env:decrypt:development"]
 run = "mise run env:crypt decrypt development"
 
+[tasks."env:rekey:development"]
+run = "mise run env:crypt rekey development"
+
 [tasks."env:encrypt:staging"]
 run = "mise run env:crypt encrypt staging"
 
 [tasks."env:decrypt:staging"]
 run = "mise run env:crypt decrypt staging"
 
+[tasks."env:rekey:staging"]
+run = "mise run env:crypt rekey staging"
+
 [tasks."env:encrypt:production"]
 run = "mise run env:crypt encrypt production"
 
 [tasks."env:decrypt:production"]
 run = "mise run env:crypt decrypt production"
+
+[tasks."env:rekey:production"]
+run = "mise run env:crypt rekey production"
 
 # Trial builds: CI builds the images a deploy takes. <platform> is the servers' platform, e.g. linux/amd64.
 [tasks."docker:build"]
