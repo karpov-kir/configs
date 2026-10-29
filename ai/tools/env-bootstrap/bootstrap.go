@@ -112,7 +112,7 @@ func perform(options Options) (*installer.Run, int) {
 	return run, run.Report()
 }
 
-// The mount table. Four shapes go through it: two files at the top of the home, a whole directory, and
+// The mount table. Three shapes go through it: files at the top of the home, whole directories, and
 // a file whose parent directory does not exist yet.
 func declareMounts(run *installer.Run, repo, home string) {
 	run.AddConfig(repo+"/zsh/.zpreztorc", home+"/.zpreztorc")
