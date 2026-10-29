@@ -14,11 +14,11 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
   - **No secrets** → committed plain and baked into the image (**Local dev & Docker**, below).
   - **Has secrets** → committed only as `.env.<env>.encrypted` (plaintext gitignored), never in the image; decrypted and injected at deploy.
 
-- **Encrypt with sops to age recipients.** The repo's [`.sops.yaml`](../templates/.sops.yaml) lists, per environment, the age public key of each person and each server that decrypts it. Each recipient decrypts with its own private key, so no task asks a password. Run one `env:crypt` task through `env:encrypt:<env>`, `env:decrypt:<env>` and `env:rekey:<env>`. When a person joins or leaves, edit `.sops.yaml` and run `env:rekey:<env>`. Sign a commit that changes `.sops.yaml` or an encrypted env file (`git commit -S`), because the signed deploy takes only signed env.
+  Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each asking for that environment's own password (never stored).
 
-- **Ask every password in a macOS dialog with hidden input** — sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
+- **Ask every password in a macOS dialog with hidden input** — env encryption, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
 
-- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone.
+- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
 
 ## Config
 
@@ -74,9 +74,9 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 ## CI, images & deploys
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
-- **CI builds and pushes every app image after each commit to the default branch that passes its checks**, through the shared release-image workflow. Its Release records each image's digest reference, `<registry>/<image>@sha256:<digest>`.
+- **CI builds and pushes every app image after each commit to the default branch that passes its checks.** The release it publishes records each image's digest reference, `<registry>/<image>@sha256:<digest>`.
 - **Keep `docker:build` / `docker:publish` for trial builds.** `docker:publish` prints the pushed digest reference as its last line. It reads the digest from that push's own output, because a later read of the tag could return another push's digest.
-- **Deploy only through the signed deploy a human approves**, passing the digest references from the Release. Pin every service to a digest reference. No CI job and no app-repo task rolls a service.
+- **Deploy the digest reference a release recorded** and pin every service to it. A tag can move under a running service. A rollback deploys the previous reference.
 
 ## Migrations
 

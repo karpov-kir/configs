@@ -1,7 +1,0 @@
-# One rule per environment file that holds secrets. Each recipient decrypts with its own age private key.
-creation_rules:
-  - path_regex: env/\.env\.production\.encrypted$
-    key_groups:
-      - age:
-          - <age public key> # <person>
-          - <age public key> # <server that decrypts it at deploy>

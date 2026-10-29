@@ -1,13 +1,13 @@
 [tools]
 go = "<version>"
 node = "<version>"
-sops = "<version>"
 
 [vars]
 # Asks in a macOS dialog (osascript) with hidden input and prints the answer. The text says which password
 # and what happens once it is given. It goes in as an osascript argument, so no text can break the quoting.
 # Cancel exits non-zero.
 ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv))' -e 'end run' "$1" "<app>"; }"""
+ssh = "<user>@<host>"
 
 # The server sits at the repo root here, beside web/. Where it lives in backend/, give its tasks dir = "backend"
 # (env:crypt dir = "backend/env") and the backend: prefix, start:dev included.
@@ -99,33 +99,34 @@ run = [
   'mkcert -cert-file docker/dev-certs/<app>.pem -key-file docker/dev-certs/<app>-key.pem "<app>.dev" "*.<app>.dev"',
 ]
 
-# Writes go to a .new file that replaces the target only on success, so a failed sops run leaves no truncated
-# file. --filename-override picks the .sops.yaml rule by the encrypted file's name. rekey runs updatekeys for
-# the recipient list and rotate for a new data key, so a removed person's old copy opens nothing written after.
+# The password reaches openssl on stdin: an argument shows in the process list. Output goes to a .new
+# file that replaces the target only on success. A wrong password now and then passes the openssl padding
+# check, so decrypt also refuses output holding control bytes.
 [tasks."env:crypt"]
 hide = true
 dir = "env"
 usage = '''
-arg "<direction>" help="encrypt, decrypt or rekey"
+arg "<direction>" help="encrypt or decrypt"
 arg "<env>" help="development, staging or production"
 '''
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
+{{vars.ask}}
 file=.env.{{usage.env}}
-dotenv=(--input-type dotenv --output-type dotenv)
 trap 'rm -f "$file.new" "$file.encrypted.new"' EXIT
 case "{{usage.direction}}" in
   encrypt)
-    sops encrypt "${dotenv[@]}" --filename-override "$file.encrypted" "$file" > "$file.encrypted.new"
+    pass=$(ask "Password of env/$file — encrypts it into $file.encrypted")
+    again=$(ask "The same password again — checks the first before env/$file is encrypted")
+    [ -n "$pass" ] && [ "$pass" = "$again" ] || { echo "✕ empty or mismatched password" >&2; exit 1; }
+    printf '%s\n' "$pass" | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$file" -out "$file.encrypted.new" -pass stdin
     mv "$file.encrypted.new" "$file.encrypted" ;;
   decrypt)
-    (umask 077; sops decrypt "${dotenv[@]}" "$file.encrypted" > "$file.new")
+    (umask 077; ask "Password of env/$file.encrypted — decrypts it into $file" | openssl enc -d -aes-256-cbc -salt -pbkdf2 -iter 200000 -in "$file.encrypted" -out "$file.new" -pass stdin)
+    [ "$(LC_ALL=C tr -d '\t\n\r\040-\176\200-\377' < "$file.new" | wc -c)" -eq 0 ] || { echo "✕ decrypted to garbage: wrong password?" >&2; exit 1; }
     mv "$file.new" "$file" ;;
-  rekey)
-    sops updatekeys --yes --input-type dotenv "$file.encrypted"
-    sops rotate -i "${dotenv[@]}" "$file.encrypted" ;;
-  *) echo "✕ direction must be encrypt, decrypt or rekey" >&2; exit 2 ;;
+  *) echo "✕ direction must be encrypt or decrypt" >&2; exit 2 ;;
 esac
 '''
 
@@ -135,26 +136,17 @@ run = "mise run env:crypt encrypt development"
 [tasks."env:decrypt:development"]
 run = "mise run env:crypt decrypt development"
 
-[tasks."env:rekey:development"]
-run = "mise run env:crypt rekey development"
-
 [tasks."env:encrypt:staging"]
 run = "mise run env:crypt encrypt staging"
 
 [tasks."env:decrypt:staging"]
 run = "mise run env:crypt decrypt staging"
 
-[tasks."env:rekey:staging"]
-run = "mise run env:crypt rekey staging"
-
 [tasks."env:encrypt:production"]
 run = "mise run env:crypt encrypt production"
 
 [tasks."env:decrypt:production"]
 run = "mise run env:crypt decrypt production"
-
-[tasks."env:rekey:production"]
-run = "mise run env:crypt rekey production"
 
 # Trial builds: CI builds the images a deploy takes. <platform> is the servers' platform, e.g. linux/amd64.
 [tasks."docker:build"]
@@ -171,4 +163,19 @@ out=$(docker push <registry>/<app> | tee /dev/stderr)
 digest=$(awk '$2 == "digest:" { d = $3 } END { print d }' <<<"$out")
 [[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "✕ docker push reported no digest for <registry>/<app>" >&2; exit 1; }
 echo "<registry>/<app>@$digest"
+'''
+
+# Rolls the service onto a digest reference from a release, never a tag: a tag can move under a running service.
+# sudo on the server reads the password from stdin (-S) and prompts for nothing (-p ''). -k makes it ask
+# even with a cached login, so it consumes the password line. Under NOPASSWD it reads nothing and the line
+# reaches the command's stdin, so a command that reads stdin needs a `sudo -k -n true` guard first.
+[tasks.deploy]
+usage = 'arg "<ref>" help="<registry>/<app>@sha256:<digest>, from the release"'
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+{{vars.ask}}
+ref={{usage.ref}}
+[[ $ref =~ ^<registry>/<app>@sha256:[0-9a-f]{64}$ ]] || { echo "✕ not a digest reference of <registry>/<app>: $ref" >&2; exit 2; }
+ask "sudo password on {{vars.ssh}} — rolls <stack>_<service> onto $ref" | ssh {{vars.ssh}} "sudo -k -S -p '' docker service update --with-registry-auth --image $ref <stack>_<service>"
 '''
