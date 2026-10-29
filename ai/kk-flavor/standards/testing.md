@@ -31,7 +31,7 @@ Fakes stand only at awkward or external edges (clock, network, disk, email), and
 
 ### Commands and file names
 
-One script per level, each with its own config file, matched by filename suffix: `test:unit` → `*.unit.test.<ext>`, `test:acceptance` → `*.accept.test.<ext>` (+ `.feature`), `test:integration` → `*.integ.test.<ext>`, and likewise `test:e2e`, `test:infra`, `test:perf`. Plus `test` (every level) and `test:ci` (the same with coverage — no other command generates it).
+One script per level, each with its own config file, matched by filename suffix: `test:unit` → `*.unit.test.<ext>`, `test:acceptance` → `*.accept.test.<ext>` (+ `.feature`), `test:integration` → `*.integ.test.<ext>`, and likewise `test:e2e`, `test:infra`, `test:perf`. Plus `test` (every level) and `test:ci` (the same with coverage — no other command generates it). `test:ci` writes its reports into the package's `coverage/`: lcov, the SonarQube test-execution report and the Go coverprofile, every path in them from the repo root.
 
 **Placement.** Unit tests sit beside the code they cover (`foo.unit.test.ts` next to `foo.ts`); every other test and all test utilities (fakes, builders, object mothers, drivers) live in a `tests/` folder beside `src/`, not per-feature `testing/` subfolders.
 
@@ -66,6 +66,8 @@ Acceptance composes the whole toolkit: the real system via the composition root,
 ## 6. Coverage
 
 **One number, fed by every level (§2)** — don't add a unit test to hit a line an acceptance or e2e test already reached. Target **≥ 80%**, branches included — raise the bar per project; the build fails below it.
+
+The floor holds for Go too. `test:ci` reads the total from `go tool cover -func` and fails below it.
 
 **Include all of `src`; don't hand-list globs.** Mark each exception in the file itself, with the tool's ignore directive and a reason.
 

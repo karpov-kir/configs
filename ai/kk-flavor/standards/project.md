@@ -18,6 +18,8 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 
 - **Ask every password in a macOS dialog with hidden input** — sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
 
+- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone.
+
 ## Config
 
 The app reads its config from one typed object, never raw `os.Getenv` / `import.meta.env`. Build it at startup as a singleton.
@@ -43,25 +45,29 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 | `test` / `test:<level>` | the test suites — see [testing.md](testing.md) |
 | `lint` / `lint:fix` | every linter / every linter's fix |
 | `lint:<type>` / `lint:<type>:fix` | one linter — `lint:eslint`, … |
+| `setup` | installs every dependency of the repo, and is the only way to install them |
+| `check` / `check:ci` | `lint`, `build` and `test` / the same with `test:ci`, which CI runs |
 
-`<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply.
+`<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply. Keep `setup` in every repo, empty where the repo installs none.
+
+Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `test` or `test:ci`, so a step added to one of those reaches both. Count a type check or a format check as a linter (`lint:tsc`, `lint:gofmt`, `lint:govet`). Where a repo has only `build:<env>`, `check` and `check:ci` depend on `build:production`.
 
 Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
-In a monorepo, the root re-exposes each package's commands as `<package>:<command>` (`backend:start:dev`, …); repo-wide aggregates (`test`, `lint`) stay bare. The repo keeps one `mise.toml`, at the root, and each package keeps its own `package.json`.
+In a monorepo, re-expose each package's commands at the root as `<package>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. Keep one `mise.toml` at the repo root and its own `package.json` in each package.
 
 ## Local dev & Docker
 
-The service runs on the host; its dependencies and the HTTP edge run once in a single shared **dev-infra** stack (point `$DEV_INFRA` at it).
+Run the service on the host. Run its dependencies and its HTTP edge in the service's own `docker/docker-compose.yml`, under its own `name:`. Make its `start:dev` bring them up and stop them when the dev loop ends.
 
-- **One Traefik** owns `:443` + TLS and fronts every service; each service contributes a route + cert.
-- **One Postgres** — every service connects to its own database at `localhost:5432/<service>` (credentials in `$DEV_INFRA/docker-compose.yml`, the shared dev superuser); never a per-service container.
+- **Publish Postgres only on `127.0.0.1:5432`.** Commit its password as `env/database-password.development`. Have the compose mount it as a secret (`POSTGRES_PASSWORD_FILE`) and the app read it through `DATABASE_PASSWORD_FILE`.
+- **Let Traefik own `:443` and TLS** for the service's local domain, with the certs from `docker/dev-certs/`.
+- **Run one service locally at a time**, because every service takes `:5432` and `:443`.
 
-A service's `docker/` holds its own container setup — its Traefik route slice, its `dev-certs/`, its `Dockerfile`.
+Keep the service's container setup in its own `docker/`, which holds its compose, its Traefik route, its `dev-certs/` and its `Dockerfile`.
 
 - **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
 - **Give the service its own distinct host port** — not the template default, and not one already listening on this machine.
-- **Service-specific containers** go in the service's own `docker/docker-compose.yml` (brought up by its `start:dev`); common deps stay in the dev-infra.
 - **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
 - **Run a Go or Node build stage on `--platform=$BUILDPLATFORM`** and have it build for `$TARGETPLATFORM` ([`templates/docker/Dockerfile`](../templates/docker/Dockerfile)).
 
