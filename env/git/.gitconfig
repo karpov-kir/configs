@@ -9,3 +9,12 @@ autoSetupRemote = true
 
 [pull]
 rebase = false
+
+[includeIf "hasconfig:remote.*.url:git@github.com:karpov-kir/**"]
+	path = ~/.gitconfig-kk-forge
+[includeIf "hasconfig:remote.*.url:git@github.com:kk-forge-engineering/**"]
+	path = ~/.gitconfig-kk-forge
+[includeIf "hasconfig:remote.*.url:https://github.com/karpov-kir/**"]
+	path = ~/.gitconfig-kk-forge
+[includeIf "hasconfig:remote.*.url:https://github.com/kk-forge-engineering/**"]
+	path = ~/.gitconfig-kk-forge

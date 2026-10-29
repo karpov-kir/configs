@@ -18,6 +18,7 @@ func TestAFreshMachineGetsEveryConfigInTheTable(t *testing.T) {
 	f.ExpectLinkTo(f.home+"/.zpreztorc", f.repo+"/zsh/.zpreztorc")
 	f.ExpectLinkTo(f.home+"/.zshrc", f.repo+"/zsh/.zshrc")
 	f.ExpectLinkTo(f.home+"/.gitconfig", f.repo+"/git/.gitconfig")
+	f.ExpectLinkTo(f.home+"/.gitconfig-kk-forge", f.repo+"/git/kk-forge.gitconfig")
 	f.ExpectLinkTo(f.home+"/.config/ghostty", f.repo+"/ghostty")
 	f.ExpectLinkTo(f.home+"/.config/nvim", f.repo+"/nvim")
 	f.ExpectLinkTo(f.home+"/.config/starship.toml", f.repo+"/starship/starship.toml")

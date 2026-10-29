@@ -1,0 +1,9 @@
+# The signing and deploy keys of the signed deploy (project-orchestration docs/signed-deploys.md). ~/.gitconfig
+# includes this file only in a repository with a remote in karpov-kir or kk-forge-engineering, so other
+# organizations' repositories do not use these keys.
+[user]
+	signingkey = /Users/kirill/.ssh/secretive-signing.pub
+[gpg]
+	format = ssh
+[kk-forge]
+	deploykey = /Users/kirill/.ssh/secretive-deploy.pub
