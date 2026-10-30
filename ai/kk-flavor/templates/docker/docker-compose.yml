@@ -1,5 +1,5 @@
-# The service's own dev dependencies. `start:dev` brings them up, reads each random host port with
-# `docker compose port` and stops them on exit.
+# The service's own dev dependencies. `start:dev` brings them up and stops them on exit. Every task that
+# reaches one reads its random host port with `docker compose port`.
 name: <app>
 
 services:

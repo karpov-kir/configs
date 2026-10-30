@@ -10,7 +10,7 @@ ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog
 ssh = "<user>@<host>"
 # Postgres takes a random host port, so several services run at once. Every task that reaches it reads the
 # port here.
-database = """addr=$(docker compose -f docker/docker-compose.yml port database 5432) || exit; export DATABASE_HOST=${addr%:*} DATABASE_PORT=${addr##*:}"""
+read_database_port = """addr=$(docker compose -f docker/docker-compose.yml port database 5432) || exit; export DATABASE_HOST=${addr%:*} DATABASE_PORT=${addr##*:}"""
 
 # The server sits at the repo root here, beside web/. Where it lives in backend/, give its tasks dir = "backend"
 # (env:crypt dir = "backend/env") and the backend: prefix, start:dev included.
@@ -92,8 +92,7 @@ trap '"${compose[@]}" stop' EXIT
 # bash leaves SIGTERM (an IDE's stop button, kill) at its default, which skips the EXIT trap.
 trap 'exit 143' TERM
 "${compose[@]}" up -d --wait
-# Exports Postgres's random host port, read with docker compose port.
-{{vars.database}}
+{{vars.read_database_port}}
 mise run db:migrate
 <watch> # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
 '''
@@ -104,7 +103,7 @@ tools = { "<go:module/of/the/watcher>" = "<version>" }
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
-{{vars.database}}
+{{vars.read_database_port}}
 <the project's forward-only migrate command>
 '''
 
