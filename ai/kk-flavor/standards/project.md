@@ -61,8 +61,8 @@ In a monorepo, re-expose each package's commands at the root as `<package>:<comm
 
 A **released part** is what ships and deploys as one piece, with its own release.
 
-- **Keep exactly one version per released part, in the part's own file.** Raise it by hand in a PR. A web app, browser extension or desktop app keeps it in `package.json` `version`. A Go part keeps it as one line `X.Y.Z` in a `VERSION` file beside its `go.mod` or at the part's root. Embed that file with `//go:embed` and trim its trailing newline.
-- **Use the `VERSION` file in Go in place of the conventional git tag injected through `-ldflags`**, so one rule covers Go, web and extension parts. Keep no `Version` constant in code.
+- **Keep exactly one version per released part, in the native version field of its language or tool.** Raise it by hand in a PR. A web app, browser extension, desktop app or npm library keeps it in `package.json` `version`, and an extension's build writes its manifest's `version` from there.
+- **Keep a `VERSION` file at the part's root only where no native field exists**, as in Go. Write one line `X.Y.Z` in it, and set no version through a constant or `-ldflags`. In Go, embed the file from a package at the part's root with `//go:embed`, trim its trailing newline, and pass the value down.
 - **Give a package inside a released part no version of its own.** Leave `version` out of the `package.json` of a web UI embedded in the server's image.
 - **Return the version from a service's `GET /health`**, as the JSON field `version`.
 - **Release in CI from that version and never compute a bump.** Tag `v<version>` when the repo has one released part, and `<part>-v<version>` when it has several.
