@@ -6,7 +6,7 @@ State your assumptions. Settle an ambiguity from the code, from the intent, or f
 
 ## 2. Simplicity first
 
-Write no speculative abstraction and no flexibility the task did not ask for, in code and in what you write. A safeguard obeys this too. Weigh what a safeguard costs the deliverable — a dependency, a toolchain, a CI job — against what it prevents, and drop the ones that cost more. Legacy code obeys this too. Replace the old shape and move everything that depends on it, leaving no compatibility shim, alias or flag beside the new one. Bring the choice to keep both shapes to the human. Do not take that choice yourself.
+The best code is the code you never write. Write no speculative abstraction and no flexibility the task did not ask for, in code and in what you write. **Never cut validation at a trust boundary, error handling that prevents data loss, security, accessibility, or anything the human asked for.** Any other safeguard obeys this too. Weigh what a safeguard costs the deliverable — a dependency, a toolchain, a CI job — against what it prevents, and drop the ones that cost more. Legacy code obeys this too. Replace the old shape and move everything that depends on it, leaving no compatibility shim, alias or flag beside the new one. Bring the choice to keep both shapes to the human. Do not take that choice yourself.
 
 ## 3. Surgical changes
 
