@@ -76,7 +76,7 @@ A **released part** is what ships and deploys as one piece, with its own release
 
 ## Local dev & Docker
 
-Run the service on the host and open it at `http://localhost:<port>`, with no TLS and no proxy in front. `localhost` is a secure context, and OAuth providers accept `http://localhost` redirects. Run its dependencies in the service's own `docker/docker-compose.yml`, under its own `name:`. Make its `start:dev` bring them up and stop them when the dev loop ends.
+Run the service on the host and open it at `http://localhost:<port>`, with no TLS and no proxy in front. `localhost` is a secure context, and Google OAuth accepts `http://localhost` redirects. Run its dependencies in the service's own `docker/docker-compose.yml`, under its own `name:`. Make its `start:dev` bring them up and stop them when the dev loop ends.
 
 - **Publish each dependency on a random host port**, as in `127.0.0.1::5432`. Have every task that reaches a dependency, `start:dev` and `db:migrate` included, read its port with `docker compose port`. Pass it on through the app's own variables, such as `DATABASE_HOST` and `DATABASE_PORT`. Keep those variables out of `.env.development`.
 - **Commit the Postgres password as `env/database-password.development`.** Have the compose mount it as a secret (`POSTGRES_PASSWORD_FILE`) and the app read it through `DATABASE_PASSWORD_FILE`.

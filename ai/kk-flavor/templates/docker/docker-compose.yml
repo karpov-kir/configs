@@ -14,7 +14,8 @@ services:
     ports:
       - "127.0.0.1::5432"
     volumes:
-      - database-data:/var/lib/postgresql
+      # postgres:17 keeps its data here. From 18 on, mount /var/lib/postgresql instead.
+      - database-data:/var/lib/postgresql/data
     # `up --wait` returns once this passes, so db:migrate finds Postgres ready.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U <app> -d <app>"]
