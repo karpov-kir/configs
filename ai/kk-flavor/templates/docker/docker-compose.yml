@@ -1,5 +1,5 @@
-# The service's own dev stack: its Postgres and the Traefik in front of it. `start:dev` brings it up and stops it.
-# Every service takes 127.0.0.1:5432 and :443, so run one service locally at a time.
+# The service's own dev dependencies. `start:dev` brings them up and stops them on exit. Every task that
+# reaches one reads its random host port with `docker compose port`.
 name: <app>
 
 services:
@@ -12,28 +12,15 @@ services:
     secrets:
       - database-password
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1::5432"
     volumes:
-      - database-data:/var/lib/postgresql
+      # postgres:17 keeps its data here. From 18 on, mount /var/lib/postgresql instead.
+      - database-data:/var/lib/postgresql/data
     # `up --wait` returns once this passes, so db:migrate finds Postgres ready.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U <app> -d <app>"]
       interval: 2s
       retries: 15
-
-  # It routes api.<app>.dev to the service on the host, as traefik-routes.yml says.
-  traefik:
-    image: traefik:<version>
-    command:
-      - --entrypoints.websecure.address=:443
-      - --providers.file.filename=/etc/traefik/traefik-routes.yml
-    ports:
-      - "443:443"
-    volumes:
-      - ./traefik-routes.yml:/etc/traefik/traefik-routes.yml:ro
-      - ./dev-certs:/etc/traefik/certs:ro
-    extra_hosts:
-      - host.docker.internal:host-gateway
 
 secrets:
   database-password:
