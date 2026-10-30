@@ -74,8 +74,8 @@
 4 ai/kk-flavor/skills/kk-edit/SKILL.md
 4 ai/kk-flavor/skills/idsd-finalize/pr.md
 3 ai/kk-flavor/skills/idsd-intent/templates/ice-template.md
+2 ai/kk-flavor/standards/core-principles.md
 2 ai/kk-flavor/skills/idsd-charter/templates/charter-template.md
-1 ai/kk-flavor/standards/core-principles.md
 0 ai/kk-flavor/standards/comments.md
 0 ai/kk-flavor/standards/browser.md
 0 ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md

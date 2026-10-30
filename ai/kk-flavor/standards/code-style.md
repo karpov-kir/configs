@@ -2,6 +2,21 @@
 
 # Code Style
 
+## Write less
+
+Take the first rung that fully solves the task, and never step below a rung that holds:
+
+1. No code. Cut each feature, option and flexibility the task did not ask for, and name each cut in one line.
+2. Code already in this repo — a helper, a component, a pattern. Use it the way its neighbours do.
+3. The standard library or the platform.
+4. A dependency already installed. Never add one for what a few lines do.
+5. One line a reader gets at a glance. A line that needs decoding is not short.
+6. Only then, the least new code that works.
+
+- Write no wrapper, option, config or "for later" code. Deletion beats addition.
+- Keep values in the form the platform hands you.
+- However small the solution, finish every caller, test and fixture your change breaks.
+
 ## Naming
 
 - Full, descriptive names; abbreviate only where the abbreviation is well established (`i` in a tight numeric loop is fine).

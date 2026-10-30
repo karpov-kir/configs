@@ -6,16 +6,7 @@ State your assumptions. Settle an ambiguity from the code, from the intent, or f
 
 ## 2. Simplicity first
 
-The best code is the code you never write. Take the first rung that fully solves the task, and never step below a rung that holds:
-
-1. No code. Cut each feature, option and flexibility the task did not ask for, and name each cut in one line.
-2. Code already in this repo — a helper, a component, a pattern. Use it the way its neighbours do.
-3. The standard library or the platform.
-4. A dependency already installed. Never add one for what a few lines do.
-5. One line a reader gets at a glance. A line that needs decoding is not short.
-6. Only then, the least new code that works.
-
-Write no abstraction, wrapper, option, config or "for later" code, in code and in what you write. Deletion beats addition. Keep values in the form the platform hands you. However small the solution, finish every caller, test and fixture your change breaks. **Never cut validation at a trust boundary, error handling that prevents data loss, security, accessibility, or anything the human asked for.** Any other safeguard obeys the ladder too. Weigh what a safeguard costs the deliverable — a dependency, a toolchain, a CI job — against what it prevents, and drop the ones that cost more. Legacy code obeys this too. Replace the old shape and move everything that depends on it, leaving no compatibility shim, alias or flag beside the new one. Bring the choice to keep both shapes to the human. Do not take that choice yourself.
+The best code is the code you never write. Write no speculative abstraction and no flexibility the task did not ask for, in code and in what you write. **Never cut validation at a trust boundary, error handling that prevents data loss, security, accessibility, or anything the human asked for.** Any other safeguard obeys this too. Weigh what a safeguard costs the deliverable — a dependency, a toolchain, a CI job — against what it prevents, and drop the ones that cost more. Legacy code obeys this too. Replace the old shape and move everything that depends on it, leaving no compatibility shim, alias or flag beside the new one. Bring the choice to keep both shapes to the human. Do not take that choice yourself.
 
 ## 3. Surgical changes
 
