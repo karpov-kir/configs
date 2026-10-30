@@ -62,12 +62,12 @@ Run the service on the host. Run its dependencies and its HTTP edge in the servi
 
 - **Publish Postgres only on `127.0.0.1:5432`.** Commit its password as `env/database-password.development`. Have the compose mount it as a secret (`POSTGRES_PASSWORD_FILE`) and the app read it through `DATABASE_PASSWORD_FILE`.
 - **Let Traefik own `:443` and TLS** for the service's local domain, with the certs from `docker/dev-certs/`.
-- **Run one service locally at a time**, because every service takes `:5432` and `:443`.
+- **Run one service locally at a time**, because every service takes `:5432` and `:443`. Every other host port belongs to one service.
 
 Keep the service's container setup in its own `docker/`, which holds its compose, its Traefik route, its `dev-certs/` and its `Dockerfile`.
 
 - **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
-- **Give the service its own distinct host port** — not the template default, and not one already listening on this machine.
+- **Give the app its own HTTP port on the host** for Traefik to route to. Pick a free port that differs from the template default and from every other service's port.
 - **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
 
 ## Migrations
