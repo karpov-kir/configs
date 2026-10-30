@@ -47,6 +47,7 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 | `lint:<type>` / `lint:<type>:fix` | one linter — `lint:eslint`, … |
 | `setup` | installs every dependency of the repo, and is the only way to install them |
 | `check` / `check:ci` | `lint`, `build` and `test` / the same with `test:ci`, which CI runs |
+| `version` | the package's version, `X.Y.Z` alone on one line (**Versions**, below) |
 
 `<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply. Keep `setup` in every repo, empty where the repo installs none.
 
@@ -55,6 +56,13 @@ Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `te
 Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
 In a monorepo, re-expose each package's commands at the root as `<package>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. Keep one `mise.toml` at the repo root and its own `package.json` in each package.
+
+## Versions
+
+- **Keep each package's version in one file and raise it by hand.** A Node package keeps it in `package.json` `version`, a Go package in a `Version` constant.
+- **Return the version from a service's `GET /health`**, as the JSON field `version`.
+- **Release in CI from that version.** Tag `v<version>`, or `<package>-v<version>` in a monorepo. Never compute a bump.
+- **Skip the release when the tag already exists.** On the same commit, stop. On another commit, warn to raise the version and leave the job green.
 
 ## Local dev & Docker
 
