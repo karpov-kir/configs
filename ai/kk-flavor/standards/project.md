@@ -47,7 +47,7 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 | `lint:<type>` / `lint:<type>:fix` | one linter — `lint:eslint`, … |
 | `setup` | installs every dependency of the repo, and is the only way to install them |
 | `check` / `check:ci` | `lint`, `build` and `test` / the same with `test:ci`, which CI runs |
-| `version` | the package's version, `X.Y.Z` alone on one line (**Versions**, below) |
+| `version` | the released part's version, `X.Y.Z` alone on one line (**Versions**, below) |
 
 `<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply. Keep `setup` in every repo, empty where the repo installs none.
 
@@ -59,10 +59,20 @@ In a monorepo, re-expose each package's commands at the root as `<package>:<comm
 
 ## Versions
 
-- **Keep each package's version in one file and raise it by hand.** A Node package keeps it in `package.json` `version`, a Go package in a `Version` constant.
+A **released part** is what ships and deploys as one piece, with its own release.
+
+- **Keep exactly one version per released part, in the part's own file.** Raise it by hand in a PR. A web app, browser extension or desktop app keeps it in `package.json` `version`. A Go part keeps it as one line `X.Y.Z` in a `VERSION` file beside its `go.mod` or at the part's root. Embed that file with `//go:embed`.
+- **Use the `VERSION` file in Go in place of the conventional `-ldflags` tag**, so one rule covers Go, web and extension parts. Keep no `Version` constant in code.
+- **Give a package inside a released part no version of its own.** Leave `version` out of the `package.json` of a web UI embedded in the server's image.
 - **Return the version from a service's `GET /health`**, as the JSON field `version`.
-- **Release in CI from that version.** Tag `v<version>`, or `<package>-v<version>` in a monorepo. Never compute a bump.
+- **Release in CI from that version and never compute a bump.** Tag `v<version>` when the repo has one released part, and `<part>-v<version>` when it has several.
 - **Skip the release when the tag already exists.** On the same commit, stop. On another commit, warn to raise the version and leave the job green.
+
+| Repo | Version file | Tag |
+|---|---|---|
+| Go only | `VERSION` | `v<version>` |
+| Go and web, released separately | `backend/VERSION`, `web/package.json` | `backend-v<version>`, `web-v<version>` |
+| Go and web, released together | `backend/VERSION`, and `web/package.json` without `version` | `v<version>` |
 
 ## Local dev & Docker
 

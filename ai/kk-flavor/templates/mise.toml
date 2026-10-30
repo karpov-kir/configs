@@ -71,9 +71,10 @@ run = "npm test"
 dir = "web"
 run = "npm run test:ci"
 
-# Each prints only X.Y.Z on one line, the number CI tags a release with.
+# Each prints only X.Y.Z on one line, the number CI tags a release with. Drop web:version where the web part
+# ships inside the backend's image: it then has no version of its own.
 [tasks."backend:version"]
-run = "sed -nE 's/^const Version = \"([0-9]+\\.[0-9]+\\.[0-9]+)\"$/\\1/p' <file holding Version>.go"
+run = "cat VERSION"
 
 [tasks."web:version"]
 dir = "web"
