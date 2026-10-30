@@ -76,16 +76,14 @@ A **released part** is what ships and deploys as one piece, with its own release
 
 ## Local dev & Docker
 
-Run the service on the host. Run its dependencies and its HTTP edge in the service's own `docker/docker-compose.yml`, under its own `name:`. Make its `start:dev` bring them up and stop them when the dev loop ends.
+Run the service on the host and open it at `http://localhost:<port>`, with no TLS and no proxy in front. `localhost` is a secure context, and OAuth providers accept `http://localhost` redirects. Run its dependencies in the service's own `docker/docker-compose.yml`, under its own `name:`. Make its `start:dev` bring them up and stop them when the dev loop ends.
 
-- **Publish Postgres only on `127.0.0.1:5432`.** Commit its password as `env/database-password.development`. Have the compose mount it as a secret (`POSTGRES_PASSWORD_FILE`) and the app read it through `DATABASE_PASSWORD_FILE`.
-- **Let Traefik own `:443` and TLS** for the service's local domain, with the certs from `docker/dev-certs/`.
-- **Run one service locally at a time**, because every service takes `:5432` and `:443`. Every other host port belongs to one service.
+- **Publish each dependency on a random host port**, as in `127.0.0.1::5432`. Have `start:dev` read the port with `docker compose port` and pass it to the app through the app's own variables, such as `DATABASE_HOST` and `DATABASE_PORT`.
+- **Commit the Postgres password as `env/database-password.development`.** Have the compose mount it as a secret (`POSTGRES_PASSWORD_FILE`) and the app read it through `DATABASE_PASSWORD_FILE`.
+- **Fix each app's own port in its `.env.development`**, and make it differ from every other service's port. Keep no registry of ports. A clash shows at once as a failed bind.
 
-Keep the service's container setup in its own `docker/`, which holds its compose, its Traefik route, its `dev-certs/` and its `Dockerfile`.
+Keep the service's container setup in its own `docker/`, which holds its compose and its `Dockerfile`.
 
-- **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
-- **Give the app its own HTTP port on the host** for Traefik to route to. Pick a free port that differs from the template default and from every other service's port.
 - **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
 - **Run a Go or Node build stage on `--platform=$BUILDPLATFORM`** and have it build for `$TARGETPLATFORM` ([`templates/docker/Dockerfile`](../templates/docker/Dockerfile)).
 

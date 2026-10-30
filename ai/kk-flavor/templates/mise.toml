@@ -80,8 +80,8 @@ run = "cat VERSION"
 dir = "web"
 run = "node -p \"require('./package.json').version\""
 
-# docker/docker-compose.yml runs the service's own Postgres and Traefik under its own `name:`. The trap
-# stops them when the dev loop ends.
+# docker/docker-compose.yml runs the service's own Postgres under its own `name:`. The trap stops it when
+# the dev loop ends.
 [tasks."start:dev"]
 run = '''
 #!/usr/bin/env bash
@@ -91,6 +91,9 @@ trap '"${compose[@]}" stop' EXIT
 # bash leaves SIGTERM (an IDE's stop button, kill) at its default, which skips the EXIT trap.
 trap 'exit 143' TERM
 "${compose[@]}" up -d --wait
+# Postgres takes a random host port, so several services run at once.
+addr=$("${compose[@]}" port database 5432)
+export DATABASE_HOST=${addr%:*} DATABASE_PORT=${addr##*:}
 mise run db:migrate
 <watch> # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
 '''
@@ -99,14 +102,6 @@ tools = { "<go:module/of/the/watcher>" = "<version>" }
 
 [tasks."db:migrate"]
 run = "<the project's forward-only migrate command>"
-
-# mise refuses a task whose dir is missing, and dev-certs/ is gitignored, so the task makes it itself.
-[tasks."install:dev-certs"]
-run = [
-  "mkdir -p docker/dev-certs",
-  "mkcert -install",
-  'mkcert -cert-file docker/dev-certs/<app>.pem -key-file docker/dev-certs/<app>-key.pem "<app>.dev" "*.<app>.dev"',
-]
 
 # The password reaches openssl on stdin: an argument shows in the process list. Output goes to a .new
 # file that replaces the target only on success. A wrong password now and then passes the openssl padding
