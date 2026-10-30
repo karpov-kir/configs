@@ -71,6 +71,15 @@ run = "npm test"
 dir = "web"
 run = "npm run test:ci"
 
+# Each prints only X.Y.Z on one line, the number CI tags a release with. Drop web:version where web/ ships
+# inside the server's image: web/package.json then holds no version.
+[tasks."backend:version"]
+run = "cat VERSION"
+
+[tasks."web:version"]
+dir = "web"
+run = "node -p \"require('./package.json').version\""
+
 # docker/docker-compose.yml runs the service's own Postgres and Traefik under its own `name:`. The trap
 # stops them when the dev loop ends.
 [tasks."start:dev"]

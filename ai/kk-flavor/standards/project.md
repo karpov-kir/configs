@@ -47,6 +47,7 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 | `lint:<type>` / `lint:<type>:fix` | one linter — `lint:eslint`, … |
 | `setup` | installs every dependency of the repo, and is the only way to install them |
 | `check` / `check:ci` | `lint`, `build` and `test` / the same with `test:ci`, which CI runs |
+| `version` | the released part's version, `X.Y.Z` alone on one line (**Versions**, below) |
 
 `<env>` is `development`, `staging`, or `production`. Drop any script that doesn't apply. Keep `setup` in every repo, empty where the repo installs none.
 
@@ -55,6 +56,23 @@ Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `te
 Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
 In a monorepo, re-expose each package's commands at the root as `<package>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. Keep one `mise.toml` at the repo root and its own `package.json` in each package.
+
+## Versions
+
+A **released part** is what ships and deploys as one piece, with its own release.
+
+- **Keep exactly one version per released part, in the native version field of its language or tool.** Raise it by hand in a PR. A web app, browser extension, desktop app or npm library keeps it in `package.json` `version`, and an extension's build writes its manifest's `version` from there.
+- **Keep a `VERSION` file at the part's root only where no native field exists**, as in Go. Write one line `X.Y.Z` in it, and set no version through a constant or `-ldflags`. In Go, embed the file from a package at the part's root with `//go:embed`, trim its trailing newline, and pass the value down.
+- **Give a package inside a released part no version of its own.** Leave `version` out of the `package.json` of a web UI embedded in the server's image.
+- **Return the version from a service's `GET /health`**, as the JSON field `version`.
+- **Release in CI from that version and never compute a bump.** Tag `v<version>` when the repo has one released part, and `<part>-v<version>` when it has several.
+- **Skip the release when the tag already exists.** On the same commit, stop. On another commit, warn to raise the version and leave the job green.
+
+| Repo | Version file | Tag |
+|---|---|---|
+| Go only | `VERSION` | `v<version>` |
+| Go and web, released separately | `backend/VERSION`, `web/package.json` | `backend-v<version>`, `web-v<version>` |
+| Go and web, released together | `backend/VERSION`, and `web/package.json` without `version` | `v<version>` |
 
 ## Local dev & Docker
 
