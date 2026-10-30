@@ -71,8 +71,8 @@ run = "npm test"
 dir = "web"
 run = "npm run test:ci"
 
-# Each prints only X.Y.Z on one line, the number CI tags a release with. Drop web:version where the web part
-# ships inside the backend's image: it then has no version of its own.
+# Each prints only X.Y.Z on one line, the number CI tags a release with. Drop web:version where web/ ships
+# inside the server's image: web/package.json then holds no version.
 [tasks."backend:version"]
 run = "cat VERSION"
 
