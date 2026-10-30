@@ -69,6 +69,14 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 - **Add `127.0.0.1 api.<app>.dev` to `/etc/hosts`** so the local TLS domain resolves; the certs `install:dev-certs` mints are per-machine, gitignored.
 - **Give the app its own HTTP port on the host** for Traefik to route to. Pick a free port that differs from the template default and from every other service's port.
 - **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
+- **Run a Go or Node build stage on `--platform=$BUILDPLATFORM`** and have it build for `$TARGETPLATFORM` ([`templates/docker/Dockerfile`](../templates/docker/Dockerfile)).
+
+## CI, images & deploys
+
+- **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
+- **CI builds and pushes every app image after each commit to the default branch that passes its checks.** The release it publishes records each image's digest reference, `<registry>/<image>@sha256:<digest>`.
+- **Keep `docker:build` / `docker:publish` for trial builds.** `docker:publish` prints the pushed digest reference as its last line. It reads the digest from that push's own output, because a later read of the tag could return another push's digest.
+- **Deploy the digest reference a release recorded** and pin every service to it. A tag can move under a running service. A rollback deploys the previous reference.
 
 ## Migrations
 
