@@ -2,11 +2,11 @@
 
 ## 1. Think first
 
-State your assumptions. Settle an ambiguity from the code, from the intent, or from a defensible default, and say what settled it. Ask the human only where none of those three decide it and reversing the choice is expensive.
+State your assumptions. Settle an ambiguity from the code, from the intent, or from a defensible default, and say what settled it. Ask the human only where none of those three decide it and reversing the choice is expensive. Push back where a simpler approach exists.
 
 ## 2. Simplicity first
 
-The best code is the code you never write. Before you build, push back on every part of the request the need does not justify. Then take the first rung that fully solves the task, and never step below a rung that holds:
+The best code is the code you never write. Take the first rung that fully solves the task, and never step below a rung that holds:
 
 1. No code. Cut each feature, option and flexibility the task did not ask for, and name each cut in one line.
 2. Code already in this repo — a helper, a component, a pattern. Use it the way its neighbours do.
