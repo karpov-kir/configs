@@ -14,9 +14,9 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
   - **No secrets** → committed plain and baked into the image (**Local dev & Docker**, below).
   - **Has secrets** → committed only as `.env.<env>.encrypted` (plaintext gitignored), never in the image; decrypted and injected at deploy.
 
-  Encrypt/decrypt **per environment** (`env:encrypt:<env>`/`env:decrypt:<env>`), each asking for that environment's own password (never stored).
+  Encrypt and decrypt **per environment**, with `env:encrypt:<env>` and `env:decrypt:<env>`. Let the infrastructure choose the encryption tool and its keys.
 
-- **Ask every password in a macOS dialog with hidden input** — env encryption, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
+- **Ask every password in a macOS dialog with hidden input** — an encryption tool's password, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
 
 - **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
 
@@ -78,7 +78,7 @@ A **released part** is what ships and deploys as one piece, with its own release
 
 Run the service on the host and open it at `http://localhost:<port>`, with no TLS and no proxy in front. `localhost` is a secure context, and OAuth providers accept `http://localhost` redirects. Run its dependencies in the service's own `docker/docker-compose.yml`, under its own `name:`. Make its `start:dev` bring them up and stop them when the dev loop ends.
 
-- **Publish each dependency on a random host port**, as in `127.0.0.1::5432`. Have `start:dev` read the port with `docker compose port` and pass it to the app through the app's own variables, such as `DATABASE_HOST` and `DATABASE_PORT`.
+- **Publish each dependency on a random host port**, as in `127.0.0.1::5432`. Have every task that reaches a dependency, `start:dev` and `db:migrate` included, read its port with `docker compose port`. Pass it on through the app's own variables, such as `DATABASE_HOST` and `DATABASE_PORT`. Keep those variables out of `.env.development`.
 - **Commit the Postgres password as `env/database-password.development`.** Have the compose mount it as a secret (`POSTGRES_PASSWORD_FILE`) and the app read it through `DATABASE_PASSWORD_FILE`.
 - **Fix each app's own port in its `.env.development`**, and make it differ from every other service's port. Keep no registry of ports. A clash shows at once as a failed bind.
 
