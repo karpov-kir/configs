@@ -18,7 +18,7 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 
 - **Ask every password in a macOS dialog with hidden input** — an encryption tool's password, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
 
-- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
+- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_TOKEN`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
 
 ## Config
 
