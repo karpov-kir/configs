@@ -161,13 +161,13 @@ run = "mise run env:crypt decrypt production"
 [tasks."docker:build"]
 run = "docker build --platform <platform> -f docker/Dockerfile -t <app>:local ."
 
-# Rolls the service onto a version reference from a release. CI never overwrites a version tag, so the reference
-# names one image. The optional -dev.<run> suffix admits a dev release.
+# Rolls the service onto a version reference from a release, or with a -dev.<run> suffix from a dev release.
+# CI never overwrites a version tag, so the reference names one image.
 # sudo on the server reads the password from stdin (-S) and prompts for nothing (-p ''). -k makes it ask
 # even with a cached login, so it consumes the password line. Under NOPASSWD it reads nothing and the line
 # reaches the command's stdin, so a command that reads stdin needs a `sudo -k -n true` guard first.
 [tasks.deploy]
-usage = 'arg "<ref>" help="<registry>/<app>:<X.Y.Z> or <X.Y.Z>-dev.<run>, from the release"'
+usage = 'arg "<ref>" help="<registry>/<app>:<X.Y.Z> or <X.Y.Z>-dev.<run>, from a release or a dev release"'
 run = '''
 #!/usr/bin/env bash
 set -euo pipefail
