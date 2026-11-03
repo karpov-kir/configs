@@ -92,8 +92,8 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 ## CI, images & deploys
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
-- **Push app images from CI only, in a release.** When the default branch makes one (**Versions**, above), push the part's images tagged with its exact version. Record `<registry>/<image>:<version>` in the release.
-- **Keep `docker:build` for a local build.** Try a build on a server through a CI dev release. A dev release is a manual run that tags `<version>-dev.<run>`, and it skips the push when that tag exists.
+- **Push app images from CI only.** When the default branch makes a release (**Versions**, above), push the part's images tagged with its exact version. Record `<registry>/<image>:<version>` in the release.
+- **Keep `docker:build` for a local build.** Try a build on a server through a CI dev release. A dev release is a manual run that pushes `<registry>/<image>:<version>-dev.<run>` and fails when that tag exists.
 - **Never overwrite an image's version tag.** Raise the version instead. Give no app image a `latest` tag.
 - **Deploy the version reference a release recorded.** A rollback deploys the previous one.
 

@@ -122,9 +122,9 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 {{vars.ask}}
-file=.env.{{usage.env}}
+file=.env.$usage_env
 trap 'rm -f "$file.new" "$file.encrypted.new"' EXIT
-case "{{usage.direction}}" in
+case "$usage_direction" in
   encrypt)
     pass=$(ask "Password of env/$file — encrypts it into $file.encrypted")
     again=$(ask "The same password again — checks the first before env/$file is encrypted")
@@ -157,9 +157,9 @@ run = "mise run env:crypt encrypt production"
 [tasks."env:decrypt:production"]
 run = "mise run env:crypt decrypt production"
 
-# A local build only: CI pushes every app image. <platform> is the servers' platform, e.g. linux/amd64.
+# A local build only: CI alone pushes app images. <platform> is the servers' platform, e.g. linux/amd64.
 [tasks."docker:build"]
-run = "docker build --platform <platform> -f docker/Dockerfile -t <app> ."
+run = "docker build --platform <platform> -f docker/Dockerfile -t <app>:local ."
 
 # Rolls the service onto a version reference from a release. CI never overwrites a version tag, so the reference
 # names one image. The optional -dev.<run> suffix admits a dev release.
