@@ -16,9 +16,9 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 
   Encrypt and decrypt **per environment**, with `env:encrypt:<env>` and `env:decrypt:<env>`. Let the infrastructure choose the encryption tool and its keys.
 
-- **Ask every password in a macOS dialog with hidden input** — an encryption tool's password, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
+- **Ask every password in a macOS dialog with hidden input** — an encryption tool's password and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog.
 
-- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
+- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `NPM_PUBLISH_TOKEN`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone.
 
 ## Config
 
@@ -89,14 +89,11 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 - **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
 - **Run a Go or Node build stage on `--platform=$BUILDPLATFORM`** and have it build for `$TARGETPLATFORM` ([`templates/docker/Dockerfile`](../templates/docker/Dockerfile)).
 
-## CI, images & deploys
+## CI & images
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
 - **Lint the repository's own workflow files in the shared CI.** The shared CI workflow runs actionlint over `.github/workflows`. Every repo that calls it is checked without a task of its own.
-- **Push app images from CI only, in a release or a dev release.** A release from the default branch (**Versions**, above) pushes the part's images under their exact version. It records `<registry>/<image>:<version>`.
-- **Keep `docker:build` for a local build.** Try a build on a server through a CI dev release. A dev release is a manual CI run. It pushes `<registry>/<image>:<version>-dev.<run>` and records it in a prerelease tagged `v<version>-dev.<run>`, with the part prefix where a release has one. `<run>` is the number of that CI run. When that tag exists, it skips the same way a release does (**Versions**, above).
-- **Never overwrite an image's version tag.** Raise the version instead. Give no app image a `latest` tag.
-- **Deploy the version reference a release or a dev release recorded.** A rollback deploys the previous release's reference.
+- **Release an app's images from CI, under the part's exact version.** Keep `docker:build` for a local build. How a release reaches a server, and every other rule of the hosting platform, lives in that platform's own documentation.
 
 ## Migrations
 

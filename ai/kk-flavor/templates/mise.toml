@@ -7,7 +7,6 @@ node = "<version>"
 # and what happens once it is given. It goes in as an osascript argument, so no text can break the quoting.
 # Cancel exits non-zero.
 ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv))' -e 'end run' "$1" "<app>"; }"""
-ssh = "<user>@<host>"
 # Postgres takes a random host port, so several services run at once. Every task that reaches it reads the
 # port here.
 read_database_port = """addr=$(docker compose -f docker/docker-compose.yml port database 5432) || exit; export DATABASE_HOST=${addr%:*} DATABASE_PORT=${addr##*:}"""
@@ -157,24 +156,6 @@ run = "mise run env:crypt encrypt production"
 [tasks."env:decrypt:production"]
 run = "mise run env:crypt decrypt production"
 
-# A local build: only CI pushes app images.
+# <platform> is the servers' platform, e.g. linux/amd64.
 [tasks."docker:build"]
 run = "docker build --platform <platform> -f docker/Dockerfile -t <app>:local ."
-
-# CI never overwrites a version tag, so the reference names one image.
-# sudo on the server reads the password from stdin (-S) and prompts for nothing (-p ''). -k makes it ask
-# even with a cached login, so it consumes the password line. Under NOPASSWD it reads nothing and the line
-# reaches the command's stdin, so a command that reads stdin needs a `sudo -k -n true` guard first.
-[tasks.deploy]
-usage = 'arg "<ref>" help="<registry>/<app>:<X.Y.Z> or <X.Y.Z>-dev.<run>, from a release or a dev release"'
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-{{vars.ask}}
-# $usage_ref keeps the argument out of the script text. The literal compare keeps the dots in <registry> literal.
-ref=$usage_ref
-image=<registry>/<app>
-version=${ref#"$image:"}
-[[ $ref == "$image:$version" && $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[0-9]+)?$ ]] || { echo "✕ not a version reference of $image: $ref" >&2; exit 2; }
-ask "sudo password on {{vars.ssh}} — rolls <stack>_<service> onto $ref" | ssh {{vars.ssh}} "sudo -k -S -p '' docker service update --with-registry-auth --image $ref <stack>_<service>"
-'''
