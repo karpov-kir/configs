@@ -21,7 +21,7 @@ func commentBlocks(lines []string, hash bool) []block {
 	inBlock, inStar := false, false
 	for i, raw := range lines {
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
-		if i == 0 && strings.HasPrefix(line, "#!") {
+		if isShebang(i, line) {
 			continue
 		}
 		// Inside a `/*` block every line belongs to it until one carries `*/`, whatever it opens on.
@@ -45,6 +45,11 @@ func commentBlocks(lines []string, hash bool) []block {
 		}
 	}
 	return found
+}
+
+// isShebang says the line is a script's `#!` line: the file's first, and no Rust `#![` attribute.
+func isShebang(index int, line string) bool {
+	return index == 0 && strings.HasPrefix(line, "#!") && !strings.HasPrefix(line, "#![")
 }
 
 func opensStar(line string) bool {

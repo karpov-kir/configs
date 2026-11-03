@@ -195,10 +195,14 @@ func isFileHeader(lines []string, first, last, decl int) bool {
 	return decl == 0 || !reDeclaration.MatchString(lines[decl-1]) || notDeclaration.MatchString(lines[decl-1])
 }
 
-// firstContentLine is the file's first line holding anything. A file header opens on it and has a
-// blank line after it, where a block on the first declaration sits directly on that declaration.
+// firstContentLine is the file's first line holding anything past a script's `#!` line. A file header
+// opens on it and has a blank line after it, where a block on the first declaration sits directly on
+// that declaration.
 func firstContentLine(lines []string) int {
 	for n, line := range lines {
+		if isShebang(n, line) {
+			continue
+		}
 		if strings.TrimSpace(line) != "" {
 			return n + 1
 		}

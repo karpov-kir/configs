@@ -332,3 +332,37 @@ func TestAMultiLineAttributeIsSkipped(t *testing.T) {
 		t.Fatalf("places %+v, got:\n%s", m.places, strings.Join(out, "\n"))
 	}
 }
+
+// A script's `#!` line is code, so the block right under it is the file header and takes the header's
+// bound: a six-line header passes, a nine-line one fails. A Rust `#![` attribute is no shebang.
+func TestTheBlockUnderAShebangIsTheFileHeader(t *testing.T) {
+	if got := firstContentLine([]string{"#![allow(dead_code)]", "// Posts entries."}); got != 1 {
+		t.Errorf("a Rust inner attribute was skipped as a shebang: first content on line %d", got)
+	}
+	header := func(n int) []string {
+		lines := []string{"#!/usr/bin/env bash"}
+		for i := 0; i < n; i++ {
+			lines = append(lines, "# Line.")
+		}
+		return append(lines, "", "set -euo pipefail", "run() {", "  echo hi", "}")
+	}
+	for _, tc := range []struct {
+		prose int
+		fails bool
+	}{{6, false}, {9, true}} {
+		lines := header(tc.prose)
+		changed := map[int]bool{}
+		for n := range lines {
+			changed[n+1] = true
+		}
+		m := findMaterial("deploy.sh", lines, changed)
+		if len(m.candidates) == 0 || !m.candidates[0].isHeader {
+			t.Fatalf("%d-line block under a shebang is no header: %+v", tc.prose, m.candidates)
+		}
+		text := lines[1 : 1+tc.prose]
+		found := gateFindings(m, []decision{{id: m.candidates[0].id, verb: "rewrite", text: text}}, 120)
+		if (len(found) != 0) != tc.fails {
+			t.Errorf("%d-line header: findings %v", tc.prose, found)
+		}
+	}
+}
