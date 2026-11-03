@@ -19,6 +19,7 @@ Write each comment so it is understood from itself and its line alone:
 - Name an identifier only where the reader would look it up anyway. Where the comment leans on a name another file defines, such as a test, a helper or a mode, say in the same sentence what it is for. A reference to another file names its path.
 - Write plain text: drop markdown, hedges and pointers to other comments. Put identifiers and paths in backticks, the mark plain text keeps.
 - Keep a comment to at most four lines, and a file header to at most eight.
+- Say in a file header what the file is and how to run it. Leave roles, steps, names and formats to the code.
 
 A summary of any declaration goes in a doc block (`/** */`), where editors and generated docs show it. The declaration can be a function, a type, a member or a value, and its summary says what it returns, takes or means. A summary may carry the fact behind it and stays a doc block. A line comment (`//`, `#`) is only for a comment about the surrounding code, such as why one value is paired with another, even on an exported declaration.
 

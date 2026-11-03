@@ -157,11 +157,10 @@ run = "mise run env:crypt encrypt production"
 [tasks."env:decrypt:production"]
 run = "mise run env:crypt decrypt production"
 
-# A local build only: CI alone pushes app images. <platform> is the servers' platform, e.g. linux/amd64.
+# A local build: only CI pushes app images.
 [tasks."docker:build"]
 run = "docker build --platform <platform> -f docker/Dockerfile -t <app>:local ."
 
-# Rolls the service onto a version reference from a release, or with a -dev.<run> suffix from a dev release.
 # CI never overwrites a version tag, so the reference names one image.
 # sudo on the server reads the password from stdin (-S) and prompts for nothing (-p ''). -k makes it ask
 # even with a cached login, so it consumes the password line. Under NOPASSWD it reads nothing and the line
@@ -172,8 +171,7 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 {{vars.ask}}
-# The argument comes from mise's environment, so no shell text from it reaches the script. The image name is
-# compared as a literal string, so the dots in <registry> match only dots.
+# $usage_ref keeps the argument out of the script text. The literal compare keeps the dots in <registry> literal.
 ref=$usage_ref
 image=<registry>/<app>
 version=${ref#"$image:"}
