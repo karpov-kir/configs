@@ -92,6 +92,7 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 ## CI, images & deploys
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
+- **Lint the repository's own workflow files in the shared CI.** The shared CI workflow runs actionlint over `.github/workflows`. Every repo that calls it is checked without a task of its own.
 - **Push app images from CI only, in a release or a dev release.** A release from the default branch (**Versions**, above) pushes the part's images under their exact version. It records `<registry>/<image>:<version>`.
 - **Keep `docker:build` for a local build.** Try a build on a server through a CI dev release. A dev release is a manual CI run. It pushes `<registry>/<image>:<version>-dev.<run>` and records it in a prerelease tagged `v<version>-dev.<run>`, with the part prefix where a release has one. `<run>` is the number of that CI run. When that tag exists, it skips the same way a release does (**Versions**, above).
 - **Never overwrite an image's version tag.** Raise the version instead. Give no app image a `latest` tag.
