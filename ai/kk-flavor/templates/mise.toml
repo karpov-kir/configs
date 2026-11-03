@@ -1,6 +1,6 @@
 [tools]
-go = "<version>"
-node = "<version>"
+go = "<major>"
+node = "<major>"
 
 [vars]
 # Asks in a macOS dialog (osascript) with hidden input and prints the answer. The text says which password

@@ -109,4 +109,9 @@ Write a repo's own scripts, tools and their tests in Go. Python has no place in 
 
 ## Dependencies
 
-Latest LTS where upstream offers one, pinned as a concrete range — never a floating tag, never a pre-release. **An override or an older pin is a decision you bring to the human**, never one you take; once taken it carries a one-line reason and is pruned when it lapses.
+Take the latest LTS where upstream offers one, and no pre-release.
+
+- **Pin a tool, an image and a GitHub action to its major version.** That covers `[tools]` in mise, `FROM` and compose `image:`, and an action's major tag. Leave commit SHAs and `sha256` digests out of these pins.
+- **Write an exact version only where the ecosystem sets one**: lock files and a language's minimum version, such as `go` in `go.mod`.
+- **Run an app on a floating database major.** The app survives a database restart.
+- **An override is a decision you bring to the human.** Once taken, it carries a one-line reason and is pruned when it lapses.
