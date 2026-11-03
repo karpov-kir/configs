@@ -105,6 +105,8 @@ Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore`.
 
 Shared project instructions live in `AGENTS.md`. `CLAUDE.md` imports it with `@AGENTS.md` and holds Claude-specific additions; keep it a separate file, not a symlink.
 
+Write a repo's own scripts, tools and their tests in Go. Python has no place in a repo. The product's code and its tests stay in the product's language.
+
 ## Dependencies
 
 Latest LTS where upstream offers one, pinned as a concrete range — never a floating tag, never a pre-release. **An override or an older pin is a decision you bring to the human**, never one you take; once taken it carries a one-line reason and is pruned when it lapses.
