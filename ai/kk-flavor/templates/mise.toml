@@ -172,7 +172,11 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 {{vars.ask}}
-ref={{usage.ref}}
-[[ $ref =~ ^<registry>/<app>:[0-9]+\.[0-9]+\.[0-9]+(-dev\.[0-9]+)?$ ]] || { echo "✕ not a version reference of <registry>/<app>: $ref" >&2; exit 2; }
+# The argument comes from mise's environment, so no shell text from it reaches the script. The image name is
+# compared as a literal string, so the dots in <registry> match only dots.
+ref=$usage_ref
+image=<registry>/<app>
+version=${ref#"$image:"}
+[[ $ref == "$image:$version" && $version =~ ^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[0-9]+)?$ ]] || { echo "✕ not a version reference of $image: $ref" >&2; exit 2; }
 ask "sudo password on {{vars.ssh}} — rolls <stack>_<service> onto $ref" | ssh {{vars.ssh}} "sudo -k -S -p '' docker service update --with-registry-auth --image $ref <stack>_<service>"
 '''
