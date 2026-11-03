@@ -53,7 +53,7 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 
 Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `test` or `test:ci`, so a step added to one of those reaches both. Count a type check or a format check as a linter (`lint:tsc`, `lint:gofmt`, `lint:govet`). Where a repo has only `build:<env>`, `check` and `check:ci` depend on `build:production`.
 
-Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
+Group related operations under a shared first segment (`env:encrypt`/`env:decrypt`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
 In a monorepo, re-expose each package's commands at the root as `<package>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. Keep one `mise.toml` at the repo root and its own `package.json` in each package.
 
@@ -92,9 +92,10 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 ## CI, images & deploys
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
-- **CI builds and pushes every app image after each commit to the default branch that passes its checks.** The release it publishes records each image's digest reference, `<registry>/<image>@sha256:<digest>`.
-- **Keep `docker:build` / `docker:publish` for trial builds.** `docker:publish` prints the pushed digest reference as its last line. It reads the digest from that push's own output, because a later read of the tag could return another push's digest.
-- **Deploy the digest reference a release recorded** and pin every service to it. A tag can move under a running service. A rollback deploys the previous reference.
+- **CI builds and pushes every app image after each commit to the default branch that passes its checks.** Tag each image with its exact version. Record `<registry>/<image>:<version>` in the release.
+- **Push app images from CI only.** Keep `docker:build` for a local build. Try a build on a server through a CI dev release.
+- **Never overwrite an image's version tag.** Raise the version instead. Give no app image a `latest` tag.
+- **Deploy the version reference a release recorded.** A rollback deploys the previous one.
 
 ## Migrations
 
