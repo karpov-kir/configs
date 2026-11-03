@@ -309,10 +309,10 @@ func TestADirectivesStepStopsAtABlankLine(t *testing.T) {
 // A line opening on `*` outside a `/* */` block is code, as a continued expression, and no comment.
 func TestAStrayStarLineIsCode(t *testing.T) {
 	lines := []string{"func f() int {", "	return a +", "		* b", "}"}
-	if found := commentBlocks(lines, false); len(found) != 0 {
+	if found := commentBlocks(lines, "a.ts"); len(found) != 0 {
 		t.Fatalf("blocks %v", found)
 	}
-	if got := commentBlocks([]string{"/**", " * The book.", " */", "x"}, false); len(got) != 1 || got[0].Span != 3 {
+	if got := commentBlocks([]string{"/**", " * The book.", " */", "x"}, "a.ts"); len(got) != 1 || got[0].Span != 3 {
 		t.Fatalf("a doc block: %v", got)
 	}
 }
@@ -336,7 +336,7 @@ func TestAMultiLineAttributeIsSkipped(t *testing.T) {
 // A script's `#!` line is code, so the block right under it is the file header and takes the header's
 // bound: a six-line header passes, a nine-line one fails. A Rust `#![` attribute is no shebang.
 func TestTheBlockUnderAShebangIsTheFileHeader(t *testing.T) {
-	if got := firstContentLine([]string{"#![allow(dead_code)]", "// Posts entries."}); got != 1 {
+	if got := firstContentLine([]string{"#![allow(dead_code)]", "// Posts entries."}, "lib.rs"); got != 1 {
 		t.Errorf("a Rust inner attribute was skipped as a shebang: first content on line %d", got)
 	}
 	header := func(n int) []string {
@@ -364,5 +364,35 @@ func TestTheBlockUnderAShebangIsTheFileHeader(t *testing.T) {
 		if (len(found) != 0) != tc.fails {
 			t.Errorf("%d-line header: findings %v", tc.prose, found)
 		}
+	}
+}
+
+// A Python coding line on line 1, or on line 2 under a shebang, is code like the shebang, so the block
+// under it is the file header. A coding line further down stays part of its comment.
+func TestTheBlockUnderACodingLineIsTheFileHeader(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		lines []string
+		text  string
+	}{
+		{"cookie under a shebang", []string{"#!/usr/bin/env python3", "# -*- coding: utf-8 -*-", "# Posts entries.", "# Run it daily.", "", "import os"},
+			"# Posts entries.\n# Run it daily."},
+		{"bare coding line on line 1", []string{"# coding: latin-1", "# Posts entries.", "", "import os"}, "# Posts entries."},
+		{"coding line on line 3", []string{"#!/usr/bin/env python3", "# Posts entries.", "# coding: utf-8", "", "import os"},
+			"# Posts entries.\n# coding: utf-8"},
+	} {
+		changed := map[int]bool{}
+		for n := range tc.lines {
+			changed[n+1] = true
+		}
+		m := findMaterial("post.py", tc.lines, changed)
+		if len(m.candidates) != 1 || !m.candidates[0].isHeader || m.candidates[0].text != tc.text {
+			t.Errorf("%s: material %+v", tc.name, m.candidates)
+		}
+	}
+	// A shell reads no coding line, so in a script its header's first line stays prose.
+	script := []string{"#!/usr/bin/env bash", "# Transcoding: converts the videos.", "", "run"}
+	if m := findMaterial("convert.sh", script, map[int]bool{2: true}); len(m.candidates) != 1 || m.candidates[0].first != 2 {
+		t.Errorf("a shell header line read as a coding line: %+v", m.candidates)
 	}
 }

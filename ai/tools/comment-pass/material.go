@@ -108,7 +108,7 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 	m := material{indents: map[string]int{}, hashComments: hashCommented(path), lifetimes: familyOf(path) == familyRs}
 	m.code, m.unclosed = codeView(lines, path)
 	commented := map[int]bool{}
-	for n, u := range commentBlocks(m.code, m.hashComments) {
+	for n, u := range commentBlocks(m.code, path) {
 		last := u.Line + u.Span - 1
 		decl := declarationAfter(m.code, last, m.hashComments)
 		commented[decl] = true
@@ -125,7 +125,7 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 		block := strings.Join(lines[u.Line-1:last], "\n")
 		m.indents["c"+strconv.Itoa(n+1)] = columns(indentOf(lines, u.Line))
 		m.candidates = append(m.candidates, candidate{id: "c" + strconv.Itoa(n+1), first: u.Line, last: last,
-			decl: decl, text: block, isHeader: isFileHeader(lines, u.Line, last, decl)})
+			decl: decl, text: block, isHeader: isFileHeader(lines, u.Line, last, decl, path)})
 	}
 	n := 0
 	if reUnitTest.MatchString(path) {
@@ -182,8 +182,8 @@ func declarationAfter(lines []string, last int, hash bool) int {
 // isFileHeader says the block is the file's header: it opens the file, a blank line or a `package`
 // line follows it, and no declaration sits under it. A block on line 1 that a blank line parts from a
 // declaration is that declaration's comment.
-func isFileHeader(lines []string, first, last, decl int) bool {
-	if first != firstContentLine(lines) || last >= len(lines) {
+func isFileHeader(lines []string, first, last, decl int, path string) bool {
+	if first != firstContentLine(lines, path) || last >= len(lines) {
 		return false
 	}
 	if strings.HasPrefix(lines[last], "package ") {
@@ -195,12 +195,13 @@ func isFileHeader(lines []string, first, last, decl int) bool {
 	return decl == 0 || !reDeclaration.MatchString(lines[decl-1]) || notDeclaration.MatchString(lines[decl-1])
 }
 
-// firstContentLine is the file's first line holding anything past a script's `#!` line. A file header
-// opens on it and has a blank line after it, where a block on the first declaration sits directly on
-// that declaration.
-func firstContentLine(lines []string) int {
+// firstContentLine is the file's first line holding anything past the lines an interpreter reads first.
+// A file header opens on it and has a blank line after it, where a block on the first declaration sits
+// directly on that declaration.
+func firstContentLine(lines []string, path string) int {
+	leading := leadingCodeLines(lines, path)
 	for n, line := range lines {
-		if isShebang(n, line) {
+		if n < leading {
 			continue
 		}
 		if strings.TrimSpace(line) != "" {

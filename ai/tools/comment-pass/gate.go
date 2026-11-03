@@ -108,7 +108,7 @@ func codeChanges(before, after []string, path string) []string {
 	code := func(lines []string) (text []string, at []int) {
 		// Inside a `/* */` block a line opening on `@` is a doc tag, as `@param`, and no attribute.
 		inBlock, inStar := map[int]bool{}, map[int]bool{}
-		for _, bl := range commentBlocks(firstOf(codeView(lines, path)), hash) {
+		for _, bl := range commentBlocks(firstOf(codeView(lines, path)), path) {
 			// A block may join `//` lines and `/* */` parts, so each part's inside is tracked on its own.
 			isOpen := false
 			for n := bl.Line; n < bl.Line+bl.Span; n++ {

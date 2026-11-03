@@ -288,7 +288,7 @@ func enclosingDeclaration(lines []string, at int) int {
 func commentAbove(lines []string, decl int, path string) []string {
 	hash, code := hashCommented(path), firstOf(codeView(lines, path))
 	end := aboveDecorators(code, decl, hash) - 1
-	for _, bl := range commentBlocks(code[:end], hash) {
+	for _, bl := range commentBlocks(code[:end], path) {
 		if bl.Line+bl.Span-1 == end {
 			return lines[bl.Line-1 : end]
 		}

@@ -13,15 +13,17 @@ type block struct {
 	Span int
 }
 
-// commentBlocks is each comment block of a source file: `//` and `/* */` blocks, or `#` blocks in a
-// file that comments with `#`, with a `*` continuation or a closing `*/` read as part of the block. A
-// script's `#!` line is code.
-func commentBlocks(lines []string, hash bool) []block {
+// commentBlocks is each comment block of the source file at path: `//` and `/* */` blocks, or `#` blocks
+// in a file that comments with `#`, with a `*` continuation or a closing `*/` read as part of the block.
+// The lines an interpreter reads first are code.
+func commentBlocks(lines []string, path string) []block {
 	var found []block
 	inBlock, inStar := false, false
+	hash := hashCommented(path)
+	leading := leadingCodeLines(lines, path)
 	for i, raw := range lines {
 		line := strings.TrimLeft(raw, shell.SpaceBytes)
-		if isShebang(i, line) {
+		if i < leading {
 			continue
 		}
 		// Inside a `/*` block every line belongs to it until one carries `*/`, whatever it opens on.
@@ -47,10 +49,22 @@ func commentBlocks(lines []string, hash bool) []block {
 	return found
 }
 
-// isShebang says the line is a script's `#!` line: the file's first, and no Rust `#![` attribute.
-func isShebang(index int, line string) bool {
-	return index == 0 && strings.HasPrefix(line, "#!") && !strings.HasPrefix(line, "#![")
+// leadingCodeLines is how many of the file's first lines an interpreter reads before any comment: a
+// script's `#!` line, then in Python a coding line under it or on line 1, as PEP 263 places it. A Rust
+// `#![` attribute is no `#!` line.
+func leadingCodeLines(lines []string, path string) int {
+	n := 0
+	if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") && !strings.HasPrefix(lines[0], "#![") {
+		n = 1
+	}
+	if familyOf(path) == familyPy && len(lines) > n && reCodingLine.MatchString(lines[n]) {
+		n++
+	}
+	return n
 }
+
+// reCodingLine is a PEP 263 coding line, as `# -*- coding: utf-8 -*-` or `# coding=latin-1`.
+var reCodingLine = regexp.MustCompile(`^[ \t\f]*#.*?coding[:=][ \t]*[-_.a-zA-Z0-9]+`)
 
 func opensStar(line string) bool {
 	return strings.HasPrefix(line, "/*") && !strings.Contains(line[2:], "*/")
