@@ -284,11 +284,12 @@ func enclosingDeclaration(lines []string, at int) int {
 	return 0
 }
 
-// commentAbove is the comment block that ends just above the declaration, past its decorators.
+// commentAbove is the comment block that ends just above the declaration, past its decorators, or nil
+// where no block ends there.
 func commentAbove(lines []string, decl int, path string) []string {
 	hash, code := hashCommented(path), firstOf(codeView(lines, path))
 	end := aboveDecorators(code, decl, hash) - 1
-	for _, bl := range commentBlocks(code[:end], hash) {
+	for _, bl := range commentBlocks(code[:end], path) {
 		if bl.Line+bl.Span-1 == end {
 			return lines[bl.Line-1 : end]
 		}

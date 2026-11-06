@@ -16,9 +16,9 @@ A service's own folders — `env/`, `docker/` — live beside its `src/`, inside
 
   Encrypt and decrypt **per environment**, with `env:encrypt:<env>` and `env:decrypt:<env>`. Let the infrastructure choose the encryption tool and its keys.
 
-- **Ask every password in a macOS dialog with hidden input** — an encryption tool's password, a deploy's sudo on a server, and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`, `sudo -S`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog. A script that runs on a server reads its passwords from stdin, and the workstation task that starts it asks for them and pipes them over ssh.
+- **Ask every password in a macOS dialog with hidden input** — an encryption tool's password and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog.
 
-- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `DOCKER_REGISTRY_PASSWORD`, `NPM_PUBLISH_TOKEN`, `DEPLOY_SSH_KEY`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone. Name a GitHub environment after the deploy track it guards (`staging`, `production`).
+- **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `NPM_PUBLISH_TOKEN`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone.
 
 ## Config
 
@@ -53,7 +53,7 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 
 Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `test` or `test:ci`, so a step added to one of those reaches both. Count a type check or a format check as a linter (`lint:tsc`, `lint:gofmt`, `lint:govet`). Where a repo has only `build:<env>`, `check` and `check:ci` depend on `build:production`.
 
-Group related operations under a shared first segment (`docker:build`/`docker:publish`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
+Group related operations under a shared first segment (`env:encrypt`/`env:decrypt`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
 
 In a monorepo, re-expose each package's commands at the root as `<package>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. Keep one `mise.toml` at the repo root and its own `package.json` in each package.
 
@@ -89,12 +89,10 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 - **Only the non-secret env files are `COPY`-ed into the image** — staging and production, not dev. `ENV` itself is always provided at deploy, never baked.
 - **Run a Go or Node build stage on `--platform=$BUILDPLATFORM`** and have it build for `$TARGETPLATFORM` ([`templates/docker/Dockerfile`](../templates/docker/Dockerfile)).
 
-## CI, images & deploys
+## CI & images
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
-- **CI builds and pushes every app image after each commit to the default branch that passes its checks.** The release it publishes records each image's digest reference, `<registry>/<image>@sha256:<digest>`.
-- **Keep `docker:build` / `docker:publish` for trial builds.** `docker:publish` prints the pushed digest reference as its last line. It reads the digest from that push's own output, because a later read of the tag could return another push's digest.
-- **Deploy the digest reference a release recorded** and pin every service to it. A tag can move under a running service. A rollback deploys the previous reference.
+- **Only CI pushes an app's image.** CI tags it `<image>:<version>` with its released part's version. Keep `docker:build` for a local build. How a release reaches a server, and every other rule of the hosting platform, lives in that platform's own documentation.
 
 ## Migrations
 
@@ -106,6 +104,11 @@ Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore`.
 
 Shared project instructions live in `AGENTS.md`. `CLAUDE.md` imports it with `@AGENTS.md` and holds Claude-specific additions; keep it a separate file, not a symlink.
 
+Write a repo's own scripts, tools and their tests in Go by default. A thin shell wrapper around Go is fine. Another language is a choice made per repo. The product's code and its tests stay in the product's language.
+
 ## Dependencies
 
-Latest LTS where upstream offers one, pinned as a concrete range — never a floating tag, never a pre-release. **An override or an older pin is a decision you bring to the human**, never one you take; once taken it carries a one-line reason and is pruned when it lapses.
+- **Pin a tool, an image and a GitHub action to its major version.** Take the latest LTS major where upstream offers one, and never a pre-release. The pin covers `[tools]` in mise, `FROM` and compose `image:`, and an action's major tag. Leave commit SHAs and `sha256` digests out of these pins.
+- **Write an exact version only where the ecosystem sets one**: lock files and a language's minimum version, such as `go` in `go.mod`.
+- **Make an app reconnect after its database restarts.** The database image floats within its major, so a minor update restarts the database under the running app.
+- **An override is a decision you bring to the human.** Once taken, it carries a one-line reason and is pruned when it lapses.

@@ -4,7 +4,7 @@ name: <app>
 
 services:
   database:
-    image: postgres:<version>
+    image: postgres:<major>
     environment:
       POSTGRES_USER: <app>
       POSTGRES_DB: <app>

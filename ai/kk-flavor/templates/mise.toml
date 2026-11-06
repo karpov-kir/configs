@@ -1,13 +1,12 @@
 [tools]
-go = "<version>"
-node = "<version>"
+go = "<major>"
+node = "<major>"
 
 [vars]
 # Asks in a macOS dialog (osascript) with hidden input and prints the answer. The text says which password
 # and what happens once it is given. It goes in as an osascript argument, so no text can break the quoting.
 # Cancel exits non-zero.
 ask = """ask() { osascript -e 'on run argv' -e 'text returned of (display dialog (item 1 of argv) default answer "" with hidden answer with title (item 2 of argv))' -e 'end run' "$1" "<app>"; }"""
-ssh = "<user>@<host>"
 # Postgres takes a random host port, so several services run at once. Every task that reaches it reads the
 # port here.
 read_database_port = """addr=$(docker compose -f docker/docker-compose.yml port database 5432) || exit; export DATABASE_HOST=${addr%:*} DATABASE_PORT=${addr##*:}"""
@@ -97,7 +96,7 @@ mise run db:migrate
 <watch> # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
 '''
 # A CLI tool only some tasks call sits on those tasks: in [tools], mise installs it before every task.
-tools = { "<go:module/of/the/watcher>" = "<version>" }
+tools = { "<go:module/of/the/watcher>" = "<major>" }
 
 [tasks."db:migrate"]
 run = '''
@@ -122,9 +121,9 @@ run = '''
 #!/usr/bin/env bash
 set -euo pipefail
 {{vars.ask}}
-file=.env.{{usage.env}}
+file=.env.$usage_env
 trap 'rm -f "$file.new" "$file.encrypted.new"' EXIT
-case "{{usage.direction}}" in
+case "$usage_direction" in
   encrypt)
     pass=$(ask "Password of env/$file — encrypts it into $file.encrypted")
     again=$(ask "The same password again — checks the first before env/$file is encrypted")
@@ -157,34 +156,6 @@ run = "mise run env:crypt encrypt production"
 [tasks."env:decrypt:production"]
 run = "mise run env:crypt decrypt production"
 
-# Trial builds: CI builds the images a deploy takes. <platform> is the servers' platform, e.g. linux/amd64.
+# <platform> is the servers' platform, e.g. linux/amd64.
 [tasks."docker:build"]
-run = "docker build --platform <platform> -f docker/Dockerfile -t <app> ."
-
-# The last line is the digest reference a deploy takes. The digest comes from this push's own output: a later
-# read of the tag could return the digest of another push made in between.
-[tasks."docker:publish"]
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-docker tag <app> <registry>/<app>
-out=$(docker push <registry>/<app> | tee /dev/stderr)
-digest=$(awk '$2 == "digest:" { d = $3 } END { print d }' <<<"$out")
-[[ $digest =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "✕ docker push reported no digest for <registry>/<app>" >&2; exit 1; }
-echo "<registry>/<app>@$digest"
-'''
-
-# Rolls the service onto a digest reference from a release, never a tag: a tag can move under a running service.
-# sudo on the server reads the password from stdin (-S) and prompts for nothing (-p ''). -k makes it ask
-# even with a cached login, so it consumes the password line. Under NOPASSWD it reads nothing and the line
-# reaches the command's stdin, so a command that reads stdin needs a `sudo -k -n true` guard first.
-[tasks.deploy]
-usage = 'arg "<ref>" help="<registry>/<app>@sha256:<digest>, from the release"'
-run = '''
-#!/usr/bin/env bash
-set -euo pipefail
-{{vars.ask}}
-ref={{usage.ref}}
-[[ $ref =~ ^<registry>/<app>@sha256:[0-9a-f]{64}$ ]] || { echo "✕ not a digest reference of <registry>/<app>: $ref" >&2; exit 2; }
-ask "sudo password on {{vars.ssh}} — rolls <stack>_<service> onto $ref" | ssh {{vars.ssh}} "sudo -k -S -p '' docker service update --with-registry-auth --image $ref <stack>_<service>"
-'''
+run = "docker build --platform <platform> -f docker/Dockerfile -t <app>:local ."

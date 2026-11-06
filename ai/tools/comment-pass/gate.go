@@ -99,16 +99,16 @@ func commentParts(text []string) [][]string {
 // reads the text before it is placed, so the material carries each id's indent.
 func indentWidth(m material, id string) int { return m.indents[id] }
 
-// codeChanges reports the first code line the edit changes, drops, moves or adds. A comment edit
-// may do none of these. A blank line is no code line. The check counts an attribute, a tool
-// directive and a line with code after its `*/` as code even inside a comment block. A misread
-// block then cannot hide an edit to one.
+// codeChanges returns a finding for the first code line the edit changes, drops, moves or adds,
+// or nil when there is none. A comment edit may do none of these. A blank line is no code line.
+// The check counts an attribute, a tool directive and a line with code after its `*/` as code,
+// even inside a comment block. A misread block then cannot hide an edit to one of these lines.
 func codeChanges(before, after []string, path string) []string {
 	hash := hashCommented(path)
 	code := func(lines []string) (text []string, at []int) {
 		// Inside a `/* */` block a line opening on `@` is a doc tag, as `@param`, and no attribute.
 		inBlock, inStar := map[int]bool{}, map[int]bool{}
-		for _, bl := range commentBlocks(firstOf(codeView(lines, path)), hash) {
+		for _, bl := range commentBlocks(firstOf(codeView(lines, path)), path) {
 			// A block may join `//` lines and `/* */` parts, so each part's inside is tracked on its own.
 			isOpen := false
 			for n := bl.Line; n < bl.Line+bl.Span; n++ {
