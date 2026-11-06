@@ -105,7 +105,7 @@ Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore`.
 
 Shared project instructions live in `AGENTS.md`. `CLAUDE.md` imports it with `@AGENTS.md` and holds Claude-specific additions; keep it a separate file, not a symlink.
 
-Write a repo's own scripts, tools and their tests in Go. Python has no place in a repo. The product's code and its tests stay in the product's language.
+Write a repo's own scripts, tools and their tests in Go by default. A thin shell wrapper around Go is fine. Another language is a choice made per repo. The product's code and its tests stay in the product's language.
 
 ## Dependencies
 
