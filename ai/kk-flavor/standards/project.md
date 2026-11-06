@@ -92,7 +92,6 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 ## CI & images
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
-- **Lint the repository's own workflow files in the shared CI.** The shared CI workflow runs actionlint over `.github/workflows`. Every repo that calls it is checked without a task of its own.
 - **Only CI pushes an app's image.** CI tags it `<image>:<version>` with its released part's version. Keep `docker:build` for a local build. How a release reaches a server, and every other rule of the hosting platform, lives in that platform's own documentation.
 
 ## Migrations
