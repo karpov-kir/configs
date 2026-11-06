@@ -195,9 +195,8 @@ func isFileHeader(lines []string, first, last, decl int, path string) bool {
 	return decl == 0 || !reDeclaration.MatchString(lines[decl-1]) || notDeclaration.MatchString(lines[decl-1])
 }
 
-// firstContentLine is the file's first line holding anything past the lines an interpreter reads first.
-// A file header opens on it and has a blank line after it, where a block on the first declaration sits
-// directly on that declaration.
+// firstContentLine returns the number of the file's first non-blank line past the lines an
+// interpreter reads first, such as a shebang, or 0 where the file holds no such line.
 func firstContentLine(lines []string, path string) int {
 	for n := leadingCodeLines(lines, path); n < len(lines); n++ {
 		if strings.TrimSpace(lines[n]) != "" {

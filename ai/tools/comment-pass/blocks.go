@@ -49,10 +49,10 @@ func commentBlocks(lines []string, path string) []block {
 	return found
 }
 
-// leadingCodeLines is how many of the file's first lines an interpreter reads before any comment: a
-// script's `#!` line, then in Python a coding line under it, on line 1, or on line 2 under a blank line 1.
-// PEP 263 also reads one under a comment on line 1; that line stays in its comment. A Rust `#![`
-// attribute is no `#!` line.
+// leadingCodeLines is how many of the file's first lines an interpreter reads before any comment:
+// a script's `#!` line, then in Python a coding line as the next line, or below a blank line 1.
+// PEP 263 also reads a coding line under a comment on line 1; that line stays in its comment.
+// A Rust `#![` attribute is no `#!` line.
 func leadingCodeLines(lines []string, path string) int {
 	n := 0
 	if len(lines) > 0 && strings.HasPrefix(lines[0], "#!") && !strings.HasPrefix(lines[0], "#![") {
