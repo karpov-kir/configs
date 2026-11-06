@@ -93,7 +93,7 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 
 - **Pick the CI runner by repository visibility.** Run a public repository's CI on hosted runners only. A pull request from a fork runs its author's code on the runner. Keep self-hosted runners for private repositories.
 - **Lint the repository's own workflow files in the shared CI.** The shared CI workflow runs actionlint over `.github/workflows`. Every repo that calls it is checked without a task of its own.
-- **Release an app's images from CI, under the part's exact version.** Keep `docker:build` for a local build. How a release reaches a server, and every other rule of the hosting platform, lives in that platform's own documentation.
+- **Only CI pushes an app's image.** CI tags it `<image>:<version>` with its released part's version. Keep `docker:build` for a local build. How a release reaches a server, and every other rule of the hosting platform, lives in that platform's own documentation.
 
 ## Migrations
 
@@ -109,9 +109,7 @@ Write a repo's own scripts, tools and their tests in Go. Python has no place in 
 
 ## Dependencies
 
-Take the latest LTS where upstream offers one, and no pre-release.
-
-- **Pin a tool, an image and a GitHub action to its major version.** That covers `[tools]` in mise, `FROM` and compose `image:`, and an action's major tag. Leave commit SHAs and `sha256` digests out of these pins.
+- **Pin a tool, an image and a GitHub action to its major version.** Take the latest LTS major where upstream offers one, and never a pre-release. The pin covers `[tools]` in mise, `FROM` and compose `image:`, and an action's major tag. Leave commit SHAs and `sha256` digests out of these pins.
 - **Write an exact version only where the ecosystem sets one**: lock files and a language's minimum version, such as `go` in `go.mod`.
-- **Run an app on a floating database major.** The app survives a database restart.
+- **Make an app reconnect after its database restarts.** The database image floats within its major, so a minor update restarts the database under the running app.
 - **An override is a decision you bring to the human.** Once taken, it carries a one-line reason and is pruned when it lapses.

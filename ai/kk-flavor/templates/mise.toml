@@ -96,7 +96,7 @@ mise run db:migrate
 <watch> # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
 '''
 # A CLI tool only some tasks call sits on those tasks: in [tools], mise installs it before every task.
-tools = { "<go:module/of/the/watcher>" = "<version>" }
+tools = { "<go:module/of/the/watcher>" = "<major>" }
 
 [tasks."db:migrate"]
 run = '''
