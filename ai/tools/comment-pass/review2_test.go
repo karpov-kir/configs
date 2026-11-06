@@ -396,3 +396,15 @@ func TestTheBlockUnderACodingLineIsTheFileHeader(t *testing.T) {
 		t.Errorf("a shell header line read as a coding line: %+v", m.candidates)
 	}
 }
+
+// PEP 263 reads a coding line on line 2 under a blank line 1 too, so that line is code and stays out of
+// the header a rewrite replaces.
+func TestACodingLineUnderABlankFirstLineIsCode(t *testing.T) {
+	lines := []string{"", "# coding: latin-1", "# Posts entries.", "", "import os"}
+	if got := leadingCodeLines(lines, "post.py"); got != 2 {
+		t.Errorf("leading code lines %d, want 2", got)
+	}
+	if got := leadingCodeLines([]string{"", "# Posts entries.", "", "import os"}, "post.py"); got != 0 {
+		t.Errorf("a blank line 1 with no coding line under it: leading code lines %d, want 0", got)
+	}
+}

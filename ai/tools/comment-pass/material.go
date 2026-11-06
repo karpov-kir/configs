@@ -179,9 +179,9 @@ func declarationAfter(lines []string, last int, hash bool) int {
 	return 0
 }
 
-// isFileHeader says the block is the file's header: it opens the file, a blank line or a `package`
-// line follows it, and no declaration sits under it. A block on line 1 that a blank line parts from a
-// declaration is that declaration's comment.
+// isFileHeader says the block is the file's header: it opens on the file's first content line, a blank
+// line or a `package` line follows it, and no declaration sits under it. A block there that a blank line
+// parts from a declaration is that declaration's comment.
 func isFileHeader(lines []string, first, last, decl int, path string) bool {
 	if first != firstContentLine(lines, path) || last >= len(lines) {
 		return false
@@ -199,12 +199,8 @@ func isFileHeader(lines []string, first, last, decl int, path string) bool {
 // A file header opens on it and has a blank line after it, where a block on the first declaration sits
 // directly on that declaration.
 func firstContentLine(lines []string, path string) int {
-	leading := leadingCodeLines(lines, path)
-	for n, line := range lines {
-		if n < leading {
-			continue
-		}
-		if strings.TrimSpace(line) != "" {
+	for n := leadingCodeLines(lines, path); n < len(lines); n++ {
+		if strings.TrimSpace(lines[n]) != "" {
 			return n + 1
 		}
 	}
