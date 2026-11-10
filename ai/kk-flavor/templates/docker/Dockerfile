@@ -9,5 +9,4 @@ WORKDIR /app
 FROM <runtime-image>:<major>
 WORKDIR /app
 COPY --from=builder /app/<artifact> ./
-EXPOSE 4040
 CMD ["<run-the-artifact>"]

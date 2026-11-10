@@ -18,8 +18,9 @@ export default defineConfig({
     ],
     // On only under --coverage, which test:ci passes.
     coverage: {
-      provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
+      // Every level's test files: vitest leaves out only this config's own, and another level's config counts unit
+      // tests as source.
       exclude: ['src/**/*.test.{ts,tsx}'],
       reporter: ['text-summary', ['lcovonly', { projectRoot: repoRoot }]],
       thresholds: { lines: 80, branches: 80, functions: 80, statements: 80 },
