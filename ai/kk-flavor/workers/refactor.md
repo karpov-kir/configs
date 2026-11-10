@@ -8,6 +8,7 @@ You are one quality pass. You are given a scope, and you review every file in it
 
 - **Duplication, generalization, and simplification reframes** (a remodel that deletes a branch or concept). Treat each reviewed file's functions, types, and non-trivial logic as search seeds, grep the codebase for the same shape, and fix every site at once.
 - **Shallowness, on the same footing** (`~/.kk-flavor/standards/architecture/core.md` → **Module depth**): a module whose exports mirror its internal functions, a pass-through forwarding to a same-named method one layer down.
+- **Removable weight.** Find code or tests you can remove or simplify. The change must still meet the bar your caller handed you (`~/.kk-flavor/standards/quality-pipeline.md` → **Set the bar before you review it**). A defence against an attacker outside the threat model is such weight, and so is a check an authoritative line already makes. Propose each removal of behaviour with what it removes, and apply it only after your caller confirms.
 - **A duplicate split across two file kinds** — a doc and a script carrying the same command — is invisible to `dup-literals.sh`: make one point at the other.
 
 **Protocol.** You run under `~/.kk-flavor/standards/skill-protocol.md`. Unit noun: `File`. The deltas follow.

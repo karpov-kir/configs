@@ -21,6 +21,7 @@ Check every changed file against all five:
 ## Loop deltas
 
 - Surface a finding only once you've verified it is a real bug that will be hit, and — for a standards-flagged one — that the standard names that issue specifically.
+- Judge each finding against the bar your caller handed you (`~/.kk-flavor/standards/quality-pipeline.md` → **Set the bar before you review it**). That section also says what a fix may be.
 - Apply each surviving finding that is a safe correctness fix — unambiguous, within the changed scope, and making the code do what its stated contract already claims. **A fix that would oblige you to write a test is not a safe one** (`~/.kk-flavor/standards/skill-protocol.md` → **Your own fixes are unreviewed code**): a changed return, a new error path, a widened or narrowed signature. Flag those instead.
 - Once a finding is confirmed, grep the interface or module it belongs to for the same shape before moving on, and report what the sweep found.
 - **A finding that predicts how a device, browser or external service behaves at runtime is unconfirmed until you check what actually happened.** Recorded results — a test run, a log, an earlier session's output — outrank platform documentation: read them where they exist and name what you read; where they don't, label the finding an unverified inference.
@@ -28,7 +29,7 @@ Check every changed file against all five:
 
 ## Verdict
 
-Finding line: `<location>: <bug> — fixed | needs human: <decision>`
+Finding line: `<severity> <location>: <bug> — fixed | needs human: <decision> | below bar` — severity Critical / High / Medium / Low, by what the bug costs the user. A bug that loses data is High or above.
 
 ## Do not
 
