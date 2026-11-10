@@ -32,13 +32,14 @@ Adapt it to the stack — skip classes the target can't have (web items for a CL
 
 ## Loop deltas
 
+- Judge each finding against the threat model and bar your caller handed you (`~/.kk-flavor/standards/quality-pipeline.md` → **Set the bar before you review it**). That section also says what a remediation may be. Your coverage classes say where to look, and the threat model says who attacks.
 - Trace every coverage class over the file and the flows it reaches; surface a finding only with a concrete exploit scenario — if you can't write how an attacker uses it, downgrade the severity or drop it.
 - Label each finding **introduced**, **worsened**, or **newly reachable** (a pre-existing pattern the change routes into a dangerous path).
 - The final sweep hunts cross-file data flows.
 
 ## Verdict
 
-Finding line: `<severity> CWE-XXX <location>: <weakness>. Exploit: <one sentence>. Fix: <remediation>. [fixed | needs human]` — severity Critical / High / Medium / Low (CVSS-ish reasoning).
+Finding line: `<severity> CWE-XXX <location>: <weakness>. Exploit: <one sentence>. Fix: <remediation>. [fixed | needs human | below bar]` — severity Critical / High / Medium / Low (CVSS-ish reasoning).
 
 ## Do not
 

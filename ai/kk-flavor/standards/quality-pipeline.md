@@ -14,7 +14,7 @@ You orchestrate under [skill-protocol.md](skill-protocol.md), which is also the 
 
 **Settle scope and write ownership before dispatch.** Run independent code and security reviews in separate contexts against the same candidate. Parallelize other applicable leaves where inputs and writes do not conflict, within the actual worker limit. At capacity, wait or reuse a completed worker for a valid continuation; do not retry failed spawns through proxy agents.
 
-Where streaming pays, [streaming.md](streaming.md) supplies patch ordering. Otherwise reviews return proposals for one caller to apply, and refactor follows the settled round. Fixes made after a review invalidate that review over the changed files and affected dependencies; dispatch that scoped review before accepting the candidate.
+Where streaming pays, [streaming.md](streaming.md) supplies patch ordering. Otherwise reviews return proposals for one caller to apply, and refactor follows the settled round. Fixes made after a review invalidate that review over the changed files and affected dependencies. Dispatch that scoped review before accepting the candidate when **Set the bar before you review it** opens a round for it.
 
 **Refactor needs a fresh independent compliance check after repairs settle**, including streamed repairs. Reuse unaffected evidence, but recheck any refactor obligation opened by later edits. A structural or behavioral repair also takes independent correctness review and, if it touches a security surface, security review.
 
@@ -50,6 +50,18 @@ If independent review cannot run, report the missing independence. Standalone pa
 **A step nobody could drive is an ask, and only after they have been asked may it be dropped** — recording it as something the pass is waiting on is that drop taken without them. The drive lane owns the rest of this, including what a dropped step owes its return.
 
 **A runtime-behaviour claim the round returns comes back here**: drive the scenario it predicts, or let it land labelled an **unverified inference**.
+
+## Set the bar before you review it
+
+**Set the bar before the first round, and hand it to every review and refactor stage.** It names who attacks the change and what they can reach. It names what an authoritative line outside the change already closes, such as the checks a server makes on what a client sends. It names the lowest severity the pass fixes. That severity is Medium unless the caller sets it higher. A lane dispatched on its own with no bar handed in sets one itself before it reads the change.
+
+**Record a finding that falls outside the threat model or under the bar, and leave it unfixed.** The stage returns it marked `below bar`.
+
+**Fix the number of rounds before the first, at one or two.** A round is one dispatch of the review stages over a candidate. Every re-review this file asks for after a fix counts as one. Open the next round only for a fixed finding at Medium or above, or one that loses data. Hand a finding still open at the limit to the human.
+
+**Fix a finding with the simplest change that closes it, or delete the code that carries it.** Add no new defence layer for it. Never rebuild on the client a check an authoritative line already makes. The client keeps only the cheap form its own caller needs. A pass that answers each correct but rare finding with new defences grows the change several times over and buys no quality.
+
+**Set no size target.** The bar alone decides what gets fixed.
 
 ## The stages
 

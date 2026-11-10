@@ -48,4 +48,4 @@ argument-hint: "[scope: a path, a diff selector, or natural language]"
 
 ## After the pass
 
-`~/.kk-flavor/standards/writing.md` → **Replying to a human** owns the shape. **One status line** — what the pass ran, and item count by decision kind — then the items in the order above, then **one line for every drive step the human dropped when asked**, named and not argued. No per-stage verdicts.
+`~/.kk-flavor/standards/writing.md` → **Replying to a human** owns the shape. **One status line** — what the pass ran, the bar and round limit it ran under, item count by decision kind, and how many findings it recorded below the bar — then the items in the order above, then **one line for every drive step the human dropped when asked**, named and not argued. No per-stage verdicts.
