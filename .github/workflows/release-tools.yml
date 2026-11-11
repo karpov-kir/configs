@@ -38,8 +38,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          # Off for the reason `.github/workflows/gates.yml` states in its header: this module declares
-          # no dependencies, and the only thing a hit restores is a build cache.
+          # Off because the attest step below signs what this job builds. A restored cache holds build
+          # output that other workflow runs wrote, and with it on, that output reaches the signed binaries.
           cache: false
 
       # `-count=1` for the reason `.github/workflows/gates.yml` states at its own Go job: this job
@@ -64,7 +64,6 @@ jobs:
       - name: Cross-compile
         working-directory: ai/tools
         run: |
-          set -eu
           mkdir -p dist
           for tool in $SHIPPED; do
             package="./$tool/"
@@ -110,7 +109,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          set -eu
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
           else

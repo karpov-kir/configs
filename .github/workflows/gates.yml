@@ -6,23 +6,11 @@
 # it, so a release built from unchecked code is worse than no release. Sharing them would mean a
 # reusable workflow, which is more machinery than four commands are worth.
 
-# Three jobs, where there were six. The `suites` job ran every `*-test.sh`, and none are left. The
-# installers, the MCP scripts and the libraries they shared are all Go, and the three scripts that
-# stay shell are covered by Go suites inside the module.
-
-# The `mutants` job swept a hand-written table of 526 deliberate breaks and is deleted.
-# `ai/kk-flavor/standards/testing.md` rule 7 asks for a negative control run once by hand when the
-# case is written, and keeps it out of standing machinery.
-
-# The matrix stays on the Go job, and portability of the tests is not the reason. macOS is where
+# The Go job runs on macOS too, and portability of the tests is not the reason. macOS is where
 # /bin/bash is 3.2, and `eco-check`'s parse scan asks every bash the machine carries. That makes the
 # macOS leg the only place that arm of the scan runs. fail-fast is off, so one leg going red still
 # reports the other.
 
-# Every setup-go step here sets `cache: false`. The module declares no dependencies, and the only
-# thing a hit restores is a build cache. Any decision to turn it on is about CI wall clock, and a
-# default is no evidence. Until v6.3.0 setup-go looked for its key file in the repo root only, and
-# go.mod now sits there.
 name: gates
 
 on:
@@ -62,7 +50,6 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: false
 
       - name: Gate
         run: |
@@ -110,7 +97,6 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: false
 
       # --gate, so this job and ai/gate.sh's wiring check ask the same question of the same commit.
       # Not a no-op on a fresh runner: the build the step above provides for writes ai/tools/bin/eco-check
@@ -121,8 +107,6 @@ jobs:
           ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=claude --gate
           ai/kk-flavor/skills/kk-ecosystem/scripts/check.sh --agent=codex --gate
 
-  # The instruction tree's baseline, which until this job had one reader: a sentence in a skill telling
-  # an agent to look at it. A ratchet without a reader is a document.
   baseline:
     runs-on: ubuntu-26.04
     steps:
@@ -131,7 +115,6 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-          cache: false
 
       - name: Hold every instruction file to its baseline
         run: ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh
