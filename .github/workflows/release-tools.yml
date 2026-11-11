@@ -30,7 +30,7 @@ permissions:
 
 jobs:
   release-tools:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     env:
       # The tools that ship. ai/tools/shipped_test.go fails when this list and the module's main
       # packages stop agreeing.
