@@ -1,5 +1,5 @@
-// @kk-forge/oxlint-config holds the rules; its README says what each file turns on. A package without Solid drops
-// solid.json.
+// The rules come from @kk-forge/oxlint-config, and its README says what each file turns on. A package without Solid
+// drops solid.json.
 {
   "extends": ["./node_modules/@kk-forge/oxlint-config/base.json", "./node_modules/@kk-forge/oxlint-config/solid.json"]
 }
