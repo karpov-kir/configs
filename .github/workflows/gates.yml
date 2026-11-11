@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-26.04, macos-26]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -85,7 +85,7 @@ jobs:
       # Linux only: the number is a property of the code, not of the runner, and two legs reporting
       # two numbers invites someone to read the higher one.
       - name: Coverage
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-26.04'
         run: |
           go test -count=1 -timeout 300s -coverprofile=cover.out ./...
           total=$(go tool cover -func=cover.out | awk '/^total:/ {print $3}')
@@ -101,7 +101,7 @@ jobs:
   # `check.sh` exits 1 with findings and 2 when it could not run at all, and both fail the job:
   # a check that did not run is not a clean one, which is the rule the script's own header states.
   wiring:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -124,7 +124,7 @@ jobs:
   # The instruction tree's baseline, which until this job had one reader: a sentence in a skill telling
   # an agent to look at it. A ratchet without a reader is a document.
   baseline:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
