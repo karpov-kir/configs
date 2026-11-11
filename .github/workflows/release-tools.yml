@@ -100,7 +100,7 @@ jobs:
       # `--signer-workflow`. Renaming or moving this file breaks every install until that pin
       # follows it.
       - name: Attest what was built
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: ai/tools/dist/*
 
