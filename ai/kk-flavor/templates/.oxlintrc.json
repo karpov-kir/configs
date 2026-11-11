@@ -1,40 +1,5 @@
-// The rules every TypeScript package lints with. Run it as `oxlint --type-aware --deny-warnings`, with
-// oxlint-tsgolint installed: the type-aware rules need both, and the flag turns the default correctness
-// category's warnings into failures.
+// @kk-forge/oxlint-config holds the rules; its README says what each file turns on. A package without Solid drops
+// solid.json.
 {
-  // Listing plugins replaces oxlint's defaults, so the list keeps them and adds import.
-  "plugins": ["typescript", "unicorn", "oxc", "import"],
-  // A Solid package only, with eslint-plugin-solid installed.
-  "jsPlugins": ["eslint-plugin-solid"],
-  "categories": {
-    "suspicious": "error"
-  },
-  "rules": {
-    "typescript/no-explicit-any": "error",
-    "typescript/ban-ts-comment": "error",
-    "typescript/no-non-null-assertion": "error",
-    "typescript/switch-exhaustiveness-check": "error",
-    "typescript/no-floating-promises": "error",
-    "typescript/no-misused-promises": "error",
-    "prefer-const": "error",
-    "no-var": "error",
-    "import/no-cycle": "error",
-    // A Solid package only. A JS plugin's rule runs only when listed here.
-    "solid/components-return-once": "error",
-    "solid/event-handlers": "error",
-    "solid/imports": "error",
-    "solid/jsx-no-duplicate-props": "error",
-    "solid/jsx-no-script-url": "error",
-    "solid/jsx-no-undef": "error",
-    "solid/jsx-uses-vars": "error",
-    "solid/no-destructure": "error",
-    "solid/no-innerhtml": "error",
-    "solid/no-react-deps": "error",
-    "solid/no-react-specific-props": "error",
-    "solid/no-unknown-namespaces": "error",
-    "solid/prefer-for": "error",
-    "solid/reactivity": "error",
-    "solid/self-closing-comp": "error",
-    "solid/style-prop": "error"
-  }
+  "extends": ["./node_modules/@kk-forge/oxlint-config/base.json", "./node_modules/@kk-forge/oxlint-config/solid.json"]
 }
