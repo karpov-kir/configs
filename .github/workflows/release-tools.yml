@@ -8,9 +8,6 @@
 # The gate runs before any binary is built. A release whose tools fail their own suite is worse than
 # a release that does not happen, because `resolve.sh` prefers a downloaded binary over the source
 # beside it and every machine would take the broken one.
-#
-# The actions carry a major tag rather than an exact pin, for the reason `.github/workflows/gates.yml`
-# states in its header, which also carries the condition for pruning that override.
 name: release-tools
 
 on:

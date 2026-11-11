@@ -19,10 +19,6 @@
 # macOS leg the only place that arm of the scan runs. fail-fast is off, so one leg going red still
 # reports the other.
 
-# The actions carry a major tag rather than an exact pin: nothing in this repo bumps an exact pin, so
-# it would rot and never pick up a patch like checkout v7.0.1's fork-guard fix. Prune this override
-# the day dependabot or renovate lands.
-
 # Every setup-go step here sets `cache: false`. The module declares no dependencies, and the only
 # thing a hit restores is a build cache. Any decision to turn it on is about CI wall clock, and a
 # default is no evidence. Until v6.3.0 setup-go looked for its key file in the repo root only, and

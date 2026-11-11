@@ -108,7 +108,4 @@ Write a repo's own scripts, tools and their tests in Go by default. A thin shell
 
 ## Dependencies
 
-- **Pin a tool, an image and a GitHub action to its major version.** Take the latest LTS major where upstream offers one, and never a pre-release. The pin covers `[tools]` in mise, `FROM` and compose `image:`, and an action's major tag. Leave commit SHAs and `sha256` digests out of these pins.
-- **Write an exact version only where the ecosystem sets one**: lock files and a language's minimum version, such as `go` in `go.mod`.
-- **Make an app reconnect after its database restarts.** The database image floats within its major, so a minor update restarts the database under the running app.
-- **An override is a decision you bring to the human.** Once taken, it carries a one-line reason and is pruned when it lapses.
+**Take a dependency's latest stable major**, LTS where upstream marks one, and never a pre-release.
