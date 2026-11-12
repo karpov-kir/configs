@@ -38,7 +38,7 @@ A **module** is one folder directly under a layer, or one file directly under `s
 - **A feature imports no other feature, and an orchestration module imports no other orchestration module.** Two features link through an orchestration module or an entrypoint. It passes one feature's callback to the other.
 - **An orchestration module holds no business logic of its own.** It exists only where an action takes two or more features. A single feature is mounted or started by its entrypoint directly.
 - **An entity depends on no UI or render framework.** Entities link to each other mostly by type and id. A rule that spans several entities belongs to a feature.
-- **Only entrypoints import `infra`.** An infra adapter stays generic, such as a key-value store, a media store or a message transport. A feature declares its own port as the structural subset of the adapter it needs, and builds its repository over that port. Infra cannot see the feature, so the adapter cannot name the port it implements. The composition root passes the adapter in, and the compiler checks there that it fits.
+- **Only entrypoints import `infra`.** An infra adapter knows no feature, so it stays generic: a key-value store, a media store, a message transport. The app's storage adapter (`infra/db`) holds the schema migrations and the row models. No ORM or driver type appears in its operations, transactions and joined read queries included. A feature declares its own port as the structural subset of the adapter it needs, and builds its repository over that port. Infra cannot see the feature, so the adapter cannot name the port it implements. The composition root passes the adapter in, and the compiler checks there that it fits.
 - **No `pages` or `widgets` layer.** A block without logic or a business type goes to `shared`. One that renders an entity lives in the feature that shows it. A block with its own logic is a feature, and a block that assembles features is an orchestration module.
 - **A guard holds the direction in every language**, and CI fails on a cycle. **By language** names both.
 
@@ -112,10 +112,10 @@ An inbound interaction flows inward through the layers. Add a layer inside a fea
 
 ```
 any app         : entrypoint → orchestration (2+ features) → feature (→ its ports) → entities
-backend feature : controller → use case → feature logic and entities
+backend         : entrypoint's HTTP controller → orchestration (2+ features) → feature's use case (where earned) → feature logic and entities
 ```
 
-**Backend.** Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates), and skip it below that. Put a read behind a port only where a fake adds value.
+**Backend.** The HTTP controller is the entrypoint's inbound adapter (`entrypoints/<name>/http`). It translates a request into a call on a feature, or on an orchestration module where the action takes 2+ features. The HTTP framework stays out of both. Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates), and skip it below that. Put a read behind a port only where a fake adds value.
 
 **Frontend.** Server cache — data mirrored from the API — goes to a data-fetching library (TanStack Query, a Solid resource) behind a port, never hand-rolled in components; UI state (open/closed, selection, draft) stays in component-local signals. A server semantic rejection (409/422) maps onto the offending field, not a generic toast.
 
