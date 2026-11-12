@@ -48,16 +48,16 @@ The rules above and below name no language's layout. This table is where each la
 
 | | TypeScript | Go |
 |---|---|---|
-| Layers | under `src/` | packages at the module root |
-| Entrypoints | `src/entrypoints/<name>/` | `cmd/<name>/` |
+| Layers | under `src/` | packages at the module root, `entrypoints/` included |
+| Entrypoints | `src/entrypoints/<name>/` | `entrypoints/<name>/`, an importable package, a cumulative one included. Each has a `cmd/<name>/`, the `package main` the Go tool builds, whose `func main` is one line calling it. `cmd/` stands outside the layers and imports only `entrypoints/`. |
 | Module surface | `exports.ts` | the package's exported names |
 | Surface per runtime | `exports.<entrypoint>.ts` | none: each runtime is its own binary |
 | Internal | what `exports.ts` leaves out | unexported names, and `internal/` for packages only their parent tree imports |
 | Library surface | `exports` in `package.json`, entry `"."` | the module's exported packages |
 | Test kit | `"./testing"` in the same `exports` | a `<package>test` package, as `httptest` is |
-| Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in an importable package under `cmd/<name>/`, because `package main` cannot be imported |
+| Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
-| Direction guard | `slices.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages` |
+| Direction guard | `slices.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
 | Cycles | `import/no-cycle` in `base.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
@@ -86,11 +86,11 @@ Each entrypoint has one composition root: an assembly function that takes partia
 
 ### Entrypoints
 
-Ports and adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain, one folder per way into the app (**By language** → Entrypoints). An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its composition root, and app-wide cross-cutting, then hands each inbound interaction inward. Only the logic behind it stays transport-agnostic.
+Ports and adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain, one entrypoint per way into the app (**By language** → Entrypoints). An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its composition root, and app-wide cross-cutting, then hands each inbound interaction inward. Only the logic behind it stays transport-agnostic.
 
 - **An entrypoint file is named for what it starts** — `start` or `mountPopup`, not `main`, which names only the program's beginning.
-- **Avoid a file or function the language or a framework requires by name** (a WXT `index.ts`, Go's `func main`) where you can. Where you cannot, it holds the framework's own setup or one line calling the named file's `start…()` / `mount…()`.
-- **No composition root composes composition roots.** To run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll`, `web`, `worker`) starts their handles together.
+- **Avoid a file or function the language or a framework requires by name** (a WXT `index.ts`, Go's `func main`) where you can. Where you cannot, it holds the framework's own setup or one line calling the entrypoint's `start…()` / `mount…()`.
+- **No composition root composes composition roots.** To run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll`, `web`, `worker`) starts their handles together. It has no composition root of its own.
 
 ## Module depth
 
