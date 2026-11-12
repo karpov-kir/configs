@@ -44,7 +44,7 @@ The rules for code comments are [comments.md](comments.md).
 
 - Limit nesting to ~3 levels: prefer early returns, and where they can't flatten it, extract the inner logic into a named function.
 - Prefer multi-line `if` statements with braces over single-line guard clauses like `if (!value) return`.
-- No special case bolted onto an unrelated flow — move it behind its own abstraction, or into the slice that owns it.
+- No special case bolted onto an unrelated flow — move it behind its own abstraction, or into the feature that owns it.
 
 ## Logging
 
@@ -75,4 +75,4 @@ Share behaviour by **composition**: a collaborator each type holds and delegates
 - Tolerate duplication at 1–2 sites; extract a shared helper on the 3rd. Earlier abstraction risks the wrong shape.
 - Leave self-evident code inline, because a wrapper around it hides no detail.
 - Keep files focused on a single responsibility, and split a file that grows beyond ~450 lines or carries unrelated concepts. Count a flat command dispatch over one responsibility by its longest arm and never by its total.
-- Avoid barrel/index files; import from the source module directly. A module's published surface file ([architecture/core.md](architecture/core.md) → **Module depth**) is not covered by this ban. Never re-export a symbol through a module that isn't its home — a symbol has one home; update importers if that home moves.
+- Avoid barrel/index files; import from the source module directly. A module's published surface ([architecture/core.md](architecture/core.md) → **Module depth**) is not covered by this ban. Never re-export a symbol through a module that isn't its home — a symbol has one home; update importers if that home moves.

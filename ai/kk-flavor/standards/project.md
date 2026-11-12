@@ -6,7 +6,7 @@ Starter configs: [`templates/`](../templates/) — match them closely; diverge o
 
 ## Environments
 
-A service's own folders — `env/`, `docker/` — live beside its `src/`, inside the package in a monorepo (`packages/<service>/`), never the repo root. `env/` holds one file per environment (`.env.<env>`) — real, working values, never `.env.example` placeholders.
+A service's own folders — `env/`, `docker/` — live beside its source root (`src/` in TypeScript), inside the app's folder in a monorepo (`apps/<app>/`), never the repo root. `env/` holds one file per environment (`.env.<env>`) — real, working values, never `.env.example` placeholders.
 
 - **Select by environment.** A build tool with mode support (Vite, wxt) reads `.env.<env>` itself; otherwise a small loader reads `.env.$ENV`, defaulting to `development`. Config reads that same selector (`ENV`, or the build tool's mode), never a second variable like `NODE_ENV`. Loading is the app's job (build tool or loader), never the task runner's — a mise `[env] _.file` bypasses the encrypt-at-rest flow.
 
@@ -53,9 +53,9 @@ The app reads its config from one typed object, never raw `os.Getenv` / `import.
 
 Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `test` or `test:ci`, so a step added to one of those reaches both. Count a type check or a format check as a linter (`lint:tsc`, `lint:gofmt`, `lint:govet`). Where a repo has only `build:<env>`, `check` and `check:ci` depend on `build:production`.
 
-Group related operations under a shared first segment (`env:encrypt`/`env:decrypt`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "web"`).
+Group related operations under a shared first segment (`env:encrypt`/`env:decrypt`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "apps/web"`).
 
-In a monorepo, re-expose each package's commands at the root as `<package>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name a package's folder for its role: `backend` for the server, `web` for anything a browser runs (a browser extension or an admin UI included), `desktop` for a desktop app. Keep one `mise.toml` at the repo root and its own `package.json` in each package.
+In a monorepo, re-expose each app's and package's commands at the root as `<name>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name an app's folder under `apps/` for its role. `backend` is the server, and `desktop` is a desktop app's native shell. `web` is anything a browser or a webview runs: a browser extension, an admin UI, a desktop app's windows. A second app in the same role adds a qualifier (`web-admin`). Name a package under `packages/` for what it does (`annotation-engine`). Keep one `mise.toml` at the repo root and its own `package.json` in each TypeScript app and package.
 
 ## Versions
 
@@ -71,8 +71,8 @@ A **released part** is what ships and deploys as one piece, with its own release
 | Repo | Version file | Tag |
 |---|---|---|
 | Go only | `VERSION` | `v<version>` |
-| Go and web, released separately | `backend/VERSION`, `web/package.json` | `backend-v<version>`, `web-v<version>` |
-| Go and web, released together | `backend/VERSION`, and `web/package.json` without `version` | `v<version>` |
+| Go and web, released separately | `apps/backend/VERSION`, `apps/web/package.json` | `backend-v<version>`, `web-v<version>` |
+| Go and web, released together | `apps/backend/VERSION`, and `apps/web/package.json` without `version` | `v<version>` |
 
 ## Local dev & Docker
 
