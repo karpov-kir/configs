@@ -7,24 +7,23 @@
 A repository with more than one part is a monorepo. Apps go under `apps/<name>/` and libraries under `packages/<name>/`.
 
 - **An app is what gets built and released, and it has entrypoints.** One product on several runtimes is one app. A browser extension and a desktop app's windows are one such case. That app holds one set of entrypoints per runtime and one adapter per platform (`infra/chrome`, `infra/tauri`). A desktop app's native shell is an app of its own.
-- **A package is a library.** A TypeScript package publishes its API through `exports` in its `package.json`: `"."`, plus `"./testing"` where it ships a test kit. Inside, it has no app layers. Its imports form no cycle.
-- **Imports run from apps to packages, and between packages.** A package imports no app. An alias or a relative path into another app's `src` is forbidden. Code two apps share becomes a package, because only an `exports` map is a surface its owner keeps stable.
+- **A package is a library.** It publishes one surface, plus a separate testing entry where it ships a test kit. Inside, it has no app layers. Its imports form no cycle.
+- **Imports run from apps to packages, and between packages.** A package imports no app. An import into another app's source is forbidden. Code two apps share becomes a package, because only a published surface is one its owner keeps stable.
 
 ## App layers
 
-Every TypeScript app takes the same layers, whatever it is: a backend, a frontend, a CLI, a browser extension.
+Every app takes the same layers, whatever it is and whatever language it is written in: a backend, a frontend, a CLI, a browser extension.
 
 ```
-src/
-  entrypoints/    one folder per way into the app: its host and composition root
-  orchestration/  one action built from 2+ features (a screen, a scenario, a command)
-  features/       the app's capabilities, one module each
-  entities/       business types and pure logic that several features share
-  shared/         code with no business meaning (logger, pub-sub, utilities)
-  infra/          generic adapters to the outside (database, HTTP API, storage, messaging)
+entrypoints/    one folder per way into the app: its host and composition root
+orchestration/  one action built from 2+ features (a screen, a scenario, a command)
+features/       the app's capabilities, one module each
+entities/       business types and pure logic that several features share
+shared/         code with no business meaning (logger, pub-sub, utilities)
+infra/          generic adapters to the outside (database, HTTP API, storage, messaging)
 ```
 
-A **module** is one folder directly under a layer, or one file directly under `shared`. Only `orchestration`, `features` and `entities` modules must be imported through their `exports.ts`. The layers import one way only, so a change to an inner layer is the only one that reaches outward:
+A **module** is one folder directly under a layer, or one file directly under `shared`. Only `orchestration`, `features` and `entities` modules must be imported through their surface. The layers import one way only, so a change to an inner layer is the only one that reaches outward:
 
 | Layer | Imports |
 |---|---|
@@ -39,10 +38,27 @@ A **module** is one folder directly under a layer, or one file directly under `s
 - **A feature imports no other feature, and an orchestration module imports no other orchestration module.** Two features link through an orchestration module or an entrypoint. It passes one feature's callback to the other.
 - **An orchestration module holds no business logic of its own.** It exists only where an action takes two or more features. A single feature is mounted or started by its entrypoint directly.
 - **An entity depends on no UI or render framework.** Entities link to each other mostly by type and id. A rule that spans several entities belongs to a feature.
-- **Only entrypoints import `infra`.** An infra adapter stays generic, such as a key-value store, a media store or a message transport. A feature declares its own port as the structural subset of the adapter it needs, and builds its repository over that port. Infra cannot see the feature, so the adapter cannot name the port it implements. The composition root passes the adapter in, and TypeScript checks there that it fits.
+- **Only entrypoints import `infra`.** An infra adapter stays generic, such as a key-value store, a media store or a message transport. A feature declares its own port as the structural subset of the adapter it needs, and builds its repository over that port. Infra cannot see the feature, so the adapter cannot name the port it implements. The composition root passes the adapter in, and the compiler checks there that it fits.
 - **No `pages` or `widgets` layer.** A block without logic or a business type goes to `shared`. One that renders an entity lives in the feature that shows it. A block with its own logic is a feature, and a block that assembles features is an orchestration module.
-- **In TypeScript, the linter holds these boundaries.** The [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on `slices.json` for the layers and surfaces. The template also extends the package's `base.json`, which forbids cycles.
-- **A Go backend is an app too, and one Go module.** Its entrypoints live in `cmd/`. Each other folder is a Go package, which plays a TypeScript module's part, and its exported identifiers are its surface. `internal/` holds the code the app shares but no other module may import. The compiler enforces `internal/` and forbids cycles. A shared Go test built on `golang.org/x/tools/go/packages` holds the layer direction. Go code moves to `packages/` only when several apps take it.
+- **A guard holds the direction in every language**, and CI fails on a cycle. **By language** names both.
+
+## By language
+
+The rules above and below name no language's layout. This table is where each language spells it:
+
+| | TypeScript | Go |
+|---|---|---|
+| Layers | under `src/` | packages at the module root |
+| Entrypoints | `src/entrypoints/<name>/` | `cmd/<name>/` |
+| Module surface | `exports.ts` | the package's exported names |
+| Surface per runtime | `exports.<entrypoint>.ts` | none: each runtime is its own binary |
+| Internal | what `exports.ts` leaves out | unexported names, and `internal/` for packages only their parent tree imports |
+| Library surface | `exports` in `package.json`, entry `"."` | the module's exported packages |
+| Test kit | `"./testing"` in the same `exports` | a `<package>test` package, as `httptest` is |
+| Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in an importable package under `cmd/<name>/`, because `package main` cannot be imported |
+| Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
+| Direction guard | `slices.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages` |
+| Cycles | `import/no-cycle` in `base.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
 
@@ -58,35 +74,35 @@ An adapter implements a port against one concrete technology. The core imports o
 
 ### Composition root
 
-Each entrypoint's composition root is `compositionRoot.ts`, exporting `compose(overrides)`. It constructs the adapters and injects them into the features. Business and domain code never call `new` on an infrastructure class. The partial overrides default to the real adapters — the seam a test or another runtime swaps one dependency through. For a plain function, the equivalent seam is a dependency option defaulting to the real implementation.
+Each entrypoint has one composition root: an assembly function that takes partial overrides and returns the handle. The overrides default to the real adapters — the seam a test or another runtime swaps one dependency through. It constructs the adapters and injects them into the features. Business and domain code never construct an infrastructure type. For a plain function, the equivalent seam is a dependency option defaulting to the real implementation.
 
-- **Assembly is an explicit `compose()` call.** A side-effect import or a global service locator hides what was built from a test and a reader, so use neither.
+- **Assembly is an explicit call to that function.** A side-effect import or a global service locator hides what was built from a test and a reader, so use neither.
 - **Three ambient dependencies skip injection**, because a test has no reason to swap them. Code reaches them directly, and they are the only globals:
   - the logger (**Logging & events**);
-  - analytics events — `shared` holds a generic `track`, `entities/analytics` holds the event catalogue that types it, and `compose()` binds `track` to its sender;
+  - analytics events — `shared` holds a generic track function, `entities/analytics` holds the event catalogue that types it, and the composition root binds the function to its sender;
   - `shared/config`, read-only (the platform, the build's flags).
 
-**Hand out domain handles — never a raw framework or vendor type.** The entrypoint calls `compose()` and returns the handle. Its shape follows the app: `start()` / `stop()` plus `handle(request)` for a service, `mount()` / `unmount()` for a UI mount, `run(args)` for a CLI or batch job.
+**Hand out domain handles — never a raw framework or vendor type.** The entrypoint calls the composition root and returns the handle. Its shape follows the app: `start()` / `stop()` plus `handle(request)` for a service, `mount()` / `unmount()` for a UI mount, `run(args)` for a CLI or batch job.
 
 ### Entrypoints
 
-Ports and adapters are the **outbound** edge — tech the domain drives; **entrypoints** are the **inbound** edge — what drives the domain, one folder under `entrypoints/` per way into the app. An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its composition root, and app-wide cross-cutting, then hands each inbound interaction inward. Only the logic behind it stays transport-agnostic.
+Ports and adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain, one folder per way into the app (**By language** → Entrypoints). An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its composition root, and app-wide cross-cutting, then hands each inbound interaction inward. Only the logic behind it stays transport-agnostic.
 
-- **An entrypoint file is named for what it starts** — `start.ts` or `mountPopup.tsx`, not `main.ts`, which names only the program's beginning.
-- **Avoid a file a framework requires by name** (a WXT `index.ts`) where the framework lets you. Where it does not, the file holds the framework's own setup or one line calling the named file's `start…()` / `mount…()`.
-- **No composition root composes composition roots.** To run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll.ts`, `web.ts`, `worker.ts`) starts their handles together.
+- **An entrypoint file is named for what it starts** — `start` or `mountPopup`, not `main`, which names only the program's beginning.
+- **Avoid a file or function the language or a framework requires by name** (a WXT `index.ts`, Go's `func main`) where you can. Where you cannot, it holds the framework's own setup or one line calling the named file's `start…()` / `mount…()`.
+- **No composition root composes composition roots.** To run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll`, `web`, `worker`) starts their handles together.
 
 ## Module depth
 
 A module's **interface** is everything a caller must learn to use it — its exports, their types, and the constraints only prose carries. Its **depth** is the functionality it hides divided by that interface. Deep is the goal, and depth is not size — **splitting a file is free, exporting the halves is not.**
 
-- **Publish one surface per module.** A module declares its boundary in `exports.ts`: the handle, port, or facade a caller holds. Everything else is internal and nothing outside imports it. Never name it `index.ts`, whose implicit resolution hides which file the caller is actually reading. This file name, like `compositionRoot.ts`, is TypeScript's. Another language takes its own equivalent.
-- **A module that runs in several runtimes adds one surface per runtime**, `exports.<entrypoint folder>.ts` (`exports.background.ts`). The entrypoint of that name must import it instead of `exports.ts`, so one runtime's bundle never pulls in another's UI or framework. An orchestration module serving one runtime takes that runtime's surface too, which the linter does not check.
-- **A `shared` module is one file, or a folder of several files with its own `exports.ts`.** A single file is its own surface.
+- **Publish one surface per module.** A module declares its boundary in one place: the handle, port, or facade a caller holds. Everything else is internal and nothing outside imports it. Never give it a name the tooling resolves implicitly, such as `index.ts`. An implicit name hides which file the caller is reading.
+- **A module that runs in several runtimes adds one surface per runtime.** Each takes the name of an entrypoint folder. The entrypoint of that name imports it instead of the general surface, so one runtime's bundle never pulls in another's UI or framework. An orchestration module serving one runtime takes that runtime's surface too, which the direction guard does not check.
+- **A `shared` module is one file, or a folder of several files with its own surface.** A single file is its own surface.
 - **Capability added inside lands behind the surface already published.**
 - **No pass-throughs.** A method that mostly forwards to a same-named method one layer down costs interface and hides nothing.
 - **No required sequences.** An interface the caller must drive in order — construct, then configure, then start — is shallow. Hide the order inside, or model the states so the wrong order can't be expressed.
-- **The surface must stand alone.** Someone reading only the surface file can use the module correctly, with no other file open; what the types cannot carry, contract prose does.
+- **The surface must stand alone.** Someone reading only the surface can use the module correctly, with no other file open; what the types cannot carry, contract prose does.
 
 **Where the shape of a surface is genuinely open, draft two or three before you settle on one.** Comparing them costs far less than migrating callers off the wrong one. Make them deliberately different: the smallest surface, the one built for the commonest caller, the one built around a port. Then choose on depth, on where change concentrates, and on where the seam falls. This is for a surface other code will hold, never for a shape one caller sees.
 

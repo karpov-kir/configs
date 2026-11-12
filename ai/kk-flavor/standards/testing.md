@@ -33,9 +33,9 @@ Fakes stand only at awkward or external edges (clock, network, disk, email), and
 
 One script per level, each with its own config file, matched by filename suffix: `test:unit` → `*.unit.test.<ext>`, `test:acceptance` → `*.accept.test.<ext>` (+ `.feature`), `test:integration` → `*.integ.test.<ext>`, and likewise `test:e2e`, `test:infra`, `test:perf`. Plus `test` (every level) and `test:ci` (the same with coverage — no other command generates it). `test:ci` writes its reports into the package's `coverage/`: lcov, the SonarQube test-execution report and the Go coverprofile, every path in them from the repo root.
 
-**Placement.** Unit tests sit beside the code they cover (`foo.unit.test.ts` next to `foo.ts`); every other test and all test utilities (fakes, builders, object mothers, drivers) live in a `tests/` folder beside `src/`, not per-feature `testing/` subfolders.
+**Placement.** Unit tests sit beside the code they cover (`foo.unit.test.ts` next to `foo.ts`); every other test and all test utilities (fakes, builders, object mothers, drivers) live in a `tests/` folder beside the source root (`src/` in TypeScript; Go's are in [architecture/core.md](architecture/core.md) → **By language**), not per-feature `testing/` subfolders.
 
-**A library may publish its test kit** as a separate `…/testing` entry in its `exports` map. The kit holds the fakes and builders its consumers' tests need, so they stop rebuilding them. The kit is built and shipped like `src/`. Production code never imports it.
+**A library may publish its test kit** as a separate testing entry beside its surface ([architecture/core.md](architecture/core.md) → **By language**). The kit holds the fakes and builders its consumers' tests need, so they stop rebuilding them. The kit is built and shipped like the library's own source. Production code never imports it.
 
 ## 3. The anti-mock toolkit
 

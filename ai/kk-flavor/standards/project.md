@@ -6,7 +6,7 @@ Starter configs: [`templates/`](../templates/) — match them closely; diverge o
 
 ## Environments
 
-A service's own folders — `env/`, `docker/` — live beside its `src/`, inside the app's folder in a monorepo (`apps/<app>/`), never the repo root. `env/` holds one file per environment (`.env.<env>`) — real, working values, never `.env.example` placeholders.
+A service's own folders — `env/`, `docker/` — live beside its source root (`src/` in TypeScript), inside the app's folder in a monorepo (`apps/<app>/`), never the repo root. `env/` holds one file per environment (`.env.<env>`) — real, working values, never `.env.example` placeholders.
 
 - **Select by environment.** A build tool with mode support (Vite, wxt) reads `.env.<env>` itself; otherwise a small loader reads `.env.$ENV`, defaulting to `development`. Config reads that same selector (`ENV`, or the build tool's mode), never a second variable like `NODE_ENV`. Loading is the app's job (build tool or loader), never the task runner's — a mise `[env] _.file` bypasses the encrypt-at-rest flow.
 
@@ -71,8 +71,8 @@ A **released part** is what ships and deploys as one piece, with its own release
 | Repo | Version file | Tag |
 |---|---|---|
 | Go only | `VERSION` | `v<version>` |
-| Go and web, released separately | `backend/VERSION`, `web/package.json` | `backend-v<version>`, `web-v<version>` |
-| Go and web, released together | `backend/VERSION`, and `web/package.json` without `version` | `v<version>` |
+| Go and web, released separately | `apps/backend/VERSION`, `apps/web/package.json` | `backend-v<version>`, `web-v<version>` |
+| Go and web, released together | `apps/backend/VERSION`, and `apps/web/package.json` without `version` | `v<version>` |
 
 ## Local dev & Docker
 
