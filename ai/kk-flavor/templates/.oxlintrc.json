@@ -1,0 +1,9 @@
+// The rules come from @kk-forge/oxlint-config, and its README says what each file turns on. A package without Solid
+// drops solid.json, and a library drops slices.json.
+{
+  "extends": [
+    "./node_modules/@kk-forge/oxlint-config/base.json",
+    "./node_modules/@kk-forge/oxlint-config/solid.json",
+    "./node_modules/@kk-forge/oxlint-config/slices.json"
+  ]
+}
