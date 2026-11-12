@@ -6,7 +6,7 @@
 
 A repository with more than one part is a monorepo. Apps go under `apps/<name>/` and libraries under `packages/<name>/`.
 
-- **An app is what gets built and released, and it has entrypoints.** One product on several runtimes, such as a browser extension and a desktop app, is one app. It holds one set of entrypoints per runtime and one adapter per platform (`infra/chrome`, `infra/tauri`).
+- **An app is what gets built and released, and it has entrypoints.** One product on several runtimes is one app. A browser extension and a desktop app's windows are one such case. That app holds one set of entrypoints per runtime and one adapter per platform (`infra/chrome`, `infra/tauri`). A desktop app's native shell is an app of its own.
 - **A package is a library.** It publishes its API through `exports` in its `package.json`: `"."`, plus `"./testing"` where it ships a test kit. Inside, it has no app layers. Its imports form no cycle.
 - **Imports run from apps to packages, and between packages.** A package imports no app. An alias or a relative path into another app's `src` is forbidden. Code two apps share becomes a package, because only an `exports` map is a surface its owner keeps stable.
 
