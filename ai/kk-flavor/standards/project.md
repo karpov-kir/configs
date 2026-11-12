@@ -55,7 +55,7 @@ Make `check` and `check:ci` run only their dependencies, `lint`, `build` and `te
 
 Group related operations under a shared first segment (`env:encrypt`/`env:decrypt`). A package runner's scripts (npm/bun) stay in its `package.json`, and a mise task that only runs one names it (`run = "npm run build"`, `dir = "apps/web"`).
 
-In a monorepo, re-expose each app's and package's commands at the root as `<name>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name an app's folder under `apps/` for its role. `backend` is the server, and `desktop` is a desktop app's native shell. `web` is anything a browser or a webview runs: a browser extension, an admin UI, a desktop app's windows. A second app in the same role adds a qualifier (`web-admin`). Name a package under `packages/` for what it does (`annotation-engine`). Keep one `mise.toml` at the repo root and its own `package.json` in each app and package.
+In a monorepo, re-expose each app's and package's commands at the root as `<name>:<command>` (`backend:start:dev`, …). Keep repo-wide aggregates (`test`, `lint`) bare. Name an app's folder under `apps/` for its role. `backend` is the server, and `desktop` is a desktop app's native shell. `web` is anything a browser or a webview runs: a browser extension, an admin UI, a desktop app's windows. A second app in the same role adds a qualifier (`web-admin`). Name a package under `packages/` for what it does (`annotation-engine`). Keep one `mise.toml` at the repo root and its own `package.json` in each TypeScript app and package.
 
 ## Versions
 
