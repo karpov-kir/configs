@@ -57,7 +57,8 @@ The rules above and below name no language's layout. This table is where each la
 | Test kit | `"./testing"` in the same `exports` | a `<package>test` package, as `httptest` is |
 | Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
-| Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
+| Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` and each `func main` to one call |
+| Implicit names | `index.*`, forbidden by a rule in `typescript.json`, libraries included. A project allows WXT's `index.ts` by path in its `overrides`, and turns on the `one-line-entry` rule there. The linter reads no HTML, so review holds a WXT `index.html` to markup and the script tag that loads its entrypoint. | none. The launcher is `func main` in `cmd/<name>/`. |
 | Cycles | `import/no-cycle` in `typescript.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
@@ -88,15 +89,17 @@ Each entrypoint has one composition root: an assembly function that takes partia
 
 Ports and adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain, one entrypoint per way into the app (**By language** → Entrypoints). An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its composition root, and app-wide cross-cutting, then hands each inbound interaction inward. Only the logic behind it stays transport-agnostic.
 
-- **An entrypoint file is named for what it starts** — `start` or `mountPopup`, not `main`, which names only the program's beginning.
-- **Avoid a file or function the language or a framework requires by name** (a WXT `index.ts`, Go's `func main`) where you can. Where you cannot, it holds the framework's own setup or one line calling the entrypoint's `start…()` / `mount…()`.
+- **An entrypoint file is named for what it starts** — `start` or `mountPopup`, not `main`, which names only the program's beginning. A launcher, below, keeps the name its language or framework requires.
+- **No file takes a name the language or a tool resolves implicitly when its folder is imported or served.** An implicit name hides which file the caller is reading.
+- **Where a language or framework requires such a name, the guard's configuration allows that file.** The project lists it there by path, with a reason for each path. Without a reason, the guard stays on.
+- **A launcher is the file or function a language or framework requires by name.** It holds only that required definition and one call into its entrypoint.
 - **No composition root composes composition roots.** To run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll`, `web`, `worker`) starts their handles together. It has no composition root of its own.
 
 ## Module depth
 
 A module's **interface** is everything a caller must learn to use it — its exports, their types, and the constraints only prose carries. Its **depth** is the functionality it hides divided by that interface. Deep is the goal, and depth is not size — **splitting a file is free, exporting the halves is not.**
 
-- **Publish one surface per module.** A module declares its boundary in one place: the handle, port, or facade a caller holds. Everything else is internal and nothing outside imports it. Never give it a name the tooling resolves implicitly, such as `index.ts`. An implicit name hides which file the caller is reading.
+- **Publish one surface per module.** A module declares its boundary in one place: the handle, port, or facade a caller holds. Everything else is internal and nothing outside imports it. Never give it a name the tooling resolves implicitly (**Entrypoints**).
 - **A module that runs in several runtimes adds one surface per runtime.** Each takes the name of an entrypoint folder. The entrypoint of that name imports it instead of the general surface, so one runtime's bundle never pulls in another's UI or framework. An orchestration module serving one runtime takes that runtime's surface too, which the direction guard does not check.
 - **A `shared` module is one file, or a folder of several files with its own surface.** A single file is its own surface.
 - **Capability added inside lands behind the surface already published.**
