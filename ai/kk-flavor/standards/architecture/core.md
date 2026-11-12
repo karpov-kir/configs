@@ -57,8 +57,8 @@ The rules above and below name no language's layout. This table is where each la
 | Test kit | `"./testing"` in the same `exports` | a `<package>test` package, as `httptest` is |
 | Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
-| Direction guard | `slices.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
-| Cycles | `import/no-cycle` in `base.json`, which the same template extends | the compiler |
+| Direction guard | a lint rule on imports that holds the layer table and the module surfaces | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
+| Cycles | a lint rule against import cycles | the compiler |
 
 ## Horizontal decoupling
 
