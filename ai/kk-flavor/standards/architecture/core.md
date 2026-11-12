@@ -57,7 +57,7 @@ The rules above and below name no language's layout. This table is where each la
 | Test kit | `"./testing"` in the same `exports` | a `<package>test` package, as `httptest` is |
 | Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
-| Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
+| Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on. It also forbids `index.*`, and checks that a file a project allows holds only the framework's definition and one call into its entrypoint. | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
 | Cycles | `import/no-cycle` in `typescript.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
@@ -89,7 +89,8 @@ Each entrypoint has one composition root: an assembly function that takes partia
 Ports and adapters are the **outbound** edge — tech the domain drives. **Entrypoints** are the **inbound** edge — what drives the domain, one entrypoint per way into the app (**By language** → Entrypoints). An entrypoint owns its **host** (lifecycle, plus the transport or mount it binds to), its composition root, and app-wide cross-cutting, then hands each inbound interaction inward. Only the logic behind it stays transport-agnostic.
 
 - **An entrypoint file is named for what it starts** — `start` or `mountPopup`, not `main`, which names only the program's beginning.
-- **Avoid a file or function the language or a framework requires by name** (a WXT `index.ts`, Go's `func main`) where you can. Where you cannot, it holds the framework's own setup or one line calling the entrypoint's `start…()` / `mount…()`.
+- **No source file is named `index.*`.** A framework may require one by name, as WXT requires `index.ts`. That file holds only the framework's own definition and one call into its entrypoint (`start…()`, `mount…()`, `run…()`). A required `index.html` holds only markup and the script tag that loads the entrypoint.
+- **A project allows such a source file in its own lint config, by file path.** Each path carries a comment that states the reason. Without a stated reason, the rule stays on.
 - **No composition root composes composition roots.** To run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll`, `web`, `worker`) starts their handles together. It has no composition root of its own.
 
 ## Module depth
