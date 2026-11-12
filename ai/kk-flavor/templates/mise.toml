@@ -93,7 +93,7 @@ trap 'exit 143' TERM
 "${compose[@]}" up -d --wait
 {{vars.read_database_port}}
 mise run db:migrate
-<watch> # e.g. tsx watch src/entrypoint/start.ts | air | go run . | …
+<watch> # e.g. tsx watch src/entrypoints/server/start.ts | air | go run . | …
 '''
 # A CLI tool only some tasks call sits on those tasks: in [tools], mise installs it before every task.
 tools = { "<go:module/of/the/watcher>" = "<major>" }

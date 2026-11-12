@@ -17,7 +17,7 @@ Your caller names which of two it is:
 
 ## What you do not settle
 
-**A surface that fails the cheap-to-reverse test is not yours** — one another slice consumes, or one crossing a process or repo boundary: a published package, an HTTP API, a wire payload. Return it as a proposal naming the alternatives and what separates them (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). It reaches the human on your caller's route, which you do not have: **you have no human**, so a question you answer yourself here is a question they never saw.
+**A surface that fails the cheap-to-reverse test is not yours** — one another module consumes, or one crossing a process or repo boundary: a published package, an HTTP API, a wire payload. Return it as a proposal naming the alternatives and what separates them (`~/.kk-flavor/standards/skill-protocol.md` → **Orchestrators — interactive first**). It reaches the human on your caller's route, which you do not have: **you have no human**, so a question you answer yourself here is a question they never saw.
 
 ## What you return
 

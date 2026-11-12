@@ -44,7 +44,7 @@ The rules for code comments are [comments.md](comments.md).
 
 - Limit nesting to ~3 levels: prefer early returns, and where they can't flatten it, extract the inner logic into a named function.
 - Prefer multi-line `if` statements with braces over single-line guard clauses like `if (!value) return`.
-- No special case bolted onto an unrelated flow — move it behind its own abstraction, or into the slice that owns it.
+- No special case bolted onto an unrelated flow — move it behind its own abstraction, or into the feature that owns it.
 
 ## Logging
 

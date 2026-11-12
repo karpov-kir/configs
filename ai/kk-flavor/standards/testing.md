@@ -35,6 +35,8 @@ One script per level, each with its own config file, matched by filename suffix:
 
 **Placement.** Unit tests sit beside the code they cover (`foo.unit.test.ts` next to `foo.ts`); every other test and all test utilities (fakes, builders, object mothers, drivers) live in a `tests/` folder beside `src/`, not per-feature `testing/` subfolders.
 
+**A library may publish its test kit** as a separate `…/testing` entry in its `exports` map. The kit holds the fakes and builders its consumers' tests need, so they stop rebuilding them. The kit is built and shipped like `src/`. Production code never imports it.
+
 ## 3. The anti-mock toolkit
 
 Ports and the composition root are reused production patterns ([architecture/core.md](architecture/core.md)); the rest are test constructs.
