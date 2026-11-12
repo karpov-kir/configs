@@ -57,7 +57,8 @@ The rules above and below name no language's layout. This table is where each la
 | Test kit | `"./testing"` in the same `exports` | a `<package>test` package, as `httptest` is |
 | Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
-| Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on. It also forbids `index.*`, and checks that a file a project allows holds only the framework's definition and one call into its entrypoint. | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
+| Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on. | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` |
+| No `index.*` | a rule in `typescript.json`, libraries included. For each path it allows, the project turns on the one-call check in its `overrides`. | none: Go has no implicit file name |
 | Cycles | `import/no-cycle` in `typescript.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
