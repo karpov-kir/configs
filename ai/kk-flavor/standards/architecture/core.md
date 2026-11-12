@@ -2,16 +2,17 @@
 
 # How We Structure Code
 
-## Repository: libraries and apps
+## Repository: apps and packages
 
-A repository with more than one part holds them under `packages/`: libraries, and the apps built on them.
+A repository with more than one part is a monorepo. Apps go under `apps/<name>/` and libraries under `packages/<name>/`.
 
-- **A library publishes its API through `exports` in its `package.json`.** Inside, it has no app layers. Its imports form no cycle.
-- **Code two apps share becomes a library.** An app never reaches into another package's `src`, by alias or by relative path. Only the `exports` map is a surface the other package keeps stable.
+- **An app is what gets built and released, and it has entrypoints.** One product on several runtimes, such as a browser extension and a desktop app, is one app. It holds one set of entrypoints per runtime and one adapter per platform (`infra/chrome`, `infra/tauri`).
+- **A package is a library.** It publishes its API through `exports` in its `package.json`: `"."`, plus `"./testing"` where it ships a test kit. Inside, it has no app layers. Its imports form no cycle.
+- **Imports run from apps to packages, and between packages.** A package imports no app. An alias or a relative path into another app's `src` is forbidden. Code two apps share becomes a package, because only an `exports` map is a surface its owner keeps stable.
 
 ## App layers
 
-Every app takes the same layers, whatever it is: a backend, a frontend, a CLI, a browser extension.
+Every TypeScript app takes the same layers, whatever it is: a backend, a frontend, a CLI, a browser extension.
 
 ```
 src/
@@ -41,7 +42,7 @@ A **module** is one folder directly under a layer, or one file directly under `s
 - **Only entrypoints import `infra`.** An infra adapter stays generic, such as a key-value store, a media store or a message transport. A feature declares its own port as the structural subset of the adapter it needs, and builds its repository over that port. Infra cannot see the feature, so the adapter cannot name the port it implements. The composition root passes the adapter in, and TypeScript checks there that it fits.
 - **No `pages` or `widgets` layer.** A block without logic or a business type goes to `shared`. One that renders an entity lives in the feature that shows it. A block with its own logic is a feature, and a block that assembles features is an orchestration module.
 - **In TypeScript, the linter holds these boundaries.** Add `slices.json` to `extends`, from the oxlint config package that [.oxlintrc.json](../../templates/.oxlintrc.json) already extends. It checks the layers and surfaces, and the package's `base.json` forbids cycles.
-- **In Go, a package is a module, and its exported identifiers are its surface.** `internal/` hides what callers must not import, and the compiler enforces it and forbids cycles. A shared Go test built on `golang.org/x/tools/go/packages` holds the layer direction.
+- **A Go backend is an app too, and one Go module.** Its entrypoints live in `cmd/`. Each other folder is a Go package, which plays a TypeScript module's part, and its exported identifiers are its surface. `internal/` holds the code the app shares but no other module may import. The compiler enforces `internal/` and forbids cycles. A shared Go test built on `golang.org/x/tools/go/packages` holds the layer direction. Go code moves to `packages/` only when several apps take it.
 
 ## Horizontal decoupling
 
