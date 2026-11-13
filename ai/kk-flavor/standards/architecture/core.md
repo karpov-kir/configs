@@ -54,11 +54,12 @@ The rules above and below name no language's layout. This table is where each la
 | Surface per runtime | `exports.<entrypoint>.ts` | none: each runtime is its own binary |
 | Internal | what `exports.ts` leaves out | unexported names, and `internal/` for packages only their parent tree imports |
 | Library surface | `exports` in `package.json`, entry `"."` | the module's exported packages |
-| Test kit | `"./testing"` in the same `exports` | a `<package>test` package, as `httptest` is |
+| Test kit | `"./testing"` in the same `exports` | a `<package>_testing` package, since Go keeps the `_test` suffix for external test packages |
 | Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
 | Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | the `layers` analyzer of go-lint, KK Forge's golangci-lint build, which also holds `cmd/` to `entrypoints/`, each `func main` to one call, and an HTTP server to `entrypoints/` |
 | Implicit names | `index.*`, forbidden by a rule in `typescript.json`, libraries included. A WXT extension extends `wxt.json`, where each entrypoint is a folder `entrypoints/<name>/` and its `index.ts` is the launcher. The `launcher` rule holds that file to one call. A script directly in `entrypoints/` fails. The linter reads no HTML, so review holds a WXT `index.html` to markup and the script tag that loads `./index.ts`, and rejects a flat `entrypoints/<name>.html`. | none. The launcher is `func main` in `cmd/<name>/`. |
+| Package, folder and file names | as [code-style.md](../code-style.md) → **Naming** spells them | a name of several words joins them with `_`, as in `convert_request/` and `convert_request_test.go`, never `convertrequest`. A package takes its folder's name, except `main`, the package at the module root, and an external test package, which adds `_test`. Review holds this, because no linter can tell a joined name from a single word. |
 | Cycles | `import/no-cycle` in `typescript.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling

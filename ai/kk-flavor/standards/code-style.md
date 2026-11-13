@@ -20,7 +20,7 @@ Take the first rung that fully solves the task, and never step below a rung that
 ## Naming
 
 - Full, descriptive names; abbreviate only where the abbreviation is well established (`i` in a tight numeric loop is fine).
-- Strict camelCase / TitleCase for multi-word names; acronyms case like normal words (`remoteUrl`, not `remoteURL`).
+- Strict camelCase / TitleCase for multi-word names; acronyms case like normal words (`remoteUrl`, not `remoteURL`). Go package, folder and file names join words with `_` instead ([architecture/core.md](architecture/core.md) → **By language**).
 - Booleans take a predicate prefix: `is`/`has`/`can`/`should`/`was`/`will`, …
 - A function returning a new instance takes a `new` prefix — `newApiClient`, not `create…`/`make…`.
 
