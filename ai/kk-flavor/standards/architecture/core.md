@@ -18,7 +18,7 @@ Every app takes the same layers, whatever it is and whatever language it is writ
 entrypoints/    one folder per way into the app: its host and composition root
 orchestration/  one action built from 2+ features (a screen, a scenario, a command)
 features/       the app's capabilities, one module each
-entities/       business types and pure logic that several features share
+entities/       business types and pure logic that 2+ features, orchestration or entities modules share
 shared/         code with no business meaning (logger, pub-sub, utilities)
 infra/          generic adapters to the outside (database, HTTP API, storage, messaging)
 ```
@@ -35,8 +35,9 @@ A **module** is one folder directly under a layer, or one file directly under `s
 | `infra` | other `infra`, `entities`, `shared` |
 
 - **A feature is whole.** Its port, repository, types and helpers live in its folder. Test placement is [testing.md](../testing.md) → **Commands and file names**.
+- **A type and its logic live in the module that uses them.** They move to `entities` only once two or more `features`, `orchestration` or `entities` modules import them. An entity left with one such module moves into it. When that module is an orchestration module, which holds no logic, the entity moves into a feature it uses. An import from `entrypoints`, `infra` or a test does not count. An entrypoint takes the type from the feature's surface, and an adapter stays generic behind the feature's port. The direction guard checks this count.
 - **A feature imports no other feature, and an orchestration module imports no other orchestration module.** Two features link through an orchestration module or an entrypoint. It passes one feature's callback to the other.
-- **An orchestration module holds no business logic of its own.** It exists only where an action takes two or more features. A single feature is mounted or started by its entrypoint directly.
+- **An orchestration module holds no business logic of its own.** Review checks that, because the direction guard reads only imports. An orchestration module exists only where an action takes two or more features, and the direction guard checks that count. A single feature is mounted or started by its entrypoint directly.
 - **An entity depends on no UI or render framework.** Entities link to each other mostly by type and id. A rule that spans several entities belongs to a feature.
 - **Only entrypoints import `infra`.** An infra adapter knows no feature, so it stays generic: a key-value store, a media store, a message transport. The app's storage adapter (`infra/db`) holds the schema migrations and the row models. No ORM or driver type appears in its operations, transactions and joined read queries included. A feature declares its own port as the structural subset of the adapter it needs, and builds its repository over that port. Infra cannot see the feature, so the adapter cannot name the port it implements. The composition root passes the adapter in, and the compiler checks there that it fits.
 - **No `pages` or `widgets` layer.** A block without logic or a business type goes to `shared`. One that renders an entity lives in the feature that shows it. A block with its own logic is a feature, and a block that assembles features is an orchestration module.
@@ -81,7 +82,7 @@ Each entrypoint has one composition root: an assembly function that takes partia
 - **Assembly is an explicit call to that function.** A side-effect import or a global service locator hides what was built from a test and a reader, so use neither.
 - **Three ambient dependencies skip injection**, because a test has no reason to swap them. Code reaches them directly, and they are the only globals:
   - the logger (**Logging & events**);
-  - analytics events — `shared` holds a generic track function, `entities/analytics` holds the event catalogue that types it, and the composition root binds the function to its sender;
+  - analytics events — `shared` holds a generic track function, and the composition root binds it to its sender. The event catalogue that types the function lives in the module that tracks, or in `entities/analytics` once two or more `features`, `orchestration` or `entities` modules track;
   - `shared/config`, read-only (the platform, the build's flags).
 
 **Hand out domain handles — never a raw framework or vendor type.** The entrypoint calls the composition root and returns the handle. Its shape follows the app: `start()` / `stop()` plus `handle(request)` for a service, `mount()` / `unmount()` for a UI mount, `run(args)` for a CLI or batch job.
