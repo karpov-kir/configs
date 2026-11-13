@@ -1,9 +1,14 @@
-// The rules come from @kk-forge/oxlint-config, and its README says what each file turns on. A package without Solid
-// drops solid.json, and a library drops layers.json.
+// The rules come from @kk-forge/oxlint-config, and its README says what each file turns on and which a package
+// extends. A package without Solid drops solid.json, one without vitest drops vitest.json, a library drops
+// layers.json, and a package that is not a WXT extension drops wxt.json. The
+// package's lint script runs bare `oxlint` over the whole package, so ignorePatterns and .gitignore alone say what
+// it skips.
 {
   "extends": [
     "./node_modules/@kk-forge/oxlint-config/typescript.json",
+    "./node_modules/@kk-forge/oxlint-config/vitest.json",
     "./node_modules/@kk-forge/oxlint-config/solid.json",
-    "./node_modules/@kk-forge/oxlint-config/layers.json"
+    "./node_modules/@kk-forge/oxlint-config/layers.json",
+    "./node_modules/@kk-forge/oxlint-config/wxt.json"
   ]
 }
