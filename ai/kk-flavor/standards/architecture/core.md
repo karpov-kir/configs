@@ -130,7 +130,7 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
 
 ## Logging & events
 
-**Logging is ambient.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per module so each line carries its source, and the logger filters by level. Config sets that level once. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts).
+**Logging is ambient.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per module so each line carries its source, and the logger filters by level. Config sets that level once. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts), vendored as `src/shared/Logger.ts`, the one file `typescript.json` lets call the console.
 
 **Domain events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget.
 
