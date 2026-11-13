@@ -58,7 +58,7 @@ The rules above and below name no language's layout. This table is where each la
 | Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
 | Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | a shared test on `golang.org/x/tools/go/packages`, which also holds `cmd/` to `entrypoints/` and each `func main` to one call |
-| Implicit names | `index.*`, forbidden by a rule in `typescript.json`, libraries included. A WXT extension extends `wxt.json`, where each entrypoint is a folder `entrypoints/<name>/` and its `index.ts` is the launcher, held by the `launcher` rule. A script directly in `entrypoints/` fails. The linter reads no HTML, so review holds a WXT `index.html` to markup and the script tag that loads `./index.ts`, and rejects a flat `entrypoints/<name>.html`. | none. The launcher is `func main` in `cmd/<name>/`. |
+| Implicit names | `index.*`, forbidden by a rule in `typescript.json`, libraries included. A WXT extension extends `wxt.json`, where each entrypoint is a folder `entrypoints/<name>/` and its `index.ts` is the launcher. The `launcher` rule holds that file to one call. A script directly in `entrypoints/` fails. The linter reads no HTML, so review holds a WXT `index.html` to markup and the script tag that loads `./index.ts`, and rejects a flat `entrypoints/<name>.html`. | none. The launcher is `func main` in `cmd/<name>/`. |
 | Cycles | `import/no-cycle` in `typescript.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
@@ -91,7 +91,7 @@ Ports and adapters are the **outbound** edge — tech the domain drives. **Entry
 
 - **An entrypoint file is named for what it starts** — `start` or `mountPopup`, not `main`, which names only the program's beginning. A launcher, below, keeps the name its language or framework requires.
 - **No file takes a name the language or a tool resolves implicitly when its folder is imported or served.** An implicit name hides which file the caller is reading.
-- **Where a language or framework requires such a name, the guard's configuration allows that file.** A preset for that framework allows it where one exists. Otherwise the project lists the file by path, with a reason for each path. Without a reason, the guard stays on.
+- **Where a language or framework requires such a name, the guard's configuration allows that file.** A preset for that framework allows it where one exists. Where none does, the project lists the file by path, with a reason for each path. Without a reason, the guard stays on.
 - **A launcher is the file or function a language or framework requires by name.** It holds only that required definition and one call into its entrypoint.
 - **No composition root composes composition roots.** To run several entrypoints in one process, a **cumulative entrypoint** named for the deployment (`startAll`, `web`, `worker`) starts their handles together. It has no composition root of its own.
 
@@ -130,7 +130,7 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
 
 ## Logging & events
 
-**Logging is ambient.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per module so each line carries its source, and the logger filters by level. Config sets that level once. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts), vendored as `src/shared/Logger.ts`, the one file `typescript.json` lets call the console.
+**Logging is ambient.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per module so each line carries its source, and the logger filters by level. Config sets that level once. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts). The project vendors it as `src/shared/Logger.ts`, and `typescript.json` lets only that file call the console.
 
 **Domain events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget.
 
