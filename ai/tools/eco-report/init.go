@@ -36,8 +36,10 @@ func (r *run) cmdInit(args []string) {
 	r.assertReportIsIgnored()
 	present := shell.PathExists(r.report) || shell.IsSymlink(r.report)
 	if present && !isForced {
-		existing := firstLineWithPrefix(r.report, "intent:")
-		if existing == "" {
+		existing := fieldLine(r.report, "intent")
+		if _, err := readFrontmatter(r.report); err != nil {
+			existing = "(a frontmatter that does not parse: " + shell.Oneline(err.Error()) + ")"
+		} else if existing == "" {
 			existing = "(no intent: line)"
 		}
 		r.refuse("error: "+r.report+" already exists — the report was NOT initialized.",

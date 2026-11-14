@@ -19,15 +19,27 @@ func (r *run) cmdGate() {
 	r.requireReport(r.arg(1))
 	// Every reason is asked, and none short-circuits the rest: a gate that stopped at the first block
 	// would send the human back for one more round per reason it never printed.
+	unreadable := r.blocksOnFrontmatter()
 	stale := r.blocksOnFreshness()
 	trimmed := r.blocksOnStages()
 	open := r.blocksOnOpenTodos()
 	unapproved := r.blocksOnUnapprovedIntent()
-	if stale || trimmed || open || unapproved {
+	if unreadable || stale || trimmed || open || unapproved {
 		r.exit(1)
 	}
 	r.line("gate clean: tree fresh, untrimmed qualify, %s, no open TODOs", r.intentClaim())
 	r.exit(0)
+}
+
+// True when the report's frontmatter cannot be parsed. Every field then reads as unstamped, so the freshness
+// and stage reasons block too, but none of them says that the frontmatter itself is what to fix. The parser's message
+// quotes the report, which is hand-editable, so it is collapsed like every value the freshness reasons quote.
+func (r *run) blocksOnFrontmatter() bool {
+	if _, err := readFrontmatter(r.report); err != nil {
+		r.errLines("BLOCK (frontmatter): " + shell.Oneline(err.Error()) + ". Fix the report's frontmatter, then re-qualify. " + overridableByAHumanOnly)
+		return true
+	}
+	return false
 }
 
 // True when this report's review does not vouch for this tree, here. Two questions, and the fingerprint
@@ -178,7 +190,7 @@ func (r *run) intentApproval() (path, blockingStatus string) {
 	if path == "" {
 		return "", ""
 	}
-	switch status := yamlValue(path, "status"); status {
+	switch status := statusOf(path); status {
 	case "approved":
 		return path, ""
 	case "":

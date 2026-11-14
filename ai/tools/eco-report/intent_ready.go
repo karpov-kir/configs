@@ -164,7 +164,7 @@ func (r *run) unbuiltDependencies(lines []string) []string {
 	var reasons []string
 	for _, number := range linkNumbers(lines, "depends-on") {
 		file, where := r.intentFileNumbered("depends-on", number)
-		status := yamlValue(file, "status")
+		status := statusOf(file)
 		switch {
 		case where == "archive":
 			continue
@@ -283,19 +283,6 @@ func (r *run) intentFileNumbered(relation, number string) (path, where string) {
 	return "", ""
 }
 
-// fieldValue with YAML's trailing comment removed, because the ICE template documents its own fields
-// inline — `status:` carries its explanation, and a blanked value read raw is that explanation.
-func yamlValue(path, field string) string {
-	value := fieldValue(path, field)
-	if strings.HasPrefix(value, "#") {
-		return ""
-	}
-	if comment := strings.Index(value, " #"); comment >= 0 {
-		value = value[:comment]
-	}
-	return strings.TrimSpace(strings.Trim(strings.TrimSpace(value), `"'`))
-}
-
 // Reverse edges. A sibling declaring `blocks <this intent>` has said it ships first, and its own
 // frontmatter is the only place that edge exists — nothing obliges this intent to carry a mirroring
 // `depends-on`, and in practice it does not. Archived siblings are built, so only `intents/` is scanned.
@@ -334,7 +321,7 @@ func (r *run) unbuiltBlockers(number string) []string {
 		if !slices.Contains(linkNumbers(shell.SplitLines(string(content)), "blocks"), number) {
 			continue
 		}
-		if status := yamlValue(path, "status"); status != "built" {
+		if status := statusOf(path); status != "built" {
 			reasons = append(reasons, "  "+shell.Oneline(sibling)+" declares blocks "+number+" and is "+shell.Oneline(status)+" — build that one first")
 		}
 	}

@@ -49,6 +49,9 @@ func (r *run) cmdStamp() {
 	if problems := validateStampEntries(entries); len(problems) > 0 {
 		r.refuse("error: invalid stage record", strings.Join(problems, "\n"))
 	}
+	if _, err := readFrontmatter(r.report); err != nil {
+		r.refuse("error: " + r.report + ": " + shell.Oneline(err.Error()) + " — NOT stamped")
+	}
 	if !hasField(r.report, "reviewed-tree") {
 		r.refuse("error: no 'reviewed-tree:' line in frontmatter")
 	}

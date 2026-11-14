@@ -70,12 +70,9 @@ func (r *run) reviewedWorktreeToken() string {
 // This worktree's identity, as the `<token> <path>` pair the stamp records — or false when no identity
 // could be established, which the caller must refuse on rather than record.
 //
-// The path is collapsed to one line because frontmatter is single-line and this half of the pair is not
-// a value this tool chose: `git rev-parse --show-toplevel` hands back a control byte in a checkout's
-// path verbatim. A newline here writes a second frontmatter line, and since rewriteStamp emits
-// `reviewed-worktree:` ABOVE `reviewed-stages:` while every reader takes the first line matching a
-// prefix, a forged stage record injected here is the one the merge gate reads. An ESC or CR instead
-// rewrites the gate's own BLOCK line on the terminal.
+// The path is collapsed because this half of the pair is not a value this tool chose: `git rev-parse
+// --show-toplevel` hands back a control byte in a checkout's path verbatim, and fieldOf writes it escaped,
+// so the value read back would still carry it.
 func (r *run) currentWorktreeRecord() (string, bool) {
 	token, ok := r.worktreeToken()
 	if !ok {

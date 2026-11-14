@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -145,15 +146,22 @@ func (r *run) beginResultAttempt() {
 	}
 	manifest.Context = r.candidateResultContext(hex.EncodeToString(raw))
 	r.writeResultManifest(*manifest)
-	if err := r.rewriteReport("attempt exists but protocol marker was not written", "attempt exists but protocol marker was not written", func(lines []string) []string {
-		return mapFrontmatter(lines, func(inFrontmatter bool, line string) []string {
-			if inFrontmatter && strings.HasPrefix(line, "result-protocol:") {
-				return nil
-			}
-			if inFrontmatter && strings.HasPrefix(line, "reviewed-tree:") {
-				return []string{line, "result-protocol: 1"}
-			}
-			return []string{line}
+	if err := r.rewriteReport("attempt exists but protocol marker was not written", "attempt exists but protocol marker was not written", func(lines []string) ([]string, error) {
+		parsed, err := parseFrontmatter(lines)
+		if err != nil {
+			return nil, err
+		}
+		tree, has := parsed.keyLine["reviewed-tree"]
+		if !has {
+			return nil, errors.New("the frontmatter has no reviewed-tree")
+		}
+		marker, err := fieldsOf("result-protocol", "1")
+		if err != nil {
+			return nil, err
+		}
+		return rewriteFields(lines, map[string][]string{
+			"result-protocol": nil,
+			"reviewed-tree":   append([]string{lines[tree]}, marker...),
 		})
 	}); err != nil {
 		r.exit(2)
@@ -236,8 +244,8 @@ func (r *run) finishResultProjection(manifest *resultManifest, index int) {
 		for _, item := range saved.Result.Items {
 			rendered.WriteString("\n" + renderResultItem(item) + "\n")
 		}
-		err := r.rewriteReport("result is pending; retry its exact payload", "result is pending; report was not updated", func(lines []string) []string {
-			return append(lines, strings.Split(strings.TrimSuffix(rendered.String(), "\n"), "\n")...)
+		err := r.rewriteReport("result is pending; retry its exact payload", "result is pending; report was not updated", func(lines []string) ([]string, error) {
+			return append(lines, strings.Split(strings.TrimSuffix(rendered.String(), "\n"), "\n")...), nil
 		})
 		if err != nil {
 			r.exit(2)

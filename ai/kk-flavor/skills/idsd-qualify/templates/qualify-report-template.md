@@ -1,5 +1,5 @@
 ---
-intent: <NNN-slug or "review: <description>">
+intent: '<NNN-slug or "review: <description>">'
 reviewed-tree: <hash>
 reviewed-worktree: <worktree>
 reviewed-stages: <stages>

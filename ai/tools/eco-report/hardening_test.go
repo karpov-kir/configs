@@ -266,9 +266,8 @@ func TestAShipFolderNameCarriesNoControlByteToTheTerminal(t *testing.T) {
 func TestAWorktreePathCarriesNoControlByteIntoTheReport(t *testing.T) {
 	t.Parallel()
 	// The stamp records `<token> <worktree path>`, and the path half is not a value this tool chose:
-	// `git rev-parse --show-toplevel` hands back a control byte in a checkout's path verbatim. A newline
-	// there opens a second frontmatter line that every reader reaches ahead of the real one, which is a
-	// forged stage record — currentWorktreeRecord in worktree.go has the ordering that makes it one.
+	// `git rev-parse --show-toplevel` hands back a control byte in a checkout's path verbatim, and the
+	// stamp writes the value back as it reads it.
 	f, ok := newRepoAtAControlBytePath(t)
 	if !ok {
 		t.Skip("this filesystem refused a carriage return in a directory name, so this case cannot run here")
@@ -284,8 +283,7 @@ func TestAWorktreePathCarriesNoControlByteIntoTheReport(t *testing.T) {
 	f.record("the stamp landed", containsLine(report, "reviewed-stages: "+allStagesStampedAs), report)
 	f.record("and no control byte from the path reached the frontmatter",
 		!strings.ContainsRune(report, '\r'), report)
-	// One of each line, which is the property a newline in that value would have broken by opening a
-	// second one the readers reach first.
+	// One of each line, as the stamp writes them.
 	f.record("and the frontmatter still carries one reviewed-stages line",
 		countLinesWithPrefix(report, "reviewed-stages:") == 1 &&
 			countLinesWithPrefix(report, "reviewed-worktree:") == 1, report)
@@ -312,7 +310,7 @@ func TestAReviewedTreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 		strings.HasPrefix(cleanLine, "gate clean:"), "the clean run printed: '"+cleanLine+"'")
 	forged := "\x1b[2K" + cleanLine
 
-	f.replaceLine(f.reportPath("099-tree"), "reviewed-tree:", "reviewed-tree: deadbeef"+forged)
+	f.replaceLine(f.reportPath("099-tree"), "reviewed-tree:", "reviewed-tree: "+yamlDoubleQuoted("deadbeef"+forged))
 	f.runReport("gate", "099-tree")
 	f.record("the gate blocks on a tree fingerprint that is not this tree's", f.status != 0, f.evidence())
 	f.assertReports("BLOCK (freshness)", "and says why it blocked")
@@ -347,8 +345,10 @@ func TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 		strings.HasPrefix(cleanLine, "gate clean:"), "the clean run printed: '"+cleanLine+"'")
 	forged := "\x1b[2K" + cleanLine
 
+	// YAML admits no raw control byte, so the ESC goes in through a double-quoted escape: the value the
+	// parser hands the gate still carries it.
 	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
-		"reviewed-worktree: 0123456789abcdef /somewhere"+forged)
+		"reviewed-worktree: "+yamlDoubleQuoted("0123456789abcdef /somewhere"+forged))
 	f.runReport("gate", "099-echoed")
 	f.record("the gate still blocks for a review recorded against another worktree",
 		f.status != 0, f.evidence())
@@ -361,12 +361,42 @@ func TestAReviewedWorktreeValueCarriesNoControlByteToTheTerminal(t *testing.T) {
 	// blocked for recording no usable worktree — and whatever text failed that check is what gets
 	// echoed. Asserted separately because the two branches are two call sites.
 	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
-		"reviewed-worktree: not-a-token"+forged)
+		"reviewed-worktree: "+yamlDoubleQuoted("not-a-token"+forged))
 	f.runReport("gate", "099-echoed")
 	f.record("a value that is not a usable worktree token also blocks", f.status != 0, f.evidence())
 	f.assertReports("no usable reviewing worktree", "and says that is why")
 	f.record("and no control byte reached the output from that branch either",
 		!strings.ContainsRune(f.out, 0x1b), f.out)
+
+	// A raw control byte makes the frontmatter unparseable. The gate blocks and names the frontmatter,
+	// and the parser's message, which quotes the report, reaches the output collapsed.
+	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
+		"reviewed-worktree: not-a-token"+forged)
+	f.runReport("gate", "099-echoed")
+	f.record("a raw control byte in the frontmatter blocks", f.status != 0, f.evidence())
+	f.assertReports("BLOCK (frontmatter)", "and says the frontmatter is why")
+	f.record("and no control byte reached the output from the parser's message",
+		!strings.ContainsRune(f.out, 0x1b), f.out)
+
+	// A key named twice is refused by its name, which is the report's own text: a double-quoted key carries
+	// an ESC into that message, and the message reaches the output collapsed.
+	key := yamlDoubleQuoted("note" + forged)
+	f.replaceLine(f.reportPath("099-echoed"), "reviewed-worktree:",
+		"reviewed-worktree: not-a-token\n"+key+": 1\n"+key+": 2")
+	f.runReport("gate", "099-echoed")
+	f.record("a key named twice blocks", f.status != 0, f.evidence())
+	f.assertReports("BLOCK (frontmatter)", "and says the frontmatter is why, for the key")
+	f.record("and no control byte reached the output from the key it names",
+		!strings.ContainsRune(f.out, 0x1b), f.out)
+}
+
+// yamlDoubleQuoted writes a string as a YAML double-quoted scalar. It escapes the backslash, the quote and
+// ESC, the one control byte these cases put in.
+func yamlDoubleQuoted(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	value = strings.ReplaceAll(value, "\x1b", `\e`)
+	return `"` + value + `"`
 }
 
 func TestAReportRewriteIsStagedBesideTheReport(t *testing.T) {

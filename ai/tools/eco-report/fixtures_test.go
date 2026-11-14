@@ -534,7 +534,7 @@ func canonical(path string) string {
 // frontmatter lines and a body: `init` refuses a template missing any, and a varying case edits this
 // copy. The shipped copy at `ai/kk-flavor/skills/idsd-qualify/templates/qualify-report-template.md` goes unread.
 const reportTemplate = `---
-intent: <NNN-slug or "review: <description>">
+intent: '<NNN-slug or "review: <description>">'
 reviewed-tree: <hash>
 reviewed-worktree: <worktree>
 reviewed-stages: <stages>
