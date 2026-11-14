@@ -155,7 +155,7 @@ backend         : entrypoint's HTTP controller → orchestration (2+ features) �
 
 The inbound boundary checks **structure** — types, ranges, required fields — and rejects malformed input before deeper logic runs. A message from another runtime of the same app crosses an inbound boundary too. Inner layers check **semantics** — state-dependent rules no schema expresses (sufficient balance, the record exists).
 
-Validate structure with a **declarative schema** — zod / valibot (TS), pydantic (Python) — never an unchecked cast or a hand-rolled `typeof`/`in` chain. One schema is the single authority: parse once into a typed value or a rejection, derive the static type from it, and delegate every format check to it.
+Validate structure with a **declarative schema** — zod / valibot (TS), pydantic (Python) — never an unchecked cast or a hand-rolled `typeof`/`in` chain. One schema is the single authority: parse once into a typed value or a rejection, derive the static type from it, and delegate every format check to it. In Go, `compose` parses the config from the environment with `github.com/caarlos0/env/v11`. Struct tags mark a variable required or give its default. A custom type brings its own parser, and each error is wrapped with the variable's name.
 
 ## Logging & events
 
