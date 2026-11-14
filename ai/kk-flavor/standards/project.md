@@ -99,6 +99,8 @@ Keep the service's container setup in its own `docker/`, which holds its compose
 
 Schema changes are versioned SQL files an idempotent tool applies — forward-only: never edit an applied migration, add a new one. A `db:migrate` command applies them as an explicit, gated step, not on app boot; in prod it must succeed before the new version rolls out. **Expand, then contract**, across separate deploys: every migration must leave the currently-running version working, so a rename is add-backfill-switch-drop, never one step.
 
+**Each migration declares its kind**, by whether the code before it still works on the database after it. An **expand** migration adds, or moves data the code before it still reads as it did, such as a cleanup of blank strings. A **contract** migration drops or renames what the code before it reads or writes, or changes a type. The database stores each migration's kind beside its record, so older code reads the kind too, and it takes a record without a kind for a contract. The server and the migrate step refuse to run only when the database holds a contract migration they do not know. When every unknown migration is an expand, they run and log a warning. A rollback after an expand migration is therefore safe. After a contract migration, the way back is a new version with the fix.
+
 ## Repo files
 
 Baseline in every project: `.editorconfig`, `.gitignore`, and `.dockerignore`.
