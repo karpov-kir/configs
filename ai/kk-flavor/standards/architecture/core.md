@@ -35,6 +35,33 @@ A **module** is one folder directly under a layer, or one file directly under `s
 | `infra` | other `infra`, `shared` |
 
 - **A feature is whole.** Its port, repository, types, helpers and own adapters live in its folder. Its port and the feature's own types the port names sit in one place, which the feature's code and its `infra/` both import (**By language** → Feature port). Test placement is [testing.md](../testing.md) → **Commands and file names**.
+- **A feature's surface gives out its components and its `<x>UseCases`, plus types.** A component shows, and takes its data as props. `<x>UseCases` is the feature's behaviour: one type per feature, with each scenario a method. Its constructor takes its options as **Composition root** shows. The surface exports no free function that acts. A helper sits in a file of its own named for what it does, and the surface leaves it out. A feature that only shows gives out its component and skips the use cases file. With a surface per runtime, each surface gives out a use cases class of its own and only that class. For the `exports.serviceWorker.ts` of `convert`, the class `ConvertServiceWorkerUseCases` and its factory `newConvertServiceWorkerUseCases` in `convertUseCases.serviceWorker.ts`. The direction guard reads the surface's exports by their declarations and takes the name `<x>UseCases` from the feature's folder name exactly (**By language** → Feature surface). Review keeps logic out of a component.
+
+  ```ts
+  // features/texts/textsUseCases.ts
+  export type TextsUseCasesOptions = { api: TextsApi; clock: Clock };
+
+  export class TextsUseCases {
+    private readonly deps: TextsUseCasesOptions;
+
+    constructor({ ...deps }: TextsUseCasesOptions) {
+      this.deps = deps;
+    }
+
+    async save(text: Text): Promise<void> {
+      await this.deps.api.save({ ...text, savedAt: this.deps.clock.now() });
+    }
+  }
+
+  export function newTextsUseCases(options: TextsUseCasesOptions): TextsUseCases {
+    return new TextsUseCases(options);
+  }
+
+  // features/texts/exports.ts
+  export { TextsPanel } from './TextsPanel';
+  export { newTextsUseCases, TextsUseCases, type TextsUseCasesOptions } from './textsUseCases';
+  ```
+
 - **A type and its logic live in the module that uses them.** They move to `entities` only once two or more `features`, `orchestration` or `entities` modules import them. An entity left with one such module moves into it. When that module is an orchestration module, which holds no logic, the entity moves into a feature it uses. An import from `entrypoints` or a test does not count, and one from a feature's `infra/` counts as that feature. An entrypoint takes the type from the feature's surface. The direction guard checks this count.
 - **A feature imports no other feature, and an orchestration module imports no other orchestration module.** Two features link through an orchestration module or an entrypoint. It passes one feature's callback to the other.
 - **An orchestration module holds no business logic of its own.** Review checks that, because the direction guard reads only imports. An orchestration module exists only where an action takes two or more features, and the direction guard checks that count. A single feature is mounted or started by its entrypoint directly.
@@ -61,6 +88,7 @@ The rules above and below name no language's layout. This table is where each la
 | Composition root | `compose.ts` beside `start.ts` in `src/entrypoints/<name>/`, `compose(overrides)` | `compose.go` beside `start.go` in `entrypoints/<name>/`, `Compose(overrides)` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
 | Feature port | `features/<x>/port.ts`, or a `port/` folder. Planned: the direction guard holds a feature's `infra/` to its port. | the package `features/<x>/port`. Planned: the `layers` analyzer holds a feature's infra to its port. |
+| Feature surface | `exports.ts` gives out components, each declaring its return type `JSX.Element`, and from `features/<x>/<x>UseCases.ts` the class `<X>UseCases`, its factory `new<X>UseCases(options: <X>UseCasesOptions)` and the options type. `exports.<runtime>.ts` gives out instead, from `<x>UseCases.<runtime>.ts`, the class `<X><Runtime>UseCases`, where each word of the runtime's name, split at `.` and `-`, starts upper-case. Planned: the direction guard fails any other value it exports. | the package `features/<x>` gives out, from `<x>_use_cases.go`, `type UseCases`, `type Options` and `func New(o Options) *UseCases`. Planned: the `layers` analyzer fails any other exported function or variable. |
 | Feature infra | `features/<x>/infra/` with its own `exports.ts`. Planned: the direction guard holds who imports it. | the package `features/<x>/infra` and the packages under it. Planned: the `layers` analyzer holds who imports it. |
 | Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | the `layers` analyzer of go-lint, KK Forge's golangci-lint build, which also holds `cmd/` to `entrypoints/`, each `func main` to one call, and an HTTP server to `entrypoints/` |
 | Implicit names | `index.*`, forbidden by a rule in `typescript.json`, libraries included. A WXT extension extends `wxt.json`, where each entrypoint is a folder `entrypoints/<name>/` and its `index.ts` is the launcher. The `launcher` rule holds that file to one call. A script directly in `entrypoints/` fails. The linter reads no HTML, so review holds a WXT `index.html` to markup and the script tag that loads `./index.ts`, and rejects a flat `entrypoints/<name>.html`. | none. The launcher is `func main` in `cmd/<name>/`. |
@@ -145,10 +173,10 @@ An inbound interaction flows inward through the layers. Add a layer inside a fea
 
 ```
 any app         : entrypoint → orchestration (2+ features) → feature (→ its ports) → entities
-backend         : entrypoint's HTTP controller → orchestration (2+ features) → feature's use case (where earned) → feature logic and entities
+backend         : entrypoint's HTTP controller → orchestration (2+ features) → feature's `<x>UseCases` → feature logic and entities
 ```
 
-**Backend.** The HTTP controller is the entrypoint's inbound adapter (`entrypoints/<name>/http`). It translates a request into a call on a feature, or on an orchestration module where the action takes 2+ features. The HTTP framework stays out of both. Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates), and skip it below that. A read goes through the feature's port, as every access to infra does.
+**Backend.** The HTTP controller is the entrypoint's inbound adapter (`entrypoints/<name>/http`). It translates a request into a call on a feature, or on an orchestration module where the action takes 2+ features. The HTTP framework stays out of both. Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). The controller calls a method of the feature's `<x>UseCases`, and a method that spans a unit of work runs it in one transaction. A read goes through the feature's port, as every access to infra does.
 
 **Frontend.** Server cache — data mirrored from the API — goes to a data-fetching library (TanStack Query, a Solid resource) behind a port, never hand-rolled in components; UI state (open/closed, selection, draft) stays in component-local signals. A server semantic rejection (409/422) maps onto the offending field, not a generic toast.
 
