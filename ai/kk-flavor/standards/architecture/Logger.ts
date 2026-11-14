@@ -37,7 +37,10 @@ export class Logger {
   /** The single app-wide logger. The constructor is private, so every logger derives from this one through `scope`. */
   static readonly root = new Logger([]);
 
-  /** Sets the sink and the level for every logger. The composition root calls it on its first line. */
+  /**
+   * Sets the sink and the level for every logger. The composition root calls it on its first line, and again once the
+   * config parses.
+   */
   static install(sink: LogSink, level: LogLevel): void {
     Logger.sink = sink;
     Logger.level = level;

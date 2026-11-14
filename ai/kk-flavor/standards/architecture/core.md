@@ -20,7 +20,7 @@ orchestration/  one action built from 2+ features (a screen, a scenario, a comma
 features/       the app's capabilities, one module each
 entities/       business types and pure logic that 2+ features, orchestration or entities modules share
 shared/         code with no business meaning (logger, pub-sub, utilities)
-infra/          generic adapters to the outside, shared by 2+ features (database, HTTP transport, storage, messaging, clock, random)
+infra/          generic adapters to the outside: protocols, and the clients and data 2+ features share (database, HTTP transport, storage, messaging, clock, random)
 ```
 
 A **module** is one folder directly under a layer, or one file directly under `shared` or `infra`. A module of `orchestration`, `features` or `entities`, or a `shared` folder, is imported only through its surface (**Module depth**). The layers import one way only, so a change to an inner layer is the only one that reaches outward:
@@ -39,8 +39,8 @@ A **module** is one folder directly under a layer, or one file directly under `s
 - **A feature imports no other feature, and an orchestration module imports no other orchestration module.** Two features link through an orchestration module or an entrypoint. It passes one feature's callback to the other.
 - **An orchestration module holds no business logic of its own.** Review checks that, because the direction guard reads only imports. An orchestration module exists only where an action takes two or more features, and the direction guard checks that count. A single feature is mounted or started by its entrypoint directly.
 - **An entity depends on no UI or render framework.** Entities link to each other mostly by type and id. A rule that spans several entities belongs to a feature.
-- **Outside the root `infra`, only entrypoints and a feature's `infra/` import it.** A root adapter knows only its protocol. Examples are a fetch wrapper with timeouts, retries and the authorization header, a database connection, a store, a message transport and the clock. An ORM's entity class, such as TypeORM's `@Entity`, is a row model. It lives in the root `infra` or a feature's `infra/`, and never in the `entities` layer. The app's storage adapter (`infra/db`) holds the connection, and `db:migrate` applies the schema migrations through it ([project.md](../project.md) → **Migrations**). No ORM or driver type appears in its operations, transactions and joined read queries included. A feature declares its own port, as the structural subset of a root adapter or in its own terms for an adapter in its `infra/`. The composition root passes the adapter in, and the compiler checks there that it fits.
-- **An adapter that knows one outside API or one feature's data lives in that feature's `infra/`.** A feature has an `infra/` only when it has such an adapter. A Semrush client is one. So is a client of the Chrome Web Store catalogue or a model provider. Such a client builds on the root HTTP transport. The feature's tables, row models and their migrations are another. The feature's `infra/` is its second surface. Only the composition root imports it. Of its feature, it imports only the port and the entities that port names. Beyond those, it imports the root `infra` and `shared`. Once a second feature needs the adapter, it moves to the root `infra/`. There it keeps no feature's types.
+- **Outside the root `infra`, only entrypoints and a feature's `infra/` import it.** A root adapter knows only its protocol. Examples are a fetch wrapper with timeouts, retries and the authorization header, a database connection, a store, a message transport and the clock. A protocol adapter stays in the root even when one feature alone uses it. An ORM's entity class, such as TypeORM's `@Entity`, is a row model. It lives in the root `infra` or a feature's `infra/`, and never in the `entities` layer. The app's storage adapter (`infra/db`) holds the connection and the database's migrations, one ordered sequence per database, which `db:migrate` applies ([project.md](../project.md) → **Migrations**). No ORM or driver type appears in its operations, transactions and joined read queries included. A feature declares its own port, as the structural subset of a root adapter or in its own terms for an adapter in its `infra/`. The composition root passes the adapter in, and the compiler checks there that it fits.
+- **An adapter that knows one outside API or one feature's data lives in that feature's `infra/`.** A feature has an `infra/` only when it has such an adapter. A Semrush client is one. So is a client of the Chrome Web Store catalogue or a model provider. Such a client builds on the root HTTP transport. The feature's tables, row models and SQL are another, while their migrations join the sequence in `infra/db`. The feature's `infra/` is its second surface. Only the composition root imports it. Of its feature, it imports only the port and the entities that port names. Beyond those, it imports the root `infra` and `shared`. Once a second feature needs such a client or such data, it moves to the root `infra/`. There it keeps no feature's types.
 - **No `pages` or `widgets` layer.** A block without logic or a business type goes to `shared`. One that renders an entity lives in the feature that shows it. A block with its own logic is a feature, and a block that assembles features is an orchestration module.
 - **A guard holds the direction in every language**, and CI fails on a cycle. **By language** names both.
 
@@ -59,12 +59,12 @@ The rules above and below name no language's layout. This table is where each la
 | Test kit | `"./testing"` in the same `exports` | a `<package>_testing` package, since Go keeps the `_test` suffix for external test packages |
 | Composition root | `compose.ts` beside `start.ts` in `src/entrypoints/<name>/`, `compose(overrides)` | `compose.go` beside `start.go` in `entrypoints/<name>/`, `Compose(overrides)` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
-| Feature port | `features/<x>/port.ts`, or a `port/` folder | the package `features/<x>/port` |
-| Feature infra | `features/<x>/infra/` with its own `exports.ts` | the package `features/<x>/infra` and the packages under it |
+| Feature port | `features/<x>/port.ts`, or a `port/` folder. Planned: the direction guard holds a feature's `infra/` to its port. | the package `features/<x>/port`. Planned: the `layers` analyzer holds a feature's infra to its port. |
+| Feature infra | `features/<x>/infra/` with its own `exports.ts`. Planned: the direction guard holds who imports it. | the package `features/<x>/infra` and the packages under it. Planned: the `layers` analyzer holds who imports it. |
 | Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | the `layers` analyzer of go-lint, KK Forge's golangci-lint build, which also holds `cmd/` to `entrypoints/`, each `func main` to one call, and an HTTP server to `entrypoints/` |
 | Implicit names | `index.*`, forbidden by a rule in `typescript.json`, libraries included. A WXT extension extends `wxt.json`, where each entrypoint is a folder `entrypoints/<name>/` and its `index.ts` is the launcher. The `launcher` rule holds that file to one call. A script directly in `entrypoints/` fails. The linter reads no HTML, so review holds a WXT `index.html` to markup and the script tag that loads `./index.ts`, and rejects a flat `entrypoints/<name>.html`. | none. The launcher is `func main` in `cmd/<name>/`. |
 | Package, folder and file names | as [code-style.md](../code-style.md) → **Naming** spells them | a name of several words joins them with `_`, as in `convert_request/` and `convert_request_test.go`, never `convertrequest`. A package takes its folder's name, except `main`, the package at the module root, and an external test package, which adds `_test`. A `main` package's folder joins its words with `_` too, as `cmd/go_lint/`, since the Go tool names the command after it. Review holds this, because no linter can tell a joined name from a single word. |
-| Environment guard | the `environment` rule of `layers.json` fails `Date.now()`, `new Date()` without a value, `Date()`, `performance.now()`, `Math.random()`, `crypto.randomUUID()`, `crypto.getRandomValues()`, `process.env` and `import.meta.env` outside `infra`. `no-console` in `typescript.json` allows the console only in `infra`. A test is exempt. | outside `infra`, the `layers` analyzer fails `time.Now`, `time.Since`, `time.Until`, `os.Getenv`, `os.LookupEnv`, `os.Environ`, `os.ExpandEnv`, and an import of `math/rand`, `math/rand/v2` or `crypto/rand`. Outside `infra` and `entrypoints`, it fails `fmt.Print*`, the `log` package's output, `slog.New` and `slog`'s handlers. A feature may call `slog`'s package-level functions. A test and a test kit are exempt. |
+| Environment guard | Planned: the `environment` rule of `layers.json` fails `Date.now()`, `new Date()` without a value, `Date()`, `performance.now()`, `Math.random()`, `crypto.randomUUID()`, `crypto.getRandomValues()`, `process.env`, `import.meta.env`, `setTimeout` and `setInterval` outside `infra`. Planned too: `no-console` in `typescript.json` allows the console only in `infra` and `entrypoints`. A test is exempt. | Planned: outside `infra`, the `layers` analyzer fails `time.Now`, `time.Since`, `time.Until`, `time.Sleep`, `time.After`, `time.Tick`, `time.NewTimer`, `time.NewTicker`, `time.AfterFunc`, `os.Getenv`, `os.LookupEnv`, `os.Environ`, `os.ExpandEnv`, and an import of `math/rand`, `math/rand/v2` or `crypto/rand`. It fails the `log` package's output there too. Outside `infra` and `entrypoints`, it fails `fmt.Print*`, `slog.New` and `slog`'s handlers. A feature may call `slog`'s package-level functions. A test and a test kit are exempt. |
 | Cycles | `import/no-cycle` in `typescript.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
@@ -104,9 +104,11 @@ Each entrypoint has one composition root, the function `compose(overrides)`, in 
   - the logger (**Logging & events**);
   - analytics events — `shared` holds a generic track function, and the composition root binds it to its sender. The event catalogue that types the function lives in the module that tracks, or in `entities/analytics` once two or more `features`, `orchestration` or `entities` modules track.
 
-**What the program does not control enters through infra**: I/O, the clock, random numbers and ids, the environment and log output. Only `infra` reads or writes them, a feature's `infra/` included, and entrypoints reach them through `infra` too. A Go entrypoint is the exception for its own output: it prints a CLI's result and sets the default `slog` logger. The guard bans the calls and leaves the types alone, so an entity may hold a `time.Time` or a `Date`. Logic takes the value as a parameter, as in `isExpired(token, now)`. Browser storage and `fetch` are I/O, and `location` and `navigator` are the environment, so only `infra` calls them too. A test is exempt, since it drives the clock and the environment itself. The command line is no environment: an entrypoint reads its arguments as its inbound edge, as a server reads a request.
+  An audit trail is behaviour, so it goes through a port the feature declares. Analytics is no such record.
 
-- **Of these primitives, `shared` holds only what they look like**: the `Clock` and `Random` or `IdGenerator` types, and the `Logger` class, which leaves the writing to `infra`. `infra` implements them, as in `systemClock`, `systemRandom` and the log sink in `infra/logger`. A port to an outside system — a database, an HTTP API, `chrome.*`, a vendor's API — is declared by the feature that needs it, as above.
+**What the program does not control enters through infra**: I/O, the clock and its timers, random numbers and ids, the environment and log output. Only `infra` reads or writes them, a feature's `infra/` included, and entrypoints reach them through `infra` too. A CLI's result is the exception: an entrypoint writes it to standard output itself, as its outbound edge, in TypeScript and Go alike. Log lines still go through the logger. The guard bans the calls and leaves the types alone, so an entity may hold a `time.Time` or a `Date`. Logic takes the value as a parameter, as in `isExpired(token, now)`. Browser storage and `fetch` are I/O, and `location` and `navigator` are the environment, so only `infra` calls them too. A test is exempt, since it drives the clock and the environment itself. The command line is no environment: an entrypoint reads its arguments as its inbound edge, as a server reads a request.
+
+- **Of these primitives, `shared` holds only what they look like**: the `Clock` type, the `Random` or `IdGenerator` type, and the `Logger` class. The `Clock` has the timers too, such as `setTimeout` and `time.Sleep`. The `Logger` leaves the writing to `infra`. `infra` implements them, as in `systemClock`, `systemRandom` and the log sink in `infra/logger`. A port to an outside system — a database, an HTTP API, `chrome.*`, a vendor's API — is declared by the feature that needs it, as above.
 - **The environment has no interface.** `infra/env` reads it. The composition root parses it into one config with a schema (**Validation**) and hands each feature the values it needs.
 
 **Hand out domain handles — never a raw framework or vendor type.** The entrypoint calls the composition root and returns the handle. Its shape follows the app: `start()` / `stop()` plus `handle(request)` for a service, `mount()` / `unmount()` for a UI mount, `run(args)` for a CLI or batch job.
@@ -144,7 +146,7 @@ any app         : entrypoint → orchestration (2+ features) → feature (→ it
 backend         : entrypoint's HTTP controller → orchestration (2+ features) → feature's use case (where earned) → feature logic and entities
 ```
 
-**Backend.** The HTTP controller is the entrypoint's inbound adapter (`entrypoints/<name>/http`). It translates a request into a call on a feature, or on an orchestration module where the action takes 2+ features. The HTTP framework stays out of both. Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates), and skip it below that. Put a read behind a port only where a fake adds value.
+**Backend.** The HTTP controller is the entrypoint's inbound adapter (`entrypoints/<name>/http`). It translates a request into a call on a feature, or on an orchestration module where the action takes 2+ features. The HTTP framework stays out of both. Default to **CQRS** — reads and writes take separate paths. Tests reach the service through `handle(request)`, which delegates to the in-process dispatch a real request takes (`fastify.inject` / `hono.fetch`). A use case earns its place at 2+ boundaries or when it spans a unit of work (one transaction across several repositories or aggregates), and skip it below that. A read goes through the feature's port, as every access to infra does.
 
 **Frontend.** Server cache — data mirrored from the API — goes to a data-fetching library (TanStack Query, a Solid resource) behind a port, never hand-rolled in components; UI state (open/closed, selection, draft) stays in component-local signals. A server semantic rejection (409/422) maps onto the offending field, not a generic toast.
 
@@ -156,24 +158,27 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
 
 ## Logging & events
 
-**Logging is ambient, and its output is infra.** A module reaches the logger directly, as `Logger.root.scope(...)`. One root logger, scoped per module so each line carries its source, filters by level. The logger hands each record to a sink from `infra`, which the composition root installs on its first line, with the level from the config. In TypeScript a record written before that is lost. So no module writes a record at import time, and a test of the composition root checks that it installs the sink. This sequence is the exception to **No required sequences** (**Module depth**).
+**Logging is ambient, and its output is infra.** A module reaches the logger directly, as `Logger.root.scope(...)`. One root logger, scoped per module so each line carries its source, filters by level. The logger hands each record to a sink from `infra`. The sink is a `compose` override, so a test passes a silent one. `infra/logger` holds one sink per `LOG_FORMAT`, `pretty` and `json`. `compose` installs the pretty sink at the default level on its first line, parses the config, and installs again the sink `LOG_FORMAT` names at the config's level. A config that fails to parse is logged through the first sink. In TypeScript a record written before the first install is lost. So no module writes a record at import time, and a test of the composition root checks that it installs the sink. This sequence is the exception to **No required sequences** (**Module depth**).
 
-- **TypeScript**: the project vendors [Logger.ts](Logger.ts) as `src/shared/Logger.ts` and the sink [consoleSink.ts](consoleSink.ts) as `src/infra/logger/consoleSink.ts`. A backend writes through `infra/logger/pinoSink` instead.
+- **TypeScript**: the project vendors [Logger.ts](Logger.ts) as `src/shared/Logger.ts` and the sink [consoleSink.ts](consoleSink.ts) as `src/infra/logger/consoleSink.ts`. A backend's `json` sink writes through pino.
 
   ```ts
   // any module
   const logger = Logger.root.scope('ApiClient');
   logger.warn('Token refresh failed', error);
 
-  // the composition root, first line
-  Logger.install(newConsoleSink({ clock: systemClock }), config.logLevel);
+  // compose: first line, then after the config parses
+  Logger.install(overrides.logSink ?? newConsoleSink({ clock: systemClock }), LogLevel.Info);
+  const config = parseConfig(readEnv());
+  Logger.install(overrides.logSink ?? logSinks[config.logFormat], config.logLevel);
   ```
 
-- **Go**: `log/slog`, with no facade of the project's own. A feature calls `slog`, and the entrypoint sets the default logger, over a handler from `infra`, before it starts anything. Until then `slog` writes through the `log` package to standard error.
+- **Go**: `log/slog`, with no facade of the project's own. A feature calls `slog`. `Compose` sets the default logger over a handler from `infra` before it builds anything, and sets it again once the config parses, as above. An override replaces the handler both times. Until then `slog` writes through the `log` package to standard error.
 
   ```go
-  // entrypoints/server/start.go, first line
-  slog.SetDefault(slog.New(logger.NewHandler(config.LogLevel)))
+  // entrypoints/server/compose.go: first line, then after the config parses
+  slog.SetDefault(slog.New(logger.NewHandler(logger.Pretty, slog.LevelInfo)))
+  slog.SetDefault(slog.New(logger.NewHandler(config.LogFormat, config.LogLevel)))
 
   // features/history, inside the factory, never in a package-level variable
   logger := slog.With("feature", "history")
@@ -181,7 +186,7 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
 
 - **A package in `packages/` imports no app's logger.** It takes a logger as a parameter.
 
-**Domain events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget.
+**Domain events stay inside the module that owns them.** The module notifies through a typed pub-sub, fire-and-forget, that it holds as a private field. The composition root leaves the pub-sub to its owner. Between features, an orchestration module or the composition root passes one feature's callback to the other.
 
 - **Dynamic 1:N fan-out** — one source emitting to a subscriber set that varies at runtime — *is* pub-sub: use one even inside a single module and even at the first site, rather than hand-rolling a listener `Set` plus notify loop. Without that fan-out, a fixed 1:1 call inside a module is simpler.
 - **The owner hides it.** Hold it as a private `pubSub` field and expose one domain verb pair per channel: bound `onStateChanged`/`offStateChanged` fields typed `ChannelSubscriber<Payload>`. Consumers never import the pub-sub.

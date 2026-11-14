@@ -57,7 +57,7 @@ Tests on fakes need no provisioning and no isolation. Tests against real infrast
 
 **A fixture that denies access must not rest on a permission bit.** Root ignores mode bits, and CI runs as root often enough that `chmod 000` builds nothing there — the case then asserts against a file the process reads happily, and reports either a confusing red or a pass earned by something other than its name. Build the refusal so that no user bypasses it: a path that does not exist, a directory where a file is required, a dangling symlink, a path component that is not a directory. Where the behaviour under test *is* the readability check, none of those substitute — they are refused a limb earlier and never reach it. Probe whether the mode really denies this process, and skip with the reason stated rather than assert. Probe rather than read `id -u`: `CAP_DAC_OVERRIDE` without root, and a filesystem that drops the bit, behave the same way.
 
-**Silence logs.** Install a silent log sink in a setup file that every test level registers, so it runs before the tests. A test that checks a log record installs a collecting sink and puts the silent one back after it.
+**Silence logs.** A test that calls `compose` passes a silent log sink as an override. A test that checks a log record passes a collecting one instead. In TypeScript, a unit test that skips `compose` installs no sink, so its records drop.
 
 Performance tests run the real system under load (autocannon / k6) and must **fail when the NFR threshold is breached** — drive the endpoint the NFR names, not a cheap proxy.
 
