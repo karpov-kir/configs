@@ -22,7 +22,7 @@ A service's own folders — `env/`, `docker/` — live beside its source root (`
 
 ## Config
 
-The app reads its config from one typed object, never raw `os.Getenv` / `import.meta.env`. Build it at startup as a singleton.
+The app reads its config from one typed object, never raw `os.Getenv` / `import.meta.env`. Build it once at startup, in the composition root, and hand each feature the values it needs ([architecture/core.md](architecture/core.md) → **Composition root**).
 
 - Coerce to real types: numbers, booleans, the environment as an **enum** — not bare strings.
 - Define defaults inline; env vars only override them. **Provider selection is required when multiple providers are supported.** Reject missing, invalid or unavailable selections with a clear error before acting; never infer a provider or fall back to another.
@@ -65,6 +65,7 @@ A **released part** is what ships and deploys as one piece, with its own release
 - **Keep a `VERSION` file at the part's root only where no native field exists**, as in Go. Write one line `X.Y.Z` in it, and set no version through a constant or `-ldflags`. In Go, embed the file from a package at the part's root with `//go:embed`, trim its trailing newline, and pass the value down.
 - **Give a package inside a released part no version of its own.** Leave `version` out of the `package.json` of a web UI embedded in the server's image.
 - **Return the version from a service's `GET /health`**, as the JSON field `version`.
+- **A linter's release that fails code its last release passed is a new major**, an npm package's and a Go module's alike. A Go module from major 2 on carries the major in its path, as in `…/go-lint/v3`.
 - **Release in CI from that version and never compute a bump.** Tag `v<version>` when the repo has one released part, and `<part>-v<version>` when it has several.
 - **Skip the release when the tag already exists.** On the same commit, stop. On another commit, warn to raise the version and leave the job green.
 
