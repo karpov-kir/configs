@@ -1,5 +1,5 @@
 /**
- * Log levels (lower number = more verbose). `Silent` is highest, so it disables all output (e.g. in tests).
+ * Log levels (lower number = more verbose). `Silent` is highest, so it drops every record.
  */
 export enum LogLevel {
   Debug = 10,
@@ -9,149 +9,93 @@ export enum LogLevel {
   Silent = 100,
 }
 
-interface LoggerOptions {
-  logLevel?: LogLevel;
-  stringifyObjects?: boolean;
-  prefix?: string;
-}
+/** One thing a logger hands its sink: a line at a level, or the start or end of a group of lines. */
+export type LogRecord =
+  | { kind: 'line'; level: Exclude<LogLevel, LogLevel.Silent>; scope: readonly string[]; args: readonly unknown[] }
+  | { kind: 'group'; collapsed: boolean; scope: readonly string[]; label: string }
+  | { kind: 'groupEnd' };
 
-const isErrorLike = (object: unknown): object is { name: unknown; message: unknown; stack?: unknown } => {
-  return (
-    typeof object === 'object' &&
-    object !== null &&
-    'name' in object &&
-    'message' in object &&
-    typeof object.name === 'string' &&
-    typeof object.message === 'string'
-  );
-};
+/** Writes records out. Its implementations live in `infra`, the one layer that writes log output. */
+export type LogSink = (record: LogRecord) => void;
 
 /**
- * Level-based logging with optional scope labels.
+ * Level-based logging with scope labels, which writes nothing itself: it hands each record to the sink the composition
+ * root installs. Modules reach it directly:
  *
- * Use `Logger.root.scope('Label')` to create a child logger that automatically prepends
- * `[Label]` to every message. Scopes can be nested:
+ *   const logger = Logger.root.scope('Editor').scope('LOD');
+ *   logger.debug('foo'); // the sink gets { kind: 'line', level: Debug, scope: ['Editor', 'LOD'], args: ['foo'] }
  *
- *   const log = Logger.root.scope('Editor').scope('LOD');
- *   log.debug('foo'); // → [CS ...] [DEBUG] [Editor] [LOD] foo
- *
- * Level and stringify are app-global — one root drives the whole app — so `setLevel(...)`
- * on any scope affects every logger.
+ * The level and the sink are app-global: `Logger.install(sink, level)` sets both for every logger. A record written
+ * before that is dropped, so no module writes when it is imported.
  */
 export class Logger {
-  private static logLevel: LogLevel = LogLevel.Silent;
-  private static stringifyObjects = false;
+  private static sink: LogSink | undefined;
+  private static level: LogLevel = LogLevel.Silent;
+  // The groups the sink has opened, so a groupEnd reaches it only for a group it saw open.
+  private static openGroups = 0;
 
-  private readonly prefix: string;
+  /** The single app-wide logger. The constructor is private, so every logger derives from this one through `scope`. */
+  static readonly root = new Logger([]);
 
-  private constructor({ logLevel, stringifyObjects, prefix = '' }: LoggerOptions = {}) {
-    this.prefix = prefix;
-    if (logLevel !== undefined) {
-      Logger.logLevel = logLevel;
-    }
-    if (stringifyObjects !== undefined) {
-      Logger.stringifyObjects = stringifyObjects;
-    }
+  /** Sets the sink and the level for every logger. The composition root calls it on its first line. */
+  static install(sink: LogSink, level: LogLevel): void {
+    Logger.sink = sink;
+    Logger.level = level;
   }
 
-  /**
-   * The single app-wide logger. The constructor is private so no other root can be built — every log
-   * traces back to this instance. Derive labeled children with `scope()`.
-   */
-  static readonly root = new Logger({ logLevel: LogLevel.Info, stringifyObjects: true });
+  private constructor(private readonly labels: readonly string[]) {}
 
   scope(label: string): Logger {
-    const prefix = this.prefix ? `${this.prefix} [${label}]` : `[${label}]`;
-    return new Logger({ prefix });
-  }
-
-  private shouldLog(level: LogLevel): boolean {
-    return level >= Logger.logLevel;
-  }
-
-  private stringifyArg(arg: unknown): unknown {
-    if (!Logger.stringifyObjects) {
-      return arg;
-    }
-
-    if (arg === null || arg === undefined) {
-      return arg;
-    }
-
-    if (isErrorLike(arg)) {
-      return JSON.stringify({
-        name: arg.name,
-        message: arg.message,
-        stack: arg.stack,
-      });
-    }
-
-    if (typeof arg === 'object') {
-      try {
-        return JSON.stringify(
-          arg,
-          (_key, value: unknown) =>
-            isErrorLike(value) ? { name: value.name, message: value.message, stack: value.stack } : value,
-          2,
-        );
-      } catch {
-        return String(arg);
-      }
-    }
-
-    return arg;
-  }
-
-  private formatArgs({ level, args }: { level: string; args: unknown[] }): unknown[] {
-    const timestamp = new Date().toISOString().split('T')[1].split('Z')[0];
-    const prefixPart = this.prefix ? ` ${this.prefix}` : '';
-    const processedArgs = args.map((arg) => this.stringifyArg(arg));
-    return [`[CS ${timestamp}] [${level}]${prefixPart}`, ...processedArgs];
+    return new Logger([...this.labels, label]);
   }
 
   debug(...args: unknown[]): void {
-    if (this.shouldLog(LogLevel.Debug)) {
-      console.log(...this.formatArgs({ level: 'DEBUG', args }));
-    }
+    this.line(LogLevel.Debug, args);
   }
 
   info(...args: unknown[]): void {
-    if (this.shouldLog(LogLevel.Info)) {
-      console.log(...this.formatArgs({ level: 'INFO', args }));
-    }
+    this.line(LogLevel.Info, args);
   }
 
   warn(...args: unknown[]): void {
-    if (this.shouldLog(LogLevel.Warn)) {
-      console.warn(...this.formatArgs({ level: 'WARN', args }));
-    }
+    this.line(LogLevel.Warn, args);
   }
 
   error(...args: unknown[]): void {
-    if (this.shouldLog(LogLevel.Error)) {
-      console.error(...this.formatArgs({ level: 'ERROR', args }));
-    }
+    this.line(LogLevel.Error, args);
   }
 
   group(label: string): void {
-    if (this.shouldLog(LogLevel.Info)) {
-      console.group(label);
-    }
+    this.openGroup(false, label);
   }
 
   groupCollapsed(label: string): void {
-    if (this.shouldLog(LogLevel.Info)) {
-      console.groupCollapsed(label);
-    }
+    this.openGroup(true, label);
   }
 
   groupEnd(): void {
-    if (this.shouldLog(LogLevel.Info)) {
-      console.groupEnd();
+    if (Logger.sink !== undefined && Logger.openGroups > 0) {
+      Logger.openGroups--;
+      Logger.sink({ kind: 'groupEnd' });
     }
   }
 
-  setLevel(level: LogLevel): void {
-    Logger.logLevel = level;
+  private openGroup(collapsed: boolean, label: string): void {
+    if (this.emit(LogLevel.Info, { kind: 'group', collapsed, scope: this.labels, label })) {
+      Logger.openGroups++;
+    }
+  }
+
+  private line(level: Exclude<LogLevel, LogLevel.Silent>, args: unknown[]): void {
+    this.emit(level, { kind: 'line', level, scope: this.labels, args });
+  }
+
+  /** Hands a record at a level to the sink, and returns whether the sink got it. */
+  private emit(level: LogLevel, record: LogRecord): boolean {
+    if (Logger.sink === undefined || level < Logger.level) {
+      return false;
+    }
+    Logger.sink(record);
+    return true;
   }
 }

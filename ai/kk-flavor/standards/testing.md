@@ -39,12 +39,12 @@ One script per level, each with its own config file, matched by filename suffix:
 
 ## 3. The anti-mock toolkit
 
-Ports and the composition root are reused production patterns ([architecture/core.md](architecture/core.md)); the rest are test constructs.
+Ports and the composition root, `compose(overrides)`, are reused production patterns ([architecture/core.md](architecture/core.md)); the rest are test constructs.
 
 - **Ports** — substitute at the domain's boundary interfaces.
 - **Fakes** — a *working* in-memory implementation of a port, never a stub returning canned values. Give a fake its own test only where a bug in it could pass silently.
 - **Drivers** — an intent-level handle on an interface with no domain abstraction of its own (a UI, a rendered page, a raw protocol), wrapping queries, clicks and waits in domain-named methods.
-- **Composition root** — build the real graph, override only the edge under test; for a function-level seam, pass the fake as an option.
+- **Composition root** — call `compose(overrides)` to build the real graph, overriding only the edge under test; for a function-level seam, pass the fake as an option.
 - **Builders** — fluent test data with named-constant, deterministic defaults, so a test states **only what it cares about**. In-memory `build()` returns a domain object; a persisting one writes to a real store with unique keys per entity (§4).
 - **Object mothers** — canonical named instances built on builders, plus transforms between shapes. A mother gives *the* default case; a builder gives one that differs.
 - **Spies** — only to confirm an outward effect, never to stand in for the unit. Prefer asserting recorded state; spy only where no state reflects the effect, e.g. batching.
@@ -57,7 +57,7 @@ Tests on fakes need no provisioning and no isolation. Tests against real infrast
 
 **A fixture that denies access must not rest on a permission bit.** Root ignores mode bits, and CI runs as root often enough that `chmod 000` builds nothing there — the case then asserts against a file the process reads happily, and reports either a confusing red or a pass earned by something other than its name. Build the refusal so that no user bypasses it: a path that does not exist, a directory where a file is required, a dangling symlink, a path component that is not a directory. Where the behaviour under test *is* the readability check, none of those substitute — they are refused a limb earlier and never reach it. Probe whether the mode really denies this process, and skip with the reason stated rather than assert. Probe rather than read `id -u`: `CAP_DAC_OVERRIDE` without root, and a filesystem that drops the bit, behave the same way.
 
-**Silence logs.** Default the logger to its off level (`LogLevel.Silent`) in the global setup; raise it in a single test only when debugging needs the output.
+**Silence logs.** Install a silent log sink in a setup file that every test level registers, so it runs before the tests. A test that checks a log record installs a collecting sink and puts the silent one back after it.
 
 Performance tests run the real system under load (autocannon / k6) and must **fail when the NFR threshold is breached** — drive the endpoint the NFR names, not a cheap proxy.
 

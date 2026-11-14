@@ -20,26 +20,27 @@ orchestration/  one action built from 2+ features (a screen, a scenario, a comma
 features/       the app's capabilities, one module each
 entities/       business types and pure logic that 2+ features, orchestration or entities modules share
 shared/         code with no business meaning (logger, pub-sub, utilities)
-infra/          generic adapters to the outside (database, HTTP API, storage, messaging)
+infra/          generic adapters to the outside, shared by 2+ features (database, HTTP transport, storage, messaging, clock, random)
 ```
 
-A **module** is one folder directly under a layer, or one file directly under `shared`. Only `orchestration`, `features` and `entities` modules must be imported through their surface. The layers import one way only, so a change to an inner layer is the only one that reaches outward:
+A **module** is one folder directly under a layer, or one file directly under `shared` or `infra`. A module of `orchestration`, `features` or `entities`, or a `shared` folder, is imported only through its surface (**Module depth**). The layers import one way only, so a change to an inner layer is the only one that reaches outward:
 
 | Layer | Imports |
 |---|---|
 | `entrypoints` | every layer |
 | `orchestration` | `features`, `entities`, `shared` |
-| `features` | `entities`, `shared` |
+| `features` | `entities`, `shared`, and from a feature's `infra/` the root `infra` |
 | `entities` | other `entities` without cycles, `shared` |
 | `shared` | `shared` |
-| `infra` | other `infra`, `entities`, `shared` |
+| `infra` | other `infra`, `shared` |
 
-- **A feature is whole.** Its port, repository, types and helpers live in its folder. Test placement is [testing.md](../testing.md) → **Commands and file names**.
-- **A type and its logic live in the module that uses them.** They move to `entities` only once two or more `features`, `orchestration` or `entities` modules import them. An entity left with one such module moves into it. When that module is an orchestration module, which holds no logic, the entity moves into a feature it uses. An import from `entrypoints`, `infra` or a test does not count. An entrypoint takes the type from the feature's surface, and an adapter stays generic behind the feature's port. The direction guard checks this count.
+- **A feature is whole.** Its port, repository, types, helpers and own adapters live in its folder. Its port and the feature's own types the port names sit in one place, which the feature's code and its `infra/` both import (**By language** → Feature port). Test placement is [testing.md](../testing.md) → **Commands and file names**.
+- **A type and its logic live in the module that uses them.** They move to `entities` only once two or more `features`, `orchestration` or `entities` modules import them. An entity left with one such module moves into it. When that module is an orchestration module, which holds no logic, the entity moves into a feature it uses. An import from `entrypoints` or a test does not count, and one from a feature's `infra/` counts as that feature. An entrypoint takes the type from the feature's surface. The direction guard checks this count.
 - **A feature imports no other feature, and an orchestration module imports no other orchestration module.** Two features link through an orchestration module or an entrypoint. It passes one feature's callback to the other.
 - **An orchestration module holds no business logic of its own.** Review checks that, because the direction guard reads only imports. An orchestration module exists only where an action takes two or more features, and the direction guard checks that count. A single feature is mounted or started by its entrypoint directly.
 - **An entity depends on no UI or render framework.** Entities link to each other mostly by type and id. A rule that spans several entities belongs to a feature.
-- **Only entrypoints import `infra`.** An infra adapter knows no feature, so it stays generic: a key-value store, a media store, a message transport. The app's storage adapter (`infra/db`) holds the schema migrations and the row models. No ORM or driver type appears in its operations, transactions and joined read queries included. A feature declares its own port as the structural subset of the adapter it needs, and builds its repository over that port. Infra cannot see the feature, so the adapter cannot name the port it implements. The composition root passes the adapter in, and the compiler checks there that it fits.
+- **Outside the root `infra`, only entrypoints and a feature's `infra/` import it.** A root adapter knows only its protocol. Examples are a fetch wrapper with timeouts, retries and the authorization header, a database connection, a store, a message transport and the clock. An ORM's entity class, such as TypeORM's `@Entity`, is a row model. It lives in the root `infra` or a feature's `infra/`, and never in the `entities` layer. The app's storage adapter (`infra/db`) holds the connection, and `db:migrate` applies the schema migrations through it ([project.md](../project.md) → **Migrations**). No ORM or driver type appears in its operations, transactions and joined read queries included. A feature declares its own port, as the structural subset of a root adapter or in its own terms for an adapter in its `infra/`. The composition root passes the adapter in, and the compiler checks there that it fits.
+- **An adapter that knows one outside API or one feature's data lives in that feature's `infra/`.** A feature has an `infra/` only when it has such an adapter. A Semrush client is one. So is a client of the Chrome Web Store catalogue or a model provider. Such a client builds on the root HTTP transport. The feature's tables, row models and their migrations are another. The feature's `infra/` is its second surface. Only the composition root imports it. Of its feature, it imports only the port and the entities that port names. Beyond those, it imports the root `infra` and `shared`. Once a second feature needs the adapter, it moves to the root `infra/`. There it keeps no feature's types.
 - **No `pages` or `widgets` layer.** A block without logic or a business type goes to `shared`. One that renders an entity lives in the feature that shows it. A block with its own logic is a feature, and a block that assembles features is an orchestration module.
 - **A guard holds the direction in every language**, and CI fails on a cycle. **By language** names both.
 
@@ -56,11 +57,14 @@ The rules above and below name no language's layout. This table is where each la
 | Internal | what `exports.ts` leaves out | unexported names, and `internal/` for packages only their parent tree imports |
 | Library surface | `exports` in `package.json`, entry `"."` | the module's exported packages |
 | Test kit | `"./testing"` in the same `exports` | a `<package>_testing` package, since Go keeps the `_test` suffix for external test packages |
-| Composition root | `compositionRoot.ts`, `compose(overrides)` | `compose.go`, `Compose(overrides)`, in `entrypoints/<name>/` |
+| Composition root | `compose.ts` beside `start.ts` in `src/entrypoints/<name>/`, `compose(overrides)` | `compose.go` beside `start.go` in `entrypoints/<name>/`, `Compose(overrides)` |
 | Tests and their tooling | unit tests beside the code, the rest in `tests/` beside `src/` ([testing.md](../testing.md)) | `_test.go` beside the code |
+| Feature port | `features/<x>/port.ts`, or a `port/` folder | the package `features/<x>/port` |
+| Feature infra | `features/<x>/infra/` with its own `exports.ts` | the package `features/<x>/infra` and the packages under it |
 | Direction guard | `layers.json`, which the [.oxlintrc.json](../../templates/.oxlintrc.json) template turns on | the `layers` analyzer of go-lint, KK Forge's golangci-lint build, which also holds `cmd/` to `entrypoints/`, each `func main` to one call, and an HTTP server to `entrypoints/` |
 | Implicit names | `index.*`, forbidden by a rule in `typescript.json`, libraries included. A WXT extension extends `wxt.json`, where each entrypoint is a folder `entrypoints/<name>/` and its `index.ts` is the launcher. The `launcher` rule holds that file to one call. A script directly in `entrypoints/` fails. The linter reads no HTML, so review holds a WXT `index.html` to markup and the script tag that loads `./index.ts`, and rejects a flat `entrypoints/<name>.html`. | none. The launcher is `func main` in `cmd/<name>/`. |
 | Package, folder and file names | as [code-style.md](../code-style.md) → **Naming** spells them | a name of several words joins them with `_`, as in `convert_request/` and `convert_request_test.go`, never `convertrequest`. A package takes its folder's name, except `main`, the package at the module root, and an external test package, which adds `_test`. A `main` package's folder joins its words with `_` too, as `cmd/go_lint/`, since the Go tool names the command after it. Review holds this, because no linter can tell a joined name from a single word. |
+| Environment guard | the `environment` rule of `layers.json` fails `Date.now()`, `new Date()` without a value, `Date()`, `performance.now()`, `Math.random()`, `crypto.randomUUID()`, `crypto.getRandomValues()`, `process.env` and `import.meta.env` outside `infra`. `no-console` in `typescript.json` allows the console only in `infra`. A test is exempt. | outside `infra`, the `layers` analyzer fails `time.Now`, `time.Since`, `time.Until`, `os.Getenv`, `os.LookupEnv`, `os.Environ`, `os.ExpandEnv`, and an import of `math/rand`, `math/rand/v2` or `crypto/rand`. Outside `infra` and `entrypoints`, it fails `fmt.Print*`, the `log` package's output, `slog.New` and `slog`'s handlers. A feature may call `slog`'s package-level functions. A test and a test kit are exempt. |
 | Cycles | `import/no-cycle` in `typescript.json`, which the same template extends | the compiler |
 
 ## Horizontal decoupling
@@ -73,17 +77,37 @@ Business logic must not depend on infrastructure — a database, a broker, an HT
 
 A port is an interface at a boundary to external technology, declared by the domain in its own terms. It can also be a **minimal structural subset** of a large third-party type — declare only the methods you use.
 
-An adapter implements a port against one concrete technology. The core imports only the port; frameworks, SDKs, and platform APIs live in entrypoints and adapters, never in the core.
+An adapter implements a port against one concrete technology. The core imports only the port. Frameworks, SDKs and platform APIs live in entrypoints and adapters. What the program does not control lives in adapters alone (**Composition root**).
 
 ### Composition root
 
-Each entrypoint has one composition root: an assembly function that takes partial overrides and returns the handle. The overrides default to the real adapters — the seam a test or another runtime swaps one dependency through. It constructs the adapters and injects them into the features. Business and domain code never construct an infrastructure type. For a plain function, the equivalent seam is a dependency option defaulting to the real implementation.
+Each entrypoint has one composition root, the function `compose(overrides)`, in its own file beside `start` (**By language** → Composition root). `compose` takes partial overrides and returns the handle. The overrides default to the real adapters — the seam a test or another runtime swaps one dependency through. `compose` constructs the adapters and injects them into the features. `start` only binds the handle to its host and transport. A test calls `compose` with its overrides and leaves the host out. Business and domain code never construct an infrastructure type. For a plain function, the equivalent seam is a dependency option defaulting to the real implementation.
+
+- **A constructor or factory takes one object, `options: <Name>Options`**, its settings and its dependencies together. It keeps the dependencies in one field, `this.deps`, and each setting in a field of its own. The type of `deps` derives from the options type, and no line copies a dependency one by one. A factory function is `newX(options: XOptions)`. In Go the options are `type Options struct{…}`, holding the same settings and dependencies, and the constructor is `func New(o Options) *X`. `compose(overrides)` fills each dependency with the real adapter unless an override replaces it.
+
+  ```ts
+  type GenerationOptions = { retries: number; api: GenerationApi; clock: Clock };
+
+  class Generation {
+    private readonly retries: number;
+    private readonly deps: Pick<GenerationOptions, 'api' | 'clock'>;
+
+    constructor({ retries, ...deps }: GenerationOptions) {
+      this.retries = retries;
+      this.deps = deps;
+    }
+  }
+  ```
 
 - **Assembly is an explicit call to that function.** A side-effect import or a global service locator hides what was built from a test and a reader, so use neither.
-- **Three ambient dependencies skip injection**, because a test has no reason to swap them. Code reaches them directly, and they are the only globals:
+- **Two ambient dependencies skip injection.** A test replaces only their output. Code reaches them directly, and they are the only globals:
   - the logger (**Logging & events**);
-  - analytics events — `shared` holds a generic track function, and the composition root binds it to its sender. The event catalogue that types the function lives in the module that tracks, or in `entities/analytics` once two or more `features`, `orchestration` or `entities` modules track;
-  - `shared/config`, read-only (the platform, the build's flags).
+  - analytics events — `shared` holds a generic track function, and the composition root binds it to its sender. The event catalogue that types the function lives in the module that tracks, or in `entities/analytics` once two or more `features`, `orchestration` or `entities` modules track.
+
+**What the program does not control enters through infra**: I/O, the clock, random numbers and ids, the environment and log output. Only `infra` reads or writes them, a feature's `infra/` included, and entrypoints reach them through `infra` too. A Go entrypoint is the exception for its own output: it prints a CLI's result and sets the default `slog` logger. The guard bans the calls and leaves the types alone, so an entity may hold a `time.Time` or a `Date`. Logic takes the value as a parameter, as in `isExpired(token, now)`. Browser storage and `fetch` are I/O, and `location` and `navigator` are the environment, so only `infra` calls them too. A test is exempt, since it drives the clock and the environment itself. The command line is no environment: an entrypoint reads its arguments as its inbound edge, as a server reads a request.
+
+- **Of these primitives, `shared` holds only what they look like**: the `Clock` and `Random` or `IdGenerator` types, and the `Logger` class, which leaves the writing to `infra`. `infra` implements them, as in `systemClock`, `systemRandom` and the log sink in `infra/logger`. A port to an outside system — a database, an HTTP API, `chrome.*`, a vendor's API — is declared by the feature that needs it, as above.
+- **The environment has no interface.** `infra/env` reads it. The composition root parses it into one config with a schema (**Validation**) and hands each feature the values it needs.
 
 **Hand out domain handles — never a raw framework or vendor type.** The entrypoint calls the composition root and returns the handle. Its shape follows the app: `start()` / `stop()` plus `handle(request)` for a service, `mount()` / `unmount()` for a UI mount, `run(args)` for a CLI or batch job.
 
@@ -101,7 +125,7 @@ Ports and adapters are the **outbound** edge — tech the domain drives. **Entry
 
 A module's **interface** is everything a caller must learn to use it — its exports, their types, and the constraints only prose carries. Its **depth** is the functionality it hides divided by that interface. Deep is the goal, and depth is not size — **splitting a file is free, exporting the halves is not.**
 
-- **Publish one surface per module.** A module declares its boundary in one place: the handle, port, or facade a caller holds. Everything else is internal and nothing outside imports it. Never give it a name the tooling resolves implicitly (**Entrypoints**).
+- **Publish one surface per module.** A module declares its boundary in one place: the handle, port, or facade a caller holds. The two exceptions are a surface per runtime, below, and a feature's `infra/`, which the composition root alone imports (**App layers**). Everything else is internal and nothing outside imports it. Never give it a name the tooling resolves implicitly (**Entrypoints**).
 - **A module that runs in several runtimes adds one surface per runtime.** Each takes the name of an entrypoint folder. The entrypoint of that name imports it instead of the general surface, so one runtime's bundle never pulls in another's UI or framework. An orchestration module serving one runtime takes that runtime's surface too, which the direction guard does not check.
 - **A `shared` module is one file, or a folder of several files with its own surface.** A single file is its own surface.
 - **Capability added inside lands behind the surface already published.**
@@ -132,10 +156,33 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
 
 ## Logging & events
 
-**Logging is ambient.** A logger is reached directly, not threaded through constructors: nothing branches on it and no test asserts it. One root logger, scoped per module so each line carries its source, and the logger filters by level. Config sets that level once. Backend: a logging library (pino / winston — TS; structlog — Python). Frontend: the ready-to-go scoped logger in [Logger.ts](Logger.ts). The project vendors it as `src/shared/Logger.ts`, and `typescript.json` lets only that file call the console.
+**Logging is ambient, and its output is infra.** A module reaches the logger directly, as `Logger.root.scope(...)`. One root logger, scoped per module so each line carries its source, filters by level. The logger hands each record to a sink from `infra`, which the composition root installs on its first line, with the level from the config. In TypeScript a record written before that is lost. So no module writes a record at import time, and a test of the composition root checks that it installs the sink. This sequence is the exception to **No required sequences** (**Module depth**).
+
+- **TypeScript**: the project vendors [Logger.ts](Logger.ts) as `src/shared/Logger.ts` and the sink [consoleSink.ts](consoleSink.ts) as `src/infra/logger/consoleSink.ts`. A backend writes through `infra/logger/pinoSink` instead.
+
+  ```ts
+  // any module
+  const logger = Logger.root.scope('ApiClient');
+  logger.warn('Token refresh failed', error);
+
+  // the composition root, first line
+  Logger.install(newConsoleSink({ clock: systemClock }), config.logLevel);
+  ```
+
+- **Go**: `log/slog`, with no facade of the project's own. A feature calls `slog`, and the entrypoint sets the default logger, over a handler from `infra`, before it starts anything. Until then `slog` writes through the `log` package to standard error.
+
+  ```go
+  // entrypoints/server/start.go, first line
+  slog.SetDefault(slog.New(logger.NewHandler(config.LogLevel)))
+
+  // features/history, inside the factory, never in a package-level variable
+  logger := slog.With("feature", "history")
+  ```
+
+- **A package in `packages/` imports no app's logger.** It takes a logger as a parameter.
 
 **Domain events — injected like any port.** Notification goes through a typed pub-sub, fire-and-forget.
 
 - **Dynamic 1:N fan-out** — one source emitting to a subscriber set that varies at runtime — *is* pub-sub: use one even inside a single module and even at the first site, rather than hand-rolling a listener `Set` plus notify loop. Without that fan-out, a fixed 1:1 call inside a module is simpler.
 - **The owner hides it.** Hold it as a private `pubSub` field and expose one domain verb pair per channel: bound `onStateChanged`/`offStateChanged` fields typed `ChannelSubscriber<Payload>`. Consumers never import the pub-sub.
-- A ready-to-go typed `PubSub<ChannelMap>` ships in [PubSub.ts](PubSub.ts); **vendor the part you need** into the project's `shared`, adapt the `Logger` seam, and head it with a provenance line — source repo plus commit. Cross-process delivery, durability, retries, or asynchronous handlers need a real broker.
+- A ready-to-go typed `PubSub<ChannelMap>` ships in [PubSub.ts](PubSub.ts). **Vendor the part you need** into the project's `shared`, and head it with a provenance line: source repo plus commit. Point its `Logger` import at `shared/Logger.ts`, as the vendored `consoleSink.ts` does too. Cross-process delivery, durability, retries, or asynchronous handlers need a real broker.
