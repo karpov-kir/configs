@@ -294,7 +294,12 @@ source_stamp="$("$tools/source-stamp.sh" "$tool")" || source_stamp=""
 # let one exec what the other is half way through writing. The move stays in one directory, so atomic.
 staging="$tools/bin/.$tool.$$"
 # stdout is the path this prints and nothing else, so the build's own chatter goes to stderr.
-if ! (CDPATH= cd "$tools" && go build -o "$staging" "$package") >&2; then
+
+# GOROOT is unset for the build, so the `go` on PATH compiles with the standard library it shipped with.
+# A shell can export the GOROOT of another Go version, as mise's global go 1.27.4 does under a PATH that
+# leads with 1.27.3. That build fails every package with
+# `compile: version "go1.27.4" does not match go tool version "go1.27.3"`.
+if ! (unset GOROOT && CDPATH= cd "$tools" && go build -o "$staging" "$package") >&2; then
   rm -f "$staging"
   die "$tool did not build, so it did NOT run"
 fi

@@ -464,3 +464,16 @@ func TestEveryCommandRunsAtTheRoot(t *testing.T) {
 		t.Errorf("the check ran in %s, and the root is %s", said, physical)
 	}
 }
+
+// TestAGoRootFromTheShellNeverReachesACheck checks that the gate unsets GOROOT before it runs a check.
+// A shell can export the GOROOT of another Go version than the `go` on PATH. Under that GOROOT,
+// `go vet` and `go test` fail every package with a message such as
+// `compile: version "go1.27.4" does not match go tool version "go1.27.3"`.
+func TestAGoRootFromTheShellNeverReachesACheck(t *testing.T) {
+	t.Setenv("GOROOT", filepath.Join(t.TempDir(), "another-go"))
+	f := newFixture(t)
+	f.table("goroot\t" + `test -z "${GOROOT+set}" || { echo "GOROOT reached the check: $GOROOT"; exit 1; }`)
+
+	f.run()
+	f.expectCode(0)
+}
