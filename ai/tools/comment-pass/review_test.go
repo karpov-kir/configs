@@ -172,7 +172,7 @@ func TestADocCommentIsNeverRemoved(t *testing.T) {
 	if prompt := userPrompt("view.ts", lines, m, nil, 100, ""); !strings.Contains(prompt, "a doc comment that takes keep or rewrite") {
 		t.Fatalf("prompt:\n%s", prompt)
 	}
-	if _, err := parseReply("c1 remove: restates the name\nc2 remove: r\n", m); err == nil || !strings.Contains(err.Error(), "doc comment") {
+	if _, err := parseReply("c1 remove: restates the name\nc2 remove: r\n", m); err == nil || !strings.Contains(err.Error(), "c1 with remove") {
 		t.Fatalf("a removed doc comment parsed: %v", err)
 	}
 	if _, err := parseReply("c1 keep: r\nc2 remove: r\n", m); err != nil {
@@ -191,5 +191,72 @@ func TestABareBlockLineTakesItsStar(t *testing.T) {
 	got, err := parseReply("c1 rewrite: r\n/** Returns the body; a refusal throws\nthe server's text. */\n", m)
 	if err != nil || len(got) != 1 || strings.Join(got[0].text, "\n") != "/** Returns the body; a refusal throws\n* the server's text. */" {
 		t.Fatalf("%v %q", err, got)
+	}
+}
+
+// A comment over the bound of lines is never kept as it is. The call says it takes rewrite or remove, a
+// reply that keeps it refuses the file, and a run that cuts it prints the text it had.
+func TestALongCommentIsNotKept(t *testing.T) {
+	long := "// One.\n// Two.\n// Three.\n// Four.\n// Five.\n"
+	dir, base := repository(t, "ledger.ts", long+"export function post(): void {}\n", long+"export function post(): number {\n  return 1;\n}\n")
+	calls := 0
+	code, text := run(t, dir, base, "c1 keep: every fact matters\n", &calls)
+	if code != 1 || !strings.Contains(text, "c1 with keep") {
+		t.Fatalf("a kept long comment passed, exit %d:\n%s", code, text)
+	}
+	lines := strings.Split(long+"export function post(): number {", "\n")
+	if prompt := userPrompt("ledger.ts", lines, findMaterial("ledger.ts", lines, map[int]bool{6: true}), nil, 100, ""); !strings.Contains(prompt, "takes rewrite or remove") {
+		t.Fatalf("prompt:\n%s", prompt)
+	}
+	code, text = run(t, dir, base, "c1 rewrite: r\n// Posts one entry.\n", &calls)
+	if code != 0 || !strings.Contains(text, "was cut. It read:\n// One.") {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+}
+
+// A long comment given back in the same words stays a rewrite, and the gate refuses it.
+func TestALongCommentInTheSameWordsIsRefused(t *testing.T) {
+	long := "// One.\n// Two.\n// Three.\n// Four.\n// Five.\n"
+	dir, base := repository(t, "ledger.ts", long+"export function post(): void {}\n", long+"export function post(): number {\n  return 1;\n}\n")
+	calls := 0
+	code, text := run(t, dir, base, "c1 rewrite: r\n"+long, &calls)
+	if code != 1 || !strings.Contains(text, "over 4") {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+}
+
+// A comment written in a Go file is `//` lines, and a doc comment opens on the declared name, an
+// article allowed.
+func TestAGoDocOpensOnItsName(t *testing.T) {
+	lines := []string{"package ledger", "", "// Writes the entry.", "func (l *Ledger) Post() {}", "", "type Book struct{}"}
+	m := findMaterial("ledger.go", lines, map[int]bool{4: true, 6: true})
+	for _, tc := range []struct {
+		text []string
+		id   string
+		want string
+	}{
+		{[]string{"/** Post writes the entry. */"}, "c1", "opens on /*"},
+		{[]string{"// Writes the entry."}, "c1", "opens on the name Post"},
+		{[]string{"// Post writes the entry."}, "c1", ""},
+		{[]string{"// A Book holds entries."}, "p1", ""},
+		{[]string{"// Holds entries."}, "p1", "opens on the name Book"},
+	} {
+		found := strings.Join(gateFindings(m, []decision{{id: tc.id, verb: "rewrite", text: tc.text}}, noWidth), "\n")
+		if tc.want == "" && found != "" || tc.want != "" && !strings.Contains(found, tc.want) {
+			t.Errorf("%q: %q", tc.text, found)
+		}
+	}
+}
+
+// A comment on a local in a Go body is no doc comment: the pass may remove it, and a rewrite need not open
+// on the local's name.
+func TestAGoLocalTakesNoDoc(t *testing.T) {
+	lines := []string{"package ledger", "", "func Post() {", "\t// Count only the open ones.", "\tvar n int", "\t_ = n", "}"}
+	m := findMaterial("ledger.go", lines, map[int]bool{4: true, 5: true})
+	if len(m.candidates) != 1 || m.candidates[0].isDoc {
+		t.Fatalf("candidates: %+v", m.candidates)
+	}
+	if found := gateFindings(m, []decision{{id: "c1", verb: "rewrite", text: []string{"\t// Counts the open ones."}}}, noWidth); len(found) != 0 {
+		t.Fatalf("a local's comment refused: %q", found)
 	}
 }

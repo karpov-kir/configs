@@ -32,21 +32,13 @@ func gateFindings(m material, decisions []decision, width int) []string {
 		if d.verb != "rewrite" && d.verb != "add" {
 			continue
 		}
+		limit := blockLimit(d.id == headerID)
 		for _, part := range commentParts(d.text) {
-			limit := maxBlockLines
-			if d.id == headerID {
-				limit = maxHeaderLines
-			}
-			prose := 0
-			for _, line := range part {
-				if commentBody(line) != "" {
-					prose++
-				}
-			}
-			if prose > limit {
+			if prose := proseLines(part); prose > limit {
 				out = append(out, fmt.Sprintf("%s: %d prose lines in one block, over %d:\n%s", d.id, prose, limit, strings.Join(part, "\n")))
 			}
 		}
+		out = append(out, goFindings(m, d)...)
 		for _, line := range d.text {
 			body := commentBody(line)
 			if width != noWidth && placedColumns(line)+indentWidth(m, d.id) > width {
@@ -58,6 +50,82 @@ func gateFindings(m material, decisions []decision, width int) []string {
 		}
 	}
 	return out
+}
+
+// reGoDecl is a top-level Go declaration of one name: a function or method, or one type, var or const.
+// Its first group or second is the name. gofmt sets a top-level declaration at column 0, so an indented
+// one is a local in a body, which takes no doc comment.
+var reGoDecl = regexp.MustCompile(`^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)|^(?:type|var|const)\s+([A-Za-z_]\w*)\b`)
+
+// goFindings is how a comment written in a Go file breaks Go's form. Go comments are `//` lines, and
+// a doc comment opens on the declared name, optionally after an article, since godoc and gopls read it so.
+func goFindings(m material, d decision) []string {
+	if !m.goFile {
+		return nil
+	}
+	var out []string
+	for _, line := range d.text {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "/*") {
+			out = append(out, fmt.Sprintf("%s: a Go comment opens on /*, where Go writes //: %s", d.id, line))
+			break
+		}
+	}
+	decl := 0
+	for _, c := range m.candidates {
+		if c.id == d.id && c.isDoc {
+			decl = c.decl
+		}
+	}
+	for _, p := range m.places {
+		if p.id == d.id {
+			decl = p.line
+		}
+	}
+	if decl == 0 || decl > len(m.code) || len(d.text) == 0 {
+		return out
+	}
+	match := reGoDecl.FindStringSubmatch(m.code[decl-1])
+	if match == nil {
+		return out
+	}
+	name := match[1] + match[2]
+	words := strings.Fields(commentBody(d.text[0]))
+	if len(words) > 1 && (words[0] == "A" || words[0] == "An" || words[0] == "The") {
+		words = words[1:]
+	}
+	if len(words) == 0 || strings.TrimRight(words[0], ".,:;") != name {
+		out = append(out, fmt.Sprintf("%s: a Go doc comment opens on the name %s: %s", d.id, name, d.text[0]))
+	}
+	return out
+}
+
+// blockLimit is how many prose lines one block may hold: a file header's or any other comment's.
+func blockLimit(isHeader bool) int {
+	if isHeader {
+		return maxHeaderLines
+	}
+	return maxBlockLines
+}
+
+// proseLines counts the lines of a block that carry words.
+func proseLines(part []string) int {
+	n := 0
+	for _, line := range part {
+		if commentBody(line) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// overBound says a block of the comment holds more prose lines than its limit.
+func overBound(text []string, isHeader bool) bool {
+	for _, part := range commentParts(text) {
+		if proseLines(part) > blockLimit(isHeader) {
+			return true
+		}
+	}
+	return false
 }
 
 // commentParts splits a written comment into its blocks: each run of line comments, and each `/* */`

@@ -27,8 +27,13 @@ func userPrompt(path string, lines []string, m material, notes []string, width i
 			on = fmt.Sprintf("line %d: %s", c.decl, strings.TrimSpace(lines[c.decl-1]))
 		}
 		kind := ""
-		if c.isDoc {
+		switch {
+		case c.isDoc && c.isLong:
+			kind = ", a doc comment over the bound of lines that takes rewrite"
+		case c.isDoc:
 			kind = ", a doc comment that takes keep or rewrite"
+		case c.isLong:
+			kind = ", over the bound of lines, so it takes rewrite or remove"
 		}
 		fmt.Fprintf(&b, "%s  the comment on lines %d-%d, which sits on %s (%s%s)\n", c.id, c.first, c.last, on, bound(c.id), kind)
 	}
@@ -61,12 +66,11 @@ Reply with one line per id above, and nothing else:
   <id> rewrite: <reason>
   <id> add: <reason>
   <id> skip: <reason>
-c ids take keep, remove or rewrite, and a doc comment's id takes keep or rewrite; p ids take add or
-skip. After a rewrite or an add line, give the comment's lines in this file's comment syntax, without
+c ids take keep, remove or rewrite, less what their line above withholds; p ids take add or skip. After a rewrite or an add line, give the comment's lines in this file's comment syntax, without
 indentation, and then the next id line. Give no code, no fence and no other text.
 
 A rewrite changes what the comment says. Keep a comment whose words already follow the page, whatever
-its line breaks.
+its line breaks. Rewrite a comment over the bound of lines down to the fact that decides its line.
 `
 
 // decision is one id's answer.
@@ -82,15 +86,14 @@ var reDecision = regexp.MustCompile(`^([cp]\d+) (keep|remove|rewrite|add|skip): 
 // parseReply reads the model's reply against the material. Every id is answered once with a verb its
 // kind takes, and a writing verb carries text. A reply of another shape refuses the file.
 func parseReply(reply string, m material) ([]decision, error) {
-	want := map[string]string{}
+	// takes is the verbs each id may take: a place adds or skips, a doc comment is never removed, and a
+	// comment over the bound of lines is never kept.
+	takes := map[string]map[string]bool{}
 	for _, c := range m.candidates {
-		want[c.id] = "c"
-		if c.isDoc {
-			want[c.id] = "doc"
-		}
+		takes[c.id] = map[string]bool{"keep": !c.isLong, "remove": !c.isDoc, "rewrite": true}
 	}
 	for _, p := range m.places {
-		want[p.id] = "p"
+		takes[p.id] = map[string]bool{"add": true, "skip": true}
 	}
 	var out []decision
 	seen := map[string]bool{}
@@ -98,16 +101,20 @@ func parseReply(reply string, m material) ([]decision, error) {
 		line := strings.TrimRight(raw, " \t\r")
 		if d := reDecision.FindStringSubmatch(strings.TrimSpace(line)); d != nil {
 			id, verb := d[1], d[2]
-			kind, ok := want[id]
+			verbs, ok := takes[id]
 			switch {
 			case !ok:
 				return nil, fmt.Errorf("the reply answers %s, which the call did not offer", id)
 			case seen[id]:
 				return nil, fmt.Errorf("the reply answers %s twice", id)
-			case kind != "p" && (verb == "add" || verb == "skip"), kind == "p" && (verb == "keep" || verb == "remove" || verb == "rewrite"):
-				return nil, fmt.Errorf("the reply answers %s with %s, which a %s id does not take", id, verb, kind)
-			case kind == "doc" && verb == "remove":
-				return nil, fmt.Errorf("the reply removes %s, a doc comment, which takes keep or rewrite", id)
+			case !verbs[verb]:
+				var taken []string
+				for _, v := range []string{"keep", "remove", "rewrite", "add", "skip"} {
+					if verbs[v] {
+						taken = append(taken, v)
+					}
+				}
+				return nil, fmt.Errorf("the reply answers %s with %s, which %s does not take: it takes %s", id, verb, id, strings.Join(taken, " or "))
 			}
 			seen[id] = true
 			out = append(out, decision{id: id, verb: verb, reason: d[3]})
@@ -137,7 +144,7 @@ func parseReply(reply string, m material) ([]decision, error) {
 		}
 		last.text = append(last.text, line)
 	}
-	for id := range want {
+	for id := range takes {
 		if !seen[id] {
 			return nil, fmt.Errorf("the reply leaves %s unanswered", id)
 		}

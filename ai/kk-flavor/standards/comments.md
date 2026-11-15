@@ -10,7 +10,7 @@ A comment is one of two kinds.
 
 Inside a body, a comment earns its place only where an outside fact decides that line. Remove a comment that restates the name, the signature or the body. Remove one that points to a test as its evidence, walks through the code line by line, or tells the story of the change. Keep a comment only when it already follows every rule on this page, and rewrite every other one.
 
-A rewrite keeps every fact the comment gives from outside the code. Such a fact is a reason, how a device or a server behaves, a past failure, or a decision the comment points to. The rewrite cuts only what the code already says. Where those facts need more lines than this page allows, leave the comment as it is.
+A rewrite keeps every fact the comment gives from outside the code. Such a fact is a reason, how a device or a server behaves, a past failure, or a decision the comment points to. The rewrite cuts only what the code already says. Where a comment holds more facts than its bound of lines carries, keep the fact that decides its line and cut the rest. An explanation longer than that belongs in the document that owns it, and the comment names that document's path.
 
 Write each comment so it is understood from itself and its line alone:
 - Write in the style of ASD-STE100, about 80% of the way: short sentences, one idea each, active voice, plain words. Write each sentence to be read once.

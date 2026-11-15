@@ -24,6 +24,9 @@ type candidate struct {
 	// isDoc marks a doc comment on its declaration: a `/**` block, in Go a `//` block, in Rust a `///`
 	// block, with no blank line between it and the declaration. Editors and generated docs show it.
 	isDoc bool
+	// isLong marks a comment with a block over the gate's bound of lines. The pass may not keep it as
+	// it is: a long explanation goes to the document that owns it, and the comment keeps its point.
+	isLong bool
 }
 
 // place is a declaration the change added or changed that carries no comment.
@@ -38,6 +41,8 @@ type material struct {
 	places     []place
 	// indents is the width, in columns, of the indent each id's comment takes.
 	indents map[string]int
+	// goFile marks a Go file, whose comments are `//` lines and whose doc comment opens on its name.
+	goFile bool
 	// hashComments marks a file whose comments open on `#`, where every other file's open on `//` or `/*`.
 	hashComments bool
 	// lifetimes marks a file whose single quotes open no string, as Rust's lifetimes.
@@ -128,7 +133,8 @@ var reUnitTest = regexp.MustCompile(`\.(?:test|spec)\.[a-z]+$|_test\.go$`)
 // findMaterial returns the comment blocks and the uncommented declarations that the change touched.
 // For a unit test's file it returns the comment blocks only.
 func findMaterial(path string, lines []string, changed map[int]bool) material {
-	m := material{indents: map[string]int{}, hashComments: hashCommented(path), lifetimes: familyOf(path) == familyRs}
+	m := material{indents: map[string]int{}, hashComments: hashCommented(path), lifetimes: familyOf(path) == familyRs,
+		goFile: familyOf(path) == familyGo}
 	m.code, m.unclosed = codeView(lines, path)
 	commented := map[int]bool{}
 	for n, u := range commentBlocks(m.code, path) {
@@ -149,7 +155,8 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 		m.indents["c"+strconv.Itoa(n+1)] = columns(indentOf(lines, u.Line))
 		header := isFileHeader(lines, u.Line, last, decl, path)
 		m.candidates = append(m.candidates, candidate{id: "c" + strconv.Itoa(n+1), first: u.Line, last: last,
-			decl: decl, text: block, isHeader: header, isDoc: !header && isDocBlock(path, lines, u.Line, last, decl)})
+			decl: decl, text: block, isHeader: header, isDoc: !header && isDocBlock(path, lines, u.Line, last, decl),
+			isLong: overBound(lines[u.Line-1:last], header)})
 	}
 	n := 0
 	if reUnitTest.MatchString(path) {
@@ -179,7 +186,12 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 // isDocBlock says the block from first to last is a doc comment on the declaration at decl: the
 // declaration follows it with no blank line, and the block opens the way the language writes a doc.
 func isDocBlock(path string, lines []string, first, last, decl int) bool {
-	if decl == 0 || !reDeclaration.MatchString(lines[decl-1]) || notDeclaration.MatchString(lines[decl-1]) || reLocal.MatchString(lines[decl-1]) {
+	if decl == 0 {
+		return false
+	}
+	// A Go method opens on its receiver, which the shared pattern does not read as a declaration.
+	isGoDecl := familyOf(path) == familyGo && reGoDecl.MatchString(lines[decl-1])
+	if !isGoDecl && (!reDeclaration.MatchString(lines[decl-1]) || notDeclaration.MatchString(lines[decl-1]) || reLocal.MatchString(lines[decl-1])) {
 		return false
 	}
 	for n := last + 1; n < decl; n++ {

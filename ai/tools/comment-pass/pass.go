@@ -211,6 +211,17 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if err := os.WriteFile(filepath.Join(top, path), []byte(out), 0o644); err != nil {
 			return refuse("cannot write %s", path)
 		}
+		// The author sees what a long comment lost, and moves it to the document that owns it where it
+		// still matters.
+		cut := map[string]bool{}
+		for _, d := range decisions {
+			cut[d.id] = d.verb == "rewrite" || d.verb == "remove"
+		}
+		for _, c := range m.candidates {
+			if c.isLong && cut[c.id] {
+				fmt.Fprintf(stdout, "%s: %s on lines %d-%d was over the bound of lines and was cut. It read:\n%s\n", path, c.id, c.first, c.last, c.text)
+			}
+		}
 	}
 	if !list {
 		// A failed file is one the gate refused, whose reply did not parse, whose call failed, or which

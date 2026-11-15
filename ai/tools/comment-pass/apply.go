@@ -96,16 +96,17 @@ func aboveDecorators(lines []string, line int, hash bool) int {
 
 // unchangedAsKept turns a rewrite that says the same words in the same comment form into a keep. A
 // rewrite that only breaks the lines at other columns changes nothing a reader gets, and writing it
-// would put a diff on every line of a comment the change never meant to touch.
+// would put a diff on every line of a comment the change never meant to touch. A comment over the
+// bound of lines stays a rewrite, so the gate refuses the same words given back.
 func unchangedAsKept(m material, decisions []decision) []decision {
-	text := map[string]string{}
+	byID := map[string]candidate{}
 	for _, c := range m.candidates {
-		text[c.id] = c.text
+		byID[c.id] = c
 	}
 	out := make([]decision, len(decisions))
 	for i, d := range decisions {
 		out[i] = d
-		if d.verb == "rewrite" && sameComment(strings.Split(text[d.id], "\n"), d.text) {
+		if c := byID[d.id]; d.verb == "rewrite" && !c.isLong && sameComment(strings.Split(c.text, "\n"), d.text) {
 			out[i].verb, out[i].text = "keep", nil
 		}
 	}
