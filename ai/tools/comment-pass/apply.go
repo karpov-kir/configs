@@ -93,3 +93,47 @@ func aboveDecorators(lines []string, line int, hash bool) int {
 	}
 	return line
 }
+
+// unchangedAsKept turns a rewrite that says the same words in the same comment form into a keep. A
+// rewrite that only breaks the lines at other columns changes nothing a reader gets, and writing it
+// would put a diff on every line of a comment the change never meant to touch. A comment over the
+// bound of lines stays a rewrite, so the gate refuses the same words given back.
+func unchangedAsKept(m material, decisions []decision) []decision {
+	byID := map[string]candidate{}
+	for _, c := range m.candidates {
+		byID[c.id] = c
+	}
+	out := make([]decision, len(decisions))
+	for i, d := range decisions {
+		out[i] = d
+		if c := byID[d.id]; d.verb == "rewrite" && !c.isLong && sameComment(strings.Split(c.text, "\n"), d.text) {
+			out[i].verb, out[i].text = "keep", nil
+		}
+	}
+	return out
+}
+
+// sameComment reports whether two comments carry the same words and open on the same marker.
+// A doc block and a plain block differ, and so do `///` and `//`. Line breaks do not count.
+func sameComment(was, now []string) bool {
+	form := func(lines []string) string {
+		if len(lines) == 0 {
+			return ""
+		}
+		trimmed := strings.TrimLeft(lines[0], " \t")
+		for _, open := range []string{"/**", "/*", "///", "//", "#"} {
+			if strings.HasPrefix(trimmed, open) {
+				return open
+			}
+		}
+		return ""
+	}
+	words := func(lines []string) string {
+		var all []string
+		for _, line := range lines {
+			all = append(all, strings.Fields(commentBody(line))...)
+		}
+		return strings.Join(all, " ")
+	}
+	return form(was) == form(now) && words(was) == words(now)
+}

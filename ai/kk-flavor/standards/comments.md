@@ -10,6 +10,8 @@ A comment is one of two kinds.
 
 Inside a body, a comment earns its place only where an outside fact decides that line. Remove a comment that restates the name, the signature or the body. Remove one that points to a test as its evidence, walks through the code line by line, or tells the story of the change. Keep a comment only when it already follows every rule on this page, and rewrite every other one.
 
+A rewrite keeps every fact the comment gives from outside the code. Such a fact is a reason, how a device or a server behaves, a past failure, or a decision the comment points to. The rewrite cuts only what the code already says. Where a comment holds more facts than its bound of lines carries, keep the fact that decides its line and cut the rest. An explanation longer than that belongs in the document that owns it, and the comment names that document's path.
+
 Write each comment so it is understood from itself and its line alone:
 - Write in the style of ASD-STE100, about 80% of the way: short sentences, one idea each, active voice, plain words. Write each sentence to be read once.
 - Use the words of the domain and the code. Coin no term.
@@ -21,6 +23,6 @@ Write each comment so it is understood from itself and its line alone:
 - Keep a comment to at most four lines, and a file header to at most eight.
 - Say in a file header what the file is and how to run it. Leave roles, steps, names and formats to the code.
 
-A summary of any declaration goes in a doc block (`/** */`), where editors and generated docs show it. The declaration can be a function, a type, a member or a value, and its summary says what it returns, takes or means. A summary may carry the fact behind it and stays a doc block. A line comment (`//`, `#`) is only for a comment about the surrounding code, such as why one value is paired with another, even on an exported declaration.
+A summary of any declaration goes in the language's doc comment, where editors and generated docs show it. That is a `/** */` block, `///` in Rust, and in Go the `//` lines that touch the declaration. A Go doc comment opens on the declaration's name, as godoc reads it. The declaration can be a function, a type, a member or a value, and its summary says what it returns, takes or means. A summary may carry the fact behind it and stays a doc comment. Never remove a doc comment on a declaration: rewrite one that restates the name, so it says what the name leaves unsaid. Elsewhere a line comment (`//`, `#`) is only for a comment about the surrounding code, such as why one value is paired with another, even on an exported declaration.
 
 A comment sits on the declaration it is about. Siblings, such as enum members or table rows, take one form.

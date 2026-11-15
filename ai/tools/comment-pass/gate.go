@@ -1,35 +1,25 @@
 package commentpass
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
-	"time"
 )
 
-// The gate checks what takes no judgement. A line fits the repository's print width. Each block of a
-// written comment is bounded on its own, a run of line comments or a doc block alike: at most four prose
-// lines, and a file header at most eight. A note above a summary is two blocks, the shape the page asks
-// of a declaration that needs both. A comment holds no markdown. The edit leaves every code line as it
-// was. A comment that fails the gate fails the pass, with its text shown, and the file is left as it
-// was. A line past the width is wrapped before the gate reads it.
+// The gate bounds each block of a written comment on its own: four prose lines, eight for a file
+// header. A note above a summary counts as two blocks, the shape the page asks of a declaration
+// that needs both. A comment that fails fails the pass with its text shown, and the file is left
+// as it was. The pass wraps a line past the width before the gate reads it.
 const (
 	maxBlockLines  = 4
 	maxHeaderLines = 8
-	// defaultWidth is prettier's own default, for a repository that sets none.
-	defaultWidth = 80
 )
 
 // reMarkdown is bold or a heading. A list marker is left alone: "- 1 is returned" reads as prose.
 var reMarkdown = regexp.MustCompile(`(?:^|\s)\*\*[^*\s][^*]*[^*\s]\*\*(?:\s|$|[.,;:])|^#{1,6}\s+\S`)
 
-// gateFindings is each way the written comments fail the gate, by the comment's id.
+// gateFindings returns one finding for each failure of a rewritten or added comment, each led by
+// the comment's id. A width of `noWidth` skips the width check.
 func gateFindings(m material, decisions []decision, width int) []string {
 	headerID := ""
 	for _, c := range m.candidates {
@@ -42,24 +32,16 @@ func gateFindings(m material, decisions []decision, width int) []string {
 		if d.verb != "rewrite" && d.verb != "add" {
 			continue
 		}
+		limit := blockLimit(d.id == headerID)
 		for _, part := range commentParts(d.text) {
-			limit := maxBlockLines
-			if d.id == headerID {
-				limit = maxHeaderLines
-			}
-			prose := 0
-			for _, line := range part {
-				if commentBody(line) != "" {
-					prose++
-				}
-			}
-			if prose > limit {
+			if prose := proseLines(part); prose > limit {
 				out = append(out, fmt.Sprintf("%s: %d prose lines in one block, over %d:\n%s", d.id, prose, limit, strings.Join(part, "\n")))
 			}
 		}
+		out = append(out, goFindings(m, d)...)
 		for _, line := range d.text {
 			body := commentBody(line)
-			if placedColumns(line)+indentWidth(m, d.id) > width {
+			if width != noWidth && placedColumns(line)+indentWidth(m, d.id) > width {
 				out = append(out, fmt.Sprintf("%s: a line is wider than %d: %s", d.id, width, line))
 			}
 			if reMarkdown.MatchString(body) {
@@ -68,6 +50,88 @@ func gateFindings(m material, decisions []decision, width int) []string {
 		}
 	}
 	return out
+}
+
+// reGoDecl is a top-level Go declaration of one name: a function or method, or one type, var or const.
+// Its first group or second is the name. gofmt sets a top-level declaration at column 0, so an indented
+// one is a local in a body, which takes no doc comment.
+var reGoDecl = regexp.MustCompile(`^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)|^(?:type|var|const)\s+([A-Za-z_]\w*)\b`)
+
+// goFindings returns a finding for each way a comment written in a Go file breaks Go's form. Go
+// comments are `//` lines, and a doc comment opens on the declared name, optionally after an article,
+// since godoc and gopls read it so.
+func goFindings(m material, d decision) []string {
+	if !m.goFile {
+		return nil
+	}
+	var out []string
+	for _, line := range d.text {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "/*") {
+			out = append(out, fmt.Sprintf("%s: a Go comment opens on /*, where Go writes //: %s", d.id, line))
+			break
+		}
+	}
+	decl := 0
+	for _, c := range m.candidates {
+		if c.id == d.id && c.isDoc {
+			decl = c.decl
+		}
+	}
+	for _, p := range m.places {
+		if p.id == d.id {
+			decl = p.line
+		}
+	}
+	if decl == 0 || decl > len(m.code) || len(d.text) == 0 {
+		return out
+	}
+	match := reGoDecl.FindStringSubmatch(m.code[decl-1])
+	if match == nil {
+		return out
+	}
+	name := match[1] + match[2]
+	// The blank identifier declares no name, so godoc shows no doc for it and nothing can open on it.
+	if name == "_" {
+		return out
+	}
+	words := strings.Fields(commentBody(d.text[0]))
+	if len(words) > 1 && (words[0] == "A" || words[0] == "An" || words[0] == "The") {
+		words = words[1:]
+	}
+	if len(words) == 0 || strings.TrimRight(words[0], ".,:;") != name {
+		out = append(out, fmt.Sprintf("%s: a Go doc comment opens on the name %s: %s", d.id, name, d.text[0]))
+	}
+	return out
+}
+
+// blockLimit returns the most prose lines one block may hold: the file header's bound when isHeader
+// is set, and every other comment's bound otherwise.
+func blockLimit(isHeader bool) int {
+	if isHeader {
+		return maxHeaderLines
+	}
+	return maxBlockLines
+}
+
+// proseLines counts the lines of a block that carry words.
+func proseLines(part []string) int {
+	n := 0
+	for _, line := range part {
+		if commentBody(line) != "" {
+			n++
+		}
+	}
+	return n
+}
+
+// overBound says a block of the comment holds more prose lines than its limit.
+func overBound(text []string, isHeader bool) bool {
+	for _, part := range commentParts(text) {
+		if proseLines(part) > blockLimit(isHeader) {
+			return true
+		}
+	}
+	return false
 }
 
 // commentParts splits a written comment into its blocks: each run of line comments, and each `/* */`
@@ -185,48 +249,6 @@ func commentBody(line string) string {
 	return strings.TrimSpace(strings.TrimSuffix(body, "*/"))
 }
 
-// printWidth is the width the repository's prettier resolves. A config can take its width from a
-// shared package it requires, which no file here spells, so the repository's own prettier is asked
-// first. Where node or prettier is missing, the config files are read, and prettier's default stands
-// where they set none.
-func printWidth(root string) int {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "node", "-e",
-		"require('prettier').resolveConfig(process.argv[1]).then(c=>console.log((c&&c.printWidth)||''))",
-		filepath.Join(root, "package.json"))
-	cmd.Dir = root
-	if out, err := cmd.Output(); err == nil {
-		if width, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && width > 0 {
-			return width
-		}
-	}
-	for _, name := range []string{".prettierrc", ".prettierrc.json"} {
-		body, err := os.ReadFile(filepath.Join(root, name))
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			PrintWidth int `json:"printWidth"`
-		}
-		if json.Unmarshal(body, &cfg) == nil && cfg.PrintWidth > 0 {
-			return cfg.PrintWidth
-		}
-	}
-	body, err := os.ReadFile(filepath.Join(root, "package.json"))
-	if err == nil {
-		var pkg struct {
-			Prettier struct {
-				PrintWidth int `json:"printWidth"`
-			} `json:"prettier"`
-		}
-		if json.Unmarshal(body, &pkg) == nil && pkg.Prettier.PrintWidth > 0 {
-			return pkg.Prettier.PrintWidth
-		}
-	}
-	return defaultWidth
-}
-
 // tabColumns is how wide a tab is read.
 const tabColumns = 4
 
@@ -241,17 +263,4 @@ func columns(line string) int {
 		n++
 	}
 	return n
-}
-
-// otherWidth bounds a line in a file prettier does not format.
-const otherWidth = 100
-
-// widthFor is the width a file's lines print within: the repository's prettier width for a file
-// prettier formats, and otherWidth for the rest.
-func widthFor(path string, prettier int) int {
-	switch filepath.Ext(path) {
-	case ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs":
-		return prettier
-	}
-	return otherWidth
 }

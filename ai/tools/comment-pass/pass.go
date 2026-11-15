@@ -100,7 +100,6 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		stateHome = filepath.Join(home, ".local", "state")
 	}
 	repoKey := repositoryKey(top)
-	width := printWidth(top)
 	changedByFile, err := changedLines(top, base)
 	if err != nil {
 		return refuse("%v", err)
@@ -145,11 +144,12 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			}
 			continue
 		}
+		width := fileWidth(top, path)
 		callers := callersSection(top, path, lines, m)
-		prompt := userPrompt(path, lines, m, notes[path], widthFor(path, width), callers)
-		// The key reads the callers' code, not their comments: a comment rewritten in another file asks no
-		// file again, and a change in how a caller uses the file does.
-		key := inputKey(string(page), userPrompt(path, lines, m, notes[path], widthFor(path, width), callersCode(callers)), model)
+		prompt := userPrompt(path, lines, m, notes[path], width, callers)
+		// The cache key hashes the callers' code and not their comments. The pass then asks the model again
+		// when a caller uses the file in a new way, but not when another file only rewrites a caller's comment.
+		key := inputKey(string(page), userPrompt(path, lines, m, notes[path], width, callersCode(callers)), model)
 		store := cachePath(stateHome, repoKey, path)
 		reply, source := "", "kept"
 		if !ask {
@@ -183,9 +183,9 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 				fmt.Fprintf(stderr, "%s: cannot keep the reply for %s: %v\n", self, path, err)
 			}
 		}
-		decisions = rewrap(m, decisions, widthFor(path, width))
+		decisions = rewrap(m, unchangedAsKept(m, decisions), width)
 		applied := applyDecisions(lines, m, decisions)
-		found := append(gateFindings(m, decisions, widthFor(path, width)), codeChanges(lines, applied, path)...)
+		found := append(gateFindings(m, decisions, width), codeChanges(lines, applied, path)...)
 		if len(found) > 0 {
 			failed++
 			fmt.Fprintf(stdout, "%s: the gate refused the file, which is left as it was. Its reply is kept, and a rerun "+
@@ -210,6 +210,17 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		}
 		if err := os.WriteFile(filepath.Join(top, path), []byte(out), 0o644); err != nil {
 			return refuse("cannot write %s", path)
+		}
+		// The pass prints each long comment it cut. The author can then move what still matters to the
+		// document that owns it.
+		cut := map[string]bool{}
+		for _, d := range decisions {
+			cut[d.id] = d.verb == "rewrite" || d.verb == "remove"
+		}
+		for _, c := range m.candidates {
+			if c.isLong && cut[c.id] {
+				fmt.Fprintf(stdout, "%s: %s on lines %d-%d was over the bound of lines and was cut. It read:\n%s\n", path, c.id, c.first, c.last, c.text)
+			}
 		}
 	}
 	if !list {
