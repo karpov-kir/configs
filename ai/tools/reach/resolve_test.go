@@ -481,3 +481,29 @@ func modified(t *testing.T, path string) time.Time {
 	}
 	return info.ModTime()
 }
+
+// goRootSensitiveToolchain is a fake go that compiles nothing while GOROOT is set from outside.
+// Real Go fails the same way when GOROOT belongs to another version:
+// `compile: version "go1.27.4" does not match go tool version "go1.27.3"`.
+const goRootSensitiveToolchain = `#!/bin/sh
+if [ -n "${GOROOT+set}" ]; then
+  echo "fake toolchain: compile: version of $GOROOT does not match go tool version" >&2
+  exit 1
+fi
+` + "exec \"$(dirname \"$0\")/go-build\" \"$@\"\n"
+
+// TestABuildIgnoresAGoRootExportedForAnotherGoVersion checks that resolve.sh still builds under a
+// foreign GOROOT. A shell can export the GOROOT of one Go version while PATH leads with another,
+// and then every tool a stub reaches refuses to build. The fixture's go fails under any inherited
+// GOROOT, so a build that keeps it exits 2 here.
+func TestABuildIgnoresAGoRootExportedForAnotherGoVersion(t *testing.T) {
+	t.Parallel()
+	sandbox := runtest.Sandbox(t)
+	tools := newToolsDir(t, sandbox, "foreign-goroot")
+	path := newBuildPath(t, sandbox, "with-go", goRootSensitiveToolchain)
+	runtest.WriteFile(t, filepath.Join(path, "go-build"), fakeToolchain, 0o755)
+
+	command := newLaunch(t, filepath.Join(tools, "resolve.sh"), path, tool)
+	command.Env = append(command.Env, "GOROOT="+filepath.Join(sandbox, "another-go"))
+	expectServed(t, runtest.Launch(t, command), filepath.Join(tools, "bin", tool))
+}
