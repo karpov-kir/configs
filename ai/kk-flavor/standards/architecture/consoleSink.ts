@@ -1,6 +1,9 @@
 import { LogLevel, type LogRecord, type LogSink } from './Logger';
 
-/** The clock the sink stamps each line with. The vendored copy imports the app's `Clock` from `shared` in its place. */
+/**
+ * The clock the sink stamps each line with. The vendored copy imports the app's `Clock` from `shared`, or from the
+ * package that holds it, in its place.
+ */
 interface Clock {
   now(): Date;
 }
