@@ -83,11 +83,10 @@ type decision struct {
 
 var reDecision = regexp.MustCompile(`^([cp]\d+) (keep|remove|rewrite|add|skip): (.+)$`)
 
-// parseReply reads the model's reply against the material. Every id is answered once with a verb its
-// kind takes, and a writing verb carries text. A reply of another shape refuses the file.
+// parseReply reads the model's reply into one decision per id in the material. It returns an error
+// unless the reply answers each id once, with a verb that id's kind takes, and gives each rewrite and
+// add its comment text. On that error the caller refuses the file.
 func parseReply(reply string, m material) ([]decision, error) {
-	// takes is the verbs each id may take: a place adds or skips, a doc comment is never removed, and a
-	// comment over the bound of lines is never kept.
 	takes := map[string]map[string]bool{}
 	for _, c := range m.candidates {
 		takes[c.id] = map[string]bool{"keep": !c.isLong, "remove": !c.isDoc, "rewrite": true}

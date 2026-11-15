@@ -194,8 +194,9 @@ func TestABareBlockLineTakesItsStar(t *testing.T) {
 	}
 }
 
-// A comment over the bound of lines is never kept as it is. The call says it takes rewrite or remove, a
-// reply that keeps it refuses the file, and a run that cuts it prints the text it had.
+// TestALongCommentIsNotKept checks that a comment over the bound of lines is never kept as it is:
+// the call says it takes rewrite or remove, a reply that keeps it refuses the file, and a run that
+// cuts it prints the text it had.
 func TestALongCommentIsNotKept(t *testing.T) {
 	long := "// One.\n// Two.\n// Three.\n// Four.\n// Five.\n"
 	dir, base := repository(t, "ledger.ts", long+"export function post(): void {}\n", long+"export function post(): number {\n  return 1;\n}\n")
@@ -214,7 +215,8 @@ func TestALongCommentIsNotKept(t *testing.T) {
 	}
 }
 
-// A long comment given back in the same words stays a rewrite, and the gate refuses it.
+// TestALongCommentInTheSameWordsIsRefused checks that a long comment given back in the same words
+// stays a rewrite, and that the gate refuses it.
 func TestALongCommentInTheSameWordsIsRefused(t *testing.T) {
 	long := "// One.\n// Two.\n// Three.\n// Four.\n// Five.\n"
 	dir, base := repository(t, "ledger.ts", long+"export function post(): void {}\n", long+"export function post(): number {\n  return 1;\n}\n")
@@ -225,8 +227,8 @@ func TestALongCommentInTheSameWordsIsRefused(t *testing.T) {
 	}
 }
 
-// A comment written in a Go file is `//` lines, and a doc comment opens on the declared name, an
-// article allowed.
+// TestAGoDocOpensOnItsName checks that a comment written in a Go file is `//` lines, and that a doc
+// comment opens on the declared name, an article allowed.
 func TestAGoDocOpensOnItsName(t *testing.T) {
 	lines := []string{"package ledger", "", "// Writes the entry.", "func (l *Ledger) Post() {}", "", "type Book struct{}"}
 	m := findMaterial("ledger.go", lines, map[int]bool{4: true, 6: true})
@@ -248,8 +250,8 @@ func TestAGoDocOpensOnItsName(t *testing.T) {
 	}
 }
 
-// A comment on a local in a Go body is no doc comment: the pass may remove it, and a rewrite need not open
-// on the local's name.
+// TestAGoLocalTakesNoDoc checks that a comment on a local in a Go body is no doc comment: the pass
+// may remove it, and a rewrite need not open on the local's name.
 func TestAGoLocalTakesNoDoc(t *testing.T) {
 	lines := []string{"package ledger", "", "func Post() {", "\t// Count only the open ones.", "\tvar n int", "\t_ = n", "}"}
 	m := findMaterial("ledger.go", lines, map[int]bool{4: true, 5: true})

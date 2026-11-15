@@ -57,8 +57,9 @@ func gateFindings(m material, decisions []decision, width int) []string {
 // one is a local in a body, which takes no doc comment.
 var reGoDecl = regexp.MustCompile(`^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)|^(?:type|var|const)\s+([A-Za-z_]\w*)\b`)
 
-// goFindings is how a comment written in a Go file breaks Go's form. Go comments are `//` lines, and
-// a doc comment opens on the declared name, optionally after an article, since godoc and gopls read it so.
+// goFindings returns a finding for each way a comment written in a Go file breaks Go's form. Go
+// comments are `//` lines, and a doc comment opens on the declared name, optionally after an article,
+// since godoc and gopls read it so.
 func goFindings(m material, d decision) []string {
 	if !m.goFile {
 		return nil
@@ -99,7 +100,8 @@ func goFindings(m material, d decision) []string {
 	return out
 }
 
-// blockLimit is how many prose lines one block may hold: a file header's or any other comment's.
+// blockLimit returns the most prose lines one block may hold: the file header's bound when isHeader
+// is set, and every other comment's bound otherwise.
 func blockLimit(isHeader bool) int {
 	if isHeader {
 		return maxHeaderLines

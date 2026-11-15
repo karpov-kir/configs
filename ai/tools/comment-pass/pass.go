@@ -211,8 +211,8 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		if err := os.WriteFile(filepath.Join(top, path), []byte(out), 0o644); err != nil {
 			return refuse("cannot write %s", path)
 		}
-		// The author sees what a long comment lost, and moves it to the document that owns it where it
-		// still matters.
+		// The pass prints each long comment it cut. The author can then move what still matters to the
+		// document that owns it.
 		cut := map[string]bool{}
 		for _, d := range decisions {
 			cut[d.id] = d.verb == "rewrite" || d.verb == "remove"
