@@ -112,8 +112,8 @@ func unchangedAsKept(m material, decisions []decision) []decision {
 	return out
 }
 
-// sameComment says two comments carry the same words in the same form: both doc or plain blocks, or
-// both line comments.
+// sameComment reports whether two comments carry the same words and open on the same marker.
+// A doc block and a plain block differ, and so do `///` and `//`. Line breaks do not count.
 func sameComment(was, now []string) bool {
 	form := func(lines []string) string {
 		if len(lines) == 0 {

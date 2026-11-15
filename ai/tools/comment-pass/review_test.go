@@ -124,8 +124,8 @@ func TestTheGateReadsMarkdownAndTabsAsTheyPrint(t *testing.T) {
 	}
 }
 
-// A rewrite that says the same words in the same form only breaks lines elsewhere. The pass keeps the
-// comment, and the file stays as it was.
+// TestARewriteThatOnlyRewrapsIsKept checks that a rewrite with the same words in the same form, with
+// only its line breaks moved, keeps the comment and leaves the file as it was.
 func TestARewriteThatOnlyRewrapsIsKept(t *testing.T) {
 	dir, base := fixture(t)
 	calls := 0
@@ -137,8 +137,8 @@ func TestARewriteThatOnlyRewrapsIsKept(t *testing.T) {
 	}
 }
 
-// Code the change only moved to another file offers none of its comments. Code it changed where it
-// moved to does.
+// TestMovedCodeOffersNoComment checks that code the change only moved to another file offers none of
+// its comments, and that code the change edited where it moved to does.
 func TestMovedCodeOffersNoComment(t *testing.T) {
 	post := "// Posts entries.\nexport function post(): void {\n  write();\n}\n"
 	dir, rev := repository(t, "ledger.ts", post+"\nexport const A = 1;\n", "export const A = 1;\n")
@@ -159,8 +159,9 @@ func TestMovedCodeOffersNoComment(t *testing.T) {
 	}
 }
 
-// A doc comment on its declaration is rewritten or kept, never removed: the call says so, and a reply
-// that removes one refuses the file. A line comment a blank line parts from its declaration is no doc.
+// TestADocCommentIsNeverRemoved checks that a doc comment on its declaration is rewritten or kept,
+// never removed: the call says so, and a reply that removes one refuses the file. It also checks that
+// a line comment a blank line parts from its declaration is no doc.
 func TestADocCommentIsNeverRemoved(t *testing.T) {
 	lines := []string{"/** Mounts the requests screen. */", "const show = (): void => mount();", "",
 		"// The book closes at midnight.", "", "export const CLOSE = 0;"}
@@ -183,7 +184,8 @@ func TestADocCommentIsNeverRemoved(t *testing.T) {
 	}
 }
 
-// A block line a reply leaves without its `*` takes the marker, so it prints inside the block.
+// TestABareBlockLineTakesItsStar checks that a block line a reply leaves without its `*` takes the
+// marker, so the line prints inside the block.
 func TestABareBlockLineTakesItsStar(t *testing.T) {
 	m := material{candidates: []candidate{{id: "c1"}}, indents: map[string]int{}}
 	got, err := parseReply("c1 rewrite: r\n/** Returns the body; a refusal throws\nthe server's text. */\n", m)

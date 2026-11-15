@@ -169,8 +169,8 @@ func starred(text []string) []string {
 		if open && !strings.HasPrefix(trimmed, "*") {
 			out[i] = "* " + trimmed
 		}
-		if !open && strings.HasPrefix(trimmed, "/*") {
-			open = !strings.Contains(trimmed[2:], "*/")
+		if !open {
+			open = opensStar(trimmed)
 		} else if strings.Contains(trimmed, "*/") {
 			open = false
 		}

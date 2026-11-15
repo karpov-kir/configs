@@ -20,7 +20,8 @@ func tree(t *testing.T, files map[string]string) string {
 	return root
 }
 
-// Each file takes the width its own formatter prints, read where that formatter reads it.
+// TestTheWidthIsTheFormattersOwn checks that each file takes the width its own formatter prints,
+// read where that formatter reads it.
 func TestTheWidthIsTheFormattersOwn(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
@@ -47,13 +48,13 @@ func TestTheWidthIsTheFormattersOwn(t *testing.T) {
 		{"a rustfmt config", map[string]string{"rustfmt.toml": "edition = \"2021\"\nmax_width = 120 # wide\n"}, "src/a.rs", 120},
 	} {
 		root := tree(t, tc.files)
-		if got := newWidths(root).of(tc.path); got != tc.want {
+		if got := fileWidth(root, tc.path); got != tc.want {
 			t.Errorf("%s: %s takes %d, want %d", tc.name, tc.path, got, tc.want)
 		}
 	}
 }
 
-// The EditorConfig globs match the way the format defines them.
+// TestEditorconfigGlobs checks that EditorConfig globs match the way the format defines them.
 func TestEditorconfigGlobs(t *testing.T) {
 	for _, tc := range []struct {
 		glob, path string
@@ -76,7 +77,8 @@ func TestEditorconfigGlobs(t *testing.T) {
 	}
 }
 
-// A file nothing bounds keeps a long line as written, and the gate passes it.
+// TestAFileNothingBoundsWrapsNothing checks that a file nothing bounds keeps a long line as written,
+// and that the gate passes it.
 func TestAFileNothingBoundsWrapsNothing(t *testing.T) {
 	long := "// " + strings.TrimSpace(strings.Repeat("posts the entry ", 14))
 	m := material{candidates: []candidate{{id: "c1"}}, indents: map[string]int{"c1": 0}}
@@ -88,5 +90,15 @@ func TestAFileNothingBoundsWrapsNothing(t *testing.T) {
 		map[int]bool{2: true}), nil, noWidth, ""); !strings.Contains(prompt, "(no column bound") ||
 		!strings.Contains(prompt, "formatter sets no width") {
 		t.Fatalf("prompt:\n%s", prompt)
+	}
+}
+
+// TestFilesInOneDirectoryTakeTheirOwnWidths checks that two files in one directory each take their own
+// width where an .editorconfig section names one of them.
+func TestFilesInOneDirectoryTakeTheirOwnWidths(t *testing.T) {
+	root := tree(t, map[string]string{
+		".editorconfig": "root = true\n[*.go]\nmax_line_length = 100\n[*_test.go]\nmax_line_length = 140\n"})
+	if a, b := fileWidth(root, "pkg/a.go"), fileWidth(root, "pkg/a_test.go"); a != 100 || b != 140 {
+		t.Fatalf("a.go takes %d and a_test.go %d, want 100 and 140", a, b)
 	}
 }

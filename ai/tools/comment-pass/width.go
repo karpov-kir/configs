@@ -13,11 +13,9 @@ import (
 	"time"
 )
 
-// A comment line may be as wide as the formatter that formats its file prints code. The width comes
-// from the formatter's own configuration, read the way that formatter reads it, so a rewritten comment
-// sits within the lines around it. A file whose formatter sets no width, as gofmt, takes the
-// `.editorconfig` `max_line_length` where one is set, and otherwise no bound: the pass then wraps none
-// of its lines.
+// A comment line may be as wide as its file's formatter prints code, read from that formatter's own
+// configuration, so a rewritten comment fits the lines around it. A file whose formatter sets no
+// width, as with gofmt, takes the `.editorconfig` `max_line_length`, and otherwise has no bound.
 
 // noWidth is the width of a file nothing bounds.
 const noWidth = 0
@@ -31,68 +29,59 @@ const (
 	rustfmtWidth = 100
 )
 
-// widths resolves each file's width once per directory.
-type widths struct {
-	root  string
-	cache map[string]int
-}
-
-func newWidths(root string) *widths { return &widths{root: root, cache: map[string]int{}} }
-
-// of is the width a file's lines print within, or noWidth.
-func (w *widths) of(path string) int {
-	dir := filepath.Dir(filepath.Join(w.root, path))
-	key := string(familyOf(path)) + "\x00" + dir
-	if width, ok := w.cache[key]; ok {
-		return width
-	}
-	width := w.resolve(path, dir)
-	w.cache[key] = width
-	return width
-}
-
-func (w *widths) resolve(path, dir string) int {
-	abs := filepath.Join(w.root, path)
+// fileWidth is the width a file's lines print within, or noWidth. The path is relative to root.
+func fileWidth(root, path string) int {
+	abs := filepath.Join(root, path)
+	dir := filepath.Dir(abs)
 	switch familyOf(path) {
 	case familyJs:
-		switch formatter, at := jsFormatter(w.root, dir); formatter {
-		case "oxfmt":
+		switch kind, at := jsFormatter(root, dir); kind {
+		case formatterOxfmt:
 			if width := oxfmtConfigWidth(at); width > 0 {
 				return width
 			}
 			// oxfmt reads `max_line_length` from `.editorconfig` where its own config sets no width.
-			if width := editorconfigWidth(w.root, abs); width > 0 {
+			if width := editorconfigWidth(root, abs); width > 0 {
 				return width
 			}
 			return oxfmtWidth
-		case "prettier":
-			return prettierConfigWidth(w.root, abs, at)
+		case formatterPrettier:
+			return prettierConfigWidth(root, abs, at)
 		}
 	case familyRs:
-		if width := rustfmtConfigWidth(w.root, dir); width > 0 {
+		if width := rustfmtConfigWidth(root, dir); width > 0 {
 			return width
 		}
 		return rustfmtWidth
 	}
-	if width := editorconfigWidth(w.root, abs); width > 0 {
+	if width := editorconfigWidth(root, abs); width > 0 {
 		return width
 	}
 	return noWidth
 }
 
+// formatter names the formatter that formats a script file, or formatterNone where no directory declares one.
+type formatter string
+
+const (
+	formatterNone     formatter = ""
+	formatterOxfmt    formatter = "oxfmt"
+	formatterPrettier formatter = "prettier"
+)
+
 // jsFormatter names the formatter of a script file and the directory that declares it. The nearest
 // directory from the file up to the root that holds a formatter's config file, or a package.json that
 // lists one, decides.
-func jsFormatter(root, dir string) (string, string) {
-	for at := dir; ; at = filepath.Dir(at) {
+func jsFormatter(root, dir string) (formatter, string) {
+	for _, at := range dirsUp(root, dir) {
 		for _, name := range []string{".oxfmtrc.json", ".oxfmtrc.jsonc"} {
 			if isFile(filepath.Join(at, name)) {
-				return "oxfmt", at
+				return formatterOxfmt, at
 			}
 		}
 		for _, name := range prettierFiles {
 			if isFile(filepath.Join(at, name)) {
-				return "prettier", at
+				return formatterPrettier, at
 			}
 		}
 		if body, err := os.ReadFile(filepath.Join(at, "package.json")); err == nil {
@@ -109,16 +98,25 @@ func jsFormatter(root, dir string) (string, string) {
 				}
 				switch {
 				case len(pkg.Prettier) > 0:
-					return "prettier", at
+					return formatterPrettier, at
 				case lists("oxfmt"):
-					return "oxfmt", at
+					return formatterOxfmt, at
 				case lists("prettier"):
-					return "prettier", at
+					return formatterPrettier, at
 				}
 			}
 		}
+	}
+	return formatterNone, ""
+}
+
+// dirsUp lists dir and each directory above it, nearest first, up to and including root.
+func dirsUp(root, dir string) []string {
+	var dirs []string
+	for at := dir; ; at = filepath.Dir(at) {
+		dirs = append(dirs, at)
 		if at == root || filepath.Dir(at) == at || !strings.HasPrefix(at, root) {
-			return "", ""
+			return dirs
 		}
 	}
 }
@@ -147,8 +145,8 @@ func oxfmtConfigWidth(dir string) int {
 
 // prettierConfigWidth is the width the repository's prettier resolves for the file. A config can take
 // its width from a shared package it requires, which no file here spells, so the repository's own
-// prettier is asked first. Where node or prettier is missing, the config's JSON is read, and prettier's
-// default stands where it sets none.
+// prettier is asked first. Where node or prettier is missing, the config's JSON is read, then the
+// `.editorconfig` `max_line_length`, and prettier's default stands where neither sets a width.
 func prettierConfigWidth(root, file, dir string) int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -192,16 +190,14 @@ func prettierConfigWidth(root, file, dir string) int {
 // rustfmtConfigWidth is the `max_width` the nearest rustfmt config sets, or 0. rustfmt reads the
 // nearest `rustfmt.toml` or `.rustfmt.toml` from the file's directory up.
 func rustfmtConfigWidth(root, dir string) int {
-	for at := dir; ; at = filepath.Dir(at) {
+	for _, at := range dirsUp(root, dir) {
 		for _, name := range []string{"rustfmt.toml", ".rustfmt.toml"} {
 			if body, err := os.ReadFile(filepath.Join(at, name)); err == nil {
 				return tomlTopInt(body, "max_width")
 			}
 		}
-		if at == root || filepath.Dir(at) == at || !strings.HasPrefix(at, root) {
-			return 0
-		}
 	}
+	return 0
 }
 
 var reTomlInt = regexp.MustCompile(`^([A-Za-z0-9_-]+)\s*=\s*(\d+)\s*(?:#.*)?$`)
@@ -225,16 +221,8 @@ func tomlTopInt(body []byte, key string) int {
 // from the file's directory up to the one marked `root = true` or the repository's root, and a nearer
 // file's section, or a later section in one file, wins.
 func editorconfigWidth(root, file string) int {
-	var dirs []string
-	for at := filepath.Dir(file); ; at = filepath.Dir(at) {
-		dirs = append(dirs, at)
-		if at == root || filepath.Dir(at) == at || !strings.HasPrefix(at, root) {
-			break
-		}
-	}
 	width, set := 0, false
-	// The nearest file is read first, and a value it sets stands over every file above it.
-	for _, dir := range dirs {
+	for _, dir := range dirsUp(root, filepath.Dir(file)) {
 		body, err := os.ReadFile(filepath.Join(dir, ".editorconfig"))
 		if err != nil {
 			continue
@@ -391,7 +379,6 @@ func jsonc(body []byte) []byte {
 			}
 			i += end + 3
 		case c == ',':
-			// A comma followed only by blanks and comments before a closing bracket is a trailing one.
 			if next := significant(body, i+1); next < len(body) && (body[next] == '}' || body[next] == ']') {
 				continue
 			}

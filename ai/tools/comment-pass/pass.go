@@ -100,7 +100,6 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 		stateHome = filepath.Join(home, ".local", "state")
 	}
 	repoKey := repositoryKey(top)
-	widths := newWidths(top)
 	changedByFile, err := changedLines(top, base)
 	if err != nil {
 		return refuse("%v", err)
@@ -145,11 +144,11 @@ func Run(self string, args []string, cwd string, lookup func(string) (string, bo
 			}
 			continue
 		}
-		width := widths.of(path)
+		width := fileWidth(top, path)
 		callers := callersSection(top, path, lines, m)
 		prompt := userPrompt(path, lines, m, notes[path], width, callers)
-		// The key reads the callers' code, not their comments: a comment rewritten in another file asks no
-		// file again, and a change in how a caller uses the file does.
+		// The cache key hashes the callers' code and not their comments. The pass then asks the model again
+		// when a caller uses the file in a new way, but not when another file only rewrites a caller's comment.
 		key := inputKey(string(page), userPrompt(path, lines, m, notes[path], width, callersCode(callers)), model)
 		store := cachePath(stateHome, repoKey, path)
 		reply, source := "", "kept"

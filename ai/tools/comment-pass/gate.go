@@ -6,13 +6,10 @@ import (
 	"strings"
 )
 
-// The gate checks what takes no judgement. A line fits the width its file's formatter prints. Each block of a
-// written comment is bounded on its own, a run of line comments or a doc block alike: at most four prose
-// lines, and a file header at most eight. A note above a summary is two blocks, the shape the page asks
-// of a declaration that needs both. A comment holds no markdown. The edit leaves every code line as it
-// was. A comment that fails the gate fails the pass, with its text shown, and the file is left as it
-// was. A line past the width is wrapped before the gate reads it, and a file nothing bounds has no width
-// to check.
+// The gate bounds each block of a written comment on its own: four prose lines, eight for a file
+// header. A note above a summary counts as two blocks, the shape the page asks of a declaration
+// that needs both. A comment that fails fails the pass with its text shown, and the file is left
+// as it was. The pass wraps a line past the width before the gate reads it.
 const (
 	maxBlockLines  = 4
 	maxHeaderLines = 8
@@ -21,7 +18,8 @@ const (
 // reMarkdown is bold or a heading. A list marker is left alone: "- 1 is returned" reads as prose.
 var reMarkdown = regexp.MustCompile(`(?:^|\s)\*\*[^*\s][^*]*[^*\s]\*\*(?:\s|$|[.,;:])|^#{1,6}\s+\S`)
 
-// gateFindings is each way the written comments fail the gate, by the comment's id.
+// gateFindings returns one finding for each failure of a rewritten or added comment, each led by
+// the comment's id. A width of `noWidth` skips the width check.
 func gateFindings(m material, decisions []decision, width int) []string {
 	headerID := ""
 	for _, c := range m.candidates {
