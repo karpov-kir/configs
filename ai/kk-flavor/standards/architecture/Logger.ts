@@ -38,8 +38,9 @@ export class Logger {
   static readonly root = new Logger([]);
 
   /**
-   * Sets the sink and the level for every logger. The composition root calls it right after it reads the environment,
-   * with the sink `LOG_FORMAT` names, and again once the config parses.
+   * Sets the sink and the level for every logger. The composition root calls it before anything logs. An app with one
+   * sink calls it first, before it reads the environment. An app with a sink per `LOG_FORMAT` calls it
+   * after that read, with the sink `LOG_FORMAT` names. Both call it again once the config parses.
    */
   static install(sink: LogSink, level: LogLevel): void {
     Logger.sink = sink;

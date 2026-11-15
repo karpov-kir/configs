@@ -187,11 +187,11 @@ backend         : entrypoint's HTTP controller → orchestration (2+ features) �
 
 The inbound boundary checks **structure** — types, ranges, required fields — and rejects malformed input before deeper logic runs. A message from another runtime of the same app crosses an inbound boundary too. Inner layers check **semantics** — state-dependent rules no schema expresses (sufficient balance, the record exists).
 
-Validate structure with a **declarative schema** — zod / valibot (TS), pydantic (Python) — never an unchecked cast or a hand-rolled `typeof`/`in` chain. One schema is the single authority: parse once into a typed value or a rejection, derive the static type from it, and delegate every format check to it. In Go, `compose` parses the config with `github.com/caarlos0/env/v11`, from the variables `infra/env` read, which it passes as `env.Options{Environment: vars}`. Struct tags mark a variable required or give its default. A custom type brings its own parser, and each error is wrapped with the variable's name.
+Validate structure with a **declarative schema** — zod / valibot (TS), pydantic (Python) — never an unchecked cast or a hand-rolled `typeof`/`in` chain. One schema is the single authority: parse once into a typed value or a rejection, derive the static type from it, and delegate every format check to it. In Go, `Compose` parses the config with `github.com/caarlos0/env/v11`, from the variables `infra/env` read, which it passes as `env.Options{Environment: vars}`. Struct tags mark a variable required or give its default. A default other code reads too is a constant instead, which `Compose` sets the field to before the parse (**Logging & events**). A custom type brings its own parser, and each error is wrapped with the variable's name.
 
 ## Logging & events
 
-**Logging is ambient, and its output is infra.** A module reaches the logger directly, as `Logger.root.scope(...)`. One root logger, scoped per module so each line carries its source, filters by level. The logger hands each record to a sink from `infra`. The sink is a `compose` override, so a test passes a silent one. The app's `infra/logger` holds one sink per `LOG_FORMAT`, `pretty` and `json`, except a sink a package holds, and `newLogSink(format, options)` builds the sink a format names. `compose` reads the environment once, through `infra/env`. It first installs the sink `LOG_FORMAT` names, at the default level, parsing that one value with the config's own schema field. An unknown value installs the pretty sink, and the config's parse then rejects it. Only this read parses a value with a schema field before the config does, and it leaves the rejection to that parse. `compose` then parses the whole config and installs the sink again at the config's level. A config that fails to parse is logged through the first sink, so a `json` log stays `json`, its config error included. In TypeScript a record written before the first install is lost. So no module writes a record at import time, and a test of the composition root checks that it installs the sink. This sequence is the exception to **No required sequences** (**Module depth**).
+**Logging is ambient, and its output is infra.** A module reaches the logger directly, as `Logger.root.scope(...)`. One root logger, scoped per module so each line carries its source, filters by level. The logger hands each record to a sink from `infra`. The sink is a `compose` override, so a test passes a silent one. The app's `infra/logger` holds one sink per `LOG_FORMAT`, `pretty` and `json`, except a sink a package holds, and `newLogSink(format, options)` builds the sink a format names. `compose` reads the environment once, through `infra/env`. `infra/env` writes no record. It returns what it found, such as the file it read, and `compose` logs that after the first install. `compose` first installs the sink `LOG_FORMAT` names, at the default level, parsing that one value with the config's own schema field. An unknown value installs the pretty sink, and the config's parse then rejects it. Only this read parses a value with a schema field before the config does, and it leaves the rejection to that parse. `compose` then parses the whole config and installs the sink again at the config's level. A config that fails to parse is logged through the first sink, so a `json` log stays `json`, its config error included. In TypeScript a record written before the first install is lost. So no module writes a record at import time, and a test of the composition root checks that it installs the sink. Some apps have one sink and no `LOG_FORMAT`, such as a web app or a browser extension. Such an app installs its sink at the default level first in `compose`, together with the interface strings' source, before it reads the environment. This sequence is the exception to **No required sequences** (**Module depth**).
 
 - **TypeScript**: the project vendors [Logger.ts](Logger.ts) as `src/shared/Logger.ts` and the sink [consoleSink.ts](consoleSink.ts) as `src/infra/logger/consoleSink.ts`. Where two or more apps of a repository log, both go once into `packages/logger`, `Logger.ts` in its `shared` and `consoleSink.ts` in its `infra/logger` (**Repository: apps and packages**). Each app's composition root installs the sink. A backend's `json` sink writes through pino, so it stays in the backend's `infra/logger`, or in a package only backends import. The app writes `newLogSink` there too, choosing between `newConsoleSink` and the `json` sink.
 
@@ -201,8 +201,9 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
   logger.warn('Token refresh failed', error);
 
   // compose: the sink LOG_FORMAT names first, then again after the config parses
-  const env = readEnv();
+  const { env, found } = readEnv();
   Logger.install(overrides.logSink ?? newLogSink(logFormatOf(env), { clock: systemClock }), LogLevel.Info);
+  Logger.root.scope('compose').info('Read the environment', found);
   const config = parseConfig(env);
   Logger.install(overrides.logSink ?? newLogSink(config.logFormat, { clock: systemClock }), config.logLevel);
 
@@ -210,13 +211,14 @@ Validate structure with a **declarative schema** — zod / valibot (TS), pydanti
   export const logFormatOf = (env: Env): LogFormat => logFormatField.safeParse(env.LOG_FORMAT).data ?? LogFormat.Pretty;
   ```
 
-- **Go**: `log/slog`, with no facade of the project's own. A feature calls `slog`. `Compose` sets the default logger over a handler from `infra` before it builds anything, and sets it again once the config parses, as above. The first handler takes its format from `logFormatOf`. It runs the `LogFormat` type's parser over `LOG_FORMAT`, and gives `Pretty` where that parser fails. The default sits in one constant, which the `Config` tag and `logFormatOf` both use. An override replaces the handler both times. Until then `slog` writes through the `log` package to standard error.
+- **Go**: `log/slog`, with no facade of the project's own. A feature calls `slog`. `Compose` sets the default logger over a handler from `infra` before it builds anything, and sets it again once the config parses, as above. The first handler takes its format from `logFormatOf`. It runs the `LogFormat` type's parser over `LOG_FORMAT`, and gives `Pretty` where that parser fails. The default is one constant, because a struct tag holds only a literal. `Compose` sets the `Config` field to it before the parse, in place of an `envDefault` tag. `logFormatOf` falls back to it for an unset or empty variable, which the parse leaves as it was. An override replaces the handler both times. Until then `slog` writes through the `log` package to standard error.
 
   ```go
   // entrypoints/server/compose.go: the handler LOG_FORMAT names first, then again after the config parses
-  vars := environment.Read() // infra/env, under another name than caarlos0's env
+  vars, found := environment.Read() // infra/env, under another name than caarlos0's env
   slog.SetDefault(slog.New(logger.NewHandler(logFormatOf(vars), slog.LevelInfo)))
-  var config Config
+  slog.Info("read the environment", "found", found)
+  config := Config{LogFormat: defaultLogFormat} // the default, in place of an envDefault tag
   if err := env.ParseWithOptions(&config, env.Options{Environment: vars}); err != nil {
     return nil, fmt.Errorf("parse the config: %w", err)
   }
