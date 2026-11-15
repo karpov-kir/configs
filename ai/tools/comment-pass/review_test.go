@@ -262,3 +262,13 @@ func TestAGoLocalTakesNoDoc(t *testing.T) {
 		t.Fatalf("a local's comment refused: %q", found)
 	}
 }
+
+// TestAGoBlankVarTakesAnyOpening checks that a doc comment on `var _` need not open on `_`, which
+// names nothing.
+func TestAGoBlankVarTakesAnyOpening(t *testing.T) {
+	lines := []string{"package ledger", "", "// Checks that Book is a Stringer.", "var _ fmt.Stringer = Book{}"}
+	m := findMaterial("ledger.go", lines, map[int]bool{4: true})
+	if found := gateFindings(m, []decision{{id: "c1", verb: "rewrite", text: []string{"// Book must stay a Stringer."}}}, noWidth); len(found) != 0 {
+		t.Fatalf("a blank var's comment refused: %q", found)
+	}
+}

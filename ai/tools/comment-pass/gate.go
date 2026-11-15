@@ -90,6 +90,10 @@ func goFindings(m material, d decision) []string {
 		return out
 	}
 	name := match[1] + match[2]
+	// The blank identifier declares no name, so godoc shows no doc for it and nothing can open on it.
+	if name == "_" {
+		return out
+	}
 	words := strings.Fields(commentBody(d.text[0]))
 	if len(words) > 1 && (words[0] == "A" || words[0] == "An" || words[0] == "The") {
 		words = words[1:]
