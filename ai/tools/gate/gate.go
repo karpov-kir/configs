@@ -368,12 +368,14 @@ func (g *gate) overBudget(checks []check, wall time.Duration) {
 	}
 }
 
-// One check's command. Through a shell, because the commands are written as shell and several of them
-// cd. Both streams go into one buffer: a check that refuses on stderr with an empty stdout would
-// otherwise print FAILED and stay silent about why.
+// execute runs one check's command through a shell and returns its combined output and exit
+// status. The commands are written as shell, and several of them cd. Both streams go into one
+// buffer, because a check that refuses on stderr with an empty stdout would otherwise print FAILED
+// and say nothing about why.
 func (g *gate) execute(cmd string) (string, int) {
 	run := exec.Command("sh", "-c", cmd)
 	run.Dir = g.root
+	run.Env = withoutGoRoot(os.Environ())
 	out, err := run.CombinedOutput()
 	if err == nil {
 		return string(out), 0
@@ -385,6 +387,19 @@ func (g *gate) execute(cmd string) (string, int) {
 	// 127 is what a shell reports for a command it could not find, and that is what this is. The
 	// command never ran. Its exit status is therefore no verdict about anything.
 	return string(out), 127
+}
+
+// withoutGoRoot returns the environment without GOROOT, so `go vet` and `go test` compile against the
+// standard library of the `go` on PATH. A GOROOT exported for another Go version fails every package
+// with a compile version mismatch. `ai/tools/resolve.sh` unsets it for its build the same way.
+func withoutGoRoot(environ []string) []string {
+	kept := make([]string, 0, len(environ))
+	for _, entry := range environ {
+		if !strings.HasPrefix(entry, "GOROOT=") {
+			kept = append(kept, entry)
+		}
+	}
+	return kept
 }
 
 func (g *gate) line(state, id, detail string) {
