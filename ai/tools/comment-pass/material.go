@@ -21,6 +21,9 @@ type candidate struct {
 	decl     int // the line the block sits on, or 0 where none follows
 	text     string
 	isHeader bool
+	// isDoc marks a doc comment on its declaration: a `/**` block, in Go a `//` block, in Rust a `///`
+	// block, with no blank line between it and the declaration. Editors and generated docs show it.
+	isDoc bool
 }
 
 // place is a declaration the change added or changed that carries no comment.
@@ -46,32 +49,52 @@ type material struct {
 }
 
 // changedLines is, for each file at head, the lines the change added or changed since base. Renames
-// are followed, so a renamed file's unchanged lines are context.
+// are followed, so a renamed file's unchanged lines are context. A line the change only moved is
+// context too: an added line whose text, its indent aside, matches a line the change removed anywhere
+// in the diff counts as moved. Code that moved to another file or place then offers none of its
+// comments. A short line such as a closing brace matches in new code as well, and that new code still
+// counts as changed through its other lines.
 func changedLines(dir, base string) (map[string]map[int]bool, error) {
 	out, err := exec.Command("git", "-C", dir, "diff", "--no-color", "--unified=0", "-M", base).Output()
 	if err != nil {
 		return nil, fmt.Errorf("git cannot diff the tree from %s", base)
 	}
+	type added struct {
+		file string
+		line int
+		text string
+	}
+	removed := map[string]bool{}
+	var adds []added
 	changed := map[string]map[int]bool{}
-	file := ""
+	file, at := "", 0
 	for _, line := range strings.Split(string(out), "\n") {
 		if name, found := strings.CutPrefix(line, "+++ b/"); found {
 			file = name
 			changed[file] = map[int]bool{}
 			continue
 		}
-		m := reHunk.FindStringSubmatch(line)
-		if m == nil || file == "" {
+		if strings.HasPrefix(line, "--- ") || strings.HasPrefix(line, "diff ") {
 			continue
 		}
-		start, _ := strconv.Atoi(m[1])
-		count := 1
-		if m[2] != "" {
-			count, _ = strconv.Atoi(m[2])
+		if m := reHunk.FindStringSubmatch(line); m != nil {
+			at, _ = strconv.Atoi(m[1])
+			continue
 		}
-		for n := start; n < start+count; n++ {
-			changed[file][n] = true
+		switch {
+		case file == "":
+		case strings.HasPrefix(line, "-"):
+			removed[strings.TrimSpace(line[1:])] = true
+		case strings.HasPrefix(line, "+"):
+			adds = append(adds, added{file: file, line: at, text: strings.TrimSpace(line[1:])})
+			at++
 		}
+	}
+	for _, a := range adds {
+		if a.text != "" && removed[a.text] {
+			continue
+		}
+		changed[a.file][a.line] = true
 	}
 	return changed, nil
 }
@@ -124,8 +147,9 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 		}
 		block := strings.Join(lines[u.Line-1:last], "\n")
 		m.indents["c"+strconv.Itoa(n+1)] = columns(indentOf(lines, u.Line))
+		header := isFileHeader(lines, u.Line, last, decl, path)
 		m.candidates = append(m.candidates, candidate{id: "c" + strconv.Itoa(n+1), first: u.Line, last: last,
-			decl: decl, text: block, isHeader: isFileHeader(lines, u.Line, last, decl, path)})
+			decl: decl, text: block, isHeader: header, isDoc: !header && isDocBlock(path, lines, u.Line, last, decl)})
 	}
 	n := 0
 	if reUnitTest.MatchString(path) {
@@ -150,6 +174,27 @@ func findMaterial(path string, lines []string, changed map[int]bool) material {
 		m.places = append(m.places, place{id: "p" + strconv.Itoa(n), line: line})
 	}
 	return m
+}
+
+// isDocBlock says the block from first to last is a doc comment on the declaration at decl: the
+// declaration follows it with no blank line, and the block opens the way the language writes a doc.
+func isDocBlock(path string, lines []string, first, last, decl int) bool {
+	if decl == 0 || !reDeclaration.MatchString(lines[decl-1]) || notDeclaration.MatchString(lines[decl-1]) || reLocal.MatchString(lines[decl-1]) {
+		return false
+	}
+	for n := last + 1; n < decl; n++ {
+		if strings.TrimSpace(lines[n-1]) == "" {
+			return false
+		}
+	}
+	opening := strings.TrimLeft(lines[first-1], " \t")
+	switch familyOf(path) {
+	case familyGo:
+		return strings.HasPrefix(opening, "//") && !isDirective(opening)
+	case familyRs:
+		return strings.HasPrefix(opening, "///")
+	}
+	return strings.HasPrefix(opening, "/**")
 }
 
 // declarationAfter is the first code line after the block's last line, past any decorator or

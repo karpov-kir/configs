@@ -15,15 +15,25 @@ func userPrompt(path string, lines []string, m material, notes []string, width i
 		fmt.Fprintf(&b, "%4d  %s\n", n+1, line)
 	}
 	b.WriteString("\nThe change touched these. Decide each, and touch nothing else in the file.\n")
+	bound := func(id string) string {
+		if width == noWidth {
+			return "no column bound"
+		}
+		return fmt.Sprintf("%d columns", width-m.indents[id])
+	}
 	for _, c := range m.candidates {
 		on := "nothing"
 		if c.decl > 0 {
 			on = fmt.Sprintf("line %d: %s", c.decl, strings.TrimSpace(lines[c.decl-1]))
 		}
-		fmt.Fprintf(&b, "%s  the comment on lines %d-%d, which sits on %s (%d columns)\n", c.id, c.first, c.last, on, width-m.indents[c.id])
+		kind := ""
+		if c.isDoc {
+			kind = ", a doc comment that takes keep or rewrite"
+		}
+		fmt.Fprintf(&b, "%s  the comment on lines %d-%d, which sits on %s (%s%s)\n", c.id, c.first, c.last, on, bound(c.id), kind)
 	}
 	for _, p := range m.places {
-		fmt.Fprintf(&b, "%s  line %d, which has no comment: %s (%d columns)\n", p.id, p.line, strings.TrimSpace(lines[p.line-1]), width-m.indents[p.id])
+		fmt.Fprintf(&b, "%s  line %d, which has no comment: %s (%s)\n", p.id, p.line, strings.TrimSpace(lines[p.line-1]), bound(p.id))
 	}
 	if len(notes) > 0 {
 		b.WriteString("\nThe reviewer's notes on this file, each to act on:\n")
@@ -33,7 +43,12 @@ func userPrompt(path string, lines []string, m material, notes []string, width i
 	}
 	b.WriteString(callers)
 	b.WriteString(replyGrammar)
-	b.WriteString("Each comment line you write, its markers included, fits in the columns its id names.\n")
+	if width == noWidth {
+		b.WriteString("This file's formatter sets no width. Break the lines you write where this file's own comments break theirs.\n")
+	} else {
+		b.WriteString("Each comment line you write, its markers included, fits in the columns its id names. Fill each line, and " +
+			"break it only where the next word would pass those columns.\n")
+	}
 	return b.String()
 }
 
@@ -46,9 +61,12 @@ Reply with one line per id above, and nothing else:
   <id> rewrite: <reason>
   <id> add: <reason>
   <id> skip: <reason>
-c ids take keep, remove or rewrite; p ids take add or skip. After a rewrite or an add line, give the
-comment's lines in this file's comment syntax, without indentation, and then the next id line. Give no
-code, no fence and no other text.
+c ids take keep, remove or rewrite, and a doc comment's id takes keep or rewrite; p ids take add or
+skip. After a rewrite or an add line, give the comment's lines in this file's comment syntax, without
+indentation, and then the next id line. Give no code, no fence and no other text.
+
+A rewrite changes what the comment says. Keep a comment whose words already follow the page, whatever
+its line breaks.
 `
 
 // decision is one id's answer.
@@ -67,6 +85,9 @@ func parseReply(reply string, m material) ([]decision, error) {
 	want := map[string]string{}
 	for _, c := range m.candidates {
 		want[c.id] = "c"
+		if c.isDoc {
+			want[c.id] = "doc"
+		}
 	}
 	for _, p := range m.places {
 		want[p.id] = "p"
@@ -83,8 +104,10 @@ func parseReply(reply string, m material) ([]decision, error) {
 				return nil, fmt.Errorf("the reply answers %s, which the call did not offer", id)
 			case seen[id]:
 				return nil, fmt.Errorf("the reply answers %s twice", id)
-			case kind == "c" && (verb == "add" || verb == "skip"), kind == "p" && (verb == "keep" || verb == "remove" || verb == "rewrite"):
+			case kind != "p" && (verb == "add" || verb == "skip"), kind == "p" && (verb == "keep" || verb == "remove" || verb == "rewrite"):
 				return nil, fmt.Errorf("the reply answers %s with %s, which a %s id does not take", id, verb, kind)
+			case kind == "doc" && verb == "remove":
+				return nil, fmt.Errorf("the reply removes %s, a doc comment, which takes keep or rewrite", id)
 			}
 			seen[id] = true
 			out = append(out, decision{id: id, verb: verb, reason: d[3]})
@@ -129,8 +152,30 @@ func parseReply(reply string, m material) ([]decision, error) {
 		if openStar(out[i].text) {
 			return nil, fmt.Errorf("%s %s leaves a /* block open", out[i].id, out[i].verb)
 		}
+		out[i].text = starred(out[i].text)
 	}
 	return out, nil
+}
+
+// starred gives each line inside a `/*` block that opens on no `*` the block's `* ` marker. A reply
+// can break a line of a block onto a bare continuation, which would print at the block's indent with
+// no marker.
+func starred(text []string) []string {
+	out := make([]string, len(text))
+	open := false
+	for i, line := range text {
+		out[i] = line
+		trimmed := strings.TrimLeft(line, " \t")
+		if open && !strings.HasPrefix(trimmed, "*") {
+			out[i] = "* " + trimmed
+		}
+		if !open && strings.HasPrefix(trimmed, "/*") {
+			open = !strings.Contains(trimmed[2:], "*/")
+		} else if strings.Contains(trimmed, "*/") {
+			open = false
+		}
+	}
+	return out
 }
 
 // stripFence takes off a code fence a reply may wrap itself in.

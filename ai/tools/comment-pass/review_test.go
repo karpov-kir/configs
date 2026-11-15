@@ -122,7 +122,72 @@ func TestTheGateReadsMarkdownAndTabsAsTheyPrint(t *testing.T) {
 	if columns("\t\t"+strings.Repeat("x", 78)) <= 80 {
 		t.Error("two tabs and 78 runes fit 80 columns")
 	}
-	if widthFor("ledger.go", 120) != otherWidth || widthFor("ledger.ts", 120) != 120 {
-		t.Error("the width ignores the file's kind")
+}
+
+// A rewrite that says the same words in the same form only breaks lines elsewhere. The pass keeps the
+// comment, and the file stays as it was.
+func TestARewriteThatOnlyRewrapsIsKept(t *testing.T) {
+	dir, base := fixture(t)
+	calls := 0
+	before, _ := os.ReadFile(filepath.Join(dir, "ledger.ts"))
+	code, text := run(t, dir, base, "c1 rewrite: r\n// Posts\n//   entries.\np1 skip: fine\n", &calls)
+	after, _ := os.ReadFile(filepath.Join(dir, "ledger.ts"))
+	if code != 0 || string(after) != string(before) || !strings.Contains(text, "1 kept, 0 rewritten") {
+		t.Fatalf("exit %d\n%s\n%s", code, text, after)
+	}
+}
+
+// Code the change only moved to another file offers none of its comments. Code it changed where it
+// moved to does.
+func TestMovedCodeOffersNoComment(t *testing.T) {
+	post := "// Posts entries.\nexport function post(): void {\n  write();\n}\n"
+	dir, rev := repository(t, "ledger.ts", post+"\nexport const A = 1;\n", "export const A = 1;\n")
+	moved := "// Reopens the book.\nexport function reopen(): void {\n  open();\n}\n\n" + post
+	write(t, dir, "posting.ts", moved)
+	if out, err := exec.Command("git", "-C", dir, "add", "-N", "posting.ts").CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	calls := 0
+	code, text := run(t, dir, rev, "", &calls, "--list")
+	if code != 0 || strings.Contains(text, "lines 6-6") || !strings.Contains(text, "lines 1-1") {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+	write(t, dir, "posting.ts", strings.Replace(moved, "  write();", "  write(true);", 1))
+	code, text = run(t, dir, rev, "", &calls, "--list")
+	if code != 0 || !strings.Contains(text, "lines 6-6") {
+		t.Fatalf("exit %d:\n%s", code, text)
+	}
+}
+
+// A doc comment on its declaration is rewritten or kept, never removed: the call says so, and a reply
+// that removes one refuses the file. A line comment a blank line parts from its declaration is no doc.
+func TestADocCommentIsNeverRemoved(t *testing.T) {
+	lines := []string{"/** Mounts the requests screen. */", "const show = (): void => mount();", "",
+		"// The book closes at midnight.", "", "export const CLOSE = 0;"}
+	m := findMaterial("view.ts", lines, map[int]bool{2: true, 6: true})
+	if len(m.candidates) != 2 || !m.candidates[0].isDoc || m.candidates[1].isDoc {
+		t.Fatalf("candidates: %+v", m.candidates)
+	}
+	if prompt := userPrompt("view.ts", lines, m, nil, 100, ""); !strings.Contains(prompt, "a doc comment that takes keep or rewrite") {
+		t.Fatalf("prompt:\n%s", prompt)
+	}
+	if _, err := parseReply("c1 remove: restates the name\nc2 remove: r\n", m); err == nil || !strings.Contains(err.Error(), "doc comment") {
+		t.Fatalf("a removed doc comment parsed: %v", err)
+	}
+	if _, err := parseReply("c1 keep: r\nc2 remove: r\n", m); err != nil {
+		t.Fatalf("a removed line comment refused: %v", err)
+	}
+	goLines := []string{"package ledger", "", "// Post writes the entry.", "func Post() {}"}
+	if gm := findMaterial("ledger.go", goLines, map[int]bool{4: true}); len(gm.candidates) != 1 || !gm.candidates[0].isDoc {
+		t.Fatalf("Go candidates: %+v", gm.candidates)
+	}
+}
+
+// A block line a reply leaves without its `*` takes the marker, so it prints inside the block.
+func TestABareBlockLineTakesItsStar(t *testing.T) {
+	m := material{candidates: []candidate{{id: "c1"}}, indents: map[string]int{}}
+	got, err := parseReply("c1 rewrite: r\n/** Returns the body; a refusal throws\nthe server's text. */\n", m)
+	if err != nil || len(got) != 1 || strings.Join(got[0].text, "\n") != "/** Returns the body; a refusal throws\n* the server's text. */" {
+		t.Fatalf("%v %q", err, got)
 	}
 }

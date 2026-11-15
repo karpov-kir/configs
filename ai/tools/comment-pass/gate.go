@@ -1,29 +1,21 @@
 package commentpass
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
-	"time"
 )
 
-// The gate checks what takes no judgement. A line fits the repository's print width. Each block of a
+// The gate checks what takes no judgement. A line fits the width its file's formatter prints. Each block of a
 // written comment is bounded on its own, a run of line comments or a doc block alike: at most four prose
 // lines, and a file header at most eight. A note above a summary is two blocks, the shape the page asks
 // of a declaration that needs both. A comment holds no markdown. The edit leaves every code line as it
 // was. A comment that fails the gate fails the pass, with its text shown, and the file is left as it
-// was. A line past the width is wrapped before the gate reads it.
+// was. A line past the width is wrapped before the gate reads it, and a file nothing bounds has no width
+// to check.
 const (
 	maxBlockLines  = 4
 	maxHeaderLines = 8
-	// defaultWidth is prettier's own default, for a repository that sets none.
-	defaultWidth = 80
 )
 
 // reMarkdown is bold or a heading. A list marker is left alone: "- 1 is returned" reads as prose.
@@ -59,7 +51,7 @@ func gateFindings(m material, decisions []decision, width int) []string {
 		}
 		for _, line := range d.text {
 			body := commentBody(line)
-			if placedColumns(line)+indentWidth(m, d.id) > width {
+			if width != noWidth && placedColumns(line)+indentWidth(m, d.id) > width {
 				out = append(out, fmt.Sprintf("%s: a line is wider than %d: %s", d.id, width, line))
 			}
 			if reMarkdown.MatchString(body) {
@@ -185,48 +177,6 @@ func commentBody(line string) string {
 	return strings.TrimSpace(strings.TrimSuffix(body, "*/"))
 }
 
-// printWidth is the width the repository's prettier resolves. A config can take its width from a
-// shared package it requires, which no file here spells, so the repository's own prettier is asked
-// first. Where node or prettier is missing, the config files are read, and prettier's default stands
-// where they set none.
-func printWidth(root string) int {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "node", "-e",
-		"require('prettier').resolveConfig(process.argv[1]).then(c=>console.log((c&&c.printWidth)||''))",
-		filepath.Join(root, "package.json"))
-	cmd.Dir = root
-	if out, err := cmd.Output(); err == nil {
-		if width, err := strconv.Atoi(strings.TrimSpace(string(out))); err == nil && width > 0 {
-			return width
-		}
-	}
-	for _, name := range []string{".prettierrc", ".prettierrc.json"} {
-		body, err := os.ReadFile(filepath.Join(root, name))
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			PrintWidth int `json:"printWidth"`
-		}
-		if json.Unmarshal(body, &cfg) == nil && cfg.PrintWidth > 0 {
-			return cfg.PrintWidth
-		}
-	}
-	body, err := os.ReadFile(filepath.Join(root, "package.json"))
-	if err == nil {
-		var pkg struct {
-			Prettier struct {
-				PrintWidth int `json:"printWidth"`
-			} `json:"prettier"`
-		}
-		if json.Unmarshal(body, &pkg) == nil && pkg.Prettier.PrintWidth > 0 {
-			return pkg.Prettier.PrintWidth
-		}
-	}
-	return defaultWidth
-}
-
 // tabColumns is how wide a tab is read.
 const tabColumns = 4
 
@@ -241,17 +191,4 @@ func columns(line string) int {
 		n++
 	}
 	return n
-}
-
-// otherWidth bounds a line in a file prettier does not format.
-const otherWidth = 100
-
-// widthFor is the width a file's lines print within: the repository's prettier width for a file
-// prettier formats, and otherWidth for the rest.
-func widthFor(path string, prettier int) int {
-	switch filepath.Ext(path) {
-	case ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs":
-		return prettier
-	}
-	return otherWidth
 }

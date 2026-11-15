@@ -16,7 +16,8 @@ func rewrap(m material, decisions []decision, width int) []decision {
 	out := make([]decision, len(decisions))
 	for i, d := range decisions {
 		out[i] = d
-		if d.verb != "rewrite" && d.verb != "add" {
+		// A file nothing bounds keeps its lines as written.
+		if d.verb != "rewrite" && d.verb != "add" || width == noWidth {
 			continue
 		}
 		var text []string
