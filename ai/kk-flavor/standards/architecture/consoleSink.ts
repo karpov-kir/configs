@@ -28,6 +28,7 @@ const isErrorLike = (object: unknown): object is { name: unknown; message: unkno
   );
 };
 
+/** Returns an object or error as JSON text, or the argument itself when it is a primitive or JSON cannot hold it. */
 const stringifyArg = (arg: unknown): unknown => {
   if (arg === null || arg === undefined) {
     return arg;
@@ -44,7 +45,9 @@ const stringifyArg = (arg: unknown): unknown => {
         2,
       );
     } catch {
-      return String(arg);
+      // The catch hands the object itself to the console, which shows its structure. JSON throws on a cycle or a BigInt,
+      // and `String` would print only "[object Object]".
+      return arg;
     }
   }
   return arg;
