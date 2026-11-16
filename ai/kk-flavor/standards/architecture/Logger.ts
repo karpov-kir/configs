@@ -40,7 +40,8 @@ export class Logger {
   /**
    * Sets the sink and the level for every logger. The composition root calls it before anything logs. An app with one
    * sink calls it first, before it reads the environment. An app with a sink per `LOG_FORMAT` calls it
-   * after that read, with the sink `LOG_FORMAT` names. Both call it again once the config parses.
+   * after that read, with the sink `LOG_FORMAT` names. An app whose config sets the level calls it again once the
+   * config parses. An app whose config sets none calls it once.
    */
   static install(sink: LogSink, level: LogLevel): void {
     Logger.sink = sink;
