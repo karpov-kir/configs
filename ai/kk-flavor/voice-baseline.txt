@@ -38,7 +38,7 @@
 25 ai/kk-flavor/skills/kk-handoff/handoff-prompt.md
 24 ai/kk-flavor/workers/patrol/fixer.md
 21 ai/kk-flavor/standards/project.md
-20 ai/kk-flavor/standards/architecture/core.md
+19 ai/kk-flavor/standards/architecture/core.md
 18 ai/kk-flavor/workers/idsd/qualify/reconcile.md
 18 ai/kk-flavor/skills/kk-reduce/AGENT-BRIEF.md
 17 ai/kk-flavor/workers/security-review.md
