@@ -14,7 +14,7 @@ A service's own folders — `env/`, `docker/` — live beside its source root (`
   - **No secrets** → committed plain and baked into the image (**Local dev & Docker**, below).
   - **Has secrets** → committed only as `.env.<env>.encrypted` (plaintext gitignored), never in the image; decrypted and injected at deploy.
 
-  Encrypt, decrypt and re-key **per environment**, with `env:encrypt:<env>`, `env:decrypt:<env>` and `env:rekey:<env>`. They run the shared sops script [`templates/mise-tasks/env-crypt`](../templates/mise-tasks/env-crypt), which `mise.toml` fetches at a pinned commit of this repo as the template does — never a copy of its body. The infrastructure owns the age keys in `.sops.yaml`.
+  Encrypt, decrypt and re-key **per environment**, with `env:encrypt:<env>`, `env:decrypt:<env>` and `env:rekey:<env>`. They run the shared sops script [`templates/mise-tasks/env-crypt`](../templates/mise-tasks/env-crypt). Reference it from `mise.toml` by URL at a full commit SHA of this repo, like the template. A branch or a tag can move under the project. Do not copy the script into the project. The infrastructure owns the age keys in `.sops.yaml`.
 
 - **Ask every password in a macOS dialog with hidden input** — any password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`docker login --password-stdin`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog.
 
