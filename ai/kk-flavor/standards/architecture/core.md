@@ -28,7 +28,7 @@ shared/         code with no business meaning (logger, pub-sub, utilities)
 infra/          generic adapters to the outside: protocols, one adapter per platform, and the clients and data 2+ features share (database, HTTP transport, storage, messaging, clock, random)
 ```
 
-A **module** is one folder directly under a layer, or one file directly under `shared` or `infra`. A module of `orchestration`, `features` or `entities`, or a `shared` folder, is imported only through its surface (**Module depth**). The layers import one way only, so a change to an inner layer is the only one that reaches outward:
+A **module** is one folder directly under a layer, or one file directly under `shared` or `infra`. A module of `orchestration`, `features` or `entities`, or a `shared` or `infra` folder, is imported only through its surface (**Module depth**). The layers import one way only, so a change to an inner layer is the only one that reaches outward:
 
 | Layer | Imports |
 |---|---|
