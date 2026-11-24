@@ -14,9 +14,9 @@ A service's own folders — `env/`, `docker/` — live beside its source root (`
   - **No secrets** → committed plain and baked into the image (**Local dev & Docker**, below).
   - **Has secrets** → committed only as `.env.<env>.encrypted` (plaintext gitignored), never in the image; decrypted and injected at deploy.
 
-  Encrypt and decrypt **per environment**, with `env:encrypt:<env>` and `env:decrypt:<env>`. Let the infrastructure choose the encryption tool and its keys.
+  Encrypt, decrypt and re-key **per environment**, with `env:encrypt:<env>`, `env:decrypt:<env>` and `env:rekey:<env>`. They run the shared sops script [`templates/mise-tasks/env-crypt`](../templates/mise-tasks/env-crypt), which `mise.toml` fetches at a pinned commit of this repo as the template does — never a copy of its body. The infrastructure owns the age keys in `.sops.yaml`.
 
-- **Ask every password in a macOS dialog with hidden input** — an encryption tool's password and any other password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`openssl -pass stdin`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog.
+- **Ask every password in a macOS dialog with hidden input** — any password a task needs. The dialog text names the password and what happens once it is given. Pipe the answer into the consuming command's stdin (`docker login --password-stdin`). Keep a password out of terminal prompts, command arguments and exported variables. Copy the `ask` helper from [`templates/mise.toml`](../templates/mise.toml) for the dialog.
 
 - **Name a CI secret `<SERVICE>_<KIND>` in upper snake case** (`SONAR_TOKEN`, `NPM_PUBLISH_TOKEN`). Give a secret the same name in every repo and environment that holds it. Give each repo its own value, so a leaked one is revoked alone.
 
