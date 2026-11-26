@@ -6,8 +6,7 @@
 // Report prints the account and answers the exit code. A refusal that ended the run its own way
 // would report through something the caller has no say over.
 
-// The package reads no environment variable. $HOME arrives as the targets a caller builds, and the
-// registry's directory as ConfigHome. A suite can then point a whole run at a throwaway home instead
+// The package reads no environment variable. $HOME arrives as the targets a caller builds. A suite can then point a whole run at a throwaway home instead
 // of faking a filesystem. WriteRoot holds it there, and every write resolves its parent physically
 // and refuses to land outside that root.
 
@@ -20,9 +19,8 @@
 // already mounted from a different checkout.
 
 // Package installer is the mounting machinery every installer in this repository runs on. It links a
-// source in this checkout at a target in $HOME or in a project. Beside the mounts it writes the
-// marked region an installer owns inside a file someone else authored, and the record of which
-// projects this machine was installed into.
+// source in this checkout at a target in $HOME, and it guards a file a caller is about to have
+// written in place.
 package installer
 
 import (
@@ -55,19 +53,8 @@ type RunOptions struct {
 	// mounts needs it. Any other run leaves it unprinted.
 	BulkLabel string
 
-	// Machine-wide, a repoint moves a human's whole configuration. For a project install it moves that
-	// project's skills alone. A refusal saying "this machine's configuration" about one project is
-	// false in a way that teaches people to ignore it.
-
-	// MountScopeLabel is what the guard's refusal calls the thing at stake. Empty takes the
-	// machine-wide wording.
-	MountScopeLabel string
-	// ConfigHome is where the install registry lives — the caller's already-resolved
-	// ${XDG_CONFIG_HOME:-$HOME/.config}. The caller passes it as data, so no case can reach the
-	// developer's own registry by forgetting to set something.
-	ConfigHome string
-	DryRun     bool
-	Relocate   bool
+	DryRun   bool
+	Relocate bool
 	// Out is where the account goes, and nil discards it. No caller wants that, and every case that
 	// only reads Refusals can live with it.
 	Out io.Writer
@@ -81,16 +68,14 @@ type RunOptions struct {
 // Run is one installer's pass over this machine: the mounts it declares, the writes it makes, and the
 // account it gives of both.
 type Run struct {
-	repo            string
-	scriptName      string
-	label           string
-	bulkLabel       string
-	mountScopeLabel string
-	configHome      string
-	dryRun          bool
-	relocate        bool
-	out             io.Writer
-	tree            *tree
+	repo       string
+	scriptName string
+	label      string
+	bulkLabel  string
+	dryRun     bool
+	relocate   bool
+	out        io.Writer
+	tree       *tree
 
 	refusals []string
 	breaches []string
@@ -112,8 +97,6 @@ type Mount struct {
 	Target string
 }
 
-const machineScope = "this machine's configuration"
-
 // Half of what these messages quote is text the tree chose, a skill directory name off a branch or a
 // symlink value read off the machine. A name long enough to fill a terminal buries the run's own
 // account of what it removed, as surely as a control byte rewrites it.
@@ -126,24 +109,18 @@ func NewRun(options RunOptions) *Run {
 	if resolved := realDir(repo); resolved != "" {
 		repo = resolved
 	}
-	scope := options.MountScopeLabel
-	if scope == "" {
-		scope = machineScope
-	}
 	out := options.Out
 	if out == nil {
 		out = io.Discard
 	}
 	run := &Run{
-		repo:            repo,
-		scriptName:      options.ScriptName,
-		label:           options.Label,
-		bulkLabel:       options.BulkLabel,
-		mountScopeLabel: scope,
-		configHome:      options.ConfigHome,
-		dryRun:          options.DryRun,
-		relocate:        options.Relocate,
-		out:             out,
+		repo:       repo,
+		scriptName: options.ScriptName,
+		label:      options.Label,
+		bulkLabel:  options.BulkLabel,
+		dryRun:     options.DryRun,
+		relocate:   options.Relocate,
+		out:        out,
 	}
 	run.tree = newTree(options.WriteRoot, run.noteBreach)
 	return run
@@ -174,10 +151,6 @@ func (r *Run) Refuse(message string) {
 	message = clean(message)
 	r.refusals = append(r.refusals, message)
 	fmt.Fprintf(r.out, "  REFUSED  %s\n", message)
-}
-
-func (r *Run) Refusals() []string {
-	return r.refusals
 }
 
 // Breaches is every write this run tried to make outside WriteRoot. It is empty on a real machine,

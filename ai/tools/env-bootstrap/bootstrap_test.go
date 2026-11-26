@@ -64,15 +64,14 @@ func (f *fixture) run(args ...string) int {
 	f.t.Helper()
 	f.Reset()
 	run, code := envbootstrap.Perform(envbootstrap.Options{
-		Self:       scriptName,
-		Args:       args,
-		Repo:       f.repo,
-		Home:       f.home,
-		ConfigHome: f.home + "/.config",
-		Machine:    f.brew,
-		Out:        &f.Out,
-		Err:        &f.Err,
-		WriteRoot:  f.base,
+		Self:      scriptName,
+		Args:      args,
+		Repo:      f.repo,
+		Home:      f.home,
+		Machine:   f.brew,
+		Out:       &f.Out,
+		Err:       &f.Err,
+		WriteRoot: f.base,
 	})
 	if run != nil {
 		f.ExpectNoBreach(run.Breaches())

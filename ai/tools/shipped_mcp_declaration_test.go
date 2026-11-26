@@ -1,16 +1,14 @@
-// This file holds the shipped `ai/mcp.jsonc` to what the two tools that read it depend on.
+// This file holds the shipped `ai/mcp.jsonc` to what `mcpsync`, the tool that reads it, depends on.
 //
 // It lives in this package with the other cases that read the shipped checkout, and away from the
-// `mcpsync` and `projectmcp` packages, for the reason shipped_tree_test.go gives.
+// `mcpsync` package, for the reason shipped_tree_test.go gives.
 //
 // Each tool's own cases stay beside it and run over a declaration they build. What they cannot say is
 // anything about the file this repository actually ships.
 package tools_test
 
 import (
-	"bytes"
 	"encoding/json"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,8 +16,6 @@ import (
 	"testing"
 
 	"configs/ai/tools/mcp"
-	projectmcp "configs/ai/tools/project-mcp"
-	"configs/ai/tools/repo/repotest"
 	"configs/ai/tools/runtest"
 )
 
@@ -33,11 +29,6 @@ const (
 // derives its expectation from the file under test, so they stay green as the declaration empties
 // out. This literal is what goes red on that edit.
 var shippedServers = []string{"chrome-devtools"}
-
-// The wrapper every project entry reaches, named once per entry in both file formats. This is the
-// single word of `projectmcp`'s launcher program that identifies an entry, and the program's shape is
-// that package's subject.
-const launcherProgram = "mcp-env.sh"
 
 func TestTheShippedDeclarationParsesOnlyAfterItsCommentsAreStripped(t *testing.T) {
 	t.Parallel()
@@ -98,42 +89,7 @@ func TestTheShippedDeclarationNamesExactlyThePublicServersPinnedHere(t *testing.
 	sort.Strings(named)
 	if strings.Join(named, " ") != strings.Join(shippedServers, " ") {
 		t.Errorf("the public declaration names %v; this file pins %v — a server added or dropped here is "+
-			"one every project this flavor configures gains or loses", named, shippedServers)
-	}
-}
-
-// projectmcp refuses a declaration it cannot map to a portable project entry: an added field, a
-// second transport, a command that is not the launcher. That refusal is only ever asked about a
-// declaration, so this case is the only place saying whether the declaration this repository ships
-// still has a project form.
-func TestTheShippedDeclarationStillMapsIntoAProjectFile(t *testing.T) {
-	t.Parallel()
-	configsDir, err := filepath.Abs(shippedConfigsDir)
-	if err != nil {
-		t.Fatalf("resolving %s: %v", shippedConfigsDir, err)
-	}
-	for _, agent := range []string{"claude", "codex"} {
-		t.Run(agent, func(t *testing.T) {
-			t.Parallel()
-			project, home := t.TempDir(), t.TempDir()
-			var out, said bytes.Buffer
-			code := projectmcp.Run("project-mcp.sh", []string{"--agent=" + agent, project},
-				configsDir, home, repotest.New(project), &out, &said)
-			if code != 0 {
-				t.Fatalf("exit %d over this repository's own declaration, so it has no portable project "+
-					"form and `project-mcp.sh` now refuses every project\n%s", code, said.String())
-			}
-			// Entries counted by the launcher each one runs, which both file formats spell the same way.
-			// A count of the server NAMES would pass on a renamed server, since one name is a prefix of
-			// the other often enough. The names are the subject of
-			// TestTheShippedDeclarationNamesExactlyThePublicServersPinnedHere.
-			written := projectConfig(t, project)
-			if entries := strings.Count(written, launcherProgram); entries != len(shippedServers) {
-				t.Errorf("the project config holds %d server entries and the declaration names %d, so a "+
-					"server the human declared reaches no project at all\n%s",
-					entries, len(shippedServers), written)
-			}
-		})
+			"one every machine this flavor configures gains or loses", named, shippedServers)
 	}
 }
 
@@ -151,32 +107,6 @@ func stdioCommands(t *testing.T, text string) []string {
 		}
 	}
 	return commands
-}
-
-// Everything the run left in the project, as one text. A walk finds them, so this case reads whatever
-// each client's file is called. A file naming `.mcp.json` and `.codex/config.toml` would hold a
-// second copy of `projectmcp`'s table.
-func projectConfig(t *testing.T, project string) string {
-	t.Helper()
-	var found []string
-	err := filepath.WalkDir(project, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return err
-		}
-		text, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		found = append(found, string(text))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("reading the project: %v", err)
-	}
-	if len(found) == 0 {
-		t.Fatal("the run wrote nothing into the project, so the loop below asserts nothing at all")
-	}
-	return strings.Join(found, "\n")
 }
 
 // Executable by its mode bits. An `access` check asks whether THIS process may run it, and root is

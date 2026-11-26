@@ -3,7 +3,7 @@
 // the same two facts, and a port per tool would mean a fake per case.
 //
 // An installer holds this interface and imports no os/exec, so its suite can drive brew's
-// installed-first branch, rtk's argument list, and the exit codes project-setup answers with. A
+// installed-first branch, rtk's argument list, and the exit codes the tools it starts answer with. A
 // developer's own setup turns those branches on, and a suite cannot arrange one.
 //
 // The adapter here has no test of its own. Its body branches on no condition, and faking the commands

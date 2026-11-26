@@ -37,12 +37,11 @@ func TestFrontmatterMustClose(t *testing.T) {
 }
 
 // The audience marker, read through the same block walk as every other declaration: a skill that
-// declares itself maintainer-only is one ai/bootstrap.sh leaves unmounted without --maintainer, and
-// one eco-check's mount scan then expects to find no mount for.
+// declares itself maintainer-only is one the field guide leaves out.
 func TestTheMaintainerMarkerIsReadOnlyOutOfFrontmatter(t *testing.T) {
 	marked := []string{"---", "name: kk-reduce", "audience: maintainer", "---", "body"}
 	if !IsMaintainerAudience(marked) {
-		t.Error("a declared marker went unread, so bootstrap would mount a skill the scan expects unmounted")
+		t.Error("a declared marker went unread, so the field guide would list a maintainer-only skill")
 	}
 	// Spacing and case, the way the opt-out marker beside it is read.
 	if !IsMaintainerAudience([]string{"---", "Audience:   Maintainer  ", "---"}) {
@@ -52,7 +51,7 @@ func TestTheMaintainerMarkerIsReadOnlyOutOfFrontmatter(t *testing.T) {
 		t.Error("another audience answered as the maintainer one")
 	}
 	if IsMaintainerAudience([]string{"---", "name: kk-build", "---", "audience: maintainer"}) {
-		t.Error("a body line answered as a declaration — that skill would silently stop being installed")
+		t.Error("a body line answered as a declaration — that skill would silently leave the field guide")
 	}
 	if IsMaintainerAudience([]string{"---", "audience: maintainer"}) {
 		t.Error("an unterminated block is not frontmatter, and the loader cannot read one either")

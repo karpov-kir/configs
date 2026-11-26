@@ -9,12 +9,12 @@
 #
 # Measured by the check in the same change that added it.
 #
-120 ai/kk-flavor/standards/ecosystem.md
+119 ai/kk-flavor/standards/ecosystem.md
 116 ai/kk-flavor/standards/model-policy.md
 96 ai/kk-flavor/standards/skill-protocol.md
 93 ai/kk-flavor/skills/idsd-reactor/SKILL.md
 68 ai/kk-flavor/standards/testing.md
-53 ai/kk-flavor/skills/kk-foreman/SKILL.md
+52 ai/kk-flavor/skills/kk-foreman/SKILL.md
 49 ai/kk-flavor/skills/kk-pr/SKILL.md
 48 ai/kk-flavor/workers/skillcraft.md
 48 ai/kk-flavor/standards/quality-pipeline.md

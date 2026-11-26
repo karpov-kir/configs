@@ -6,17 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 )
 
-// Order is not decoration. `project-mcp.sh` renders the declaration's server order into a project's
-// `.codex/config.toml`, and that file is compared byte for byte against a reinstall's output.
-// Re-ordering the servers turns an untouched region into one this tool refuses as edited.
+// Order is not decoration. `mcp-sync` registers the declaration's servers in the order the file
+// wrote them, so a reader of its output finds them where the declaration put them.
 
-// A Go map answers its keys in a random order, and `encoding/json` marshals them sorted, so neither
-// can be the representation. Values stay raw for the same reason a level down. A project's
-// `.mcp.json` holds other tools' entries, and round-tripping one through a map sorts its keys and
-// re-escapes its strings. The result is a diff across a file this tool was asked to add a server to.
+// A Go map answers its keys in a random order, so it cannot be the representation. Values stay raw,
+// so a field this package does not model survives for `mcp-sync` to refuse by name.
 
 // Object is a JSON object held in the order its document wrote it, with every value's own bytes kept
 // verbatim.
@@ -94,66 +90,4 @@ func (o *Object) Set(key string, value json.RawMessage) {
 		o.keys = append(o.keys, key)
 	}
 	o.values[key] = value
-}
-
-// SetValue encodes a Go value and sets it, so a caller building an object hands over a Go value and
-// leaves the encoding here. It goes through EncodeJSON, so what it writes is what a config file may hold.
-func (o *Object) SetValue(key string, value any) error {
-	encoded, err := EncodeJSON(value)
-	if err != nil {
-		return err
-	}
-	o.Set(key, encoded)
-	return nil
-}
-
-func (o *Object) Delete(key string) {
-	if _, held := o.values[key]; !held {
-		return
-	}
-	delete(o.values, key)
-	for index, name := range o.keys {
-		if name == key {
-			o.keys = append(o.keys[:index], o.keys[index+1:]...)
-			return
-		}
-	}
-}
-
-// MarshalJSON writes the object compactly, in key order. Callers wanting the indented form hand the
-// result to `json.Indent`, whose output matches what the Node version of this tool wrote.
-func (o *Object) MarshalJSON() ([]byte, error) {
-	var out bytes.Buffer
-	out.WriteByte('{')
-	for index, key := range o.keys {
-		if index > 0 {
-			out.WriteByte(',')
-		}
-		name, err := EncodeJSON(key)
-		if err != nil {
-			return nil, err
-		}
-		out.Write(name)
-		out.WriteByte(':')
-		if err = json.Compact(&out, o.values[key]); err != nil {
-			return nil, err
-		}
-	}
-	out.WriteByte('}')
-	return out.Bytes(), nil
-}
-
-// EncodeJSON is `json.Marshal` with HTML escaping off, and it trims the trailing newline.
-//
-// The default escaping guards a browser. It writes the `&&` in the launcher command as a pair of
-// `\u0026` escapes, one string to a parser and a different file to `cmp`. These configs are compared
-// byte for byte against a reinstall's output, so escaping no caller asked for reads as an edit.
-func EncodeJSON(value any) ([]byte, error) {
-	var out bytes.Buffer
-	encoder := json.NewEncoder(&out)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(value); err != nil {
-		return nil, err
-	}
-	return []byte(strings.TrimSuffix(out.String(), "\n")), nil
 }

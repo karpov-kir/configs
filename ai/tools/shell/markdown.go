@@ -24,12 +24,10 @@ var (
 	frontmatterRule    = regexp.MustCompilePOSIX(`^---[[:space:]]*$`)
 	modelInvocationOff = regexp.MustCompilePOSIX(`^disable-model-invocation:[[:space:]]*(true|yes|on|1)[[:space:]]*$`)
 
-	// The audience marker, shared with ai/bootstrap.sh — which reads it in awk, before any Go binary
-	// on the machine exists, and cannot call in here. So the pattern is written twice, and
-	// markdown_test.go holds the two spellings to each other.
+	// The audience marker, which the field guide reads to leave a maintainer-only skill out.
 	maintainerAudience = regexp.MustCompilePOSIX(`^audience:[[:space:]]*maintainer[[:space:]]*$`)
 
-	// Any `audience:` line at all, so a value neither reader knows can be refused by name instead of
+	// Any `audience:` line at all, so a value no reader knows can be refused by name instead of
 	// passing for an absent marker. Kept beside the pattern above because the two are one rule: the
 	// marker has exactly one spelling, and everything else is a mistake somebody made on purpose.
 	audienceDeclared = regexp.MustCompilePOSIX(`^audience:`)
@@ -150,28 +148,24 @@ func IsOptedOutOfModelInvocation(lines []string) bool {
 }
 
 // True when a skill declares it exists to maintain this instruction tree rather than to work in any
-// repository. `ai/bootstrap.sh` without `--maintainer` leaves those unmounted, so an install that
-// only uses the ecosystem does not carry their descriptions in every session.
+// repository. The field guide leaves those out.
 //
-// The audience is declared in the skill rather than listed in the script, which is what keeps the
-// mount loop discovery: a maintainer-only skill added tomorrow is excluded without anyone editing
-// either reader. Read through the pattern above, so this and ai/bootstrap.sh's awk agree about what
-// the marker line looks like.
+// The audience is declared in the skill rather than listed in a tool, so a maintainer-only skill
+// added tomorrow is excluded without anyone editing the reader.
 func IsMaintainerAudience(lines []string) bool {
 	return scanFrontmatter(lines, func(line string) bool {
 		return maintainerAudience.MatchString(AsciiLower(line))
 	})
 }
 
-// The value on an `audience:` line that neither reader recognises, and whether there was one.
+// The value on an `audience:` line that no reader recognises, and whether there was one.
 //
 // Returned rather than passed over. `audience: maintainr` matches no marker, so a reader that only
-// asks "is this the marker" answers no and the skill installs for everyone — a declaration the human
-// wrote, silently ignored, leaving them with a skill they believe is marked and is not. That is the
-// same failure `ai/tools/reader-judge/deadline.go` refuses an unrecognised override line for, and it
-// is worse here: the mistake is invisible on a machine where the install looks correct.
+// asks "is this the marker" answers no and the skill is listed in the field guide — a declaration the
+// human wrote, silently ignored, leaving them with a skill they believe is marked and is not. That is
+// the same failure `ai/tools/reader-judge/deadline.go` refuses an unrecognised override line for.
 //
-// `maintainer` is the only value there is. Adding a second one means teaching both readers, which is
+// `maintainer` is the only value there is. Adding a second one means teaching the reader, which is
 // what this refusal makes unavoidable rather than optional.
 func UnknownAudience(lines []string) (string, bool) {
 	value, found := "", false

@@ -1,10 +1,9 @@
 # Overview and installation
 
 - [`env/`](env/README.md) installs zsh, git, ghostty, neovim, starship and their tools through `env/bootstrap.sh`.
-- [`ai/`](ai/README.md) installs agent instructions, kk-flavor standards, skills, Go tools and MCP servers.
-  For a project, run only `ai/install-project.sh --agent=claude|codex <project>`.
-  Use `ai/bootstrap.sh --agent=claude|codex` only for a requested machine-wide install.
-  Both AI installers require `--agent=claude` or `--agent=codex` and support `--uninstall`.
+- [`ai/`](ai/README.md) installs agent instructions, kk-flavor standards, skills, Go tools and MCP servers
+  on the owner's machine. Run `ai/bootstrap.sh --agent=claude|codex`. It requires `--agent=claude` or
+  `--agent=codex` and supports `--uninstall`.
 
 The environment and AI installations are independent. Run either or both, in any order; removing one
 leaves the other working. Their READMEs describe what gets installed and how to remove it.

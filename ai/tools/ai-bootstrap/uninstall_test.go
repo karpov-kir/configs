@@ -15,7 +15,7 @@ func TestUninstallOverAMachineHoldingNothingLinksNothingOnTheWay(t *testing.T) {
 	f.ExpectAbsent(f.home + "/.kk-flavor")
 }
 
-func TestUninstallTakesTheBucketTheSkillsAndTheRegion(t *testing.T) {
+func TestUninstallTakesTheBucketTheSkillsAndTheOwnerCopy(t *testing.T) {
 	f := newFixture(t)
 	f.ExpectCode(f.install("--agent=claude"), 0)
 
@@ -25,39 +25,11 @@ func TestUninstallTakesTheBucketTheSkillsAndTheRegion(t *testing.T) {
 	if mounted := f.Mounted(f.skillsMount("claude")); len(mounted) > 0 {
 		t.Errorf("the uninstall left %v mounted", mounted)
 	}
-	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", "")
+	f.ExpectAbsent(f.home + "/.claude/CLAUDE.md")
 }
 
-// The tier a machine was installed with is recorded nowhere. An uninstall that re-applied the
-// audience filter would build its removal table for the tier being asked for NOW. --maintainer in and
-// plain out would leave exactly the marked skills mounted, reporting ok.
-func TestAPlainUninstallRemovesWhatMaintainerInstalled(t *testing.T) {
-	f := newFixture(t)
-	f.ExpectCode(f.install("--agent=claude", "--maintainer"), 0)
-
-	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
-
-	if mounted := f.Mounted(f.skillsMount("claude")); len(mounted) > 0 {
-		t.Errorf("the uninstall left %v mounted, which is every skill --maintainer had added", mounted)
-	}
-}
-
-// A project that still holds skills mounted from this checkout is left with a dangling set the moment
-// the checkout is deleted. This line is the only warning the human gets before deleting it.
-func TestUninstallNamesTheProjectsThatStillNeedThisCheckout(t *testing.T) {
-	f := newFixture(t)
-	project := f.base + "/a-project"
-	f.MkdirAll(project)
-	f.Write(f.home+"/.config/kk-flavor/installs", project+"\n")
-
-	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
-
-	f.ExpectSaid("1 project(s) still hold skills mounted from this checkout")
-	f.ExpectSaid(project)
-}
-
-// This case runs at the default tier, which never installs rtk. The tier a machine was installed with
-// is recorded nowhere, so the line is worded for either case and has to appear here too.
+// Nothing records whether rtk was on this machine before the install, so the line is worded for
+// either case and appears on a machine that never got rtk too.
 func TestUninstallSaysWhatItLeavesInstalled(t *testing.T) {
 	f := newFixture(t)
 
@@ -74,17 +46,4 @@ func TestUninstallOverAMachineWithNoInstructionFileSaysSo(t *testing.T) {
 	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
 	f.ExpectSaid(f.home + "/.claude/CLAUDE.md is not there")
-}
-
-// The note an older Codex install wrote under the region. No install writes one any more, so an
-// uninstall is the only code left that takes one out.
-func TestUninstallRemovesTheOldCodexRtkNoteAsWellAsTheRegion(t *testing.T) {
-	f := newFixture(t)
-	f.ExpectCode(f.install("--agent=codex"), 0)
-	f.appendTo(f.codexHome+"/AGENTS.md",
-		"\n<!-- kk-flavor-rtk:begin -->\nRead the RTK notes.\n<!-- kk-flavor-rtk:end -->\n")
-
-	f.ExpectCode(f.install("--agent=codex", "--uninstall"), 0)
-
-	f.ExpectFileBody(f.codexHome+"/AGENTS.md", "")
 }

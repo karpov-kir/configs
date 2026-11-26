@@ -1,11 +1,9 @@
 package aibootstrap
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
-	"configs/ai/tools/installer"
 	"configs/ai/tools/shell"
 )
 
@@ -39,45 +37,8 @@ func (run *invocation) anotherClientHoldsMounts() bool {
 	return false
 }
 
-func (run *invocation) declareSkills() installer.SkillMounts {
-	return run.mounting.AddSkillMounts(installer.SkillMountOptions{
-		SkillsDirectory: run.Repo + "/kk-flavor/skills",
-		MountParent:     run.skillsMount,
-		Maintainer:      run.isMaintainer,
-		Uninstalling:    run.isUninstall,
-	})
-}
-
-// The tier is said out loud, after the mounts, so it reads beside them. A flag that quietly leaves
-// skills out reads like a discovery loop that stopped finding them, and no line says which it was.
-// The zero case is the same claim about work that never happened. A flag passed to a tree carrying
-// no marked skill has to say it excluded none.
-func (run *invocation) reportTier(found installer.SkillMounts) {
-	if run.isMaintainer {
-		return
-	}
-	if len(found.SkippedNames) == 0 {
-		run.mounting.Say("  ok       no maintainer-only skill was there to exclude")
-		return
-	}
-	run.mounting.Say(fmt.Sprintf("  skipped  %d maintainer-only skill(s): %s",
-		len(found.SkippedNames), strings.Join(found.SkippedNames, " ")))
-}
-
-// Two ways to mount zero skills, and they send a reader to different places. An empty skills
-// directory is a broken checkout. A flag that excluded every skill it found is a flag doing exactly
-// what it says on a tree that holds only maintainer skills. The exit code is the same for both, so
-// the wording is what tells them apart.
-func (run *invocation) emptyTableRefusal(found installer.SkillMounts) string {
-	if len(run.mounting.BulkMounts()) > 0 {
-		return ""
-	}
-	directory := run.Repo + "/kk-flavor/skills/"
-	if found.Found > 0 {
-		return fmt.Sprintf("every skill under %s is maintainer-only, and a run without --maintainer "+
-			"excluded all %d — nothing was mounted", directory, found.Found)
-	}
-	return "no skill directories under " + directory + " — nothing was mounted"
+func (run *invocation) declareSkills() {
+	run.mounting.AddSkillMounts(run.Repo+"/kk-flavor/skills", run.skillsMount)
 }
 
 // Codex kept its skills under CODEX_HOME before the shared discovery directory existed, and machines

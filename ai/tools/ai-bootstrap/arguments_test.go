@@ -84,6 +84,6 @@ func TestTheUsageLineNamesEveryFlagTheParserAcceptsAndNoOther(t *testing.T) {
 // line unchecked for it, which the driven half cannot see. So the list is what a reader checks
 // against the switch, and the driven half is what checks the line.
 var acceptedFlags = []string{
-	"--agent=claude", "--agent=codex", "--dry-run", "--relocate", "--maintainer", "--owner",
+	"--agent=claude", "--agent=codex", "--dry-run", "--relocate",
 	"--skip-brew", "--skip-tools", "--skip-mcp", "--skip-rtk", "--skip-verify", "--skip-models", "--uninstall",
 }

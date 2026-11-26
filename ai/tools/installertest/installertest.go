@@ -178,8 +178,7 @@ func (w *Tree) RemoveLink(path string) {
 }
 
 // NewSkill writes a skill in the shape an installer discovers: a SKILL.md under
-// <root>/kk-flavor/skills/<name>/. audience is the frontmatter line the tier cases turn on, empty for
-// a skill every install takes.
+// <root>/kk-flavor/skills/<name>/. audience is an extra frontmatter line, empty for none.
 func (w *Tree) NewSkill(root, name, audience string) {
 	w.t.Helper()
 	w.Write(root+"/kk-flavor/skills/"+name+"/SKILL.md",

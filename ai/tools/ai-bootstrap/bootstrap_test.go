@@ -1,4 +1,4 @@
-// The cases for the machine-wide agent install: the tiers, the instruction file, the Codex migration
+// The cases for the machine-wide agent install: the skills, the instruction file, the Codex migration
 // and the four steps reaching outside this process. ai/tools/installer's own suite drives the rest.
 //
 // Every case gets its own home under t.TempDir(), and WriteRoot bounds the run to that tree. The
@@ -11,10 +11,10 @@
 package aibootstrap_test
 
 import (
+	"slices"
 	"testing"
 
 	aibootstrap "configs/ai/tools/ai-bootstrap"
-	"configs/ai/tools/flavor"
 	"configs/ai/tools/installertest"
 	"configs/ai/tools/runtest"
 )
@@ -23,12 +23,17 @@ import (
 // stub's own basename, which is what `exec -a "$0"` hands the binary.
 const scriptName = "bootstrap.sh"
 
-// The skills the fixture checkout ships. Two audiences, because the tier cases are only comparing
-// something on a tree that holds both.
+// The skills the fixture checkout ships. One is marked for maintainers, which an install mounts like
+// any other.
 var (
 	publicSkills     = []string{"kk-build", "kk-qualify"}
 	maintainerSkills = []string{"kk-ecosystem"}
 )
+
+// Every skill the fixture ships, sorted the way a directory listing reads them.
+func allSkills() []string {
+	return slices.Sorted(slices.Values(append(append([]string{}, publicSkills...), maintainerSkills...)))
+}
 
 // One case's tree: a checkout in ai/'s shape, a home, a machine, and everything the run printed.
 type fixture struct {
@@ -81,10 +86,8 @@ func (f *fixture) newCheckout(root string) {
 	}
 }
 
-// The owner template a case installs. It carries the region body, which is the only property of the
-// real file these cases depend on. ai/owner-instructions.md itself is held against the body by the
-// case in owner_test.go.
-const ownerTemplate = "# Owner\n\n" + flavor.RegionBody + "\n"
+// The owner template a case installs. Its content is no case's subject, only its bytes.
+const ownerTemplate = "# Owner\n\nRead `~/.kk-flavor/inject.md`.\n"
 
 // The run a case drives, with everything it did not name taken from the fixture. Out, Err and
 // WriteRoot stay the fixture's whatever a case says. A case printing elsewhere leaves output no

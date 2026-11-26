@@ -103,72 +103,8 @@ func (t *tree) remove(path string) error {
 	return nil
 }
 
-func (t *tree) appendLine(file, line string) error {
-	if err := t.contained(file); err != nil {
-		return err
-	}
-	handle, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := handle.WriteString(line + "\n"); err != nil {
-		handle.Close()
-		return err
-	}
-	return handle.Close()
-}
-
-// The three ways replaceFile, a method on tree, fails, held apart because each sends the reader
-// somewhere different. There was nowhere to put the new bytes, the new bytes could not be written,
-// or the swap failed. The first has no temporary file to clean up, and the second and third both
-// leave the original as it was.
-var (
-	errNoTemporary = errors.New("could not create a temporary file")
-	errNotWritten  = errors.New("could not write the replacement")
-	errNotSwapped  = errors.New("could not swap the replacement in")
-)
-
-// The temp file goes in the same directory, so the rename is on one filesystem and therefore atomic.
-// A killed run leaves the original untouched, and a half-written CLAUDE.md stays impossible.
-
-// The original's mode is carried over, so a file the human made executable or group-writable does
-// not silently come back as whatever the umask says.
-
-// Replaces a file's contents through a temp file in its own directory, then renames.
-func (t *tree) replaceFile(file string, content []byte) error {
-	if err := t.contained(file); err != nil {
-		return err
-	}
-	temporary, err := os.CreateTemp(shell.DirName(file), ".kk-region.")
-	if err != nil {
-		return errNoTemporary
-	}
-	name := temporary.Name()
-	if _, err := temporary.Write(content); err != nil {
-		temporary.Close()
-		os.Remove(name)
-		return errNotWritten
-	}
-	if err := temporary.Close(); err != nil {
-		os.Remove(name)
-		return errNotWritten
-	}
-	if info, err := os.Stat(file); err == nil {
-		os.Chmod(name, info.Mode().Perm())
-	}
-	if err := os.Rename(name, file); err != nil {
-		os.Remove(name)
-		return errNotSwapped
-	}
-	return nil
-}
-
 // A hardlinked file passes the symlink check and the existence check alike, so no other guard
-// catches it. The append path copies the file's existing contents into the replacement, so a link to
-// somebody's private file copies that file into the project.
-
-// The rename breaks the link, and the original is never modified. The read has already happened, and
-// this package has no business reading a file its caller named one name for.
+// catches it. Its contents are shared with a file the caller never named.
 
 // An answer that cannot be read comes back as an error, and never as a count. An unestablished link
 // count is the case where writing might share someone's file. This is the wrong place to assume the

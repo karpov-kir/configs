@@ -3,13 +3,11 @@ package aibootstrap
 import (
 	"bytes"
 	"os"
-	"strings"
 
-	"configs/ai/tools/flavor"
 	"configs/ai/tools/shell"
 )
 
-// The owner tier's memory store, and where an owner install before this one put it. The spelling was
+// The owner's memory store, and where an owner install before this one put it. The spelling was
 // `Document` for months, which no other tool on a Mac uses, and the owner's own instructions name
 // `Documents`. A fix to the destination alone would leave every entry already written at a path no
 // write or integration reaches, so moveLegacyOwnerMemory, a step of the install run, moves them.
@@ -39,51 +37,12 @@ func isNonEmptyFile(path string) bool {
 // The instruction step, and whether it finished. The rtk step reads the answer.
 func (run *invocation) writeInstructions() bool {
 	run.mounting.Say("instructions")
-	if run.isOwner {
-		return run.writeOwnerInstructions() && run.moveLegacyOwnerMemory() && run.ensureOwnerMemory()
-	}
-	// Asked again here as well as at the top of the run. do() stops a run before it writes anything.
-	// This call guards the write itself, so a path that reached here some other way still cannot write
-	// into a file no client will load.
-	if refusal := run.shadowedInstructions(); refusal != "" {
-		run.mounting.Refuse(refusal)
-		return false
-	}
-	if !shell.PathExists(run.instructionFile) && !shell.IsSymlink(run.instructionFile) {
-		if run.isDryRun {
-			run.mounting.Say("  would create " + run.instructionFile + " and add the kk-flavor region")
-			return true
-		}
-		if !run.createEmptyInstructionFile() {
-			return false
-		}
-	}
-	return run.mounting.WriteRegion(run.instructionFile, flavor.RegionOpen, flavor.RegionClose, flavor.RegionBody)
+	return run.writeOwnerInstructions() && run.moveLegacyOwnerMemory() && run.ensureOwnerMemory()
 }
-
-// The only path that creates an instruction file. The region writer refuses a missing file on
-// purpose, because a typo in a path would otherwise produce a plausible new file in someone's
-// repository. A client that has never been configured is handed an empty file here first.
-func (run *invocation) createEmptyInstructionFile() bool {
-	directory := shell.DirName(run.instructionFile)
-	if !shell.IsDir(directory) {
-		if err := os.MkdirAll(directory, 0o755); err != nil {
-			run.mounting.Refuse("could not create " + directory + ", so the instruction region was not written")
-			return false
-		}
-	}
-	if err := os.WriteFile(run.instructionFile, nil, 0o644); err != nil {
-		run.mounting.Refuse("could not create " + run.instructionFile + ", so the instruction region was not written")
-		return false
-	}
-	return true
-}
-
-// --- the owner tier -------------------------------------------------------------------------------
 
 // The owner gets the whole owner template as a copy, so the file is this repository's and a later
-// edit of it is the owner's. A whole-file replacement is destructive in a way a region never is, and
-// every refusal here guards that. The copy goes in only where this repository wrote what is already
+// edit of it is the owner's. A whole-file replacement is destructive, and every refusal here guards
+// that. The copy goes in only where this repository wrote what is already
 // there, and a backup is taken whenever the bytes differ.
 func (run *invocation) writeOwnerInstructions() bool {
 	source := run.ownerSource()
@@ -177,52 +136,7 @@ func (run *invocation) ownerFileMatches() bool {
 	// The template as it was when this machine was installed, which the receipt records. That is the
 	// only way an upgraded template is told from a file the owner edited.
 	receipt := run.ownerReceipt()
-	if shell.IsRegularFile(receipt) && !shell.IsSymlink(receipt) && sameBytes(run.instructionFile, receipt) {
-		return true
-	}
-	// For Codex, the generated region this repository used to write, with or without the RTK note that
-	// sat under it.
-	if run.agent != codexAgent {
-		return false
-	}
-	return run.matchesGeneratedCodexInstructions()
-}
-
-// The generated file an older Codex install wrote: the fenced region, optionally followed by the RTK
-// note that install also added. The comparison drops blank lines from both sides, because the two
-// halves were assembled by different runs and the owner chose no part of the spacing between them.
-func (run *invocation) matchesGeneratedCodexInstructions() bool {
-	body, err := os.ReadFile(run.instructionFile)
-	if err != nil {
-		return false
-	}
-	actual := withoutBlankLines(string(body))
-	generated := withoutBlankLines(flavor.RegionOpen + "\n" + flavor.RegionBody + "\n" + flavor.RegionClose + "\n")
-	if actual == generated {
-		return true
-	}
-	return actual == generated+"\n"+withoutBlankLines(run.legacyRtkNote())
-}
-
-// What the older Codex install appended under the region. The text is reproduced here because it
-// names CODEX_HOME by an absolute path, and the exact text on any one machine exists only in that
-// machine's file.
-func (run *invocation) legacyRtkNote() string {
-	return "@" + run.CodexHome + "/RTK.md\n\n" +
-		flavor.LegacyRtkRegionOpen + "\n" +
-		"Read `" + run.CodexHome + "/RTK.md` for RTK usage. For unsupported commands or exact output, " +
-		"use `rtk proxy <command>`.\n" +
-		flavor.LegacyRtkRegionClose
-}
-
-func withoutBlankLines(text string) string {
-	var kept []string
-	for _, line := range shell.SplitLines(text) {
-		if strings.TrimLeft(line, shell.SpaceBytes) != "" {
-			kept = append(kept, line)
-		}
-	}
-	return strings.Join(kept, "\n")
+	return shell.IsRegularFile(receipt) && !shell.IsSymlink(receipt) && sameBytes(run.instructionFile, receipt)
 }
 
 // The owner's entries, moved off the path an earlier install wrote them to. A run that skipped this
@@ -312,7 +226,7 @@ func (run *invocation) ensureOwnerMemory() bool {
 	return true
 }
 
-// --- removing what the owner tier installed -------------------------------------------------------
+// --- removing what the install put there ------------------------------------------------------------
 
 // Removed only when what is there is still this repository's copy. An owner who edited it gets a
 // refusal and keeps their file. An uninstall takes back what this installer put there, and an edited

@@ -24,7 +24,7 @@ func checkoutThroughABucket(t *testing.T) string {
 	if err = os.MkdirAll(base+"/home", 0o755); err != nil {
 		t.Fatalf("building the fixture home: %v", err)
 	}
-	if err = os.WriteFile(base+"/checkout/ai/project-skills.sh", nil, 0o644); err != nil {
+	if err = os.WriteFile(base+"/checkout/ai/mcp-sync.sh", nil, 0o644); err != nil {
 		t.Fatalf("building the fixture stub: %v", err)
 	}
 	if err = os.Symlink(base+"/checkout/ai/kk-flavor", base+"/home/.kk-flavor"); err != nil {
@@ -46,8 +46,8 @@ func TestOwnDirectoryFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
 	t.Chdir(base + "/home")
 
 	for _, invocation := range []string{
-		base + "/home/.kk-flavor/../project-skills.sh",
-		".kk-flavor/../project-skills.sh",
+		base + "/home/.kk-flavor/../mcp-sync.sh",
+		".kk-flavor/../mcp-sync.sh",
 	} {
 		got, err := shell.OwnDirectory(invocation)
 		if err != nil {
@@ -227,7 +227,7 @@ func TestCanonicalDirFollowsASymlinkBeforeItResolvesADotDot(t *testing.T) {
 		{base + "/home/.kk-flavor/..", base + "/checkout/ai"},
 		{".kk-flavor", base + "/checkout/ai/kk-flavor"},
 		{".", base + "/home"},
-		{base + "/checkout/ai/project-skills.sh", ""},
+		{base + "/checkout/ai/mcp-sync.sh", ""},
 		{base + "/home/nothing-here", ""},
 	} {
 		if got := shell.CanonicalDir(c.path); got != c.want {
@@ -282,8 +282,8 @@ func TestNearestExistingParentClimbsToADirectoryAndResolvesIt(t *testing.T) {
 		{base + "/home/anything", base + "/home"},
 		{base + "/home/one/two/three", base + "/home"},
 		{base + "/home/.kk-flavor/skills/a", base + "/checkout/ai/kk-flavor"},
-		{base + "/checkout/ai/project-skills.sh/below", base + "/checkout/ai"},
-		{base + "/checkout/ai/project-skills.sh", base + "/checkout/ai"},
+		{base + "/checkout/ai/mcp-sync.sh/below", base + "/checkout/ai"},
+		{base + "/checkout/ai/mcp-sync.sh", base + "/checkout/ai"},
 		{base + "/home/.kk-flavor/../anything", base + "/checkout/ai"},
 	} {
 		if got := shell.NearestExistingParent(c.path); got != c.want {

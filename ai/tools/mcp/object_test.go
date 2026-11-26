@@ -6,26 +6,20 @@ import (
 	"testing"
 )
 
-func TestAnObjectRoundTripsInDocumentOrder(t *testing.T) {
+func TestAnObjectKeepsItsKeysInDocumentOrder(t *testing.T) {
 	t.Parallel()
 	source := `{"zebra":1,"alpha":{"b":2,"a":1},"middle":["x"]}`
 	object, err := ParseObject([]byte(source))
 	if err != nil {
 		t.Fatalf("parsing %s: %v", source, err)
 	}
-	raw, err := object.MarshalJSON()
-	if err != nil {
-		t.Fatalf("writing it back: %v", err)
-	}
-	if string(raw) != source {
-		t.Errorf("a round trip reordered or reshaped the document\n  got: %s\n want: %s\n"+
-			"Go's own map would answer these keys sorted, which is a diff across every line of a file "+
-			"this tool was asked to add one entry to", raw, source)
+	if got := strings.Join(object.Keys(), ","); got != "zebra,alpha,middle" {
+		t.Errorf("keys are %q, want \"zebra,alpha,middle\" — Go's own map would answer them sorted", got)
 	}
 }
 
-// Set must leave a replaced value's key where it is. A key that moves sends the server to the end of
-// a project's config, where it reads as a removal plus an addition.
+// Set must leave a replaced value's key where it is, which is how a duplicate key keeps its first
+// position.
 func TestSettingAnExistingKeyLeavesItWhereItWas(t *testing.T) {
 	t.Parallel()
 	object, err := ParseObject([]byte(`{"one":1,"two":2,"three":3}`))
@@ -40,57 +34,17 @@ func TestSettingAnExistingKeyLeavesItWhereItWas(t *testing.T) {
 	}
 }
 
-func TestDeletingAKeyLeavesTheRestInOrder(t *testing.T) {
+// A value is kept as its own bytes — non-ASCII and the characters Go's default encoder escapes
+// included — so a field `mcp-sync` reads arrives exactly as the declaration wrote it.
+func TestAValueComesBackByteForByte(t *testing.T) {
 	t.Parallel()
-	object, err := ParseObject([]byte(`{"one":1,"two":2,"three":3}`))
+	const kept = `{"text":"a && b <c> ünïcodé","n":1.5e10}`
+	object, err := ParseObject([]byte(`{"kept":` + kept + `}`))
 	if err != nil {
 		t.Fatalf("parsing: %v", err)
 	}
-	object.Delete("two")
-	object.Delete("absent")
-	raw, err := object.MarshalJSON()
-	if err != nil {
-		t.Fatalf("writing it back: %v", err)
-	}
-	if string(raw) != `{"one":1,"three":3}` {
-		t.Errorf("after deleting one key the object is %s, want {\"one\":1,\"three\":3}", raw)
-	}
-}
-
-// A project's config holds other tools' entries, so what this does not touch has to come back byte
-// for byte — non-ASCII and the characters Go's default encoder escapes included.
-func TestValuesThisToolDoesNotTouchComeBackByteForByte(t *testing.T) {
-	t.Parallel()
-	source := `{"kept":{"text":"a && b <c> ünïcodé","n":1.5e10}}`
-	object, err := ParseObject([]byte(source))
-	if err != nil {
-		t.Fatalf("parsing: %v", err)
-	}
-	raw, err := object.MarshalJSON()
-	if err != nil {
-		t.Fatalf("writing it back: %v", err)
-	}
-	if string(raw) != source {
-		t.Errorf("an untouched value was rewritten\n  got: %s\n want: %s", raw, source)
-	}
-}
-
-func TestEncodingLeavesTheLaunchersOwnCharactersAlone(t *testing.T) {
-	t.Parallel()
-	encoded, err := EncodeJSON([]string{`a && b`, `<x>`})
-	if err != nil {
-		t.Fatalf("encoding: %v", err)
-	}
-	// The assertion looks for any backslash, because each escape has more than one spelling. Every
-	// character in this fixture is one Go's default encoder rewrites, and none of them needs escaping
-	// in JSON.
-	if strings.ContainsRune(string(encoded), '\\') {
-		t.Errorf("the launcher's own characters were written as escapes: %s\nThe file is compared byte for "+
-			"byte against what a reinstall would write, so an escaping nobody asked for reads as a file "+
-			"somebody edited, and the region is then refused.", encoded)
-	}
-	if string(encoded) != `["a && b","<x>"]` {
-		t.Errorf("encoding changed the values themselves\n  got: %s\n want: %s", encoded, `["a && b","<x>"]`)
+	if raw, _ := object.Get("kept"); string(raw) != kept {
+		t.Errorf("a value was rewritten\n  got: %s\n want: %s", raw, kept)
 	}
 }
 

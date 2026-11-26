@@ -9,9 +9,6 @@ import (
 )
 
 // The rtk step: take out the file this repository used to write, then let rtk configure itself.
-//
-// Both halves are the owner tier's, because rtk is personal tooling. A colleague's machine keeps what
-// it has, since this repository wrote no leftover there. rtk is never initialised on it either.
 func (run *invocation) configureRtk() {
 	run.mounting.Say("rtk")
 	run.removeLeftoverRtkDocument()
@@ -23,10 +20,6 @@ func (run *invocation) configureRtk() {
 func (run *invocation) removeLeftoverRtkDocument() {
 	if run.agent == codexAgent {
 		run.mounting.Say("  ok       Claude RTK cleanup does not apply to Codex")
-		return
-	}
-	if !run.isOwner {
-		run.mounting.Say("  skipped  rtk is the owner tier's")
 		return
 	}
 	leftover := run.Home + "/.claude/RTK.md"
@@ -62,7 +55,7 @@ func (run *invocation) rtkArguments() []string {
 }
 
 func (run *invocation) initialiseRtk() {
-	if !run.isOwner || run.isRtkSkipped {
+	if run.isRtkSkipped {
 		run.mounting.Say("  skipped  RTK initialization")
 		return
 	}
@@ -73,12 +66,12 @@ func (run *invocation) initialiseRtk() {
 		return
 	}
 	// A Codex profile that already holds an RTK.md keeps it. The file is the human's own document, and
-	// rtk would write over it. The region writer's own guard does the checking, so a symlink or an
+	// rtk would write over it. The installer's writability guard does the checking, so a symlink or an
 	// unwritable file is refused here, before rtk is halfway through.
 	existing := run.CodexHome + "/RTK.md"
 	needsInitialisation := true
 	if run.agent == codexAgent && (shell.PathExists(existing) || shell.IsSymlink(existing)) {
-		if !run.mounting.RegionWritable(existing) {
+		if !run.mounting.FileWritable(existing) {
 			return
 		}
 		needsInitialisation = false
@@ -111,7 +104,7 @@ func (run *invocation) initialiseRtk() {
 
 // Codex's rtk init writes a whole profile, so it is pointed at a staging directory and only the file
 // this install wants is copied out. A run against the real profile would also rewrite AGENTS.md,
-// which the owner tier has just made its own copy of. The copy skips an existing RTK.md. A file that
+// which the install has just made the owner copy. The copy skips an existing RTK.md. A file that
 // appeared while rtk was running is not this run's to replace.
 func (run *invocation) initialiseCodexRtk() {
 	staging, err := os.MkdirTemp(run.Home, ".kk-flavor-rtk.")

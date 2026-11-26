@@ -24,25 +24,9 @@ func (r *Run) BulkMounts() []Mount {
 	return r.bulk
 }
 
-// The project installer is the caller. It declares its skills against this checkout, which gives
-// mountForeignRoot, the mount guard, a checkout to recognise. It then points them at the shared
-// bucket, and every install of this flavor holds the same path. A declaration at the bucket up
-// front would leave the guard blind and a project quietly repointed off somebody else's clone.
-
-// RewriteBulkSources replaces every declared bulk source with what rewrite answers for it.
-func (r *Run) RewriteBulkSources(rewrite func(source string) string) {
-	for i := range r.bulk {
-		r.bulk[i].Source = rewrite(r.bulk[i].Source)
-	}
-}
-
 // Link writes over an existing symlink, since a symlink carries no data of its own. Any other
 // existing target is refused. mountForeignRoot, the mount guard, covers the case where that
 // reasoning holds for the link but fails for what the link is part of.
-
-// The project installer is why this is exported. It mounts a bucket that every other mount in its
-// table then resolves THROUGH, and that bucket has to land before the rest are even spelled. Mount
-// still writes the table, and it links the bucket again and reports it as already ok.
 
 // Link writes one mount at once, and reports which of the four states it found.
 func (r *Run) Link(source, target string) bool {
@@ -232,7 +216,7 @@ func (r *Run) Mount() bool {
 		}
 	default:
 		r.Say("")
-		r.Say("  This checkout is not where " + r.mountScopeLabel + " is mounted.")
+		r.Say("  This checkout is not where this machine's configuration is mounted.")
 		for _, root := range r.foreignRoots {
 			r.refuseForeignRoot(root)
 		}
