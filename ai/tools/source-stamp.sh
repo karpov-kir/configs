@@ -6,11 +6,9 @@
 #
 # tested by: the Go suite in ai/tools/reach/, which execs this script once per case.
 
-# Content, because nothing else survives the trip from the build machine to this one. git does not
-# preserve mtimes, and a release binary is written into bin/ long after the checkout it lands in, so a
-# timestamp reads a stale binary as fresh. The revision Go embeds — `go version -m`, readable even
-# without a toolchain — names a commit and not the bytes, so two different edits of one commit record
-# the same revision.
+# Content, because an mtime says when a file was written and not what it holds, so a timestamp can
+# read a stale binary as fresh. The revision Go embeds, which `go version -m` prints, names a commit
+# and not the bytes, so two different edits of one commit record the same revision.
 #
 # The set is every non-test Go file in the module, plus go.mod — not a per-tool subset. A directory
 # that cmd/ holds a main for looks like that tool's private source and can still be a library this one
@@ -45,9 +43,7 @@ case "$tool" in
   "" | *[!a-z0-9-]*) die "'$tool' is not a tool name — expected lowercase letters, digits and dashes" ;;
 esac
 
-# macOS ships shasum and most Linux images ship sha256sum. A release is stamped on one and read on
-# the other, so the two have to write a digest and a name the same way.
-# The Go suite in ai/tools/reach/ checks that they do.
+# macOS ships shasum and most Linux images ship sha256sum.
 if command -v shasum >/dev/null 2>&1; then
   hasher=(shasum -a 256)
 elif command -v sha256sum >/dev/null 2>&1; then
@@ -64,7 +60,7 @@ fi
 [ -f "$module/go.mod" ] || die "no go.mod at $module, so the source of $tool cannot be stamped"
 
 # The list is sorted under LC_ALL=C and named relative to the module root. The same source then stamps
-# the same on the release runner and on the machine that installs what it built.
+# the same under any locale and wherever the checkout sits.
 
 # git holds the list inside a checkout. `git ls-files` stops at a nested repository's edge, so the
 # worktrees a machine keeps inside its checkout fall out by git's own rule. An ignore entry would do
@@ -74,7 +70,7 @@ fi
 # binary built before that source would otherwise read as current. `-z` is passed because git
 # C-quotes a path holding a quote or a non-ASCII byte.
 
-# Outside a checkout the walk is all there is. It prunes bin/ and dist/ for the binaries and `.git`
+# Outside a checkout the walk is all there is. It prunes bin/ for the binaries and `.git`
 # for holding no Go. Both spellings name every file `./…`, so an unchanged tree stamps as it did when
 # this only walked.
 sources=()
@@ -91,7 +87,7 @@ done < <(
       git ls-files --cached --others -z -- '*.go' ':(exclude)*_test.go'
     else
       printf './go.mod\0'
-      find . \( -name .git -o -name bin -o -name dist \) -prune -o \
+      find . \( -name .git -o -name bin \) -prune -o \
         -type f -name '*.go' ! -name '*_test.go' -print0
     fi | LC_ALL=C sort -z
 )

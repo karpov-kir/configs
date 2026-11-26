@@ -114,7 +114,6 @@ type arguments struct {
 	isDryRun      bool
 	willRelocate  bool
 	isBrewSkipped bool
-	areToolsSkipped,
 	isMcpSkipped,
 	isRtkSkipped,
 	isVerifySkipped,
@@ -137,8 +136,6 @@ func parseArguments(self string, args []string, stderr io.Writer) (arguments, in
 			parsed.willRelocate = true
 		case "--skip-brew":
 			parsed.isBrewSkipped = true
-		case "--skip-tools":
-			parsed.areToolsSkipped = true
 		case "--skip-mcp":
 			parsed.isMcpSkipped = true
 		case "--skip-rtk":
@@ -172,7 +169,7 @@ func parseArguments(self string, args []string, stderr io.Writer) (arguments, in
 // each other.
 func usage() string {
 	return "usage: " + stubPath + " --agent=" + claudeAgent + "|" + codexAgent +
-		" [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp]" +
+		" [--dry-run] [--relocate] [--skip-brew] [--skip-mcp]" +
 		" [--skip-rtk] [--skip-verify] [--skip-models] [--uninstall]"
 }
 
@@ -211,8 +208,6 @@ func (run *invocation) install() int {
 	run.areInstructionsReady = run.writeInstructions()
 	run.installPackages()
 	run.configureRtk()
-	run.installTools()
-	// After the tools, so the hook names a guard already installed.
 	run.registerAgentGuard()
 	run.sayCodexTakesNoGuard()
 	run.removeRetiredPrivateNameGuard()

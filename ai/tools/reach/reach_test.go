@@ -1,29 +1,16 @@
-// Cases for the layer that puts a Go binary within reach of a checkout holding none: `resolve.sh`,
-// `source-stamp.sh` and `install.sh` beside this package. The `# --- shared:tool-stub ---` region every
-// skill script carries to call the first of them is covered by `ai/tools/stub_reach_test.go` instead,
-// for the reason that file's header gives. No case here reads the checkout at all. Every case builds
-// its own fixture, so what one measures is the shape it declared, whatever tree it ran in.
+// Cases for the layer that puts a Go binary within reach of a checkout holding none: `resolve.sh` and
+// `source-stamp.sh` beside this package. The `# --- shared:tool-stub ---` region every skill script
+// carries to call the first of them is covered by `ai/tools/stub_reach_test.go` instead, for the
+// reason that file's header gives. No case here reads the checkout at all. Every case builds its own
+// fixture, so what one measures is the shape it declared, whatever tree it ran in.
 
-// Those three stay shell. They run before there is a binary to run, and a Go build of them would have
+// Those two stay shell. They run before there is a binary to run, and a Go build of them would have
 // to execute before it could be executed. What each one measures is what a bash script did on a
 // machine shaped a particular way, and Go can answer that only by running the script.
 
 // Their cases live here for the reason `ai/tools/mcp_env_test.go`'s do. So the exec stays, and only the
 // exec. Every fixture is built in process, every case runs in parallel, and a fake toolchain stands
 // wherever the subject is resolve.sh's decision to build, and never Go's compiler.
-
-// What that replaces: four shell suites, 280 assertions, 247 seconds and 1,887 commands, nearly all of
-// it fixture plumbing. A real `go build` per staleness case, a 22-tool release per install case, and a
-// process for each of the sourced-function rows. This package and the stub cases answer 134 cases in
-// 469 commands, counted through the same PATH shim, and about half a minute.
-
-// The six cases `--run` added cost four commands between them. The stub region they cover shed a `cat`
-// and a `git rev-parse` per launch when the resolver took the exec over. The launches here paid for
-// most of the new ones.
-
-// The floor under that number is one launch per claim. What a script did on a machine shaped a
-// particular way can only be measured by running it there. The rest of each launch's cost is the
-// commands the script itself calls.
 package reach
 
 import (
@@ -39,7 +26,6 @@ import (
 const (
 	resolveScript = "../resolve.sh"
 	stampScript   = "../source-stamp.sh"
-	installScript = "../install.sh"
 )
 
 // The tool every fixture ships source for. A directory name is all a tool is to these scripts, so the
@@ -100,7 +86,7 @@ exit 1
 // that could not be computed looks like, so its exit status is the only thing telling the two apart.
 const failingStamper = "#!/bin/sh\nexit 1\n"
 
-// An executable file standing in for a binary somebody else built — a release asset, or a tool since
+// An executable file standing in for a binary this checkout did not build, such as a tool since
 // renamed. resolve.sh serves any runnable regular file in bin/, so a fixture needs no build to have one.
 const foreignBinary = "#!/bin/sh\nexit 0\n"
 
@@ -240,10 +226,10 @@ func newPathDir(t *testing.T, sandbox, name string, commands ...string) string {
 	return dir
 }
 
-// A PATH with everything the staleness check needs and no `go`. This stands for a machine that
-// installed a release, and the POSIX utilities are all still there. Strip the hasher too and
-// resolve.sh takes the "could not compare" branch instead of the branch most cases here are about.
-func newReleasePath(t *testing.T, sandbox, name string) string {
+// A PATH with everything the staleness check needs and no `go`. This stands for a stub run where no Go
+// is on PATH, with the POSIX utilities all still there. Strip the hasher too and resolve.sh takes the
+// "could not compare" branch instead of the branch most cases here are about.
+func newNoGoPath(t *testing.T, sandbox, name string) string {
 	t.Helper()
 	return newPathDir(t, sandbox, name, append(resolveCommands, hasher(t))...)
 }

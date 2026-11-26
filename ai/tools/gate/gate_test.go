@@ -263,8 +263,8 @@ func TestTheFormatCheckReadsTheFilesGitHolds(t *testing.T) {
 
 // The wiring check is one binary run twice, once per agent, and it builds that binary once. Each run
 // carrying ECO_TOOLS_BUILD=1 rebuilt and re-stamped the same source for itself, which is the floor
-// under every warm gate. The flag itself stays, because without it the measured binary can be a
-// downloaded release when this tree is what has to be measured.
+// under every warm gate. The flag itself stays, so the measured binary is bytes this tree's toolchain
+// built, and a stamp attests the source alone.
 func TestTheWiringCheckBuildsItsBinaryOnce(t *testing.T) {
 	f := newFixture(t)
 	cmd := f.plannedCheck("wiring").cmd

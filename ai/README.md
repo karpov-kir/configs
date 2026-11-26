@@ -48,7 +48,8 @@ installer left untouched.
 
 ## Dependencies and controls
 
-The Go tools need `gh` to download verified releases, or Go to build from source when no release exists.
+The Go tools build from source on first use, with the Go that the repository's `mise.toml` pins: run
+`mise install` at the repository root before bootstrap.
 The judge needs `JUDGE_PROVIDER` set to `codex` or `claude`, and the matching CLI authenticated by
 you. Missing, invalid or unavailable providers fail with exit 2. There is no `auto` mode or fallback.
 The skills that call it supply `codex` as the default, so only a machine overriding that has to set
@@ -114,7 +115,7 @@ Use `rtk proxy <command>` when exact output is needed, including every diff read
 
 - `--dry-run`: report changes without writing them.
 - `--relocate`: authorize moving mounts from another checkout; otherwise the installer refuses before writing.
-- `--skip-tools`, `--skip-brew`, `--skip-mcp`, `--skip-rtk`: skip the corresponding machine step.
+- `--skip-brew`, `--skip-mcp`, `--skip-rtk`: skip the corresponding machine step.
 - `--skip-verify`: skip `ai/gate.sh`, which bootstrap runs after installing.
 - `--skip-models`: skip `model-check.sh`, which bootstrap runs last. It asks the agent's CLI for each model `models.json` holds, and names the model that answered each and the account. A model the account serves in place of the row's is a warning; no model reachable at all stops the install with the sign-in command.
 
@@ -167,14 +168,14 @@ rule for waiting without adding to the pile.
   - Mount the shared standards, templates, scripts and skills: `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
   - Copy [owner-instructions.md](owner-instructions.md) to `~/.claude/CLAUDE.md`. Bootstrap does the same and tracks the copy for upgrades.
   - Mount each skill under `ai/kk-flavor/skills/`: `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/kk-flavor/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
-  - Install the Go tools the skills run (needs `gh`, not Go): `~/Documents/WP/configs/ai/tools/install.sh`. Re-run after a new release. Skip it and the skills build from source on first use, which does need Go.
+  - Install Go with `mise install` in `~/Documents/WP/configs`. The skills build their Go tools from source on first use.
   - Sync the MCP files described above with `~/Documents/WP/configs/ai/mcp-sync.sh --agent=claude`. It registers servers for every project in the CLI and IDE. Re-run after editing either file. HTTP registration does not contact the server. If it shows `! Needs authentication`, run `/mcp` in an interactive session to log in.
   - The `chrome-devtools` server drives the Chrome you already have open. Turn remote debugging on once at `chrome://inspect/#remote-debugging` (Chrome 144+). While it's on, any session can reach that profile, so untick it when you're done.
 - [RTK](https://github.com/rtk-ai/rtk) — compresses CLI output before the agent reads it
   - `brew install rtk`
   - `rtk init --agent claude --global --hook-only --auto-patch`, then restart Claude Code
 - [codebase-memory-mcp](https://github.com/DeusData/codebase-memory-mcp) provides a code graph for reachability questions.
-  - Download `codebase-memory-mcp-darwin-arm64.tar.gz` from a release and verify provenance: `gh attestation verify <file> --repo DeusData/codebase-memory-mcp`. Read the signer workflow path from a release run and pin it with `--signer-workflow`, as `ai/tools/install.sh` does. The release's `checksums.txt` checks consistency, not provenance; `--repo` alone permits any signing workflow in that repository.
+  - Download `codebase-memory-mcp-darwin-arm64.tar.gz` from a release and verify provenance: `gh attestation verify <file> --repo DeusData/codebase-memory-mcp`. Read the signer workflow path from a release run and pin it with `--signer-workflow`. The release's `checksums.txt` checks consistency, not provenance; `--repo` alone permits any signing workflow in that repository.
   - Unpack it to `~/.local/bin/codebase-memory-mcp` (~283 MB) and `chmod +x` it
   - Do not run its `install` subcommand: it registers with every agent client it finds. Use the CLI only; the MCP tool schema costs ~6k tokens per session.
   - Confine it: `CBM_ALLOWED_ROOT=~/Documents/WP` makes it refuse a path outside that tree

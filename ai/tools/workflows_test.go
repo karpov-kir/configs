@@ -1,13 +1,6 @@
-// The Go gate — gofmt, vet, test — is written out in two workflows. Why each of them must stay, and
-// why sharing them would cost more than the three commands are worth, is in
-// .github/workflows/gates.yml's own header.
-//
-// So the duplication is a decision, and this is its guard: two copies with a comment hoping to stay
-// aligned is how a fix lands in one and not the other. The cases below hold the copies to each other
-// and to what they should say — agreeing on the wrong thing is still green.
-//
-// This file and gates.yml are a unit and must land in the same commit: with only one workflow
-// carrying a Gate step, they have nothing to hold to account and fail deliberately.
+// The Go gate — gofmt, vet, test — as the workflows run it. The cases below hold each workflow's Gate
+// step to what it should say: the flags its `go test` carries and the bound `ai/tools/gate/gate.go`
+// sets.
 //
 // That the LOCAL gate bounds its own `go test` is not here any more. It was a scan of gate.go's source
 // lines for the literal, which read that file's text and never the commands it builds. It went red on
@@ -18,7 +11,6 @@ package tools_test
 import (
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
@@ -31,9 +23,8 @@ const workflowsDir = repoRoot + "/.github/workflows"
 
 const gateSource = "gate/gate.go"
 
-// What the Gate's `go test` must carry, minus the bound. The parity case below passes just as happily
-// on two copies that are wrong together, so each flag is pinned here: without `-count=1` a cached `ok`
-// covers a package that fails, and without `./...` the gate runs a subset of the module.
+// What the Gate's `go test` must carry, minus the bound. Without `-count=1` a cached `ok` covers a
+// package that fails, and without `./...` the gate runs a subset of the module.
 //
 // The bound is deliberately not in this list. It has one home, `suiteTimeoutSeconds` in
 // ai/tools/gate/gate.go, and TestEveryWorkflowGateBoundsGoTestLikeTheGate derives it from there.
@@ -76,29 +67,9 @@ func hasField(fields []string, want string) bool {
 	return false
 }
 
-func TestEveryWorkflowGateIsTheSameGate(t *testing.T) {
-	gates := gateSteps(t)
-
-	names := make([]string, 0, len(gates))
-	for name := range gates {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	first := names[0]
-	for _, name := range names[1:] {
-		if gates[name] != gates[first] {
-			t.Errorf("the Gate step in %s differs from the one in %s — the copies have drifted, so a change "+
-				"landed in one and not the other.\n\n%s:\n%s\n%s:\n%s",
-				name, first, first, gates[first], name, gates[name])
-		}
-	}
-}
-
-// Every workflow's step named `Gate`, by file name. Fewer than two is fatal for both cases above:
-// either a gate lost its step name or a workflow lost its gate, and both leave the cases with
-// nothing to hold to account. Not to be softened into a skip, which would leave the drift unguarded
-// while reading green.
+// Every workflow's step named `Gate`, by file name. None is fatal for the cases here: a gate that
+// lost its step name leaves them nothing to hold to account. Not to be softened into a skip, which
+// would leave the drift unguarded while reading green.
 func gateSteps(t *testing.T) map[string]string {
 	t.Helper()
 	entries, err := os.ReadDir(workflowsDir)
@@ -120,9 +91,9 @@ func gateSteps(t *testing.T) map[string]string {
 		}
 	}
 
-	if len(gates) < 2 {
-		t.Fatalf("found %d workflow(s) with a step named Gate under %s — fewer than two means these cases "+
-			"are holding nothing to account.", len(gates), workflowsDir)
+	if len(gates) == 0 {
+		t.Fatalf("found no workflow with a step named Gate under %s, so these cases are holding nothing "+
+			"to account.", workflowsDir)
 	}
 	return gates
 }
@@ -237,8 +208,7 @@ func goTestLines(step string) [][]string {
 }
 
 // The body of the step named `Gate`, dedented, with trailing blank lines dropped. Line-based rather
-// than parsed, because this module carries no YAML dependency and shipped_test.go reads its own
-// workflow the same way.
+// than parsed, because this module carries no YAML dependency.
 func gateStep(body string) (string, bool) {
 	var block []string
 	seen, inBlock, indent := false, false, 0
@@ -350,8 +320,8 @@ func scriptsRun(body string) []string {
 }
 
 // The path inside a field a shell would run it from: `stamp="$(./source-stamp.sh` is an invocation,
-// and dropping it because of the assignment and the substitution around it leaves this case covering
-// three of the four scripts these workflows run while its own comment claims all of them.
+// and dropping it because of the assignment and the substitution around it leaves that script
+// unchecked while this case's own comment claims every script a workflow runs.
 //
 // Only the opening wrappers are cut. A trailing one would make `"$(cat` end in a path shape it never
 // had, and isPlainPath is what refuses whatever this leaves behind.

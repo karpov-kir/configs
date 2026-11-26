@@ -1,12 +1,12 @@
 // The cases for the machine-wide agent install: the skills, the instruction file, the Codex migration
-// and the four steps reaching outside this process. ai/tools/installer's own suite drives the rest.
+// and the five steps reaching outside this process. ai/tools/installer's own suite drives the rest.
 //
 // Every case gets its own home under t.TempDir(), and WriteRoot bounds the run to that tree. The
 // shell suite this replaces shared one home: a fixture write followed a live symlink into the
 // checkout and overwrote nvim/init.lua and starship.toml in the working tree. So the bound is read
 // back after every run, and a breach fails the case as a guard.
 //
-// No process is spawned. brew, rtk, gh, the client CLIs, the tools installer and the gate arrive
+// No process is spawned. brew, rtk, the client CLIs, the MCP sync and the gate arrive
 // through the machine port, which lets a case drive an exit code this machine could not produce.
 package aibootstrap_test
 
@@ -70,13 +70,12 @@ func (f *fixture) newCheckout(root string) {
 	f.t.Helper()
 	f.Write(root+"/"+scriptName, "#!/usr/bin/env bash\n")
 	f.Write(root+"/owner-instructions.md", ownerTemplate)
-	f.Write(root+"/tools/install.sh", "#!/usr/bin/env bash\n")
 	f.Write(root+"/mcp-sync.sh", "#!/usr/bin/env bash\n")
 	f.Write(root+"/gate.sh", "#!/usr/bin/env bash\n")
-	// The three scripts the steps reach through the machine port, declared here. A run whose
-	// installer, sync or gate could not start is a machine fault, and a step's decision is a
-	// different thing. The cases about that take one away again.
-	f.machine.Add(root+"/tools/install.sh", root+"/mcp-sync.sh", root+"/gate.sh")
+	// The two scripts the steps reach through the machine port, declared here. A run whose sync or
+	// gate could not start is a machine fault, and a step's decision is a different thing. The cases
+	// about that take one away again.
+	f.machine.Add(root+"/mcp-sync.sh", root+"/gate.sh")
 	for _, name := range publicSkills {
 		f.NewSkill(root, name, "")
 	}
@@ -97,9 +96,9 @@ func (f *fixture) run(args ...string) int {
 	return f.runFrom(f.repo, args...)
 }
 
-// The flags every case that is not about one of those four steps passes. Named once, so a step that
+// The flags every case that is not about one of those five steps passes. Named once, so a step that
 // grows a flag cannot pick it up at some of the cases here and reach a real command at the rest.
-var skipSteps = []string{"--skip-brew", "--skip-tools", "--skip-mcp", "--skip-rtk", "--skip-verify", "--skip-models"}
+var skipSteps = []string{"--skip-brew", "--skip-mcp", "--skip-rtk", "--skip-verify", "--skip-models"}
 
 // A run of the ordinary shape: one agent, and every step that reaches outside this process skipped.
 func (f *fixture) install(args ...string) int {
@@ -138,11 +137,10 @@ func (f *fixture) skillsMount(agent string) string {
 
 // --- the machine, as a working fake -----------------------------------------------------------------
 
-// The shared brew machine, plus the commands this installer's steps reach for. The clients and the
-// release tool are here so the mcp and tools steps get that far. A case about either refusal takes
-// its command away again.
+// The shared brew machine, plus the commands this installer's steps reach for. The clients are here
+// so the mcp step gets that far. A case about its refusal takes the client away again.
 func newMachine() *installertest.BrewMachine {
 	host := installertest.NewBrewMachine()
-	host.Add("claude", "codex", "gh", "go", "rtk")
+	host.Add("claude", "codex", "rtk")
 	return host
 }

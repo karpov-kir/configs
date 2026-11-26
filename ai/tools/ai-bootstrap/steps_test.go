@@ -22,68 +22,6 @@ func (f *fixture) runStep(step string, args ...string) int {
 	return f.run(append(append([]string{}, stepsExcept(step)...), args...)...)
 }
 
-// --- the tools step -----------------------------------------------------------------------------
-
-func TestTheToolsStepRunsTheInstallerAndReportsItsSuccess(t *testing.T) {
-	f := newFixture(t)
-
-	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 0)
-
-	if !f.machine.RanAny(f.repo + "/tools/install.sh") {
-		t.Errorf("the tools installer was never invoked: %v", f.machine.Calls)
-	}
-}
-
-// 3 is the repository having cut no release. The code is fine, and the human at this machine cannot
-// cut one, so it must not become a refusal. That would fail every fresh clone until the first release
-// exists.
-func TestNoReleaseToInstallFromIsNotAFailureWhenThisMachineHasGo(t *testing.T) {
-	f := newFixture(t)
-	f.machine.Answering(f.repo+"/tools/install.sh", func(machine.Command) int { return 3 })
-
-	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 0)
-
-	f.ExpectSaid("build from source on first use")
-	f.ExpectSaid("needs Go")
-	f.ExpectNotSaid("failed")
-}
-
-// Go is checked here, because --skip-verify turns the verify step off. A run would otherwise end
-// green having installed no tool onto a machine that cannot build one either.
-func TestNoReleaseAndNoGoIsARefusal(t *testing.T) {
-	f := newFixture(t)
-	f.machine.Answering(f.repo+"/tools/install.sh", func(machine.Command) int { return 3 })
-	f.machine.Without("go")
-
-	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
-
-	f.ExpectSaid("neither downloaded nor built")
-}
-
-// Every other outcome the installer has still fails the run. The exit 3 case alone could be a blanket
-// "the installer's exit code is ignored" and read exactly the same.
-func TestAnInstallerThatRefusedFailsTheRun(t *testing.T) {
-	f := newFixture(t)
-	f.machine.Answering(f.repo+"/tools/install.sh", func(machine.Command) int { return 2 })
-
-	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
-
-	f.ExpectSaid("install.sh failed")
-	f.ExpectNotSaid("build from source on first use")
-}
-
-func TestAMachineWithoutGhCannotFetchTheToolBinaries(t *testing.T) {
-	f := newFixture(t)
-	f.machine.Without("gh")
-
-	f.ExpectCode(f.runStep("--skip-tools", "--agent=claude"), 1)
-
-	f.ExpectSaid("gh is not installed")
-	if f.machine.RanAny(f.repo + "/tools/install.sh") {
-		t.Errorf("the installer ran on a machine with no gh: %v", f.machine.Calls)
-	}
-}
-
 // --- the MCP registry ---------------------------------------------------------------------------
 
 func TestTheMcpStepSyncsThroughTheClientItWasAskedAbout(t *testing.T) {
