@@ -222,7 +222,7 @@ rule for waiting without adding to the pile.
 
 - [Claude Code](https://code.claude.com)
   - Mount the shared standards, templates, scripts and skills: `ln -s ~/Documents/WP/configs/ai/kk-flavor ~/.kk-flavor`
-  - Add this line to `~/.claude/CLAUDE.md`: ``Read `~/.kk-flavor/inject.md` now and follow it``. For owner instructions, use `ai/bootstrap.sh --agent=claude --owner`; it installs a regular copy and tracks it for upgrades.
+  - Add the `### KK Flavor` section of [owner-instructions.md](owner-instructions.md) to `~/.claude/CLAUDE.md`; it loads kk-flavor only for its own skills or on request. For owner instructions, use `ai/bootstrap.sh --agent=claude --owner`; it installs a regular copy and tracks it for upgrades.
   - Mount each skill under `ai/kk-flavor/skills/`: `mkdir -p ~/.claude/skills && for d in ~/Documents/WP/configs/ai/kk-flavor/skills/*/; do ln -sfn "${d%/}" ~/.claude/skills/; done`
   - Install the Go tools the skills run (needs `gh`, not Go): `~/Documents/WP/configs/ai/tools/install.sh`. Re-run after a new release. Skip it and the skills build from source on first use, which does need Go.
   - Sync the MCP files described above with `~/Documents/WP/configs/ai/mcp-sync.sh --agent=claude`. It registers servers for every project in the CLI and IDE. Re-run after editing either file. HTTP registration does not contact the server. If it shows `! Needs authentication`, run `/mcp` in an interactive session to log in.

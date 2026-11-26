@@ -1,6 +1,11 @@
 ### KK Flavor
 
-Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.
+Read `~/.kk-flavor/inject.md` and follow it from the moment one of these holds:
+
+- You run a `kk-` or `idsd-` skill, or a contract under `~/.kk-flavor/workers/`.
+- The human asks you to use kk-flavor or its standards.
+
+Leave it unread in any other session.
 
 ## RTK
 

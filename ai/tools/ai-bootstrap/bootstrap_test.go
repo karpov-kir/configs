@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	aibootstrap "configs/ai/tools/ai-bootstrap"
+	"configs/ai/tools/flavor"
 	"configs/ai/tools/installertest"
 	"configs/ai/tools/runtest"
 )
@@ -83,8 +84,7 @@ func (f *fixture) newCheckout(root string) {
 // The owner template a case installs. It carries the region body, which is the only property of the
 // real file these cases depend on. ai/owner-instructions.md itself is held against the body by the
 // case in owner_test.go.
-const ownerTemplate = "# Owner\n\n### KK Flavor\n\n" +
-	"Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc.\n"
+const ownerTemplate = "# Owner\n\n" + flavor.RegionBody + "\n"
 
 // The run a case drives, with everything it did not name taken from the fixture. Out, Err and
 // WriteRoot stay the fixture's whatever a case says. A case printing elsewhere leaves output no

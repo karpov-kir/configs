@@ -10,7 +10,10 @@ const (
 )
 
 const RegionBody = "### KK Flavor\n\n" +
-	"Read `~/.kk-flavor/inject.md` now and follow it — applies to all work, skill-invoked or ad-hoc."
+	"Read `~/.kk-flavor/inject.md` and follow it from the moment one of these holds:\n\n" +
+	"- You run a `kk-` or `idsd-` skill, or a contract under `~/.kk-flavor/workers/`.\n" +
+	"- The human asks you to use kk-flavor or its standards.\n\n" +
+	"Leave it unread in any other session."
 
 // The fences an older Codex install wrote around its RTK note. No installer writes this region today.
 // Uninstall still removes it, because a machine that carries one is a machine being uninstalled, and
