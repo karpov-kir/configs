@@ -5,44 +5,6 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// --- the repository's own tools -------------------------------------------------------------------
-
-// install.sh's exit codes send a reader to different places. 2 points at this machine's network, its
-// auth or the release's own assets. 3 points at a repository that has cut no release at all. Only 3
-// is survivable, and collapsing it into the refusal fails every fresh clone until the first release
-// exists.
-func (run *invocation) installTools() {
-	installer := run.Repo + "/tools/install.sh"
-	switch {
-	case run.areToolsSkipped:
-		run.mounting.Say("tools (skipped)")
-		return
-	case run.isDryRun:
-		run.mounting.Say("tools: would run " + installer)
-		return
-	case !run.Machine.HasCommand("gh"):
-		run.mounting.Refuse("gh is not installed, so " + installer + " could not fetch the tool binaries")
-		return
-	}
-	run.mounting.Say("tools")
-	switch status := run.Machine.Run(machine.Command{Name: installer, Loud: true}); {
-	case status == 0:
-	case status == 3:
-		// A refusal names something the human at this machine must do, and only this repository's owner
-		// can cut a release. Go is checked here, because --skip-verify turns the verify step off. A run
-		// would otherwise end green having installed no tool onto a machine that cannot build one
-		// either.
-		if run.Machine.HasCommand("go") {
-			run.mounting.Say("  ok       no release to install from; the tools build from source on first use, which needs Go")
-			return
-		}
-		run.mounting.Refuse("no release to install from and no go on this machine, so the tools can be " +
-			"neither downloaded nor built — nothing was installed")
-	default:
-		run.mounting.Refuse(installer + " failed")
-	}
-}
-
 // --- the MCP registry -----------------------------------------------------------------------------
 
 func (run *invocation) syncMcp() {
@@ -65,9 +27,7 @@ func (run *invocation) syncMcp() {
 // --- verify ---------------------------------------------------------------------------------------
 
 // A setup that reports success without running a check proves only that it ran, so the last step is
-// the repository's own gate over what was just linked. The gate needs a machine that can run Go, and
-// installTools, a step of this run, earns that. A machine that cannot download or build the tool
-// binaries is refused there, so by the time verify runs there is a binary or a refusal.
+// the repository's own gate over what was just linked.
 // checkModels runs model-check for the agent, last, once its tools are installed. A substituted model
 // is a warning in model-check's output, and the install passes. A check that reached no model stops
 // the install, because every model call on this machine waits on a signed-in CLI.

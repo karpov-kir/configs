@@ -99,7 +99,7 @@ func TestAMissingFingerprintScriptRefusesInsteadOfRecomputing(t *testing.T) {
 
 // A HOME with no `~/.kk-flavor` in it. A suite that reaches the fingerprint script through the
 // developer's own passes wherever the skills are installed and fails everywhere else — harness_test.go's
-// flavorSource holds why, and release-tools.yml runs `go test ./...` on ubuntu-latest. No case on a
+// flavorSource holds why, and gates.yml runs `go test ./...` on a fresh runner. No case on a
 // developer's machine can notice that, because the thing that hides it is the developer's machine. So
 // this one takes it away.
 func TestTheSuiteNeedsNothingInstalledOnTheMachineRunningIt(t *testing.T) {

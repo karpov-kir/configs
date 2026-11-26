@@ -1,10 +1,4 @@
-# The gates that run on a push. release-tools.yml also gates the Go tools, but only on a tag, which is
-# no gate on the commits between tags.
-
-# The Go step duplicates release-tools.yml's `Gate`, and that one must stay: it guards the
-# binaries a release attaches, and `resolve.sh` prefers a downloaded binary over the source beside
-# it, so a release built from unchecked code is worse than no release. Sharing them would mean a
-# reusable workflow, which is more machinery than four commands are worth.
+# The gates that run on a push. Every job takes Go from the root mise.toml, the pin a local build uses.
 
 # The Go job runs on macOS too, and portability of the tests is not the reason. macOS is where
 # /bin/bash is 3.2, and `eco-check`'s parse scan asks every bash the machine carries. That makes the
@@ -25,7 +19,7 @@ permissions:
 jobs:
   # `-count=1` because this job measures the commit, and a runner's build cache is warm between
   # steps. The Coverage step runs the same suite, and without the flag it would report a number read
-  # out of the Gate step's cache. release-tools.yml's Gate step says the same.
+  # out of the Gate step's cache.
 
   # `-timeout 300s`, the backstop `ai/gate.sh` hands its own `go test` — suiteTimeoutSeconds, the
   # const in ai/tools/gate/gate.go, and the two numbers have to move together. A suite that hangs
@@ -47,9 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
+      - uses: jdx/mise-action@v5
 
       - name: Gate
         run: |
@@ -65,10 +57,6 @@ jobs:
           go test -count=1 -timeout 300s ./...
 
       # The coverage number `ai/kk-flavor/standards/testing.md` asks for, and the floor it sets.
-      # This is a step of its own, because the Gate step is byte-identical to release-tools.yml's and
-      # `workflows_test.go` holds the two to each other. A flag added here alone is what that case
-      # exists to catch.
-
       # Linux only: the number is a property of the code, not of the runner, and two legs reporting
       # two numbers invites someone to read the higher one.
       - name: Coverage
@@ -92,11 +80,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The scans are Go. `check.sh` reaches the binary through `resolve.sh`, which builds from the
-      # source beside it when no release binary is present — which is the case on a fresh runner.
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
+      # The scans are Go. `check.sh` reaches the binary through `resolve.sh`, which builds it from the
+      # source beside it on a fresh runner.
+      - uses: jdx/mise-action@v5
 
       # --gate, so this job and ai/gate.sh's wiring check ask the same question of the same commit.
       # Not a no-op on a fresh runner: the build the step above provides for writes ai/tools/bin/eco-check
@@ -112,9 +98,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
+      - uses: jdx/mise-action@v5
 
       - name: Hold every instruction file to its baseline
         run: ai/kk-flavor/skills/kk-ecosystem/scripts/voice-baseline.sh

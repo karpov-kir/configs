@@ -12,7 +12,7 @@ package reach
 
 import (
 	"configs/ai/tools/runtest"
-	"os/exec"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -122,12 +122,12 @@ func TestSourceInsideANestedCheckoutStaysOutOfTheStamp(t *testing.T) {
 	t.Parallel()
 	sandbox := runtest.Sandbox(t)
 	module := newModule(t, sandbox, "nesting")
-	newRepository(t, module, "")
+	newRepository(t, module)
 	alone := stampOf(t, module, ownMain)
 
 	nested := filepath.Join(module, "worktrees", "inner")
 	runtest.WriteFile(t, filepath.Join(toolsIn(nested), ownMain, "main.go"), straySource, 0o644)
-	newRepository(t, nested, "")
+	newRepository(t, nested)
 	if nesting := stampOf(t, module, ownMain); nesting != alone {
 		t.Errorf("a checkout kept inside this one moved its stamp, so the source of every worktree a "+
 			"developer keeps under their repository is being hashed as this module's\nalone %q\n  now %q",
@@ -160,7 +160,7 @@ func TestAnIgnoredSourceFileStillMovesTheStamp(t *testing.T) {
 		t.Run(rule.name, func(t *testing.T) {
 			t.Parallel()
 			module := newModule(t, runtest.Sandbox(t), "ignored")
-			newRepository(t, module, "")
+			newRepository(t, module)
 			before := stampOf(t, module, ownMain)
 
 			// The rule on its own first. It names a file this module does not hold yet. A stamp that moves on
@@ -193,32 +193,6 @@ func TestEveryToolInTheModuleStampsTheSameSourceAlike(t *testing.T) {
 	if own, other := stampOf(t, module, ownMain), stampOf(t, module, cmdMain); own != other {
 		t.Errorf("%s stamps %q and %s stamps %q, so the stamp is a guess at which files one tool compiles "+
 			"— and a guess that drops a directory goes blind in silence", ownMain, own, cmdMain, other)
-	}
-}
-
-// A release is stamped on Linux and read on macOS, on whichever of the two hashers that machine has. The
-// stamp is a digest over their own output, so the whole scheme rests on the two writing a digest and a
-// name identically. If that ever stops holding, every install warns about binaries that are perfectly
-// current.
-func TestShasumAndSha256sumStampTheSameSourceAlike(t *testing.T) {
-	t.Parallel()
-	for _, name := range []string{"shasum", "sha256sum"} {
-		if _, err := exec.LookPath(name); err != nil {
-			t.Skipf("this machine has no %s, so the two cannot be compared here", name)
-		}
-	}
-	sandbox := runtest.Sandbox(t)
-	module := newModule(t, sandbox, "hashers")
-
-	withShasum := stampOn(t, module, newPathDir(t, sandbox, "only-shasum", append(stampCommands, "shasum")...))
-	withSha256sum := stampOn(t, module, newPathDir(t, sandbox, "only-sha256sum", append(stampCommands, "sha256sum")...))
-	if len(withShasum.Stdout) == 0 || withShasum.Code != 0 {
-		t.Fatalf("shasum alone did not stamp, so the comparison below is against nothing\n%v", withShasum)
-	}
-	if withShasum.Stdout != withSha256sum.Stdout {
-		t.Errorf("shasum stamped %q and sha256sum stamped %q over one source. A release stamped on the "+
-			"machine that built it is read on the machine that installs it, so every install would warn "+
-			"about binaries that are current", withShasum.Stdout, withSha256sum.Stdout)
 	}
 }
 
@@ -337,4 +311,19 @@ func movement(moved bool) string {
 		return "moved the stamp"
 	}
 	return "left the stamp where it was"
+}
+
+// Builds a git repository at this path file by file, with no `git init` run. source-stamp.sh asks git
+// for one file listing, and four entries answer it. No file is added to the repository, because
+// source-stamp.sh lists untracked files as well as tracked ones.
+func newRepository(t *testing.T, root string) {
+	t.Helper()
+	git := filepath.Join(root, ".git")
+	runtest.WriteFile(t, filepath.Join(git, "HEAD"), "ref: refs/heads/main\n", 0o644)
+	runtest.WriteFile(t, filepath.Join(git, "config"), "[core]\n\trepositoryformatversion = 0\n", 0o644)
+	for _, inside := range []string{"objects", "refs"} {
+		if err := os.MkdirAll(filepath.Join(git, inside), 0o755); err != nil {
+			t.Fatalf("building the fixture git directory: %v — nothing was measured", err)
+		}
+	}
 }

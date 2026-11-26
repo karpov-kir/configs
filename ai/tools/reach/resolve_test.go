@@ -1,8 +1,7 @@
 // Cases for resolve.sh. Three things here must hold.
 
 // A binary is served only while it was built from the source beside it, and the comparison is over
-// content. The binary that has to be caught is one NEWER than the source it disagrees with, and every
-// downloaded release binary is.
+// content, so a binary NEWER than the source it disagrees with is caught too.
 
 // A binary from somewhere else, or one that cannot be compared at all, is served WITH a warning on
 // stderr. Silence there is the defect.
@@ -30,8 +29,8 @@ const (
 // The negative control the whole file rests on: with source and a toolchain, resolve.sh does reach a
 // binary. Without it every refusal below would pass against a resolver that only ever exits 2.
 //
-// The second launch is the reason a release install needs no Go at all. The third shows that the
-// build path works too, so the first branch is a preference.
+// The second launch is why a stub runs with no Go on PATH once its binary is built. The third shows
+// that ECO_TOOLS_BUILD=1 skips the built binary and asks for a build.
 func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T) {
 	t.Parallel()
 	sandbox := runtest.Sandbox(t)
@@ -49,8 +48,8 @@ func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T
 			"about serving one", binary, err)
 	}
 
-	release := newReleasePath(t, sandbox, "no-go")
-	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), release, tool))
+	noGo := newNoGoPath(t, sandbox, "no-go")
+	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"), noGo, tool))
 	expectServed(t, served, binary)
 	// The control every warning case rests on: a binary resolve.sh built from this source draws no
 	// warning on the run after. Without it each of those passes against a resolver that warns about every
@@ -60,7 +59,7 @@ func TestABinaryIsBuiltIntoBinAndThenServedFromThereWithNoToolchain(t *testing.T
 			"cannot tell a warned binary from any other\nstderr: %s", served.Stderr)
 	}
 
-	override := newLaunch(t, filepath.Join(tools, "resolve.sh"), release, tool)
+	override := newLaunch(t, filepath.Join(tools, "resolve.sh"), noGo, tool)
 	override.Env = append(override.Env, "ECO_TOOLS_BUILD=1")
 	skipped := runtest.Launch(t, override)
 	runtest.ExpectRefusal(t, skipped, "go is not installed")
@@ -95,8 +94,7 @@ func main() { _ = "edited" }
 }
 
 // The case that decides why the stamp is content, and why a timestamp will not do: a binary NEWER than
-// the source it disagrees with. Every release install has that shape, because the asset lands long
-// after the checkout it lands in. A timestamp comparison reads it as fresh, in silence, on the machine
+// the source it disagrees with. A timestamp comparison reads it as fresh, in silence, on the machine
 // that has no toolchain to rebuild with and find out.
 func TestABinaryNewerThanTheSourceItDisagreesWithIsServedWithTheDoubtOnStderr(t *testing.T) {
 	t.Parallel()
@@ -127,7 +125,7 @@ func main() { _ = "edited" }
 	}
 
 	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
-		newReleasePath(t, sandbox, "no-go"), tool))
+		newNoGoPath(t, sandbox, "no-go"), tool))
 	expectServed(t, served, binary)
 	if !strings.Contains(served.Stderr, builtElsewhere) {
 		t.Errorf("a binary built from something other than the source beside it was served without saying "+
@@ -166,7 +164,7 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 				tools := newToolsDir(t, sandbox, "bad-stamper-tools")
 				placeBinary(t, tools, tool, foreignBinary, 0o755)
 				runtest.WriteFile(t, filepath.Join(tools, "source-stamp.sh"), failingStamper, 0o755)
-				return tools, tool, newReleasePath(t, sandbox, "bad-stamper-path")
+				return tools, tool, newNoGoPath(t, sandbox, "bad-stamper-path")
 			},
 		},
 		{
@@ -181,7 +179,7 @@ func TestAComparisonThatCouldNotBeMadeIsServedAndSaidSo(t *testing.T) {
 			fixture: func(t *testing.T, sandbox string) (string, string, string) {
 				tools := newToolsDir(t, sandbox, "orphan-tools")
 				placeBinary(t, tools, "stowaway", foreignBinary, 0o755)
-				return tools, "stowaway", newReleasePath(t, sandbox, "orphan-path")
+				return tools, "stowaway", newNoGoPath(t, sandbox, "orphan-path")
 			},
 		},
 	} {
@@ -213,7 +211,7 @@ func TestABinaryWithNoSourceBesideItWarnsAboutNothing(t *testing.T) {
 	binary := placeBinary(t, tools, tool, foreignBinary, 0o755)
 
 	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
-		newReleasePath(t, sandbox, "no-go"), tool))
+		newNoGoPath(t, sandbox, "no-go"), tool))
 	expectServed(t, served, binary)
 	if served.Stderr != "" {
 		t.Errorf("a checkout with no source to compare against was warned about, and a warning nobody can "+
@@ -250,7 +248,7 @@ func TestABuildWhoseStamperFailsLeavesNoStampRatherThanThePreviousBuilds(t *test
 	}
 
 	served := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
-		newReleasePath(t, sandbox, "no-go"), tool))
+		newNoGoPath(t, sandbox, "no-go"), tool))
 	expectServed(t, served, binary)
 	if !strings.Contains(served.Stderr, notCompared) {
 		t.Errorf("the run after an unstamped build served those bytes as proven\n%v", served)
@@ -276,7 +274,7 @@ func TestEveryWayTheToolCannotBeReachedExitsTwoAndSaysItDidNotRun(t *testing.T) 
 			// checkout.
 			name: "the checkout ships neither a binary nor source",
 			fixture: func(t *testing.T, sandbox string) (string, string) {
-				return newSourcelessDir(t, sandbox, "empty"), newReleasePath(t, sandbox, "no-go")
+				return newSourcelessDir(t, sandbox, "empty"), newNoGoPath(t, sandbox, "no-go")
 			},
 			says:     "ships neither",
 			alsoSays: "no source at",
@@ -286,7 +284,7 @@ func TestEveryWayTheToolCannotBeReachedExitsTwoAndSaysItDidNotRun(t *testing.T) 
 			// clean on every machine without Go.
 			name: "the source is here and the machine has no toolchain",
 			fixture: func(t *testing.T, sandbox string) (string, string) {
-				return newToolsDir(t, sandbox, "no-toolchain"), newReleasePath(t, sandbox, "no-go")
+				return newToolsDir(t, sandbox, "no-toolchain"), newNoGoPath(t, sandbox, "no-go")
 			},
 			says:     "go is not installed",
 			alsoSays: "unchecked, not clean",
@@ -396,7 +394,7 @@ func TestRunExecsTheBinaryAndLeavesItsOutputAlone(t *testing.T) {
 	placeBinary(t, tools, tool, reportingBinary, 0o755)
 
 	ran := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
-		newReleasePath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh", "--flag", "a value"))
+		newNoGoPath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh", "--flag", "a value"))
 
 	if ran.Code != reportingExit {
 		t.Errorf("the caller saw exit %d where the binary exits %d, so resolve.sh answered instead of being "+
@@ -419,7 +417,7 @@ func TestRunExecsTheBinaryWhenThereIsNothingToForward(t *testing.T) {
 	placeBinary(t, tools, tool, reportingBinary, 0o755)
 
 	ran := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
-		newReleasePath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh"))
+		newNoGoPath(t, sandbox, "no-go"), "--run", tool, "/somewhere/else/widget.sh"))
 
 	if ran.Code != reportingExit {
 		t.Errorf("a tool invoked with no arguments did not reach its binary\n%v", ran)
@@ -458,7 +456,7 @@ func TestRunRefusesTheSameWayAndNeverExecsAnything(t *testing.T) {
 			sandbox := runtest.Sandbox(t)
 			tools := newSourcelessDir(t, sandbox, "refused")
 			refused := runtest.Launch(t, newLaunch(t, filepath.Join(tools, "resolve.sh"),
-				newReleasePath(t, sandbox, "no-go"), scenario.asked...))
+				newNoGoPath(t, sandbox, "no-go"), scenario.asked...))
 			runtest.ExpectRefusal(t, refused, scenario.says)
 		})
 	}

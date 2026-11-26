@@ -3,10 +3,10 @@
 # Install this repository's agent ecosystem on the owner's machine: the shared ~/.kk-flavor bucket, every
 # skill, the owner instruction copy, and the packages and registries those need.
 #
-#   usage: bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--skip-models] [--uninstall]
+#   usage: bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--skip-brew] [--skip-mcp] [--skip-rtk] [--skip-verify] [--skip-models] [--uninstall]
 #
-# The recipe is Go, in `ai/tools/ai-bootstrap/`. What is left here is the part of a machine install
-# that cannot be Go: reaching a Go binary on a machine that has none.
+# The recipe is Go, in `ai/tools/ai-bootstrap/`, and this stub builds it from source on first use.
+# Install Go with mise first: the repository's mise.toml pins it.
 #
 # tested by: the Go suite in ai/tools/ai-bootstrap/, the stub region by the Go suite in ai/tools/reach/.
 set -euo pipefail
@@ -14,32 +14,6 @@ set -euo pipefail
 tool="ai-bootstrap"
 # How far THIS file sits above the tools directory.
 tools_offset="."
-
-# --- the toolchain, and why it is still shell -------------------------------------------------------
-
-# Everything past the exec at the end of this file is a Go subcommand, and a binary has to exist
-# first. `ai/tools/install.sh` puts one there on a machine with no Go, downloading the release this
-# repository cut with `gh` alone. `ai/tools/resolve.sh` builds from source where a toolchain is
-# present instead.
-
-# A fresh clone on a machine that lacks Go would otherwise get the resolver's refusal, and the
-# install would stop there. That is the machine a bootstrap is for.
-
-# The guard fires only when a binary is absent and Go is too, so a machine already set up pays two
-# tests, and no network call goes out. `|| true`: install.sh exits 3 where this repository has cut
-# no release, and that is a normal state the tools step inside the run reports. Every other way it
-# fails leaves no binary, and the resolver at the end of this file is what says so.
-
-# This uses a directory of its own, and not the stub region's `$here`. That region is copied byte for
-# byte into every stub, and a line added inside it would break the scan that holds the copies
-# identical.
-prologue_here="$(CDPATH= cd -P -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || prologue_here=""
-if [ -n "$prologue_here" ] &&
-  [ ! -x "$prologue_here/tools/bin/$tool" ] &&
-  ! command -v go >/dev/null 2>&1 &&
-  [ -x "$prologue_here/tools/install.sh" ]; then
-  "$prologue_here/tools/install.sh" || true
-fi
 
 # --- shared:tool-stub ---
 # Byte-identical in every stub, which the wiring check's shared-region scan enforces.

@@ -35,15 +35,11 @@
 #   2, and both say the tool did NOT run, because these tools report findings and silence from one
 #   reads as a clean tree.
 #
-# Order: a binary already at bin/<tool>, then a local `go build` when the source is here. The first
-# branch is what a release install lands on, and why installing these skills needs no Go toolchain.
-# ECO_TOOLS_BUILD=1 skips it. That binary is served only while it was built from the source beside
-# it: source-stamp.sh hashes that source, and the stamp written next to the binary says what the
-# binary came from. When the two differ this rebuilds, so an edit is never measured through the
-# build that came before it.
-#
-# A hash and not a timestamp, because the binary that has to be caught is one NEWER than the source
-# it disagrees with, and every downloaded release binary is. source-stamp.sh's header has the rest.
+# Order: a binary already at bin/<tool>, then a local `go build` when the source is here. Go comes
+# from the repository's mise.toml. ECO_TOOLS_BUILD=1 skips the first branch. That binary is served
+# only while it was built from the source beside it: source-stamp.sh hashes that source, and the
+# stamp written next to the binary says what the binary came from. When the two differ this rebuilds,
+# so an edit is never measured through the build that came before it.
 #
 # A build takes bin/<tool>.lock and holds it over the stamping, the build, the move and the stamp
 # write. Two builds of one tool do run at once: the gate runs its checks concurrently, and every stub
@@ -128,8 +124,7 @@ serve() {
 # It names the SOURCE, not the bytes: identical source built under two Go toolchains stamps the same and
 # can still behave differently. Narrow, and stated rather than built for — but do not read a matching
 # stamp as a bytes-identical guarantee.
-# The stamp is written by whoever puts the binary there: this script after a build, install.sh after
-# a download.
+# This script writes the stamp after each build.
 stamp="$binary.stamp"
 
 # Three answers: 0 built from this source, 1 built from something else, 2 could not tell. The third
@@ -141,8 +136,7 @@ stamp="$binary.stamp"
 built_from_this_source() {
   local want held
   # A checkout carrying binaries with no Go source beside them — the shape a skill mounted from a
-  # source-less checkout has — leaves nothing to compare against, so there is no doubt to report. Not
-  # a release install: that lands its binaries in a full checkout, which does carry the source.
+  # source-less checkout has — leaves nothing to compare against, so there is no doubt to report.
   #
   # What says which shape this is, is the module file, not the missing directory. A checkout that
   # ships Go source and has none for THIS name holds an orphan: a binary from a tool since renamed,
@@ -193,9 +187,9 @@ if [ "${ECO_TOOLS_BUILD:-}" != 1 ] && [ -e "$binary" ]; then
 fi
 
 [ -d "$tools/$tool" ] ||
-  die "no prebuilt binary at $binary and no source at $tools/$tool — this skill is mounted from a checkout that ships neither, and $tool did NOT run"
+  die "no binary at $binary and no source at $tools/$tool — this skill is mounted from a checkout that ships neither, and $tool did NOT run"
 command -v go >/dev/null 2>&1 ||
-  die "no prebuilt binary at $binary and go is not installed, so $tool did NOT run — that is unchecked, not clean"
+  die "no binary at $binary and go is not installed, so $tool did NOT run — that is unchecked, not clean. Install Go with mise, which the repository's mise.toml pins"
 
 mkdir -p "$tools/bin" || die "cannot create $tools/bin, so $tool did NOT run"
 

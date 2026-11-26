@@ -36,8 +36,8 @@ var (
 	// `case $1 in`, `case "${1:-}" in`, `case "${1-}" in`. Deliberately looser than caseLabel above,
 	// which reads the arms — this decides only that a dispatch is *there*, and a dispatch this
 	// matches whose arms that one cannot read is reported rather than passed over. Column 0, so an
-	// in-function lookup table — `install.sh` has one — is not read as a dispatch. The character
-	// after the 1 is what tells the first argument from `$10`, and every legal spelling puts one there.
+	// in-function lookup table is not read as a dispatch. The character after the 1 is what tells the
+	// first argument from `$10`, and every legal spelling puts one there.
 	dispatchOpening = regexp.MustCompilePOSIX(`^case [^#]*\$\{?1[^0-9]`)
 	// How a stub names the tool it execs. The charset is resolve.sh's, which refuses everything else:
 	// a name that resolver would not touch is not one to build a path from here either.
@@ -354,9 +354,9 @@ func usageSubcommands(base string, lines []string) []string {
 
 // The case labels of a tool's subcommand dispatch, read out of its source, never by running it. This
 // runs as kk-pr's ecosystem stage (quality-pipeline.md → **The stages**) over a branch that
-// chose the contents of tools/, so running that branch's code is a different act from reading it, and
-// a release install may carry no Go toolchain at all. The tool's own usage output is no better an
-// authority: it is a hand-written literal in the refusing arm, not generated from the case labels.
+// chose the contents of tools/, so running that branch's code is a different act from reading it.
+// The tool's own usage output is no better an authority: it is a hand-written literal in the refusing
+// arm, not generated from the case labels.
 //
 // The switch is found by the `usage: <stub> {` line its refusing arm carries, never by the name of the
 // function around it: a function is renamed without a word, and an anchor that quietly stops matching

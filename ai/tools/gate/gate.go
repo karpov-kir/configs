@@ -250,9 +250,9 @@ const formatCmd = "unformatted=$(git ls-files --cached --others --exclude-standa
 // Each run used to carry ECO_TOOLS_BUILD=1 and rebuild and re-stamp the same binary for itself,
 // which was the floor under a warm gate.
 
-// The flag stays where the build is. Without it the binary measured can be a downloaded release,
-// when the whole point is to measure this tree. The runs after the build reach those bytes through
-// resolve.sh, which rebuilds any binary with a stamp that no longer matches the source beside it.
+// The flag stays where the build is, so the binary measured is bytes this tree's toolchain built. A
+// stamp attests the source alone. The runs after the build reach those bytes through resolve.sh,
+// which rebuilds any binary with a stamp that no longer matches the source beside it.
 
 // Each run's output goes to a file of its own, because two reports interleaved line by line name
 // neither agent. Both statuses are read, claude's first where both are non-zero, matching what the
