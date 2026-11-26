@@ -20,9 +20,6 @@ const retiredHooksPath = "ai/hooks"
 // removeRetiredPrivateNameGuard unsets the hooks path the guard set and removes its list where the list
 // holds no entry. A list its owner filled is kept and named, since its content is the owner's.
 func (run *invocation) removeRetiredPrivateNameGuard() {
-	if !run.isOwner {
-		return
-	}
 	checkout := filepath.Dir(run.Repo)
 	list := filepath.Join(run.ConfigHome, "kk-flavor", "private-names.txt")
 	set, _ := exec.Command("git", "-C", checkout, "config", "--get", "core.hooksPath").Output()

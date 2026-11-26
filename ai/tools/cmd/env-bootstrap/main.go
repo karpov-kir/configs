@@ -24,18 +24,13 @@ func main() {
 		os.Exit(2)
 	}
 	home := os.Getenv("HOME")
-	configHome := os.Getenv("XDG_CONFIG_HOME")
-	if configHome == "" {
-		configHome = home + "/.config"
-	}
 	os.Exit(envbootstrap.Run(envbootstrap.Options{
-		Self:       self,
-		Args:       os.Args[1:],
-		Repo:       repo,
-		Home:       home,
-		ConfigHome: configHome,
-		Machine:    machine.New(),
-		Out:        os.Stdout,
-		Err:        os.Stderr,
+		Self:    self,
+		Args:    os.Args[1:],
+		Repo:    repo,
+		Home:    home,
+		Machine: machine.New(),
+		Out:     os.Stdout,
+		Err:     os.Stderr,
 	}))
 }

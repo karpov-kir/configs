@@ -1,6 +1,6 @@
-// Package aibootstrap installs this repository's agent ecosystem on one machine. That is the shared
-// ~/.kk-flavor bucket, the skills the chosen tier takes, the instruction file's own region, and the
-// packages and registries those need. `usage()` holds the grammar.
+// Package aibootstrap installs this repository's agent ecosystem on the owner's machine. That is the
+// shared ~/.kk-flavor bucket, every skill, the owner instruction copy, and the packages and registries
+// those need. `usage()` holds the grammar.
 //
 // Every step checks the state it wants before it writes, so a second run over a finished machine
 // reports "ok" throughout and writes no file. It refuses a target it does not own, and it stops
@@ -52,8 +52,8 @@ type Options struct {
 	Home string
 	// CodexHome is the already-resolved ${CODEX_HOME:-$HOME/.codex}.
 	CodexHome string
-	// ConfigHome is the already-resolved ${XDG_CONFIG_HOME:-$HOME/.config}, where the install registry
-	// lives.
+	// ConfigHome is the already-resolved ${XDG_CONFIG_HOME:-$HOME/.config}, where the retired
+	// private-name list lives.
 	ConfigHome string
 	// IsInsideVerify is whether this run was started by another run's verify step. See the verify step
 	// for the loop it closes.
@@ -87,7 +87,6 @@ func perform(options Options) (*installer.Run, int) {
 		ScriptName: options.Self,
 		Label:      label,
 		BulkLabel:  "skills",
-		ConfigHome: options.ConfigHome,
 		DryRun:     parsed.isDryRun,
 		Relocate:   parsed.willRelocate,
 		Out:        options.Out,
@@ -119,10 +118,8 @@ type arguments struct {
 	isMcpSkipped,
 	isRtkSkipped,
 	isVerifySkipped,
-	areModelsSkipped bool
-	isMaintainer bool
-	isOwner      bool
-	isUninstall  bool
+	areModelsSkipped,
+	isUninstall bool
 }
 
 // The third value says whether the run stops here. A refused invocation and a printed help both do,
@@ -150,16 +147,6 @@ func parseArguments(self string, args []string, stderr io.Writer) (arguments, in
 			parsed.isVerifySkipped = true
 		case "--skip-models":
 			parsed.areModelsSkipped = true
-		// Opt IN. A tree's own maintenance skills are useless to a machine that only uses the tree, and
-		// every skill's description costs context in every session whether or not it is invoked. So the
-		// default installs the smaller set, and the bigger set is asked for by name.
-		case "--maintainer":
-			parsed.isMaintainer = true
-		// The owner tier: --maintainer, plus rtk and the personal instruction file. ai/bootstrap.sh
-		// --owner is the way in, and ai/README.md documents it.
-		case "--owner":
-			parsed.isOwner = true
-			parsed.isMaintainer = true
 		case "--uninstall":
 			parsed.isUninstall = true
 		case "-h", "--help":
@@ -185,7 +172,7 @@ func parseArguments(self string, args []string, stderr io.Writer) (arguments, in
 // each other.
 func usage() string {
 	return "usage: " + stubPath + " --agent=" + claudeAgent + "|" + codexAgent +
-		" [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew] [--skip-tools] [--skip-mcp]" +
+		" [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp]" +
 		" [--skip-rtk] [--skip-verify] [--skip-models] [--uninstall]"
 }
 
@@ -199,28 +186,26 @@ func (run *invocation) do() int {
 	}
 	run.declareBucket()
 	run.declareAgents()
-	found := run.declareSkills()
+	run.declareSkills()
 
 	if run.isUninstall {
 		return run.uninstall()
 	}
-	return run.install(found)
+	return run.install()
 }
 
-func (run *invocation) install(found installer.SkillMounts) int {
+func (run *invocation) install() int {
 	// The scan is declared before the mount, and it drops a mount whose source this checkout has lost.
 	// The linking step alone iterates the sources this tree ships, so a skill deleted upstream keeps
-	// its symlink at the mount for good. The scan covers every tier, because a skill left out for want
-	// of --maintainer is still in the tree and its mount still resolves.
+	// its symlink at the mount for good.
 	run.mounting.AddUnmountScan(run.skillsMount, run.Repo+"/kk-flavor/skills")
 
 	if !run.mounting.Mount() {
 		return run.mounting.Report()
 	}
 	run.migrateLegacyCodexMounts()
-	run.reportTier(found)
-	if refusal := run.emptyTableRefusal(found); refusal != "" {
-		run.mounting.Refuse(refusal)
+	if len(run.mounting.BulkMounts()) == 0 {
+		run.mounting.Refuse("no skill directories under " + run.Repo + "/kk-flavor/skills/ — nothing was mounted")
 	}
 
 	run.areInstructionsReady = run.writeInstructions()

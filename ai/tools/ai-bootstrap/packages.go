@@ -9,26 +9,16 @@ import (
 // The formulae this install needs. This package's own suite holds the list against ai/README.md, so a
 // formula added to the README alone stays documented and uninstalled with every other case green.
 //
-// rtk compresses this machine's shell output for the agent. That is personal tooling the instruction
-// tree has no use for, so rtk is the owner tier's and the only formula here.
-var formulae = []struct {
-	name         string
-	isOwnersOnly bool
-}{
-	{name: "rtk", isOwnersOnly: true},
-}
+// rtk compresses this machine's shell output for the agent, and it is the only formula here.
+var formulae = []string{"rtk"}
 
-// FormulaNames is every formula this installer installs, whatever the tier, in declared order.
+// FormulaNames is every formula this installer installs, in declared order.
 //
 // The case holding this list against ai/README.md lives outside this module, and the README does too.
 // Go keys a package's test cache on its own module, and a case inside this package reports
 // `ok (cached)` over a README that changed underneath it.
 func FormulaNames() []string {
-	names := make([]string, 0, len(formulae))
-	for _, formula := range formulae {
-		names = append(names, formula.name)
-	}
-	return names
+	return append([]string(nil), formulae...)
 }
 
 // Each formula is checked before it is installed. An unconditional install is slow, noisy, and
@@ -38,33 +28,13 @@ func (run *invocation) installPackages() {
 		run.mounting.Say("brew (skipped)")
 		return
 	}
-	// The count comes before the brew check. Since jq went, the default tier installs no formula at
-	// all, and an install wanting none of them must still run on a machine that lacks brew. The skip
-	// lines still print, because a tier that quietly leaves a formula out reads like a step that never
-	// ran.
-	wanted := 0
-	for _, formula := range formulae {
-		if formula.isOwnersOnly && !run.isOwner {
-			continue
-		}
-		wanted++
-	}
-	if wanted == 0 {
-		run.mounting.Say("brew (nothing this tier installs)")
-		run.sayWhatThisTierSkips()
-		return
-	}
 	if !machine.HasBrew(run.Machine) {
 		run.mounting.Refuse("brew is not installed, so no formula was installed")
 		return
 	}
 	run.mounting.Say("brew")
 	for _, formula := range formulae {
-		if formula.isOwnersOnly && !run.isOwner {
-			run.mounting.Say("  skipped  " + formula.name + " is the owner tier's")
-			continue
-		}
-		run.installOne(formula.name)
+		run.installOne(formula)
 	}
 }
 
@@ -79,15 +49,5 @@ func (run *invocation) installOne(name string) {
 		run.mounting.Say("  would install " + spelled)
 	case machine.InstallPackage(run.Machine, machine.Formula, name) != 0:
 		run.mounting.Refuse("brew install " + spelled + " failed")
-	}
-}
-
-// What this tier does not install, by name. A formula left out silently reads the same as a step that
-// never ran, which is why installPackages, the step that installs them, prints its own skip lines.
-func (run *invocation) sayWhatThisTierSkips() {
-	for _, formula := range formulae {
-		if formula.isOwnersOnly && !run.isOwner {
-			run.mounting.Say("  skipped  " + formula.name + " is the owner tier's")
-		}
 	}
 }

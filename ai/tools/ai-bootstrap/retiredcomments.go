@@ -54,10 +54,6 @@ func (run *invocation) removeRetiredCommentPipeline() {
 			say("  removed  " + link + ", whose agent the flavor no longer ships")
 		}
 	}
-	// Every Claude install mounted the agent, but only the owner's runs kept the state.
-	if !run.isOwner {
-		return
-	}
 	trash := filepath.Join(run.Home, ".Trash")
 	stamp := time.Now().Format("2006-01-02")
 	for _, rel := range retiredCommentState {

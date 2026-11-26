@@ -153,7 +153,7 @@ func NearestExistingParent(path string) string {
 // filepath.Abs cleans `..` lexically, against the name the path was reached by instead of the
 // directory it really names.
 
-// `$HOME/.kk-flavor/../project-skills.sh` becomes `$HOME/project-skills.sh` under Abs, and
+// `$HOME/.kk-flavor/../mcp-sync.sh` becomes `$HOME/mcp-sync.sh` under Abs, and
 // `.kk-flavor` is a link into a checkout whose real parent is somewhere else entirely.
 
 // Every `..` stays in the path, and EvalSymlinks pops each one against the directory it has already

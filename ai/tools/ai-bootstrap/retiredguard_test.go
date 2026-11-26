@@ -10,7 +10,7 @@ import (
 
 // The retired private-name guard is undone on a machine that ran it: the hooks path it set is unset and
 // its empty list removed. A list its owner filled is kept.
-func TestTheOwnerRunRemovesTheRetiredPrivateNameGuard(t *testing.T) {
+func TestTheInstallRemovesTheRetiredPrivateNameGuard(t *testing.T) {
 	f := newFixture(t)
 	checkout := filepath.Dir(f.repo)
 	for _, args := range [][]string{{"init", "-q"}, {"config", "core.hooksPath", "ai/hooks"}} {
@@ -23,7 +23,7 @@ func TestTheOwnerRunRemovesTheRetiredPrivateNameGuard(t *testing.T) {
 	if err := os.WriteFile(list, []byte("# Private names, one per line.\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 	if set, _ := exec.Command("git", "-C", checkout, "config", "--get", "core.hooksPath").Output(); strings.TrimSpace(string(set)) != "" {
 		t.Fatalf("core.hooksPath is still %q", set)
 	}
@@ -34,7 +34,7 @@ func TestTheOwnerRunRemovesTheRetiredPrivateNameGuard(t *testing.T) {
 	if err := os.WriteFile(list, []byte("# list\nLedgerVault\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=codex"), 0)
 	if _, err := os.Stat(list); err != nil {
 		t.Fatalf("a filled list was removed: %v", err)
 	}

@@ -12,9 +12,8 @@
 // Each tool's line is taken by driving its refusal. A test that greps the constant out of the package
 // would agree with the code however wrong the printed text is.
 
-// Most of them are driven IN THIS PROCESS. Four cannot be. cite-graph, rule-echo, install-project and
-// project-skills keep their main with their code as `package main`, which no test can import. Those
-// four are built and executed. The first exec of a fresh binary costs four to six seconds under this
+// Most of them are driven IN THIS PROCESS. Two cannot be. cite-graph and rule-echo keep their main
+// with their code as `package main`, which no test can import. Those two are built and executed. The first exec of a fresh binary costs four to six seconds under this
 // machine's endpoint agent, and twenty-two of them were 30 of the root package's 33 seconds.
 
 // A row's `call` is its in-process route, and it hands the tool's Run exactly what that tool's `main`
@@ -60,7 +59,6 @@ import (
 	mcpsync "configs/ai/tools/mcp-sync"
 	modelcheck "configs/ai/tools/model-check"
 	modelpolicy "configs/ai/tools/model-policy"
-	projectmcp "configs/ai/tools/project-mcp"
 	readerjudge "configs/ai/tools/reader-judge"
 	"configs/ai/tools/repo"
 	repokey "configs/ai/tools/repo-key"
@@ -139,7 +137,7 @@ var refusals = []refusal{
 	}},
 	{stub: "env/bootstrap.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return envbootstrap.Run(envbootstrap.Options{
-			Self: i.self(), Args: i.args, Repo: i.stubDir, Home: i.home, ConfigHome: i.configHome(),
+			Self: i.self(), Args: i.args, Repo: i.stubDir, Home: i.home,
 			Machine: machine.New(), Out: i.out, Err: i.out,
 		})
 	}},
@@ -166,14 +164,6 @@ var refusals = []refusal{
 	{stub: "ai/mcp-sync.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return mcpsync.Run(i.self(), i.args, i.stubDir, mcpsync.NewCLIClient(i.out, i.out), i.out, i.out)
 	}},
-	// An unknown option, which argument parsing refuses before any project is read or written.
-	{stub: "ai/install-project.sh", args: []string{"--nope"}},
-	{stub: "ai/project-mcp.sh", args: []string{"--nope"}, call: func(i invocation) int {
-		return projectmcp.Run(i.self(), i.args, i.stubDir, i.home, repo.Exec{}, i.out, i.out)
-	}},
-	// No arguments at all, which is the only refusal this entry point has. It takes a worktree it cannot
-	// default, and any path it were handed here would be one on the machine running the suite.
-	{stub: "ai/project-skills.sh"},
 	{stub: "ai/kk-flavor/scripts/model-check.sh", args: []string{"--nope"}, call: func(i invocation) int {
 		return modelcheck.Run(modelcheck.Command{Args: i.args, Invocation: i.stub, Stdout: i.out, Stderr: i.out})
 	}},
@@ -204,7 +194,7 @@ var refusals = []refusal{
 		// The only tool here that resolves a repository before it dispatches, so the working directory it
 		// is handed has to be the empty one this suite built.
 		return ecoreport.Invocation{
-			Args: i.args, Dir: i.cwd, Self: i.stub, Home: i.home, ConfigHome: i.configHome(),
+			Args: i.args, Dir: i.cwd, Self: i.stub, Home: i.home,
 			Out: i.out, Err: i.out,
 		}.Exec()
 	}},

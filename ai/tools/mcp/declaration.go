@@ -63,8 +63,7 @@ func ParseDocument(source, text string) (*Document, error) {
 	return document, nil
 }
 
-// Stdio is the transport a declaration names when a server is a child process, and the only one
-// `ai/project-mcp.sh` maps into a project.
+// Stdio is the transport a declaration names when a server is a child process.
 const Stdio = "stdio"
 
 // Transport is the server's declared `type`, defaulting to stdio the way both clients do.

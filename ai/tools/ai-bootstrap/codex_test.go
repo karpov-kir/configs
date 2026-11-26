@@ -11,7 +11,7 @@ func TestCodexInstallsIntoItsOwnDiscoveryDirectoryAndProfile(t *testing.T) {
 	f.ExpectCode(f.install("--agent=codex"), 0)
 
 	f.ExpectLinkTo(f.skillsMount("codex")+"/kk-build", f.repo+"/kk-flavor/skills/kk-build")
-	f.ExpectFileContains(f.codexHome+"/AGENTS.md", "kk-flavor:begin")
+	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
 	f.ExpectAbsent(f.home + "/.claude")
 }
 

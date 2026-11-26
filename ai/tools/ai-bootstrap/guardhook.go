@@ -26,7 +26,7 @@ func (run *invocation) claudeSettings() string {
 // tool, and keeps every other setting and hook. The guard holds a dispatch to the narrowest agent type
 // with its tools. Codex runs every worker with the same tools, and it takes no guard.
 func (run *invocation) registerAgentGuard() {
-	if run.agent != claudeAgent || !run.isOwner {
+	if run.agent != claudeAgent {
 		return
 	}
 	run.mounting.Say("dispatch guard")
@@ -65,7 +65,7 @@ func (run *invocation) addGuardHook(path, matcher string) bool {
 
 // removeAgentGuard takes the dispatch guard's hook out of Claude's settings and leaves the rest.
 func (run *invocation) removeAgentGuard() {
-	if run.agent != claudeAgent || !run.isOwner {
+	if run.agent != claudeAgent {
 		return
 	}
 	run.mounting.Say("dispatch guard")
@@ -197,7 +197,7 @@ func (run *invocation) writeHookSettings(path string, settings map[string]any) b
 // spawn_agent takes task_name, message, fork_turns, model and reasoning_effort, and a bare spawn ran
 // past the guard when a Codex session verified it (ai/tools/agent-guard/README.md).
 func (run *invocation) sayCodexTakesNoGuard() {
-	if run.agent != codexAgent || !run.isOwner {
+	if run.agent != codexAgent {
 		return
 	}
 	run.mounting.Say("dispatch guard")

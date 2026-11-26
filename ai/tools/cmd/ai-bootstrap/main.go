@@ -1,6 +1,6 @@
 // The machine-wide agent install as a command.
 //
-//	usage: bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--maintainer] [--owner] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--uninstall]
+//	usage: bootstrap.sh --agent=claude|codex [--dry-run] [--relocate] [--skip-brew] [--skip-tools] [--skip-mcp] [--skip-rtk] [--skip-verify] [--skip-models] [--uninstall]
 package main
 
 import (

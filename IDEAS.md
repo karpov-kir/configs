@@ -2,24 +2,23 @@
 
 Deferred proposals, not active agent instructions. Keep at most 20 open ideas; review and consolidate this backlog when the owner requests a review or before exceeding that limit.
 
-## 1x | 2026-09-21 | Thin the four package-main tools, but not for the gate's clock
+## 1x | 2026-09-21 | Thin the two package-main tools, but not for the gate's clock
 
-`cite-graph`, `rule-echo`, `install-project` and `project-skills` keep their logic in `package main`,
-which no test can import, so `ai/tools/stub_usage_test.go` builds and executes those four and drives
-the other twenty in process. Lifting them into libraries behind a thin `cmd/<tool>/main.go` was
+`cite-graph` and `rule-echo` keep their logic in `package main`, which no test can import, so
+`ai/tools/stub_usage_test.go` builds and executes those two and drives the others in process. Lifting them into libraries behind a thin `cmd/<tool>/main.go` was
 proposed during the test-redundancy pass and withdrawn on the figures below. The destination is right.
 
-**It buys no gate time.** The root package's own fold took `ai/tools` from 24.4s to 7.4s with the four
-builds still in it, and the root package is not the gate's slowest. Four fewer execs move the suite
-total and not the bound.
+**It buys no gate time.** The root package's own fold took `ai/tools` from 24.4s to 7.4s with the
+package-main builds still in it, and the root package is not the gate's slowest. Fewer execs move the
+suite total and not the bound.
 
 **It is a production refactor, not a test fold.** `cite-graph/main.go` is 11.2K and holds `printable`,
-`target` and `newTarget`, with `main_test.go` in `package main` testing them. Four extractions move
+`target` and `newTarget`, with `main_test.go` in `package main` testing them. The extractions move
 statements between packages, so `cite-graph` and `rule-echo` take new baselines rather than drift from
 their old ones.
 
 **`stub_reach_test.go` does not cover the wiring.** `stub_usage_test.go` hands it that duty, but
-`buildTool` there is called once, for `eco-stats`, and is the only real build in the file. So the four
+`buildTool` there is called once, for `eco-stats`, and is the only real build in the file. So the two
 execs are the sole route to those binaries, and the usage mismatch the cases exist for was found in
 `cite-graph` and `rule-echo`.
 

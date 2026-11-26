@@ -61,8 +61,8 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-// The same tree, with no checkout in it. A case that makes no link uses it: the region and registry
-// cases, which write into files a caller names.
+// The same tree, with no checkout in it. A case that makes no link uses it: the writability cases,
+// which ask about a file a caller names.
 
 // The sources built anyway would cost every such case ten files to create and ten to tear down. File
 // I/O is what this suite's wall time is made of now that no process spawns.
@@ -118,9 +118,6 @@ func (f *fixture) newRun(options installer.RunOptions) *installer.Run {
 	}
 	if options.Label == "" {
 		options.Label = label
-	}
-	if options.ConfigHome == "" {
-		options.ConfigHome = f.home + "/.config"
 	}
 	options.Out = &f.Out
 	options.WriteRoot = f.base

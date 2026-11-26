@@ -64,10 +64,6 @@ type Options struct {
 	// Repo is the env/ directory this run mounts from — the stub's own, resolved physically.
 	Repo string
 	Home string
-	// ConfigHome is the already-resolved ${XDG_CONFIG_HOME:-$HOME/.config}. These mounts never touch it,
-	// and the installer machinery reads it for the install registry. A run built without it reaches the
-	// developer's own registry.
-	ConfigHome string
 	// Machine is the commands outside this process a run consults, and here that is brew alone.
 	Machine machine.Machine
 	Out     io.Writer
@@ -97,7 +93,6 @@ func perform(options Options) (*installer.Run, int) {
 		// ran, so a rename cannot leave the guard looking for a filename this repository stopped using.
 		ScriptName: options.Self,
 		Label:      label,
-		ConfigHome: options.ConfigHome,
 		DryRun:     arguments.isDryRun,
 		Relocate:   arguments.willRelocate,
 		Out:        options.Out,

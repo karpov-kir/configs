@@ -5,16 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"configs/ai/tools/flavor"
 )
 
-// The owner tier gets a whole copy of ai/owner-instructions.md, so the file is this repository's and
-// a later edit of it is the owner's. A region inside the owner's own file gives neither.
-func TestTheOwnerTierInstallsAnIndependentCopy(t *testing.T) {
+// The install puts a whole copy of ai/owner-instructions.md in place, so the file is this
+// repository's and a later edit of it is the owner's.
+func TestTheInstallPutsAnIndependentOwnerCopyInPlace(t *testing.T) {
 	f := newFixture(t)
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
 	f.ExpectNotSymlink(f.home + "/.claude/CLAUDE.md")
 	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
@@ -23,13 +21,13 @@ func TestTheOwnerTierInstallsAnIndependentCopy(t *testing.T) {
 	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md.kk-flavor-installed", ownerTemplate)
 }
 
-// The owner's own writing is never replaced. This is the refusal the whole tier rests on: the copy is
-// destructive in a way a region never is.
-func TestTheOwnerTierRefusesToOverwriteAFileItDidNotWrite(t *testing.T) {
+// The owner's own writing is never replaced. This is the refusal the copy rests on, because a
+// whole-file replacement is destructive.
+func TestTheInstallRefusesToOverwriteAFileItDidNotWrite(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/.claude/CLAUDE.md", "My custom instructions\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
 	f.ExpectSaid("contains personal instructions")
 	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", "My custom instructions\n")
@@ -39,10 +37,10 @@ func TestTheOwnerTierRefusesToOverwriteAFileItDidNotWrite(t *testing.T) {
 // template this repository has upgraded since.
 func TestAnEditAfterTheCopyLandedIsRefusedOnTheNextRun(t *testing.T) {
 	f := newFixture(t)
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 	f.appendTo(f.home+"/.claude/CLAUDE.md", "\nLocal addition.\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
 	f.ExpectFileContains(f.home+"/.claude/CLAUDE.md", "Local addition.")
 }
@@ -51,10 +49,10 @@ func TestAnEditAfterTheCopyLandedIsRefusedOnTheNextRun(t *testing.T) {
 // A machine lacking one would refuse the moment the template changed.
 func TestAnUpgradedTemplateReplacesTheCopyAndBacksTheOldOneUp(t *testing.T) {
 	f := newFixture(t)
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 	f.Write(f.repo+"/owner-instructions.md", ownerTemplate+"\nA new paragraph.\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
 	f.ExpectFileContains(f.home+"/.claude/CLAUDE.md", "A new paragraph.")
 	f.ExpectSaid("  backup   ")
@@ -71,53 +69,23 @@ func TestALegacyOwnerSymlinkBecomesAnIndependentCopy(t *testing.T) {
 	f.Write(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
 	f.Symlink(f.repo+"/CLAUDE.md", f.home+"/.claude/CLAUDE.md")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
 	f.ExpectNotSymlink(f.home + "/.claude/CLAUDE.md")
 	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
 	f.ExpectFileBody(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
 }
 
-// A Codex machine set up before the owner tier existed holds the generated region, with or without the
-// RTK note that sat under it. Both are this repository's writing, so both migrate.
-func TestAGeneratedCodexInstructionFileMigratesToTheOwnerCopy(t *testing.T) {
-	f := newFixture(t)
-	f.Write(f.codexHome+"/AGENTS.md",
-		flavor.RegionOpen+"\n"+flavor.RegionBody+"\n"+flavor.RegionClose+"\n")
-
-	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
-
-	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
-	if backups := backupsOf(t, f.codexHome, "AGENTS.md.backup."); len(backups) != 1 {
-		t.Errorf("the migration left %d backup(s), wanted 1: %v", len(backups), backups)
-	}
-}
-
-func TestAGeneratedCodexFileCarryingTheOldRtkNoteMigratesToo(t *testing.T) {
-	f := newFixture(t)
-	f.Write(f.codexHome+"/AGENTS.md",
-		flavor.RegionOpen+"\n"+flavor.RegionBody+"\n"+flavor.RegionClose+"\n\n"+
-			"@"+f.codexHome+"/RTK.md\n\n"+
-			flavor.LegacyRtkRegionOpen+"\n"+
-			"Read `"+f.codexHome+"/RTK.md` for RTK usage. For unsupported commands or exact output, "+
-			"use `rtk proxy <command>`.\n"+
-			flavor.LegacyRtkRegionClose+"\n")
-
-	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
-
-	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
-}
-
 // A dry run over the migration that wrote anything would be worse than having no flag at all. Someone
 // checks with it, and the check is the run that replaced their instructions.
 func TestADryRunOverTheOwnerMigrationLeavesTheFileAlone(t *testing.T) {
 	f := newFixture(t)
-	generated := flavor.RegionOpen + "\n" + flavor.RegionBody + "\n" + flavor.RegionClose + "\n"
-	f.Write(f.codexHome+"/AGENTS.md", generated)
+	f.Write(f.repo+"/CLAUDE.md", "the checkout's own instructions\n")
+	f.Symlink(f.repo+"/CLAUDE.md", f.home+"/.claude/CLAUDE.md")
 
-	f.ExpectCode(f.install("--agent=codex", "--owner", "--dry-run"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--dry-run"), 0)
 
-	f.ExpectFileBody(f.codexHome+"/AGENTS.md", generated)
+	f.ExpectSymlink(f.home + "/.claude/CLAUDE.md")
 	f.ExpectSaid("would install")
 }
 
@@ -127,21 +95,13 @@ func TestTheOwnerMemoryStoreIsCreatedOnceAndThenLeftAlone(t *testing.T) {
 	f := newFixture(t)
 	memory := f.home + "/Documents/AI/MEMORY.md"
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 	f.ExpectFileBody(memory, "# Memory\n")
 	f.Write(memory, "# Memory\n\nKeep this entry.\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
-
-	f.ExpectFileBody(memory, "# Memory\n\nKeep this entry.\n")
-}
-
-func TestAnOrdinaryInstallCreatesNoOwnerMemory(t *testing.T) {
-	f := newFixture(t)
-
 	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.ExpectAbsent(f.home + "/Documents")
+	f.ExpectFileBody(memory, "# Memory\n\nKeep this entry.\n")
 }
 
 // Both clients get the same file. An owner running one after the other reads one set of instructions,
@@ -149,8 +109,8 @@ func TestAnOrdinaryInstallCreatesNoOwnerMemory(t *testing.T) {
 func TestBothClientsGetTheSameOwnerCopy(t *testing.T) {
 	f := newFixture(t)
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
-	f.ExpectCode(f.install("--agent=codex", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
+	f.ExpectCode(f.install("--agent=codex"), 0)
 
 	f.ExpectFileBody(f.home+"/.claude/CLAUDE.md", ownerTemplate)
 	f.ExpectFileBody(f.codexHome+"/AGENTS.md", ownerTemplate)
@@ -160,9 +120,9 @@ func TestBothClientsGetTheSameOwnerCopy(t *testing.T) {
 // it is no longer that, so it is preserved and the run says why.
 func TestTheOwnerUninstallRemovesItsOwnCopyAndRefusesAnEditedOne(t *testing.T) {
 	f := newFixture(t)
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
-	f.ExpectCode(f.install("--agent=claude", "--owner", "--uninstall"), 0)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 0)
 
 	f.ExpectAbsent(f.home + "/.claude/CLAUDE.md")
 	f.ExpectAbsent(f.home + "/.claude/CLAUDE.md.kk-flavor-installed")
@@ -173,10 +133,10 @@ func TestTheOwnerUninstallRemovesItsOwnCopyAndRefusesAnEditedOne(t *testing.T) {
 
 func TestTheOwnerUninstallPreservesAModifiedFile(t *testing.T) {
 	f := newFixture(t)
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 	f.appendTo(f.home+"/.claude/CLAUDE.md", "\nLocal addition.\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner", "--uninstall"), 1)
+	f.ExpectCode(f.install("--agent=claude", "--uninstall"), 1)
 
 	f.ExpectSaid("was modified — owner instructions were preserved")
 	f.ExpectFileContains(f.home+"/.claude/CLAUDE.md", "Local addition.")
@@ -211,7 +171,7 @@ func TestOwnerMemoryWrittenAtTheOldPathIsMoved(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
 	f.ExpectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nAn entry written before the move.\n")
 	f.ExpectAbsent(f.home + "/Document/AI/MEMORY.md")
@@ -226,7 +186,7 @@ func TestTheOldMemoryDirectoryIsKeptWhenItHoldsAnythingElse(t *testing.T) {
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n")
 	f.Write(f.home+"/Document/AI/notes.md", "mine\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 0)
+	f.ExpectCode(f.install("--agent=claude"), 0)
 
 	f.ExpectFileBody(f.home+"/Document/AI/notes.md", "mine\n")
 }
@@ -238,7 +198,7 @@ func TestTwoOwnerMemoryStoresRefuseRatherThanPickOne(t *testing.T) {
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
 	f.Write(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
 
-	f.ExpectCode(f.install("--agent=claude", "--owner"), 1)
+	f.ExpectCode(f.install("--agent=claude"), 1)
 
 	f.ExpectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nThe old one.\n")
 	f.ExpectFileBody(f.home+"/Documents/AI/MEMORY.md", "# Memory\n\nThe new one.\n")
@@ -252,7 +212,7 @@ func TestADryRunSaysItWouldMoveAndCreatesNothing(t *testing.T) {
 	f := newFixture(t)
 	f.Write(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
 
-	f.install("--agent=claude", "--owner", "--dry-run")
+	f.install("--agent=claude", "--dry-run")
 
 	f.ExpectFileBody(f.home+"/Document/AI/MEMORY.md", "# Memory\n\nStill here afterwards.\n")
 	f.ExpectAbsent(f.home + "/Documents/AI/MEMORY.md")
