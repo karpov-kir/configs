@@ -2,6 +2,10 @@
 go = "<major>"
 node = "<major>"
 
+# mise fetches the env task's script (env:crypt) by git only with experimental features on.
+[settings]
+experimental = true
+
 [vars]
 # Asks in a macOS dialog (osascript) with hidden input and prints the answer. The text says which password
 # and what happens once it is given. It goes in as an osascript argument, so no text can break the quoting.
@@ -107,14 +111,14 @@ set -euo pipefail
 '''
 
 # sops encrypts env files for the age public keys in .sops.yaml, and each person decrypts with their own key. The
-# script is the one shared copy, fetched by a full commit SHA of karpov-kir/configs, never a branch or tag: a SHA
-# cannot move under the project. Raise <configs commit SHA> to take a change; never copy its body here. mise
-# fetches it only when an env task runs or is listed.
+# script is the one shared copy, fetched by a full commit SHA of project-orchestration, never a branch or tag: a SHA
+# cannot move under the project. Raise <project-orchestration commit SHA> to take a change; never copy its body here.
+# mise fetches it with git and your gh sign-in, since the repo is private, only when an env task runs or is listed.
 [tasks."env:crypt"]
 description = "Encrypt, decrypt or re-key one env file: mise run env:crypt <encrypt|decrypt|rekey> <env>"
 hide = true
 dir = "env"
-file = "https://raw.githubusercontent.com/karpov-kir/configs/<configs commit SHA>/ai/kk-flavor/templates/mise-tasks/env-crypt"
+file = "git::https://github.com/kk-forge-engineering/project-orchestration.git//app-tasks/env-crypt.sh?ref=<project-orchestration commit SHA>"
 tools = { sops = "3" }
 
 # One task per environment that has an encrypted file. rekey re-encrypts for the keys now in .sops.yaml, after someone
