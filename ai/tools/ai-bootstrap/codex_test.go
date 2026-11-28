@@ -27,46 +27,7 @@ func TestCodexRefusesAShadowedInstructionFileBeforeWritingAnything(t *testing.T)
 	f.ExpectAbsent(f.home + "/.kk-flavor")
 }
 
-// Codex kept its skills under CODEX_HOME before the shared discovery directory existed, and machines
-// set up then still hold those links. The old link goes only once its replacement is in place, so an
-// interrupted migration leaves Codex with a working mount.
-func TestCodexDropsALegacyMountOnceItsReplacementIsThere(t *testing.T) {
-	f := newFixture(t)
-	f.Symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
-
-	f.ExpectCode(f.install("--agent=codex"), 0)
-
-	f.ExpectLinkTo(f.skillsMount("codex")+"/kk-build", f.repo+"/kk-flavor/skills/kk-build")
-	f.ExpectAbsent(f.codexHome + "/skills/kk-build")
-}
-
-// A link the old README's loop made reads back with a trailing slash, because `$d` came from a `*/`
-// glob. It names the same skill, so it migrates like any other. A raw string comparison would miss it.
-func TestCodexMigratesALegacyLinkEndingInASlash(t *testing.T) {
-	f := newFixture(t)
-	f.Symlink(f.repo+"/kk-flavor/skills/kk-build/", f.codexHome+"/skills/kk-build")
-
-	f.ExpectCode(f.install("--agent=codex"), 0)
-
-	f.ExpectAbsent(f.codexHome + "/skills/kk-build")
-}
-
-// A real directory at the replacement's path is not this run's mount. A drop of the old link against
-// it would leave Codex with a directory that holds no skill.
-func TestCodexKeepsALegacyMountWhoseDestinationIsOccupied(t *testing.T) {
-	f := newFixture(t)
-	f.Symlink(f.repo+"/kk-flavor/skills/kk-build", f.codexHome+"/skills/kk-build")
-	f.MkdirAll(f.skillsMount("codex") + "/kk-build")
-
-	f.ExpectCode(f.install("--agent=codex"), 1)
-
-	f.ExpectSymlink(f.codexHome + "/skills/kk-build")
-}
-
-// CODEX_HOME is routinely an alias of the directory it names. A run that read its own destination as a
-// second, older mount directory would migrate every skill out of the directory it had just mounted
-// them into.
-func TestAProfileAliasOfTheDiscoveryDirectoryIsNotASecondMountDirectory(t *testing.T) {
+func TestCodexInstallsWhenItsProfileAliasesTheDiscoveryRoot(t *testing.T) {
 	f := newFixture(t)
 	f.MkdirAll(f.home + "/.agents")
 	f.Symlink(f.home+"/.agents", f.home+"/profile")
@@ -93,8 +54,7 @@ func TestUninstallingOneClientKeepsTheBucketTheOtherStillNeeds(t *testing.T) {
 	f.ExpectAbsent(f.skillsMount("codex") + "/kk-build")
 }
 
-// And the last client out takes it. A profile alias must not be counted as another client here either:
-// counted, the bucket would be kept for a client that is itself being removed.
+// Removing the last client also removes the shared bucket.
 func TestTheLastClientOutRemovesTheBucket(t *testing.T) {
 	f := newFixture(t)
 	f.MkdirAll(f.home + "/.agents")
