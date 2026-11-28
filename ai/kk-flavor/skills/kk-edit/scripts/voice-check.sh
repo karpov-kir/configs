@@ -13,8 +13,8 @@
 # stumbles on, so a finding is an edit to make and never a number to drive down. The tells are
 # `~/.kk-flavor/standards/human-writing.md` -> AI tells -> House voice.
 #
-# Two profiles. `prose` (the default) reads a markdown or plain-text file whole. `instruction` reads a
-# rule file under `ai/kk-flavor/` and skips its frontmatter, its fenced code and its headings.
+# Two profiles. `prose` (the default) reads a markdown or plain-text file and skips its fenced code.
+# `instruction` reads a rule file under `ai/kk-flavor/` and also skips its frontmatter and headings.
 # `--kind` reads a prose body as a PR body or a ticket: it leaves the repository's template lines
 # unread and adds the `tests-narration` check. `--per-file` prints a finding count per path instead of
 # the findings.

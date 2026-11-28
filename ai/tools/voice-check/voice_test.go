@@ -203,17 +203,13 @@ func TestAnImperativeEndingInIngIsNotADroppedSubject(t *testing.T) {
 }
 
 // The instruction profile reads a rule file's prose and nothing it uses as structure. A heading is a
-// label; a fenced block is the example the rule is stating; the frontmatter is machine-read.
-func TestTheInstructionProfileSkipsHeadingsFencesAndFrontmatter(t *testing.T) {
+// label; the frontmatter is machine-read.
+func TestTheInstructionProfileSkipsHeadingsAndFrontmatter(t *testing.T) {
 	file := []string{
 		"---",
 		"name: nothing-here",
 		"---",
-		"# Nothing above this line",
-		"",
-		"```ts",
-		"Counted across the whole ledger rather than per book.",
-		"```",
+		"# Nothing above this line rather than below",
 		"",
 		"State the fact rather than the alternative.",
 	}
@@ -222,8 +218,30 @@ func TestTheInstructionProfileSkipsHeadingsFencesAndFrontmatter(t *testing.T) {
 	if len(found) != 1 {
 		t.Fatalf("want one finding, the prose line's; got %d:\n%s", len(found), render(found))
 	}
-	if found[0].Line != 10 || found[0].Check != checkContrast {
-		t.Fatalf("want the contrast on line 10; got %s", found[0])
+	if found[0].Line != 6 || found[0].Check != checkContrast {
+		t.Fatalf("want the contrast on line 6; got %s", found[0])
+	}
+}
+
+// Code in a fence is never prose, whichever profile reads the file. A README's example carries the
+// language's semicolons, and reading them as clause joins reports the example rather than the text.
+func TestAFencedBlockIsCodeInBothTextProfiles(t *testing.T) {
+	file := []string{
+		"```ts",
+		"await append(\"data.json\", { id: 1 });",
+		"",
+		"const writer = open(\"data.json\", { threshold: 1_000 });",
+		"await writer.append({ id: 2 });",
+		"await writer.flush({ shutdown: true });",
+		"```",
+		"",
+		"Call shutdown once; it flushes the rest.",
+	}
+	for _, profile := range textProfiles {
+		found := scanner{profile: profile}.scanProse("readme.md", file)
+		if len(found) != 1 || found[0].Line != 9 || found[0].Check != checkSemicolon {
+			t.Errorf("the %s profile: want only the semicolon on line 9; got:\n%s", profile, render(found))
+		}
 	}
 }
 
