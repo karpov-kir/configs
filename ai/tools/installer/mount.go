@@ -268,10 +268,6 @@ func (r *Run) surveyForeignMounts() int {
 
 // --- taking it back out ---------------------------------------------------------------------------
 
-// The caller names the target instead of Mount taking it off the table, because one caller has a
-// target the table never held. The Codex install migrates a skill out of an older mount directory
-// once its replacement exists.
-
 // Removal lives here because the proof has to run for every caller. A target is removed only if it
 // is a symlink AND its value resolves under the checkout. Anything else — a real file, a symlink
 // into somebody else's checkout, a link that resolves nowhere — is reported and left. Link makes the
@@ -282,20 +278,20 @@ func (r *Run) surveyForeignMounts() int {
 
 // A target that is already gone counts as success. Uninstall run twice is ordinary.
 
-// UnmountTarget removes one mount, and only when this checkout can prove it wrote it.
-func (r *Run) UnmountTarget(target string) bool {
+// unmountTarget removes one mount when this checkout can prove it wrote it.
+func (r *Run) unmountTarget(target string) {
 	if !shell.IsSymlink(target) {
 		if shell.PathExists(target) {
 			r.Refuse(target + " is not a symlink, so this did not write it — remove it yourself if you mean to")
-			return false
+			return
 		}
 		r.Say("  ok       " + target + " is already gone")
-		return true
+		return
 	}
 	current, err := readLink(target)
 	if err != nil {
 		r.Refuse("could not read where " + target + " points, so whether this wrote it is unknown — left alone")
-		return false
+		return
 	}
 	// Absolute only. mountForeignRoot, the mount guard, makes the same test and for the same reason. A
 	// relative value resolves against THIS process's working directory instead of the link's own, and
@@ -306,7 +302,7 @@ func (r *Run) UnmountTarget(target string) bool {
 	// it alone.
 	if !strings.HasPrefix(current, "/") {
 		r.Refuse(target + " points at the relative path " + current + ", which this never writes — left alone")
-		return false
+		return
 	}
 	// The value is resolved before it is compared, and a link written through a differently-spelled but
 	// equivalent path is still recognised as this checkout's. A link resolving nowhere resolves to
@@ -314,9 +310,9 @@ func (r *Run) UnmountTarget(target string) bool {
 	resolved := realDir(shell.DirName(current))
 	if !shell.IsWithin(resolved, r.repo) {
 		r.Refuse(target + " points at " + current + ", which is not in this checkout — left alone")
-		return false
+		return
 	}
-	return r.apply(change{
+	r.apply(change{
 		would: "would remove " + target + " -> " + current,
 		did:   "removed  " + target,
 		write: func() string {
@@ -333,20 +329,20 @@ func (r *Run) UnmountTarget(target string) bool {
 // reporting ok.
 
 // A mount resolving into another checkout is outside this run's reach to delete, as it is outside
-// its reach to repoint. UnmountTarget refuses it by removing a target only when the target resolves
+// its reach to repoint. unmountTarget refuses it by removing a target only when the target resolves
 // under the checkout.
 
 // Unmount is the inverse of Mount, over the same table the caller declared.
 func (r *Run) Unmount() {
 	r.Say("unmounts")
 	for _, mount := range r.configs {
-		r.UnmountTarget(mount.Target)
+		r.unmountTarget(mount.Target)
 	}
 	if len(r.bulk) == 0 {
 		return
 	}
 	r.Say(r.bulkLabel)
 	for _, mount := range r.bulk {
-		r.UnmountTarget(mount.Target)
+		r.unmountTarget(mount.Target)
 	}
 }

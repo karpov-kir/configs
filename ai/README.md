@@ -25,8 +25,7 @@ nonempty `AGENTS.override.md` shadows `AGENTS.md`; bootstrap reports that confli
 after installation to load the new global instructions.
 
 Both clients share `~/.kk-flavor` and the source tree, but can be installed and removed independently.
-The shared bucket stays while another client has skill mounts from this checkout. Codex migrates old
-`$CODEX_HOME/skills` links only after their replacements exist under `~/.agents/skills`. It leaves unrelated links alone.
+The shared bucket stays while another client has skill mounts from this checkout. Bootstrap leaves unrelated links alone.
 
 Bootstrap mounts every skill, maintenance skills included. It installs `rtk` and the Claude dispatch guard.
 
@@ -39,9 +38,7 @@ did not write, bootstrap refuses to replace it.
 
 Both clients write owner memory to `~/Documents/AI/MEMORY.md`, a record no session reads at start; its entries reach
 agents when they are promoted into the ecosystem. Bootstrap creates the file only when absent
-and never removes it on uninstall. An install that finds a store at the older `~/Document/AI/MEMORY.md`
-moves it there and removes the emptied directories; finding one at each path it refuses, because choosing
-between them would strand somebody's entries.
+and never removes it on uninstall.
 
 Run bootstrap for the requested client. Report `REFUSED` lines so the user can resolve targets the
 installer left untouched.

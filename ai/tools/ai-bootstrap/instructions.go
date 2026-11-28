@@ -7,14 +7,7 @@ import (
 	"configs/ai/tools/shell"
 )
 
-// The owner's memory store, and where an owner install before this one put it. The spelling was
-// `Document` for months, which no other tool on a Mac uses, and the owner's own instructions name
-// `Documents`. A fix to the destination alone would leave every entry already written at a path no
-// write or integration reaches, so moveLegacyOwnerMemory, a step of the install run, moves them.
-const (
-	ownerMemoryFile = "/Documents/AI/MEMORY.md"
-	legacyMemoryOne = "/Document/AI/MEMORY.md"
-)
+const ownerMemoryFile = "/Documents/AI/MEMORY.md"
 
 // A Codex profile can shadow AGENTS.md with a file of its own. A run that wrote the instructions
 // anyway would leave the tree installed with no client loading it. The question comes before the
@@ -37,7 +30,7 @@ func isNonEmptyFile(path string) bool {
 // The instruction step, and whether it finished. The rtk step reads the answer.
 func (run *invocation) writeInstructions() bool {
 	run.mounting.Say("instructions")
-	return run.writeOwnerInstructions() && run.moveLegacyOwnerMemory() && run.ensureOwnerMemory()
+	return run.writeOwnerInstructions() && run.ensureOwnerMemory()
 }
 
 // The owner gets the whole owner template as a copy, so the file is this repository's and a later
@@ -137,56 +130,6 @@ func (run *invocation) ownerFileMatches() bool {
 	// only way an upgraded template is told from a file the owner edited.
 	receipt := run.ownerReceipt()
 	return shell.IsRegularFile(receipt) && !shell.IsSymlink(receipt) && sameBytes(run.instructionFile, receipt)
-}
-
-// The owner's entries, moved off the path an earlier install wrote them to. A run that skipped this
-// leaves them where no write or integration reaches, and the failure is silent: the run reports a memory file
-// created, and that file is empty.
-//
-// Returns true when there is no entry to move, which is every run after the first.
-func (run *invocation) moveLegacyOwnerMemory() bool {
-	legacy, memory := run.Home+legacyMemoryOne, run.Home+ownerMemoryFile
-	if !shell.PathExists(legacy) {
-		return true
-	}
-	// Two stores, with no way to tell which holds what. The merge is the human's call. This code
-	// cannot read either store, and it cannot tell which entry is newer.
-	if shell.PathExists(memory) {
-		run.mounting.Refuse("owner memory exists at both " + legacy + " and " + memory +
-			" — merge them into " + memory + " and remove " + legacy)
-		return false
-	}
-	if run.isDryRun {
-		run.mounting.Say("  would move " + legacy + " to " + memory)
-		// A dry run moves no file. ensureOwnerMemory, the step that follows, then finds the destination
-		// absent and says it would create one. That is two lines that cannot both hold, about the file
-		// this exists to protect.
-		return false
-	}
-	if err := os.MkdirAll(shell.DirName(memory), 0o755); err != nil {
-		run.mounting.Refuse("could not create " + shell.DirName(memory) + ", so owner memory was left at " + legacy)
-		return false
-	}
-	// A hard link and then a remove. `os.Rename` REPLACES a destination that appeared since the
-	// PathExists check, and that check is not atomic with the move. A session following the very rule
-	// this installer writes can create the destination in between. `os.Link` refuses an existing
-	// destination, so the only copy there is survives this line.
-	if err := os.Link(legacy, memory); err != nil {
-		run.mounting.Refuse("could not move owner memory from " + legacy + " to " + memory +
-			" — both were left as they are")
-		return false
-	}
-	if err := os.Remove(legacy); err != nil {
-		run.mounting.Refuse("owner memory was copied to " + memory + " and " + legacy +
-			" could not be removed — merge them by hand, since a later run will refuse both")
-		return false
-	}
-	// Only if they are now empty, since a directory holding anything else is the human's. A failure
-	// here is ignored, because a leftover empty directory changes no outcome.
-	os.Remove(shell.DirName(legacy))
-	os.Remove(shell.DirName(shell.DirName(legacy)))
-	run.mounting.Say("  moved    " + legacy + " to " + memory)
-	return true
 }
 
 // The owner's memory store, created empty where it is missing and never written over. Its whole

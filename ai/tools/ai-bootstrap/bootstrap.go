@@ -200,7 +200,6 @@ func (run *invocation) install() int {
 	if !run.mounting.Mount() {
 		return run.mounting.Report()
 	}
-	run.migrateLegacyCodexMounts()
 	if len(run.mounting.BulkMounts()) == 0 {
 		run.mounting.Refuse("no skill directories under " + run.Repo + "/kk-flavor/skills/ — nothing was mounted")
 	}
