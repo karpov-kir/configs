@@ -51,7 +51,8 @@ const (
 type Profile string
 
 const (
-	// ProfileProse reads a markdown or plain-text file whole: a PR body, a review comment, a reply.
+	// ProfileProse reads a markdown or plain-text file whole except its fenced code: a PR body, a review
+	// comment, a reply, a README.
 	ProfileProse Profile = "prose"
 	// ProfileInstruction reads a rule file under ai/kk-flavor/, skipping the frontmatter, fenced code
 	// and section headings. A heading is a label, not a sentence, and holding one to sentence shape
@@ -290,8 +291,8 @@ func (seg segment) lineSpan(from, to int) (int, int) {
 	return first, last
 }
 
-// scanProse reads a whole text file, a paragraph at a time. The instruction profile skips what a rule
-// file uses as structure: its frontmatter, its fenced code, and its headings.
+// scanProse reads a whole text file, a paragraph at a time, and skips fenced code. The instruction
+// profile also skips what a rule file uses as structure: its frontmatter and its headings.
 //
 // A paragraph is a run of lines with no blank line in it. A list item starts a new one. A table row
 // ends one and is read a cell at a time. Typed fields and wrapped files both arrive here.
@@ -318,15 +319,20 @@ func (s scanner) scanProse(file string, lines []string) []Finding {
 				inFrontmatter = !shell.IsFrontmatterDelimiter(line)
 				continue
 			}
-			if shell.IsFenceDelimiter(line) {
-				flush(at - 1)
-				inFence = !inFence
-				continue
-			}
-			if inFence || strings.HasPrefix(line, "#") {
+			if strings.HasPrefix(line, "#") {
 				flush(at - 1)
 				continue
 			}
+		}
+		// Code in a fence is never prose, in either profile: its semicolons and its length belong to
+		// the language it is written in.
+		if shell.IsFenceDelimiter(line) {
+			flush(at - 1)
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
 		}
 		// A table row is data laid out in columns, and its cells carry prose a reader follows. A
 		// paragraph made of them runs together into one pseudo-sentence, long and deeply clausal
