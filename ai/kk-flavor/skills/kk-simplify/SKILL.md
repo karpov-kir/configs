@@ -18,7 +18,7 @@ The scope is every file in `origin/main`'s tree, plus the tails outside git (**A
 
 ## Modes
 
-The themes are code and architecture, tests and guards, config, docs, comments and instructions, and history. Each catalog class joins the theme that names it. Dependencies, CI, permissions and data join config. API surface, observability and names join code.
+The themes are code and architecture, tests and guards, config, docs, comments and instructions, and history. Each catalog class joins the theme that names it. Dependencies, CI, permissions and data join config. API surface, published package surface, observability and names join code.
 
 - `one-pr` is the default. The run's branch carries the single PR.
 - `batches` opens one PR per theme. Split a theme whose diff a reviewer cannot read in one sitting.
@@ -27,13 +27,13 @@ The themes are code and architecture, tests and guards, config, docs, comments a
 
 Keep the run in `${XDG_STATE_HOME:-~/.local/state}/kk-flavor/simplify/<key>/`, where `~/.kk-flavor/scripts/repo-key.sh` prints `<key>`. The directory stays outside the repository, so another session can resume the run. Only you write in it.
 
-- `run.md` holds the mode, the run's branch and worktree, the base SHA, the phase, and one row per slice: its paths, its status, its findings file and its attempts.
+- `run.md` holds the mode, the run's branch and worktree, the base SHA, the phase, and one row per slice: its paths, its status, its findings file and its attempts. Write one row per dispatch into it as each worker returns. The row names the worker, the model requested, the wall time and the result. It adds the token usage where the client shows it.
 - `inventory.tsv` holds a header and one row per tracked file, in this column order: path, blob, slice, class, verdict, finding ids, and the commit that applied them. The class stays empty until the scout sets it. A verdict is `pending`, `disputed`, or a verdict from `~/.kk-flavor/workers/simplify/scout.md` → **The bar**.
 - `findings/<slice>.md` holds each scout's return. You write it from the return.
 - `decisions.md` holds the questions for the human and the answers.
 - `batches.md` holds each theme's partitions, files, commits and PR, and each finding with its status: `open`, `applied`, `disputed` or `waiting` for the human.
 
-**Resume** before you start anything. Without `run.md`, start at Phase 1. A dirty run worktree means a cleaner did not return: show the human its diff, and ask before you commit or discard it. With it, fetch, and continue at the recorded phase while `origin/main` still equals the base SHA. When `origin/main` has moved, merge it into the run's branch. A conflict in that merge stops the run and goes to the human. Compare `git ls-tree -r` of the old base and of `origin/main`, then record `origin/main`'s SHA as the new base. Each slice holding a changed, added or deleted file goes back to Phase 2, and so does every whole-tree assignment. Set all of that slice's rows to `pending` with the new base's blobs. The scouts read the run's branch, so they see what the run already applied. Each new findings file replaces the old one and takes fresh ids. An applied finding keeps its id and commit in `batches.md`.
+**Resume** before you start anything. Without `run.md`, start at Phase 1. With it, check the run worktree first. A dirty worktree means a cleaner did not return: show the human its diff, and ask before you commit or discard it. Then fetch, and continue at the recorded phase while `origin/main` still equals the base SHA. When `origin/main` has moved, merge it into the run's branch. A conflict in that merge stops the run and goes to the human. Compare `git ls-tree -r` of the old base and of `origin/main`, then record `origin/main`'s SHA as the new base. Each slice holding a changed, added or deleted file goes back to Phase 2, and so does every whole-tree assignment. Set all of that slice's rows to `pending` with the new base's blobs. The scouts read the run's branch, so they see what the run already applied. Each new findings file replaces the old one and takes fresh ids. An applied finding keeps its id and commit in `batches.md`.
 
 ## 1. Inventory
 
@@ -45,19 +45,19 @@ Tell the human the cost before the first spawn: the scout count, and the model t
 
 ## 2. Scout
 
-Dispatch `~/.kk-flavor/workers/simplify/scout.md` once per slice, and three more times over the whole tree: for `rules`, `structure` and `tails`. The scouts read only, so run them all at once. Write each return into its findings file and each verdict into `inventory.tsv` as it arrives. A file two scouts judge keeps the earlier verdict in the order of `~/.kk-flavor/workers/simplify/scout.md` → **The bar**. Phase 2 is done when every assignment has returned and every row in `inventory.tsv` holds a verdict past `pending`. Resume a scout whose return leaves a file of its slice without a verdict line, and count the attempt in `run.md`.
+Dispatch `~/.kk-flavor/workers/simplify/scout.md` once per slice, and three more times over the whole tree: for `rules`, `structure` and `tails`. The scouts read only, so run as many at once as the runtime's worker capacity allows. Write each return into its findings file and each verdict into `inventory.tsv` as it arrives. A file two scouts judge keeps the earlier verdict in the order of `~/.kk-flavor/workers/simplify/scout.md` → **The bar**. Phase 2 is done when every assignment has returned and every row in `inventory.tsv` holds a verdict past `pending`. Resume a scout whose return leaves a file of its slice without a verdict line, and count the attempt in `run.md`.
 
 ## 3. Sort
 
 Group the findings by theme, then into partitions inside each theme. Each file belongs to one partition, and every finding sits whole in one. A file that two themes need goes, with all its findings, to the theme of its first finding. Size each partition so that one cleaner can hold all of it in its context. A `structure` redesign is one partition of its own in the code and architecture theme.
 
-A finding that needs the human, each tail, and each product feature the scouts propose to drop go to `decisions.md`. Ask the whole list in one turn, with your recommendation and the exact command for each item. Run each command the human approves. The rest go on at once.
+A finding that needs the human, each tail, each product feature the scouts propose to drop, and each removal that breaks a consumer of a published package go to `decisions.md`. The run leaves that package's surface as it is, and the removal waits for the next major version. Ask the whole list in one turn, with your recommendation and the exact command for each item. Run each command the human approves. The rest go on at once.
 
 ## 4. Clean
 
 Dispatch `~/.kk-flavor/workers/simplify/cleaner.md` once per partition, theme by theme, in the run's worktree, with its findings. Run one cleaner at a time, so that no two cleaners edit the worktree at once.
 
-After each cleaner returns, commit its edits on the run's branch, one commit per partition with its theme in the subject. Record the commit in `batches.md` and in `inventory.tsv`. Set a disputed file's verdict to `disputed`. A cleaner's proposal and a cleaner's new finding go back to Phase 3 as findings. A new finding that needs the human is asked when it arrives.
+After each cleaner returns, commit its edits on the run's branch, one commit per partition with its theme in the subject. Record the commit in `batches.md` and in `inventory.tsv`. For a cleaner that left the tree unchanged, skip the commit and record `none` in both files. Set a disputed file's verdict to `disputed`. A cleaner's proposal and a cleaner's new finding go back to Phase 3 as findings. A new finding that needs the human is asked when it arrives.
 
 Run the repository's own gate after the last cleaner. A red gate, and a red check a cleaner found before its first edit, stop Phase 4 and go to the human.
 
@@ -65,11 +65,11 @@ Run the repository's own gate after the last cleaner. A red gate, and a red chec
 
 Land only once `inventory.tsv` holds no `pending` row and every finding is applied, `disputed`, or waiting in `decisions.md`.
 
-In `one-pr`, the PR branch is the run's branch. In `batches`, create one branch and worktree per theme from `origin/main`, and cherry-pick that theme's commits onto it. A conflict in a cherry-pick stops the run and goes to the human.
+In `one-pr`, the PR branch is the run's branch. In `batches`, create one branch and worktree per theme from `origin/main`, and cherry-pick that theme's commits onto it, skipping `none`. A conflict in a cherry-pick stops the run and goes to the human.
 
 In each PR branch's worktree, run the repository's gate. A red gate on a theme branch stops the run and goes to the human, with the commits from another theme it needs. Then run `~/.kk-flavor/skills/kk-qualify/SKILL.md` over the branch's change set, with its applied findings as the ask, and commit its fixes on that branch. Push, and open each PR as a draft, as `~/.kk-flavor/standards/git.md` states.
 
-Each PR description says what was simplified and why. It gives the counts before and after: lines, files, dependencies, and the CI run time of `origin/main` against the branch. It gives each `structure` redesign its own section with the reason. It lists each `disputed` finding, each scout's follow-up and catalog proposal, and each open question from `decisions.md`.
+Each PR description says what was simplified and why. It gives the counts before and after: lines, files, dependencies, and the CI run time of `origin/main` against the branch. It gives the run's cost from `run.md`: the dispatch count, the wall time and the token usage the client showed. It gives each `structure` redesign its own section with the reason. It lists each `disputed` finding, each scout's follow-up and catalog proposal, and each open question from `decisions.md`.
 
 The human merges.
 

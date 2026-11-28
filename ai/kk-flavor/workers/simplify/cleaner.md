@@ -25,6 +25,8 @@ Apply a finding that needs the human only as the human's answer beside it decide
 
 Run the repository's own checks before your first edit and after your last: its build or typecheck, its formatter and lint, and the tests of the packages you touched. Run a check the finding names only where it is one of those. A check already red before your first edit stops you before any edit: return it with its output. Run the repository's formatter in its fix mode over the files you changed.
 
+Where a finding merges test configs, run the suite before your first edit. Keep a copy of each report it writes, such as coverage or analysis output, in a directory of your own. After your last edit, run the suite in its parallel mode and compare each report with that copy. Where the suite has a watch mode, start it in the background, confirm that it runs the suite once, and stop it.
+
 A deleted or rewritten test changes what the suite proves. Before you delete a test, name the test that still proves its behaviour, or state that the behaviour itself is gone.
 
 A red check you cannot fix inside the finding's design means the design was wrong. Undo your edits for that finding, and return it as `disputed` with the failing check's output.

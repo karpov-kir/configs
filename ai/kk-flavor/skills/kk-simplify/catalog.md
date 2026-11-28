@@ -76,6 +76,7 @@ The scout checks each class below against every file and passage it reads. Each 
 ## Tests
 
 - **Look for:** a test that cannot fail, restates the behaviour it asserts, or repeats a cheaper test's proof. A test of the implementation. A mock. A test on a slower level than it needs. Long setup. Many cases of one behaviour. A flaky or slow test. A huge snapshot. A skipped or focused test.
+- **Check first:** before two test configs merge, read how each sets the parallel run, watch mode, and the reports another tool reads, such as coverage or analysis output.
 - **Default:** `delete`, then `simplify`.
 - **Becomes:** one table-driven case, one scenario through the published surface, a fake or the real thing, the cheapest level, a builder, or a small exact assertion. A skipped test runs again with its cause fixed, or goes. The bar is `~/.kk-flavor/standards/testing.md`.
 - **Example:** six cases that each check one invalid option become one table of inputs and expected errors.
@@ -116,6 +117,14 @@ A guard is a guard test, a CI check or a hook.
 - **Default:** `delete`. It needs the human when a user of the product sees it.
 - **Becomes:** removed, together with its schema description in the same change.
 - **Example:** a response field no client reads goes from the handler and from the schema.
+
+## Published package surface
+
+- **Look for:** a shipped file, an export or a deep import path of a published package that the package no longer needs.
+- **Check first:** what a consumer can reach — the packed archive, the files list, the exports map, and every deep import path that resolves.
+- **Default:** `delete` for what no consumer can reach. A removal that breaks a consumer is a proposal for the human and the next major version.
+- **Becomes:** removed from the archive and the files list. A narrower reachable surface lands in its own major release.
+- **Example:** an internal helper that ships in the archive stays, and the proposal names the release that can drop it.
 
 ## Data and storage
 
