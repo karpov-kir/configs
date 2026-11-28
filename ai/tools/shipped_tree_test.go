@@ -467,7 +467,7 @@ func TestExactlyTheKnownSkillsDeclareAnExtension(t *testing.T) {
 		"idsd-reactor":  "kk-handoff",
 		"idsd-ship":     "idsd-build, idsd-intent, idsd-qualify, idsd-finalize",
 		"kk-pr":         "kk-qualify",
-		"kk-prune":      "kk-qualify",
+		"kk-simplify":   "kk-qualify",
 	}
 	got := map[string]string{}
 	for skill, body := range skillBodies(t) {

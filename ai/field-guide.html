@@ -491,14 +491,14 @@
       <p class="hint">takes: &lt;review|address-review|refine-description|review-and-address&gt; [PR number, URL, or head branch]</p>
     </div>
     <div class="lane">
-      <div class="lane-top"><code class="k">kk-prune</code><span class="tag you">you type it</span></div>
-      <p>Prune one repository hard — every tracked file gets a verdict, and what nobody needs is deleted or cut down — docs, comments, code, overbuilt design, config, tests, guards, specific rules, wrong facts and history. Use for "prune the repo", "clean up this repo", "we are bloating". Lands as one PR or as themed PRs. One change set's quality is kk-qualify's, and the kk-flavor tree's own instructions are kk-reduce's.</p>
-      <p class="hint">takes: [one-pr | batches] (default: one-pr)</p>
-    </div>
-    <div class="lane">
       <div class="lane-top"><code class="k">kk-qualify</code></div>
       <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is the code-review lane's, a GitHub PR kk-pr's. A caller that needs the result written down where a later step can check it layers that on top of this one.</p>
       <p class="hint">takes: [scope: a path, a diff selector, or natural language]</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">kk-simplify</code><span class="tag you">you type it</span></div>
+      <p>Simplify one whole repository hard, as a checkpointed multi-agent run in which every tracked file gets a verdict. Deletion comes first — what no reader needs goes. What stays is shortened, folded into one principle or source, or rebuilt in a simpler design, across code, architecture, tests, guards, config, docs, instructions and comments. Use for "simplify the repo", "this is overengineered", "clean up this repo", "we are bloating", or to resume an interrupted run. Lands as one PR, or as themed PRs. The whole tree in one bounded run: one change set is kk-qualify's or the built-in simplify's, the kk-flavor tree's own instructions are kk-reduce's, and a standing loop of single fixes is kk-patrol's.</p>
+      <p class="hint">takes: [one-pr | batches] (default: one-pr)</p>
     </div>
   </div>
 </section>
@@ -603,16 +603,6 @@
       <p class="hint">tier: claude sonnet &middot; codex gpt-6-luna low &middot; prompt: workers/patrol/scout.md</p>
     </div>
     <div class="lane">
-      <div class="lane-top"><code class="k">prune/cleaner</code><span class="tag">dispatched</span></div>
-      <p>You are one cleaner for <code>kk-prune</code>.</p>
-      <p class="hint">tier: claude sonnet &middot; codex gpt-6-luna low &middot; prompt: workers/prune/cleaner.md</p>
-    </div>
-    <div class="lane">
-      <div class="lane-top"><code class="k">prune/scout</code><span class="tag">dispatched</span></div>
-      <p>You are one scout for <code>kk-prune</code>.</p>
-      <p class="hint">tier: claude opus &middot; codex gpt-5.6-terra high &middot; prompt: workers/prune/scout.md</p>
-    </div>
-    <div class="lane">
       <div class="lane-top"><code class="k">reader-judge</code><span class="tag">dispatched</span></div>
       <p>No prompt in the tree holds this row's contract.</p>
       <p class="hint">tier: claude haiku &middot; codex gpt-5.6-luna low &middot; prompt: not in the tree</p>
@@ -656,6 +646,16 @@
       <div class="lane-top"><code class="k">security-review</code><span class="tag">dispatched</span></div>
       <p>You are one adversarial security review.</p>
       <p class="hint">tier: claude opus &middot; codex gpt-5.6-terra high &middot; prompt: workers/security-review.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">simplify/cleaner</code><span class="tag">dispatched</span></div>
+      <p>You are one cleaner for <code>kk-simplify</code>.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-5.6-terra high &middot; prompt: workers/simplify/cleaner.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">simplify/scout</code><span class="tag">dispatched</span></div>
+      <p>You are one scout for <code>kk-simplify</code>.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-5.6-terra high &middot; prompt: workers/simplify/scout.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">skillcraft</code><span class="tag">dispatched</span></div>
