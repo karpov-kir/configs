@@ -213,9 +213,9 @@
       <p class="lede">These skills give coding agents a defined job, or <b>lane</b>. Start with one of the entry skills below; it chooses the lanes your task needs.</p>
     </div>
     <div class="facts">
-      <div class="fact"><b>16</b><span>skills</span></div>
+      <div class="fact"><b>17</b><span>skills</span></div>
       <div class="fact"><b>2</b><span>families</span></div>
-      <div class="fact"><b>2</b><span>you always type</span></div>
+      <div class="fact"><b>3</b><span>you always type</span></div>
     </div>
   </div>
 </header>
@@ -491,6 +491,11 @@
       <p class="hint">takes: &lt;review|address-review|refine-description|review-and-address&gt; [PR number, URL, or head branch]</p>
     </div>
     <div class="lane">
+      <div class="lane-top"><code class="k">kk-prune</code><span class="tag you">you type it</span></div>
+      <p>Prune one repository hard — every tracked file gets a verdict, and what nobody needs is deleted or cut down — docs, comments, code, overbuilt design, config, tests, guards, specific rules, wrong facts and history. Use for "prune the repo", "clean up this repo", "we are bloating". Lands as one PR or as themed PRs. One change set's quality is kk-qualify's, and the kk-flavor tree's own instructions are kk-reduce's.</p>
+      <p class="hint">takes: [one-pr | batches] (default: one-pr)</p>
+    </div>
+    <div class="lane">
       <div class="lane-top"><code class="k">kk-qualify</code></div>
       <p>Run the multi-stage quality pipeline over a change set, in any repo. Use for "qualify the changes", "run a quality pass". Several stages, not one review — one pass over local changes is the code-review lane's, a GitHub PR kk-pr's. A caller that needs the result written down where a later step can check it layers that on top of this one.</p>
       <p class="hint">takes: [scope: a path, a diff selector, or natural language]</p>
@@ -525,7 +530,7 @@
 
 <section>
   <div class="sec-head">
-    <h2>Underneath: the 23 dispatch sites</h2>
+    <h2>Underneath: the 25 dispatch sites</h2>
     <p class="sec-note">Nobody types these. Generated from the model policy and the prompts it prices, so neither the list nor the tiers can drift.</p>
   </div>
   <p class="lede" style="margin:0 0 26px">This is where the tree's cost lives: one card per dispatch the policy prices, with the tier it buys and where the contract it runs is written. Most name a worker file of their own. A few run another row's prompt under their own accounting name, and a few still point at a skill that has kept its door — those are the ones part-way through moving.</p>
@@ -596,6 +601,16 @@
       <div class="lane-top"><code class="k">patrol/scout</code><span class="tag">dispatched</span></div>
       <p>You are one round's scout for <code>kk-patrol</code>.</p>
       <p class="hint">tier: claude sonnet &middot; codex gpt-6-luna low &middot; prompt: workers/patrol/scout.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">prune/cleaner</code><span class="tag">dispatched</span></div>
+      <p>You are one cleaner for <code>kk-prune</code>.</p>
+      <p class="hint">tier: claude sonnet &middot; codex gpt-6-luna low &middot; prompt: workers/prune/cleaner.md</p>
+    </div>
+    <div class="lane">
+      <div class="lane-top"><code class="k">prune/scout</code><span class="tag">dispatched</span></div>
+      <p>You are one scout for <code>kk-prune</code>.</p>
+      <p class="hint">tier: claude opus &middot; codex gpt-5.6-terra high &middot; prompt: workers/prune/scout.md</p>
     </div>
     <div class="lane">
       <div class="lane-top"><code class="k">reader-judge</code><span class="tag">dispatched</span></div>
