@@ -25,7 +25,8 @@
     "kk-pr/refine-description": { "codex": { "model": "gpt-6-luna", "effort": "low" }, "claude": { "model": "sonnet" } },
     "kk-qualify":               { "codex": { "model": "gpt-6-luna", "effort": "low" }, "claude": { "model": "sonnet" } },
     "kk-reduce":                { "codex": { "model": "gpt-5.6-terra", "effort": "high" }, "claude": { "model": "opus" } },
-    "kk-retro":                 { "codex": { "model": "gpt-6-luna", "effort": "low" }, "claude": { "model": "sonnet" } }
+    "kk-retro":                 { "codex": { "model": "gpt-6-luna", "effort": "low" }, "claude": { "model": "sonnet" } },
+    "kk-simplify":              { "codex": { "model": "gpt-6-luna", "effort": "low" }, "claude": { "model": "sonnet" } }
   },
   "workers": {
     "reader-judge":             { "codex": { "model": "gpt-5.6-luna", "effort": "low" }, "claude": { "model": "haiku" }, "rolls": 3 },
@@ -50,6 +51,8 @@
     "reduce/repair":           { "codex": { "model": "gpt-5.6-terra", "effort": "high" }, "claude": { "model": "opus" }, "worker": "kk-edit" },
     "refactor":                { "codex": { "model": "gpt-5.6-terra", "effort": "high" }, "claude": { "model": "opus" } },
     "security-review":         { "codex": { "model": "gpt-5.6-terra", "effort": "high" }, "claude": { "model": "opus" } },
+    "simplify/cleaner":        { "codex": { "model": "gpt-5.6-terra", "effort": "high" }, "claude": { "model": "opus" } },
+    "simplify/scout":          { "codex": { "model": "gpt-5.6-terra", "effort": "high" }, "claude": { "model": "opus" } },
     "skillcraft":              { "codex": { "model": "gpt-5.6-terra", "effort": "high" }, "claude": { "model": "opus" } }
   }
 }
